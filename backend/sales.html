@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QA-Gate — pare de deixar bug passar pro QA | Veloso Solution</title>
+<style>
+  :root{--bg:#0b1220;--surface:#111827;--surface2:#1a2233;--border:#253048;--text:#f2f4f7;--muted:#cfd6e4;--subtle:#98a2b3;--brand:#4aa8ff;--accent:#32d583;--danger:#f97066;--radius:14px}
+  *{box-sizing:border-box}html,body{margin:0;padding:0}
+  body{background:radial-gradient(1000px 500px at 90% -5%,rgba(74,168,255,.15),transparent 60%),var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.6;font-size:16px}
+  .wrap{max-width:1000px;margin:0 auto;padding:32px 20px 64px}
+  .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  .logo{font-weight:800;letter-spacing:-.01em}.logo .s{display:block;font-size:11px;color:var(--subtle);text-transform:uppercase;letter-spacing:.5px}
+  .hero{margin-top:40px}
+  .badge{display:inline-block;padding:5px 14px;background:rgba(74,168,255,.12);border:1px solid rgba(74,168,255,.3);border-radius:999px;font-size:12.5px;color:var(--brand);font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+  h1{font-size:clamp(30px,5vw,48px);line-height:1.1;margin:16px 0 12px;letter-spacing:-.025em}
+  .lead{font-size:19px;color:var(--muted);max-width:720px}
+  .cta{display:inline-flex;align-items:center;gap:10px;background:var(--accent);color:#04231a;padding:16px 34px;border-radius:12px;font-weight:800;font-size:17px;text-decoration:none;margin-top:28px;box-shadow:0 10px 30px rgba(50,213,131,.3)}
+  .cta:hover{transform:translateY(-1px)}
+  .cta.dis{background:var(--surface2);color:var(--subtle);box-shadow:none;pointer-events:none}
+  .note{font-size:13px;color:var(--subtle);margin-top:12px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px}
+  .card h3{margin:0 0 8px;font-size:17px}
+  .card.bad{border-left:3px solid var(--danger)}.card.good{border-left:3px solid var(--accent)}
+  ul{margin:8px 0 0;padding-left:20px;color:var(--muted)}li{margin-bottom:7px}
+  section{margin-top:56px}h2{font-size:26px;letter-spacing:-.015em;margin:0 0 6px}.sub{color:var(--subtle);margin:0 0 20px}
+  .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}@media(max-width:760px){.steps{grid-template-columns:1fr 1fr}}
+  .step{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
+  .step .n{color:var(--subtle);font-weight:800;font-size:12px}.step .t{font-weight:700;margin-top:4px}.step .d{font-size:12.5px;color:var(--subtle);margin-top:2px}
+  .price{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;text-align:center;max-width:420px;margin:0 auto}
+  .price .v{font-size:40px;font-weight:800;letter-spacing:-.02em}.price .per{color:var(--subtle);font-size:14px}
+  code{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:2px 7px;font-size:13px}
+  .foot{margin-top:56px;padding-top:24px;border-top:1px solid var(--border);color:var(--subtle);font-size:13px;text-align:center}
+  a{color:var(--brand)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="logo">Veloso Solution<span class="s">Consultoria em IA Aplicada</span></div>
+    <a href="https://velososolution.online" style="text-decoration:none;color:var(--subtle);font-size:14px">velososolution.online</a>
+  </div>
+
+  <div class="hero">
+    <span class="badge">QA-Gate</span>
+    <h1>Pare de deixar bug passar pro QA.</h1>
+    <p class="lead">Simulação em <b>browser real</b> antes de cada commit. Injeta o bug de propósito e exige que o sistema responda com mensagem amigável no DOM e console limpo. <b>Só deixa commitar no verde.</b> O que o teste unitário deixa passar — hidratação errada, lib quebrada, erro que não aparece no modal — morre aqui.</p>
+    <a class="cta {{CHECKOUT_URL}}" href="{{CHECKOUT_URL}}" id="buy">Comprar agora →</a>
+    <div class="note">Cadastro simples: nome + WhatsApp. A chave chega no seu WhatsApp após o pagamento.</div>
+  </div>
+
+  <div class="grid">
+    <div class="card bad">
+      <h3>Sem QA-Gate</h3>
+      <ul>
+        <li>Teste passa, a tela quebra em produção</li>
+        <li>Form/modal sem mensagem de erro amigável → QA reprova</li>
+        <li>Fix volta porque nunca foi exercido no navegador</li>
+        <li>Ciclo QA → dev → QA consome dias</li>
+      </ul>
+    </div>
+    <div class="card good">
+      <h3>Com QA-Gate</h3>
+      <ul>
+        <li>Fluxo simulado em Chrome real, bug injetado, retorno validado</li>
+        <li>Mensagem amigável obrigatória antes de subir</li>
+        <li>Console e rede auditados — lib/hidratação pega na hora</li>
+        <li>Bug morre no commit, não na fila do QA</li>
+      </ul>
+    </div>
+  </div>
+
+  <section>
+    <h2>Como funciona</h2>
+    <p class="sub">Instala como plugin do Claude Code ou via npm/CI. Backend puro pula o browser — custo zero.</p>
+    <div class="steps">
+      <div class="step"><div class="n">01</div><div class="t">Abre o fluxo</div><div class="d">login + form/modal tocado</div></div>
+      <div class="step"><div class="n">02</div><div class="t">Injeta o bug</div><div class="d">submete inválido/vazio</div></div>
+      <div class="step"><div class="n">03</div><div class="t">Exige retorno</div><div class="d">msg amigável + console limpo</div></div>
+      <div class="step"><div class="n">04</div><div class="t">Só verde commita</div><div class="d">vermelho volta e arruma</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Instalação</h2>
+    <p class="sub">Plugin Claude Code, npm ou git. Chrome do sistema — não baixa nada pesado.</p>
+    <div class="card">
+      <p style="margin:0 0 8px">Plugin (Claude Code):</p>
+      <code>/plugin marketplace add VelosoSolutionP/OrquestrarQaGate</code>
+      <p style="margin:16px 0 8px">npm / CI:</p>
+      <code>npx @velososolution/qa-gate</code>
+      <p style="margin:16px 0 0;color:var(--subtle);font-size:14px">Após comprar, você recebe a chave no WhatsApp e configura <code>QA_GATE_LICENSE</code>.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Preço</h2>
+    <p class="sub">Licença por desenvolvedor. Validação offline — não enviamos seu código pra lugar nenhum.</p>
+    <div class="price">
+      <div class="v">QA-Gate Pro</div>
+      <div class="per">licença anual por desenvolvedor</div>
+      <a class="cta {{CHECKOUT_URL}}" href="{{CHECKOUT_URL}}" style="margin-top:20px">Comprar agora →</a>
+      <div class="note">Nome + WhatsApp no checkout. Chave entregue no WhatsApp.</div>
+    </div>
+  </section>
+
+  <div class="foot">
+    <b>Veloso Solution</b> — Consultoria em IA Aplicada<br>
+    <a href="https://velososolution.online">velososolution.online</a>
+  </div>
+</div>
+<script>
+  // desabilita botão se o checkout ainda não foi configurado
+  document.querySelectorAll('a.cta').forEach(function(a){
+    if(a.getAttribute('href')==='#'){a.classList.add('dis');a.textContent='Em breve';}
+  });
+</script>
+</body>
+</html>

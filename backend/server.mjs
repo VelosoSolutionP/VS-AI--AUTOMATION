@@ -13,10 +13,16 @@
  *   MAIL_FROM / SMTP_*       (TODO) entrega por email
  */
 import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { issueLicense } from '../license/issue.mjs';
+import { sendLicense } from './whatsapp.mjs';
 
+const HERE = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8787;
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
+const CHECKOUT_URL = process.env.CHECKOUT_URL || ''; // Stripe Payment Link
 
 function json(res, code, obj) {
   res.writeHead(code, { 'content-type': 'application/json' });
@@ -43,15 +49,24 @@ async function verifyStripeSig(rawBody, sigHeader, secret) {
 
 const planToDays = { pro: 365, mensal: 30, trial: 14 };
 
-async function deliverLicense(email, token, plan) {
-  // TODO: enviar por email (SMTP/Resend/etc). Por ora, loga.
-  console.log(`[licenca] emitida para ${email} (${plan}):`);
-  console.log(token);
-  // ex.: await sendMail({ to: email, subject: 'Sua licença QA-Gate', text: token })
+async function deliverLicense({ email, phone, name, token, plan }) {
+  console.log(`[licenca] emitida para ${name || email} (${plan})`);
+  const res = await sendLicense({ phone, key: token, name, plan });
+  console.log(`[entrega] provider=${res.provider} ok=${res.ok}${res.link ? ' link=' + res.link : ''}`);
+  return res;
 }
 
 const server = createServer(async (req, res) => {
   if (req.method === 'GET' && req.url === '/health') { return json(res, 200, { ok: true }); }
+
+  if (req.method === 'GET' && (req.url === '/' || req.url.split('?')[0] === '/comprar')) {
+    try {
+      let html = readFileSync(join(HERE, 'sales.html'), 'utf8');
+      html = html.split('{{CHECKOUT_URL}}').join(CHECKOUT_URL || '#');
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      return res.end(html);
+    } catch (e) { return json(res, 500, { error: 'sales page: ' + e.message }); }
+  }
 
   if (req.method === 'POST' && req.url === '/webhook') {
     const raw = (await readBody(req)).toString('utf8');
@@ -64,10 +79,12 @@ const server = createServer(async (req, res) => {
     if (event.type === 'checkout.session.completed') {
       const s = event.data?.object || {};
       const email = s.customer_details?.email || s.customer_email || 'sem-email';
+      const phone = s.customer_details?.phone || s.metadata?.phone || '';
+      const name = s.customer_details?.name || s.metadata?.name || '';
       const plan = (s.metadata?.plan || 'pro').toLowerCase();
       const token = issueLicense({ email, plan, days: planToDays[plan] ?? 365 });
-      await deliverLicense(email, token, plan);
-      return json(res, 200, { received: true, issued: true, email, plan });
+      await deliverLicense({ email, phone, name, token, plan });
+      return json(res, 200, { received: true, issued: true, email, phone: !!phone, plan });
     }
     return json(res, 200, { received: true, issued: false });
   }
