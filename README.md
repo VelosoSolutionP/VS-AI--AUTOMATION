@@ -8,6 +8,31 @@ Por [Veloso Solution](https://velososolution.online) — Consultoria em IA Aplic
 
 ---
 
+## Por que usar — plugin + MCP
+
+**IA sozinha entrega ilusão. Orquestrada, entrega resultado.** O QA-Gate é a ponta visível de uma orquestração de IA aplicada ao seu processo de desenvolvimento.
+
+**Vantagens do plugin**
+- 🔒 **Governança automatizada** — commit, branch, teste e documentação no mesmo padrão em toda a equipe, sem depender de disciplina manual.
+- 🧠 **Contexto preservado** — memory system carrega arquitetura, gotchas e feedback do seu negócio em cada sessão. Sem re-explicar tudo.
+- ✅ **Qualidade no commit** — QA-Gate simula o fluxo em browser real e só libera no verde. Bug morre antes do QA.
+- 💸 **Custo previsível** — tokens são frações de centavos por operação; menos retrabalho, menos bug em produção.
+
+**Vantagens do MCP**
+- 🌐 Dirige um **navegador real** e devolve resultado estruturado + screenshot direto ao seu agente.
+- 🔎 Pega **lib quebrada e hidratação errada** que o teste unitário deixa passar.
+- 🔐 Validação de licença **offline** — seu código não sai da sua máquina.
+- 🧩 Editor-agnóstico: Claude Code, Cursor, VS Code ou CI.
+
+**Resultados observados em operação real**
+- ⏱️ **−79% no tempo por tarefa** (de ~115 min para ~22 min no mesmo bug)
+- 🚀 **−84% de queries / −82% de latência** em um caso real de N+1 pego em produção
+- ♻️ Menos reincidência de QA, dívida técnica em queda
+
+> Esses números vêm da **orquestração completa** — não só do plugin. Quer o mesmo na sua squad? A Veloso Solution faz **diagnóstico + setup + capacitação**: **[velososolution.online](https://velososolution.online)** · página do produto: **https://velososolution.online/qa-gate**
+
+---
+
 ## O que ele faz
 
 - Sobe o fluxo tocado (form/modal) num **navegador real** (Playwright + Chrome do sistema).
