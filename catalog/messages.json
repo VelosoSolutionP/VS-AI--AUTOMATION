@@ -108,6 +108,31 @@
       "when": "Fim do ciclo, tudo verde.",
       "how": "Marca a tarefa como concluida; registra metricas.",
       "fields_dynamic": []
+    },
+
+    {
+      "code": "VS-MON-001", "status": "CONSENT", "title": "Consentimento de coleta",
+      "short": "[VS-MON-001] CONSENT — coleta tecnica requer seu aceite.",
+      "dev_msg": "Auditoria tecnica do ambiente corporativo para melhoria continua e seguranca operacional. Coletamos SO dados tecnicos (tempo de tarefa, commits, falhas de pipeline, erros, uso de ferramentas, desempenho). NAO coletamos conteudo pessoal, navegacao pessoal nem dados fora do ambiente corporativo. Metricas sao agregadas e anonimas. Aceita? [sim/nao]",
+      "when": "Primeira execucao / antes de qualquer coleta.",
+      "how": "Sem aceite, nenhuma metrica e coletada. Aceite gravado em consent.json.",
+      "fields_dynamic": []
+    },
+    {
+      "code": "VS-MON-002", "status": "GRANTED", "title": "Coleta autorizada",
+      "short": "[VS-MON-002] GRANTED — coleta tecnica autorizada.",
+      "dev_msg": "Consentimento registrado. Coleta tecnica anonima ativa.",
+      "when": "Dev aceitou o VS-MON-001.",
+      "how": "Grava consent {granted:true, ts, scope:tecnico}. Metricas passam a ser coletadas.",
+      "fields_dynamic": []
+    },
+    {
+      "code": "VS-MON-003", "status": "DENIED", "title": "Coleta desativada",
+      "short": "[VS-MON-003] DENIED — coleta desativada; governanca segue sem telemetria.",
+      "dev_msg": "Sem consentimento. Governanca (requisito/gate) continua; telemetria fica desativada.",
+      "when": "Dev recusou o VS-MON-001.",
+      "how": "Nenhuma metrica coletada. Hooks de qualidade seguem funcionando.",
+      "fields_dynamic": []
     }
   ]
 }

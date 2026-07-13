@@ -7,6 +7,14 @@
           { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-task.mjs" }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-commit.mjs" }
+        ]
+      }
     ]
   }
 }

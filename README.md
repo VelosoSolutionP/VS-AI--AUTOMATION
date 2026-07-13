@@ -33,6 +33,21 @@ Por [Veloso Solution](https://velososolution.online) — Consultoria em IA Aplic
 
 ---
 
+## Camada de governança (Orquestrar IA)
+
+Além do QA-Gate, o produto é uma **camada de governança executável** — o modelo só é acionado quando compensa, e cada etapa é auditada.
+
+- **Triagem de requisito** (`engine/requirements.mjs` + hook `UserPromptSubmit`): tarefa mal-especificada é **bloqueada antes da IA entrar** (`VS-REQ-001`). Economia de token real.
+- **Escalation Engine**: decide `call_ai` — só escala pro modelo em causa raiz, arquitetura, segurança, performance ou bug. O resto trata local.
+- **Gate de commit** (hook `PreToolUse`): bloqueia commit fora do padrão e assinatura de IA (`VS-AUD-003`).
+- **Telemetria Tier 1** (`engine/metrics.mjs`): tempo economizado, redução de tokens, chamadas de IA evitadas, retrabalho de QA, commits no padrão, ROI — **agregado e anônimo** (LGPD).
+- **Consentimento** (`engine/consent.mjs`): coleta técnica só com aceite. Sem consentimento, a governança segue; só a telemetria desativa.
+- **Catálogo de mensagens** (`catalog/`): protocolo executável, códigos `VS-*` curtos (economia de token).
+
+Tools MCP: `qa_validate_task` (triagem, livre), `qa_report` (dashboard executivo), `qa_simulate` / `qa_run_gate` (QA-Gate). Hooks prontos em `hooks/` + `hooks/settings.example.json`.
+
+> Não vendemos Claude Code — vendemos a camada que o transforma em **processo empresarial auditável**.
+
 ## O que ele faz
 
 - Sobe o fluxo tocado (form/modal) num **navegador real** (Playwright + Chrome do sistema).

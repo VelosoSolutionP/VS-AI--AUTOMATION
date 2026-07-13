@@ -10,6 +10,8 @@ import { z } from 'zod';
 import { readFileSync } from 'node:fs';
 import { checkApp, simulateFlows, runGate, loadConfig } from '../engine/core.mjs';
 import { validateTask } from '../engine/requirements.mjs';
+import { loadEvents, aggregate, report } from '../engine/metrics.mjs';
+import { hasConsent } from '../engine/consent.mjs';
 import { verifyLicense, currentLicenseToken } from '../license/license.mjs';
 
 const server = new McpServer({ name: 'qa-gate', version: '1.0.0' });
@@ -40,6 +42,18 @@ server.tool('qa_validate_task',
       r.dev_msg,
     ];
     return { content: [text(lines.join('\n'))], isError: r.blocked };
+  });
+
+/* ---- qa_report (dashboard executivo anonimo, licenciado) ---- */
+server.tool('qa_report',
+  'Gera o relatorio executivo anonimo de governanca (tempo economizado, reducao de tokens, chamadas de IA evitadas, retrabalho, ROI). Agregado, sem nomes.',
+  { squad: z.string().optional(), period: z.string().optional() },
+  async ({ squad, period }) => {
+    requireLicense();
+    if (!hasConsent()) { return { content: [text('[VS-MON-003] Coleta desativada (sem consentimento). Sem telemetria para relatar.')] }; }
+    const ev = loadEvents();
+    if (!ev.length) { return { content: [text('Sem eventos coletados ainda.')] }; }
+    return { content: [text(report(aggregate(ev), { squad, period }))] };
   });
 
 /* ---- qa_check_app (livre) ---- */
