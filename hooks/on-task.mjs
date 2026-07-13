@@ -1,44 +1,125 @@
 #!/usr/bin/env node
 /**
- * Hook UserPromptSubmit — triagem de requisito ANTES da IA processar.
- * Determinístico. Se faltar requisito, bloqueia o turno e devolve VS-REQ-001/004.
- * A IA nem é acionada = economia de token.
+ * Hook UserPromptSubmit
  *
- * settings.json (ver hooks/settings.example.json):
- *   hooks.UserPromptSubmit -> command: node ${caminho}/hooks/on-task.mjs
+ * Triagem de requisito ANTES da IA processar.
  *
- * Contrato: recebe JSON no stdin ({ prompt, ... }); bloqueia com
- * {"decision":"block","reason":"..."} no stdout.
+ * Objetivos:
+ * - Bloquear tarefas de desenvolvimento mal especificadas.
+ * - Não consumir tokens quando faltarem requisitos.
+ * - Liberar automaticamente documentação, apresentações e materiais.
+ * - Injetar contexto leve para economizar tokens.
  */
+
 import { validateTask } from '../engine/requirements.mjs';
 
-const raw = await new Promise((res) => {
-  let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => res(s));
+// =====================================================
+// Lê o prompt recebido do Claude Code
+// =====================================================
+
+const raw = await new Promise((resolve) => {
+  let data = '';
+
+  process.stdin.on('data', (chunk) => {
+    data += chunk;
+  });
+
+  process.stdin.on('end', () => {
+    resolve(data);
+  });
 });
 
 let prompt = '';
-try { prompt = (JSON.parse(raw || '{}').prompt) || ''; } catch { prompt = raw || ''; }
 
-// só age em prompts que parecem tarefa (evita bloquear conversa normal). Stems + rótulos.
-const looksLikeTask = /(cri[ae]|corrig|arrum|implement|ajust|refator|adicion|remov|cadastr|bug|feature|feat|tarefa|task|#\d{3,}|descri[çc][ãa]o\s*:|objetivo|crit[ée]rio)/i.test(prompt);
-if (!prompt || !looksLikeTask) { process.exit(0); }
+try {
+  prompt = (JSON.parse(raw || '{}').prompt) || '';
+} catch {
+  prompt = raw || '';
+}
 
-const r = validateTask(prompt);
+prompt = prompt.trim();
 
-if (r.blocked) {
-  // bloqueia o turno: a IA não processa a tarefa mal-especificada
-  process.stdout.write(JSON.stringify({
-    decision: 'block',
-    reason: `${r.short}\n\n${r.dev_msg}`,
-  }));
+if (!prompt) {
   process.exit(0);
 }
 
-// liberado: injeta contexto leve (código + decisão de escalonar) para o modelo
-process.stdout.write(JSON.stringify({
-  hookSpecificOutput: {
-    hookEventName: 'UserPromptSubmit',
-    additionalContext: `[governança] ${r.code} ${r.status}. escalar IA: ${r.escalate.call_ai ? 'sim (' + r.escalate.reason + ')' : 'não — tarefa simples'}.`,
-  },
-}));
+// =====================================================
+// Classificação da solicitação
+// =====================================================
+
+// Documentação / Marketing / Relatórios
+const isDocumentationTask =
+  /(html|documenta[cç][aã]o|documento|apresenta[cç][aã]o|relat[oó]rio|readme|cat[aá]logo|divulga[cç][aã]o|material|landing\s?page|p[aá]gina|manual|guia|artigo|markdown|md)/i.test(
+    prompt
+  );
+
+// =====================================================
+// DOCUMENTAÇÃO liberada (não valida requisito técnico)
+// =====================================================
+
+if (isDocumentationTask) {
+  process.stdout.write(
+    JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'UserPromptSubmit',
+        additionalContext:
+          '[governança] DOC-001 documentação liberada. Não aplicar validação de requisitos de desenvolvimento. Gerar apenas o artefato solicitado.',
+      },
+    })
+  );
+
+  process.exit(0);
+}
+
+// =====================================================
+// FAIL-OPEN: só bloqueia com SINAL FORTE de tarefa de dev.
+// Papo normal, dúvida, comentário -> passa direto (nunca bloqueia).
+// Sinal forte: número de tarefa (#123), /task, verbo de dev no INÍCIO,
+// ou tarefa estruturada (descrição: + objetivo/critério).
+// =====================================================
+
+const strongDevSignal =
+  /#\d{3,}/.test(prompt) ||
+  /^\s*\/task\b/i.test(prompt) ||
+  /^\s*(corrig\w*|arrum\w*|implement\w*|refator\w*|cri[ae]\w*|ajust\w*|adicion\w*|remov\w*|desenvolv\w*|fix\b)\b/i.test(prompt) ||
+  (/descri[çc][ãa]o\s*:/i.test(prompt) && /(objetivo|crit[ée]rio)/i.test(prompt));
+
+if (!strongDevSignal) {
+  process.exit(0);
+}
+
+// =====================================================
+// DESENVOLVIMENTO — valida requisitos obrigatórios
+// =====================================================
+
+const result = validateTask(prompt);
+
+if (result.blocked) {
+  process.stdout.write(
+    JSON.stringify({
+      decision: 'block',
+      reason: `${result.short}\n\n${result.dev_msg}`,
+    })
+  );
+
+  process.exit(0);
+}
+
+// =====================================================
+// Tarefa liberada
+// =====================================================
+
+const aiMessage = result.escalate.call_ai
+  ? `sim (${result.escalate.reason})`
+  : 'não — tarefa simples';
+
+process.stdout.write(
+  JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: 'UserPromptSubmit',
+      additionalContext: `[governança] ${result.code} ${result.status}. Escalar IA: ${aiMessage}.`,
+    },
+  })
+);
+
 process.exit(0);
