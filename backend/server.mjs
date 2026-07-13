@@ -29,9 +29,11 @@ async function readBody(req) {
   return Buffer.concat(chunks);
 }
 
+const ALLOW_INSECURE = process.env.ALLOW_INSECURE_WEBHOOK === '1';
+
 /** Verifica assinatura do Stripe (t=..,v1=..). Sem SDK — HMAC SHA256. */
 async function verifyStripeSig(rawBody, sigHeader, secret) {
-  if (!secret) { return true; } // stub: sem secret, aceita (só local)
+  if (!secret) { return ALLOW_INSECURE; } // prod: sem secret => rejeita (evita mint livre). Local: ALLOW_INSECURE_WEBHOOK=1
   const { createHmac, timingSafeEqual } = await import('node:crypto');
   const parts = Object.fromEntries(sigHeader.split(',').map((p) => p.split('=')));
   if (!parts.t || !parts.v1) { return false; }
