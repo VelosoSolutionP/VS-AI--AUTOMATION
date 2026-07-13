@@ -9,6 +9,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { readFileSync } from 'node:fs';
 import { checkApp, simulateFlows, runGate, loadConfig } from '../engine/core.mjs';
+import { validateTask } from '../engine/requirements.mjs';
 import { verifyLicense, currentLicenseToken } from '../license/license.mjs';
 
 const server = new McpServer({ name: 'qa-gate', version: '1.0.0' });
@@ -23,6 +24,23 @@ function imageOf(path) {
   try { return { type: 'image', data: readFileSync(path).toString('base64'), mimeType: 'image/jpeg' }; }
   catch { return null; }
 }
+
+/* ---- qa_validate_task (livre — triagem de requisito antes da IA) ---- */
+server.tool('qa_validate_task',
+  'Valida se uma tarefa tem requisito suficiente ANTES de acionar a IA. Retorna codigo REQ (VS-REQ-001..005), o que falta e se deve escalar pro modelo (causa raiz/arquitetura/seguranca). Deterministico, ~0 token.',
+  { task: z.string().describe('texto/descricao da tarefa'), pending: z.boolean().optional().describe('true se o dev deixou a tarefa aguardando requisito') },
+  async ({ task, pending }) => {
+    const r = validateTask(task, { pending });
+    const lines = [
+      `${r.short}`,
+      r.blocked ? '► BLOQUEADO (IA nao acionada)' : '► liberado para o fluxo',
+      r.missing.length ? `► falta: ${r.missing.join(', ')}` : '► requisito completo',
+      `► escalar IA: ${r.escalate.call_ai ? 'SIM (' + r.escalate.reason + ')' : 'nao — trata local'}`,
+      '',
+      r.dev_msg,
+    ];
+    return { content: [text(lines.join('\n'))], isError: r.blocked };
+  });
 
 /* ---- qa_check_app (livre) ---- */
 server.tool('qa_check_app',

@@ -58,6 +58,56 @@
       "when": "Todos os obrigatorios presentes e sem ambiguidade.",
       "how": "Hook libera o fluxo; a partir daqui o Escalation Engine (AI) decide se precisa do modelo completo.",
       "fields_dynamic": ["resumo"]
+    },
+
+    {
+      "code": "VS-AI-001", "status": "ESCALATED", "title": "Escalado para IA",
+      "short": "[VS-AI-001] ESCALATED — motivo: {reason}.",
+      "dev_msg": "Escalando para o modelo completo. Motivo: {reason}.",
+      "when": "Escalation Engine decidiu call_ai=true (causa raiz, arquitetura, seguranca, performance, bug).",
+      "how": "So aqui o modelo completo e acionado. Loga motivo p/ auditoria de custo.",
+      "fields_dynamic": ["reason"]
+    },
+    {
+      "code": "VS-AI-002", "status": "LOCAL", "title": "Resolvido sem IA",
+      "short": "[VS-AI-002] LOCAL — resolvido por hook/MCP, sem modelo.",
+      "dev_msg": "Tratado localmente (hook/MCP). Modelo completo nao foi necessario.",
+      "when": "Tarefa simples / validacao / padronizacao — nao justifica o modelo.",
+      "how": "Conta como 'chamada de IA evitada' na telemetria.",
+      "fields_dynamic": []
+    },
+
+    {
+      "code": "VS-AUD-001", "status": "CHECKING", "title": "Auditando commit",
+      "short": "[VS-AUD-001] CHECKING — commit | testes | lint | diff | doc | seguranca",
+      "dev_msg": "Auditoria de pre-commit em andamento: testes, lint, diff, padrao de commit, doc, seguranca.",
+      "when": "PreToolUse em 'git commit'.",
+      "how": "Hook roda checklist deterministico antes de permitir o commit.",
+      "fields_dynamic": []
+    },
+    {
+      "code": "VS-AUD-002", "status": "APPROVED", "title": "Push autorizado",
+      "short": "[VS-AUD-002] APPROVED — pronto para commit/push.",
+      "dev_msg": "Checklist verde. Commit/push autorizado.",
+      "when": "PreToolUse em 'git push' com checklist OK.",
+      "how": "Hook libera a operacao.",
+      "fields_dynamic": []
+    },
+    {
+      "code": "VS-AUD-003", "status": "BLOCKED", "title": "Push bloqueado",
+      "short": "[VS-AUD-003] BLOCKED — correcoes necessarias: {faltando}.",
+      "dev_msg": "Commit/push bloqueado. Corrija antes de subir:\n{faltando}",
+      "when": "Checklist reprovou (teste vermelho, lint, fora do padrao, sem doc, QA-Gate vermelho).",
+      "how": "Hook aborta a operacao (exit 2). So libera no verde.",
+      "fields_dynamic": ["faltando"]
+    },
+    {
+      "code": "VS-OK-001", "status": "APPROVED", "title": "Aprovado",
+      "short": "[VS-OK-001] APPROVED — ciclo concluido no padrao.",
+      "dev_msg": "Tudo certo. Commit, push e documentacao no padrao.",
+      "when": "Fim do ciclo, tudo verde.",
+      "how": "Marca a tarefa como concluida; registra metricas.",
+      "fields_dynamic": []
     }
   ]
 }
