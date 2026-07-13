@@ -50,7 +50,13 @@ async function verifyStripeSig(rawBody, sigHeader, secret) {
   try { return timingSafeEqual(Buffer.from(signed), Buffer.from(parts.v1)); } catch { return false; }
 }
 
-const planToDays = { pro: 365, mensal: 30, trial: 14 };
+// tiers por porte = chave ETERNA (exp null) + atualizacoes. Compat: pro/mensal/trial.
+const planToDays = { pequena: null, medio: null, grande: null, pro: null, mensal: 30, trial: 14 };
+const PRICE_MAP = {
+  pequena: process.env.STRIPE_PRICE_PEQUENA || '',
+  medio: process.env.STRIPE_PRICE_MEDIO || '',
+  grande: process.env.STRIPE_PRICE_GRANDE || '',
+};
 
 async function deliverLicense({ email, phone, name, token, plan }) {
   console.log(`[licenca] emitida para ${name || email} (${plan})`);
@@ -84,10 +90,11 @@ const server = createServer(async (req, res) => {
     const phone = String(data.phone || '').replace(/\D/g, '').slice(0, 20);
     const plan = String(data.plan || 'pro').toLowerCase();
     if (!name || phone.length < 10) { return json(res, 400, { error: 'Informe nome e WhatsApp com DDD.' }); }
-    if (!STRIPE_SECRET_KEY || !STRIPE_PRICE_ID) { return json(res, 503, { error: 'Pagamento ainda não configurado. Volte em breve.' }); }
+    const priceId = PRICE_MAP[plan] || STRIPE_PRICE_ID;
+    if (!STRIPE_SECRET_KEY || !priceId) { return json(res, 503, { error: 'Pagamento ainda não configurado. Volte em breve.' }); }
     const p = new URLSearchParams();
     p.set('mode', 'payment');
-    p.set('line_items[0][price]', STRIPE_PRICE_ID);
+    p.set('line_items[0][price]', priceId);
     p.set('line_items[0][quantity]', '1');
     p.set('phone_number_collection[enabled]', 'true');
     p.set('success_url', PUBLIC_URL + '/obrigado');

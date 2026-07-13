@@ -3,37 +3,47 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>QA-Gate — pare de deixar bug passar pro QA | Veloso Solution</title>
+<title>QA-Gate — IA aplicada que reduz custo, tempo e retrabalho | Veloso Solution</title>
 <style>
-  :root{--bg:#0b1220;--surface:#111827;--surface2:#1a2233;--border:#253048;--text:#f2f4f7;--muted:#cfd6e4;--subtle:#98a2b3;--brand:#4aa8ff;--accent:#32d583;--danger:#f97066;--radius:14px}
+  :root{--bg:#0b1220;--surface:#111827;--surface2:#1a2233;--border:#253048;--text:#f2f4f7;--muted:#cfd6e4;--subtle:#98a2b3;--brand:#4aa8ff;--accent:#32d583;--danger:#f97066;--gold:#fdb022;--radius:14px}
   *{box-sizing:border-box}html,body{margin:0;padding:0}
   body{background:radial-gradient(1000px 500px at 90% -5%,rgba(74,168,255,.15),transparent 60%),var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.6;font-size:16px}
-  .wrap{max-width:1000px;margin:0 auto;padding:32px 20px 64px}
+  .wrap{max-width:1040px;margin:0 auto;padding:32px 20px 64px}
   .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
   .logo{font-weight:800;letter-spacing:-.01em}.logo .s{display:block;font-size:11px;color:var(--subtle);text-transform:uppercase;letter-spacing:.5px}
-  .hero{margin-top:40px}
+  .hero{margin-top:44px}
   .badge{display:inline-block;padding:5px 14px;background:rgba(74,168,255,.12);border:1px solid rgba(74,168,255,.3);border-radius:999px;font-size:12.5px;color:var(--brand);font-weight:700;text-transform:uppercase;letter-spacing:.4px}
-  h1{font-size:clamp(30px,5vw,48px);line-height:1.1;margin:16px 0 12px;letter-spacing:-.025em}
-  .lead{font-size:19px;color:var(--muted);max-width:720px}
-  .cta{display:inline-flex;align-items:center;gap:10px;background:var(--accent);color:#04231a;padding:16px 34px;border-radius:12px;font-weight:800;font-size:17px;text-decoration:none;margin-top:28px;box-shadow:0 10px 30px rgba(50,213,131,.3)}
-  .cta:hover{transform:translateY(-1px)}
-  .cta.dis{background:var(--surface2);color:var(--subtle);box-shadow:none;pointer-events:none}
+  h1{font-size:clamp(30px,5vw,50px);line-height:1.08;margin:16px 0 12px;letter-spacing:-.025em}
+  .lead{font-size:19px;color:var(--muted);max-width:760px}
+  .author{margin-top:16px;font-size:14px;color:var(--subtle)}.author b{color:var(--text)}
+  .cta{display:inline-flex;align-items:center;gap:10px;background:var(--accent);color:#04231a;padding:16px 34px;border-radius:12px;font-weight:800;font-size:17px;text-decoration:none;border:0;cursor:pointer}
+  .cta:hover{transform:translateY(-1px)}.cta.ghost{background:transparent;color:var(--brand);border:1px solid var(--border)}
+  .row{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
   .note{font-size:13px;color:var(--subtle);margin-top:12px}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px}
-  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  section{margin-top:60px}h2{font-size:27px;letter-spacing:-.015em;margin:0 0 6px}.sub{color:var(--subtle);margin:0 0 22px;max-width:720px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:760px){.grid{grid-template-columns:1fr}}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}@media(max-width:860px){.grid3{grid-template-columns:1fr}}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px}
   .card h3{margin:0 0 8px;font-size:17px}
   .card.bad{border-left:3px solid var(--danger)}.card.good{border-left:3px solid var(--accent)}
   ul{margin:8px 0 0;padding-left:20px;color:var(--muted)}li{margin-bottom:7px}
-  section{margin-top:56px}h2{font-size:26px;letter-spacing:-.015em;margin:0 0 6px}.sub{color:var(--subtle);margin:0 0 20px}
+  .kv{display:flex;gap:10px;align-items:flex-start}.kv .i{color:var(--accent);font-weight:800}
   .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}@media(max-width:760px){.steps{grid-template-columns:1fr 1fr}}
   .step{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
   .step .n{color:var(--subtle);font-weight:800;font-size:12px}.step .t{font-weight:700;margin-top:4px}.step .d{font-size:12.5px;color:var(--subtle);margin-top:2px}
-  .price{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;text-align:center;max-width:420px;margin:0 auto}
-  .price .v{font-size:40px;font-weight:800;letter-spacing:-.02em}.price .per{color:var(--subtle);font-size:14px}
+  .plan{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:26px;display:flex;flex-direction:column}
+  .plan.feat{border:1px solid var(--brand);box-shadow:0 0 0 1px rgba(74,168,255,.3)}
+  .plan .t{font-size:14px;color:var(--subtle);text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+  .plan .v{font-size:34px;font-weight:800;letter-spacing:-.02em;margin:8px 0 2px}
+  .plan .per{font-size:13px;color:var(--subtle)}
+  .plan ul{font-size:14px}.plan .pick{margin-top:auto}
+  .pick button{width:100%;margin-top:16px}
   code{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:2px 7px;font-size:13px}
-  .foot{margin-top:56px;padding-top:24px;border-top:1px solid var(--border);color:var(--subtle);font-size:13px;text-align:center}
+  input,select{width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:15px}
+  label{font-size:13px;color:var(--subtle);display:block}
+  .foot{margin-top:64px;padding-top:24px;border-top:1px solid var(--border);color:var(--subtle);font-size:13px;text-align:center}
   a{color:var(--brand)}
+  .warn{background:rgba(253,176,34,.08);border:1px solid rgba(253,176,34,.3);border-radius:12px;padding:16px 18px;font-size:14px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -43,38 +53,84 @@
     <a href="https://velososolution.online" style="text-decoration:none;color:var(--subtle);font-size:14px">velososolution.online</a>
   </div>
 
+  <!-- HERO -->
   <div class="hero">
     <span class="badge">QA-Gate</span>
-    <h1>Pare de deixar bug passar pro QA.</h1>
-    <p class="lead">Simulação em <b>browser real</b> antes de cada commit. Injeta o bug de propósito e exige que o sistema responda com mensagem amigável no DOM e console limpo. <b>Só deixa commitar no verde.</b> O que o teste unitário deixa passar — hidratação errada, lib quebrada, erro que não aparece no modal — morre aqui.</p>
-    <a class="cta" href="#comprar">Comprar agora →</a>
-    <div class="note">Cadastro simples: nome + WhatsApp. A chave chega no seu WhatsApp após o pagamento.</div>
-  </div>
-
-  <div class="grid">
-    <div class="card bad">
-      <h3>Sem QA-Gate</h3>
-      <ul>
-        <li>Teste passa, a tela quebra em produção</li>
-        <li>Form/modal sem mensagem de erro amigável → QA reprova</li>
-        <li>Fix volta porque nunca foi exercido no navegador</li>
-        <li>Ciclo QA → dev → QA consome dias</li>
-      </ul>
-    </div>
-    <div class="card good">
-      <h3>Com QA-Gate</h3>
-      <ul>
-        <li>Fluxo simulado em Chrome real, bug injetado, retorno validado</li>
-        <li>Mensagem amigável obrigatória antes de subir</li>
-        <li>Console e rede auditados — lib/hidratação pega na hora</li>
-        <li>Bug morre no commit, não na fila do QA</li>
-      </ul>
+    <h1>Use IA aplicada do jeito certo — reduza custo, tempo e retrabalho.</h1>
+    <p class="lead">A Veloso Solution entrega um produto que <b>reduz gastos</b>, <b>encurta o tempo das tarefas</b>, <b>aumenta a produtividade</b> e <b>automatiza o processo</b> de desenvolvimento. O QA-Gate simula cada fluxo em <b>browser real</b> antes do commit, injeta o bug de propósito e só libera no verde — o que o teste unitário deixa passar (hidratação errada, lib quebrada, erro que não aparece no modal) morre aqui.</p>
+    <p class="author">Criado por <b>Fabiano Veloso</b> — Engenheiro de IA Aplicada.</p>
+    <div class="row">
+      <a class="cta" href="#planos">Ver planos →</a>
+      <a class="cta ghost" href="#trial">Testar grátis (trial)</a>
     </div>
   </div>
 
+  <!-- ENTREGA -->
+  <section>
+    <h2>O que a Veloso Solution entrega</h2>
+    <p class="sub">Não é "mais uma IA". É orquestração de IA aplicada ao seu processo, com governança e resultado mensurável.</p>
+    <div class="grid">
+      <div class="card"><div class="kv"><span class="i">↓</span><div><b>Redução de gastos</b><br><span style="color:var(--muted);font-size:14px">Menos horas por tarefa, menos retrabalho de QA, menos bug em produção.</span></div></div></div>
+      <div class="card"><div class="kv"><span class="i">⏱</span><div><b>Menos tempo por tarefa</b><br><span style="color:var(--muted);font-size:14px">Da descrição ao commit validado em minutos, não horas.</span></div></div></div>
+      <div class="card"><div class="kv"><span class="i">↑</span><div><b>Mais produtividade</b><br><span style="color:var(--muted);font-size:14px">Squad entrega mais, com padrão único e qualidade auditável.</span></div></div></div>
+      <div class="card"><div class="kv"><span class="i">⚙</span><div><b>Automação do processo</b><br><span style="color:var(--muted);font-size:14px">Simulação, validação e bloqueio no commit — sem depender de disciplina manual.</span></div></div></div>
+    </div>
+  </section>
+
+  <!-- PLUGIN -->
+  <section>
+    <h2>O Plugin</h2>
+    <p class="sub">Instala no Claude Code e orquestra o fluxo de trabalho do dev de ponta a ponta.</p>
+    <div class="grid">
+      <div class="card good">
+        <h3>Benefícios do plugin</h3>
+        <ul>
+          <li>Padroniza commit, branch e documentação automaticamente</li>
+          <li>QA-Gate no pre-commit: só sobe código no verde</li>
+          <li>Comandos prontos (<code>/qa-init</code>, <code>/qa-gate</code>) — configura o projeto sozinho</li>
+          <li>Reduz consumo de tokens e mantém contexto entre sessões</li>
+        </ul>
+      </div>
+      <div class="card bad">
+        <h3>Sem o plugin</h3>
+        <ul>
+          <li>Cada dev usa a IA do seu jeito — código sem padrão</li>
+          <li>Bug de UI passa pro QA e volta dias depois</li>
+          <li>Configuração manual, repetitiva e sujeita a erro</li>
+          <li>Gasto de token sem controle</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- MCP -->
+  <section>
+    <h2>O MCP (motor de simulação)</h2>
+    <p class="sub">O servidor MCP dirige um navegador real e devolve o resultado estruturado — com screenshot — direto pro seu agente.</p>
+    <div class="grid">
+      <div class="card">
+        <h3>O que o MCP faz</h3>
+        <ul>
+          <li>Sobe o fluxo em <b>Chrome real</b>, injeta o bug e valida o retorno</li>
+          <li>Exige mensagem amigável no DOM + <code>console SEVERE = 0</code></li>
+          <li>Pega lib quebrada e hidratação errada que o teste unitário não vê</li>
+          <li>Validação de licença <b>offline</b> — seu código não sai da sua máquina</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Onde roda</h3>
+        <ul>
+          <li>Claude Code, Cursor, VS Code ou CI (editor-agnóstico)</li>
+          <li>Usa o Chrome do sistema — não baixa nada pesado</li>
+          <li>Backend puro pula o browser: custo zero quando não há UI</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMO FUNCIONA -->
   <section>
     <h2>Como funciona</h2>
-    <p class="sub">Instala como plugin do Claude Code ou via npm/CI. Backend puro pula o browser — custo zero.</p>
     <div class="steps">
       <div class="step"><div class="n">01</div><div class="t">Abre o fluxo</div><div class="d">login + form/modal tocado</div></div>
       <div class="step"><div class="n">02</div><div class="t">Injeta o bug</div><div class="d">submete inválido/vazio</div></div>
@@ -83,52 +139,125 @@
     </div>
   </section>
 
-  <section>
-    <h2>Instalação</h2>
-    <p class="sub">Plugin Claude Code, npm ou git. Chrome do sistema — não baixa nada pesado.</p>
+  <!-- TRIAL / DOWNLOAD -->
+  <section id="trial">
+    <h2>Teste grátis</h2>
+    <p class="sub">Baixe e experimente. A ativação completa exige licença — o núcleo é liberado por chave.</p>
     <div class="card">
       <p style="margin:0 0 8px">Plugin (Claude Code):</p>
       <code>/plugin marketplace add VelosoSolutionP/OrquestrarQaGate</code>
       <p style="margin:16px 0 8px">npm / CI:</p>
       <code>npx @velososolution/qa-gate</code>
-      <p style="margin:16px 0 0;color:var(--subtle);font-size:14px">Após comprar, você recebe a chave no WhatsApp e configura <code>QA_GATE_LICENSE</code>.</p>
+      <p style="margin:16px 0 8px">Repositório / download:</p>
+      <a href="https://github.com/VelosoSolutionP/OrquestrarQaGate">github.com/VelosoSolutionP/OrquestrarQaGate</a>
     </div>
   </section>
 
+  <!-- PLANOS -->
+  <section id="planos">
+    <h2>Planos — licença por empresa</h2>
+    <p class="sub">Chave <b>eterna</b> (pagamento único) com <b>atualizações incluídas</b>. A licença é <b>por empresa</b> e pode ser compartilhada com todos os funcionários — por isso o valor varia conforme o porte.</p>
+    <div class="grid3">
+      <div class="plan">
+        <div class="t">Pequena empresa</div>
+        <div class="v">R$ 5.000</div>
+        <div class="per">pagamento único • chave eterna + atualizações</div>
+        <ul>
+          <li>Licença compartilhável com a equipe</li>
+          <li>Plugin + MCP completos</li>
+          <li>30 dias de suporte grátis</li>
+        </ul>
+        <div class="pick"><button class="cta" data-plan="pequena">Contratar →</button></div>
+      </div>
+      <div class="plan feat">
+        <div class="t">Médio porte</div>
+        <div class="v">R$ 20.000</div>
+        <div class="per">pagamento único • chave eterna + atualizações</div>
+        <ul>
+          <li>Tudo da Pequena</li>
+          <li>Licença para equipe maior</li>
+          <li>Prioridade no suporte pós-30 dias</li>
+        </ul>
+        <div class="pick"><button class="cta" data-plan="medio">Contratar →</button></div>
+      </div>
+      <div class="plan">
+        <div class="t">Grande porte</div>
+        <div class="v">R$ 50.000</div>
+        <div class="per">pagamento único • chave eterna + atualizações</div>
+        <ul>
+          <li>Tudo do Médio</li>
+          <li>Licença corporativa ampla</li>
+          <li>Atendimento dedicado</li>
+        </ul>
+        <div class="pick"><button class="cta" data-plan="grande">Contratar →</button></div>
+      </div>
+    </div>
+    <p class="note">Instalação, configuração e auditoria são serviços à parte. Suporte é gratuito nos primeiros 30 dias; após esse período, contratado separadamente.</p>
+  </section>
+
+  <!-- GARANTIA -->
   <section>
-    <h2>Preço</h2>
-    <p class="sub">Licença por desenvolvedor. Validação offline — não enviamos seu código pra lugar nenhum.</p>
-    <div class="price" id="comprar">
-      <div class="v">QA-Gate Pro</div>
-      <div class="per">licença anual por desenvolvedor</div>
-      <form id="cadastro" style="margin-top:20px;display:flex;flex-direction:column;gap:10px;text-align:left">
-        <label style="font-size:13px;color:var(--subtle)">Seu nome
-          <input name="name" required placeholder="Nome completo" style="width:100%;margin-top:4px;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:15px">
-        </label>
-        <label style="font-size:13px;color:var(--subtle)">WhatsApp (com DDD)
-          <input name="phone" required inputmode="numeric" placeholder="Ex: 5531999998888" style="width:100%;margin-top:4px;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:15px">
-        </label>
-        <button type="submit" class="cta" style="justify-content:center;margin-top:6px;border:0;cursor:pointer">Ir para o pagamento →</button>
+    <h2>Garantia auditada</h2>
+    <div class="warn">
+      <ul style="margin:0">
+        <li>A <b>auditoria</b> verifica se o cliente seguiu o processo <b>à risca</b>.</li>
+        <li>Seguiu o processo e o resultado ficou <b>mais de 20% abaixo do prometido</b> → <b>reembolso</b>, após auditoria.</li>
+        <li><b>Não seguiu</b> o processo → resultado <b>não garantido</b> (sem reembolso).</li>
+        <li>Quedas causadas por <b>problemas de infraestrutura ou de tráfego de dados</b> do cliente, que afetam diretamente o resultado, <b>não são cobertas</b> pela garantia.</li>
+      </ul>
+    </div>
+    <p class="note">A auditoria é um serviço à parte e é a base da garantia de resultado.</p>
+  </section>
+
+  <!-- CADASTRO -->
+  <section id="comprar">
+    <h2>Contratar</h2>
+    <p class="sub">Cadastro simples: nome + WhatsApp. Após o pagamento confirmado, a chave chega no seu WhatsApp.</p>
+    <div class="card" style="max-width:480px">
+      <form id="cadastro" style="display:flex;flex-direction:column;gap:12px">
+        <div><label>Plano</label>
+          <select name="plan" id="plan">
+            <option value="pequena">Pequena empresa — R$ 5.000</option>
+            <option value="medio">Médio porte — R$ 20.000</option>
+            <option value="grande">Grande porte — R$ 50.000</option>
+          </select>
+        </div>
+        <div><label>Seu nome</label><input name="name" required placeholder="Nome completo"></div>
+        <div><label>WhatsApp (com DDD)</label><input name="phone" required inputmode="numeric" placeholder="Ex: 5531999998888"></div>
+        <button type="submit" class="cta" style="justify-content:center">Ir para o pagamento →</button>
         <div id="msg" style="font-size:13px;color:var(--danger);min-height:18px"></div>
       </form>
-      <div class="note">A chave chega no seu WhatsApp após o pagamento confirmado.</div>
     </div>
+  </section>
+
+  <!-- TERMOS -->
+  <section>
+    <h2>Termos de cobrança</h2>
+    <ul style="color:var(--muted)">
+      <li>Cobrança processada via <b>Stripe</b> (seguro, sem armazenar cartão conosco).</li>
+      <li>Licença <b>por empresa</b>, compartilhável entre funcionários.</li>
+      <li><b>Inadimplência acima de 1 dia</b> → <b>bloqueio automático</b> da licença.</li>
+      <li>Validação de licença offline — seu código nunca é enviado a terceiros.</li>
+    </ul>
   </section>
 
   <div class="foot">
-    <b>Veloso Solution</b> — Consultoria em IA Aplicada<br>
+    <b>Veloso Solution</b> — Consultoria em IA Aplicada • Criado por Fabiano Veloso, Engenheiro de IA Aplicada<br>
     <a href="https://velososolution.online">velososolution.online</a>
   </div>
 </div>
 <script>
-  var f=document.getElementById('cadastro'), msg=document.getElementById('msg');
+  var f=document.getElementById('cadastro'), msg=document.getElementById('msg'), planSel=document.getElementById('plan');
+  document.querySelectorAll('button[data-plan]').forEach(function(b){
+    b.addEventListener('click',function(){ planSel.value=b.getAttribute('data-plan'); document.getElementById('comprar').scrollIntoView({behavior:'smooth'}); });
+  });
   f.addEventListener('submit', async function(e){
     e.preventDefault();
-    var btn=f.querySelector('button'); msg.textContent='';
+    var btn=f.querySelector('button[type=submit]'); msg.textContent='';
     btn.disabled=true; btn.textContent='Aguarde...';
     try{
       var r=await fetch('/checkout',{method:'POST',headers:{'content-type':'application/json'},
-        body:JSON.stringify({name:f.name.value,phone:f.phone.value,plan:'pro'})});
+        body:JSON.stringify({name:f.name.value,phone:f.phone.value,plan:planSel.value})});
       var j=await r.json();
       if(j.url){ location.href=j.url; return; }
       msg.textContent=j.error||'Erro ao iniciar pagamento.';
