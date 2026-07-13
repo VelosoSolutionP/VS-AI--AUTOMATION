@@ -1,6 +1,13 @@
 {
   "_nota": "Cole em .claude/settings.json do projeto (ou ~/.claude/settings.json). Ajuste o caminho absoluto da engine. Testar em sessao real do Claude Code.",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-session.mjs" }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [

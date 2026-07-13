@@ -1,6 +1,6 @@
 {
   "name": "@velososolution/qa-gate",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "description": "QA-Gate — simulacao em browser real antes do commit. Injeta bug, exige mensagem amigavel + console limpo. So commita no verde.",
   "homepage": "https://velososolution.online",
@@ -21,6 +21,8 @@
   "files": [
     "engine/",
     "mcp/server.mjs",
+    "catalog/",
+    "hooks/",
     "license/license.mjs",
     "license/pubkey.pem",
     "commands/",
@@ -29,6 +31,9 @@
     "qa-gate.mjs",
     "README.md"
   ],
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  },
   "publishConfig": {
     "access": "public"
   },
