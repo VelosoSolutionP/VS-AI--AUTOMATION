@@ -19,8 +19,8 @@ const raw = await new Promise((res) => {
 let prompt = '';
 try { prompt = (JSON.parse(raw || '{}').prompt) || ''; } catch { prompt = raw || ''; }
 
-// só age em prompts que parecem tarefa (evita bloquear conversa normal)
-const looksLikeTask = /\b(criar|corrigir|arrumar|implementar|ajustar|refatorar|bug|feature|tarefa|task|#\d{3,})\b/i.test(prompt);
+// só age em prompts que parecem tarefa (evita bloquear conversa normal). Stems + rótulos.
+const looksLikeTask = /(cri[ae]|corrig|arrum|implement|ajust|refator|adicion|remov|cadastr|bug|feature|feat|tarefa|task|#\d{3,}|descri[çc][ãa]o\s*:|objetivo|crit[ée]rio)/i.test(prompt);
 if (!prompt || !looksLikeTask) { process.exit(0); }
 
 const r = validateTask(prompt);
