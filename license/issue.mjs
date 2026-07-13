@@ -14,7 +14,8 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const b64url = (buf) => Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
 export function issueLicense({ email, plan = 'pro', days = 365, seats = 1 }) {
-  const priv = readFileSync(join(HERE, '.keys', 'private.pem'), 'utf8');
+  // VPS: chave via env (nunca em arquivo no repo). Local: fallback pro arquivo.
+  const priv = process.env.QA_GATE_PRIVATE_KEY || readFileSync(join(HERE, '.keys', 'private.pem'), 'utf8');
   const payload = {
     email, plan, seats,
     iat: Date.now(),
