@@ -1,11 +1,36 @@
 {
-  "name": "qa-gate",
+  "name": "@velososolution/qa-gate",
   "version": "1.0.0",
-  "private": true,
   "type": "module",
-  "description": "QA-Gate central — simulacao em browser real antes do commit. Engine unica reutilizada por todos os projetos.",
+  "description": "QA-Gate — simulacao em browser real antes do commit. Injeta bug, exige mensagem amigavel + console limpo. So commita no verde.",
+  "homepage": "https://velososolution.online",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VelosoSolutionP/OrquestrarQaGate.git"
+  },
+  "author": "Veloso Solution <velosobil@gmail.com>",
+  "license": "SEE LICENSE IN README.md",
+  "keywords": ["qa", "testing", "pre-commit", "playwright", "livewire", "laravel", "browser", "mcp"],
   "bin": {
-    "qa-gate": "./qa-gate.mjs"
+    "qa-gate": "./qa-gate.mjs",
+    "qa-gate-mcp": "./mcp/server.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "engine/",
+    "mcp/server.mjs",
+    "license/license.mjs",
+    "license/pubkey.pem",
+    "commands/",
+    ".claude-plugin/",
+    ".mcp.json",
+    "qa-gate.mjs",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
