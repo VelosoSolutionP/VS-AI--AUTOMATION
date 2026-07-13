@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "qa-gate": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/server.mjs"],
+      "env": {
+        "QA_GATE_LICENSE": "${QA_GATE_LICENSE}"
+      }
+    }
+  }
+}

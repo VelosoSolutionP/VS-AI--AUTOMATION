@@ -1,0 +1,15 @@
+{
+  "name": "qa-gate",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "QA-Gate central — simulacao em browser real antes do commit. Engine unica reutilizada por todos os projetos.",
+  "bin": {
+    "qa-gate": "./qa-gate.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "playwright": "^1.61.1",
+    "zod": "^4.4.3"
+  }
+}

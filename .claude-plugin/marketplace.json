@@ -1,0 +1,14 @@
+{
+  "name": "veloso-solution",
+  "owner": {
+    "name": "Veloso Solution",
+    "url": "https://velososolution.online"
+  },
+  "plugins": [
+    {
+      "name": "qa-gate",
+      "source": "./",
+      "description": "Simulacao em browser real antes do commit — injeta bug, exige mensagem amigavel + console limpo."
+    }
+  ]
+}

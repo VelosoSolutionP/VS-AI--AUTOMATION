@@ -1,0 +1,7 @@
+node_modules/
+.state/
+.shots/
+# NUNCA commitar a chave privada de assinatura de licenca (backend only)
+license/.keys/
+*.pem
+!license/pubkey.pem
