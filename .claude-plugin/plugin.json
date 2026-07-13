@@ -1,6 +1,6 @@
 {
   "name": "qa-gate",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "QA-Gate — simulacao em browser real antes do commit. Injeta bug, exige mensagem amigavel + console limpo. So commita no verde.",
   "author": {
     "name": "Veloso Solution",
