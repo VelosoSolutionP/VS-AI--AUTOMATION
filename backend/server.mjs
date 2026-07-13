@@ -22,7 +22,10 @@ import { sendLicense } from './whatsapp.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8787;
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
-const CHECKOUT_URL = process.env.CHECKOUT_URL || ''; // Stripe Payment Link
+const CHECKOUT_URL = process.env.CHECKOUT_URL || ''; // Stripe Payment Link (opcional)
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
+const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID || '';
+const PUBLIC_URL = process.env.PUBLIC_URL || 'https://api.velososolution.online';
 
 function json(res, code, obj) {
   res.writeHead(code, { 'content-type': 'application/json' });
@@ -66,6 +69,42 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       return res.end(html);
     } catch (e) { return json(res, 500, { error: 'sales page: ' + e.message }); }
+  }
+
+  if (req.method === 'GET' && req.url.split('?')[0] === '/obrigado') {
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    return res.end('<meta charset=utf-8><body style="font-family:system-ui;background:#0b1220;color:#f2f4f7;text-align:center;padding:80px 20px"><h1>Pagamento confirmado ✅</h1><p style="color:#cfd6e4">Sua licença QA-Gate está a caminho do seu WhatsApp. Qualquer coisa: velososolution.online</p></body>');
+  }
+
+  // cadastro (nome + WhatsApp) -> cria sessão de checkout no Stripe
+  if (req.method === 'POST' && req.url === '/checkout') {
+    const raw = (await readBody(req)).toString('utf8');
+    let data; try { data = JSON.parse(raw); } catch { data = {}; }
+    const name = String(data.name || '').trim().slice(0, 80);
+    const phone = String(data.phone || '').replace(/\D/g, '').slice(0, 20);
+    const plan = String(data.plan || 'pro').toLowerCase();
+    if (!name || phone.length < 10) { return json(res, 400, { error: 'Informe nome e WhatsApp com DDD.' }); }
+    if (!STRIPE_SECRET_KEY || !STRIPE_PRICE_ID) { return json(res, 503, { error: 'Pagamento ainda não configurado. Volte em breve.' }); }
+    const p = new URLSearchParams();
+    p.set('mode', 'payment');
+    p.set('line_items[0][price]', STRIPE_PRICE_ID);
+    p.set('line_items[0][quantity]', '1');
+    p.set('phone_number_collection[enabled]', 'true');
+    p.set('success_url', PUBLIC_URL + '/obrigado');
+    p.set('cancel_url', PUBLIC_URL + '/');
+    p.set('metadata[name]', name);
+    p.set('metadata[phone]', phone);
+    p.set('metadata[plan]', plan);
+    try {
+      const r = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${STRIPE_SECRET_KEY}`, 'content-type': 'application/x-www-form-urlencoded' },
+        body: p,
+      });
+      const j = await r.json();
+      if (!r.ok) { return json(res, 502, { error: 'Stripe: ' + (j.error?.message || 'erro') }); }
+      return json(res, 200, { url: j.url });
+    } catch (e) { return json(res, 502, { error: 'checkout: ' + e.message }); }
   }
 
   if (req.method === 'POST' && req.url === '/webhook') {

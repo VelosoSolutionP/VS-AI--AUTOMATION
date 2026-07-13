@@ -47,7 +47,7 @@
     <span class="badge">QA-Gate</span>
     <h1>Pare de deixar bug passar pro QA.</h1>
     <p class="lead">Simulação em <b>browser real</b> antes de cada commit. Injeta o bug de propósito e exige que o sistema responda com mensagem amigável no DOM e console limpo. <b>Só deixa commitar no verde.</b> O que o teste unitário deixa passar — hidratação errada, lib quebrada, erro que não aparece no modal — morre aqui.</p>
-    <a class="cta {{CHECKOUT_URL}}" href="{{CHECKOUT_URL}}" id="buy">Comprar agora →</a>
+    <a class="cta" href="#comprar">Comprar agora →</a>
     <div class="note">Cadastro simples: nome + WhatsApp. A chave chega no seu WhatsApp após o pagamento.</div>
   </div>
 
@@ -98,11 +98,20 @@
   <section>
     <h2>Preço</h2>
     <p class="sub">Licença por desenvolvedor. Validação offline — não enviamos seu código pra lugar nenhum.</p>
-    <div class="price">
+    <div class="price" id="comprar">
       <div class="v">QA-Gate Pro</div>
       <div class="per">licença anual por desenvolvedor</div>
-      <a class="cta {{CHECKOUT_URL}}" href="{{CHECKOUT_URL}}" style="margin-top:20px">Comprar agora →</a>
-      <div class="note">Nome + WhatsApp no checkout. Chave entregue no WhatsApp.</div>
+      <form id="cadastro" style="margin-top:20px;display:flex;flex-direction:column;gap:10px;text-align:left">
+        <label style="font-size:13px;color:var(--subtle)">Seu nome
+          <input name="name" required placeholder="Nome completo" style="width:100%;margin-top:4px;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:15px">
+        </label>
+        <label style="font-size:13px;color:var(--subtle)">WhatsApp (com DDD)
+          <input name="phone" required inputmode="numeric" placeholder="Ex: 5531999998888" style="width:100%;margin-top:4px;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:15px">
+        </label>
+        <button type="submit" class="cta" style="justify-content:center;margin-top:6px;border:0;cursor:pointer">Ir para o pagamento →</button>
+        <div id="msg" style="font-size:13px;color:var(--danger);min-height:18px"></div>
+      </form>
+      <div class="note">A chave chega no seu WhatsApp após o pagamento confirmado.</div>
     </div>
   </section>
 
@@ -112,9 +121,19 @@
   </div>
 </div>
 <script>
-  // desabilita botão se o checkout ainda não foi configurado
-  document.querySelectorAll('a.cta').forEach(function(a){
-    if(a.getAttribute('href')==='#'){a.classList.add('dis');a.textContent='Em breve';}
+  var f=document.getElementById('cadastro'), msg=document.getElementById('msg');
+  f.addEventListener('submit', async function(e){
+    e.preventDefault();
+    var btn=f.querySelector('button'); msg.textContent='';
+    btn.disabled=true; btn.textContent='Aguarde...';
+    try{
+      var r=await fetch('/checkout',{method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({name:f.name.value,phone:f.phone.value,plan:'pro'})});
+      var j=await r.json();
+      if(j.url){ location.href=j.url; return; }
+      msg.textContent=j.error||'Erro ao iniciar pagamento.';
+    }catch(err){ msg.textContent='Falha de conexão. Tente de novo.'; }
+    btn.disabled=false; btn.textContent='Ir para o pagamento →';
   });
 </script>
 </body>
