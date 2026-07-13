@@ -27,6 +27,12 @@ const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID || '';
 const PUBLIC_URL = process.env.PUBLIC_URL || 'https://api.velososolution.online';
 
+const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://velososolution.online';
+function cors(res) {
+  res.setHeader('access-control-allow-origin', CORS_ORIGIN);
+  res.setHeader('access-control-allow-methods', 'POST, OPTIONS');
+  res.setHeader('access-control-allow-headers', 'content-type');
+}
 function json(res, code, obj) {
   res.writeHead(code, { 'content-type': 'application/json' });
   res.end(JSON.stringify(obj));
@@ -82,8 +88,14 @@ const server = createServer(async (req, res) => {
     return res.end('<meta charset=utf-8><body style="font-family:system-ui;background:#0b1220;color:#f2f4f7;text-align:center;padding:80px 20px"><h1>Pagamento confirmado ✅</h1><p style="color:#cfd6e4">Sua licença QA-Gate está a caminho do seu WhatsApp. Qualquer coisa: velososolution.online</p></body>');
   }
 
+  // preflight CORS do checkout (form vindo do site)
+  if (req.method === 'OPTIONS' && req.url === '/checkout') {
+    cors(res); res.writeHead(204); return res.end();
+  }
+
   // cadastro (nome + WhatsApp) -> cria sessão de checkout no Stripe
   if (req.method === 'POST' && req.url === '/checkout') {
+    cors(res);
     const raw = (await readBody(req)).toString('utf8');
     let data; try { data = JSON.parse(raw); } catch { data = {}; }
     const name = String(data.name || '').trim().slice(0, 80);
