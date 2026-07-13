@@ -1,0 +1,63 @@
+{
+  "version": "1.0",
+  "prefix": "VS",
+  "note": "Catalogo de mensagens padrao do Orquestrar IA. Curtas (economia de token). Consumido por hooks (deterministico) e MCP (generativo).",
+  "families": {
+    "REQ": { "name": "Requisitos", "layer": "hook", "event": "UserPromptSubmit / /task", "purpose": "Triagem de requisito ANTES de acionar a IA. Bloqueia execucao insegura." },
+    "AUD": { "name": "Auditoria/Gate", "layer": "hook", "event": "PreToolUse git commit/push", "purpose": "Checklist de qualidade no commit/push." },
+    "AI":  { "name": "Escalation", "layer": "engine", "event": "decisao call_ai", "purpose": "Decide quando escalar pro modelo (causa raiz, arquitetura, seguranca)." },
+    "OK":  { "name": "Aprovacao", "layer": "hook", "event": "pos-checagem", "purpose": "Libera commit/push/execucao." },
+    "CTX": { "name": "Contexto", "layer": "hook", "event": "SessionStart", "purpose": "Carrega memory/contexto do projeto." },
+    "MON": { "name": "Monitoramento", "layer": "consent", "event": "opt-in", "purpose": "Consentimento LGPD p/ coleta tecnica (docker/rede/desempenho)." }
+  },
+  "checklist_requisito": [
+    { "key": "descricao", "label": "Descricao da tarefa", "required": true },
+    { "key": "objetivo", "label": "Objetivo / resultado esperado", "required": true },
+    { "key": "criterio_aceite", "label": "Criterio de aceite", "required": true },
+    { "key": "arquivo_afetado", "label": "Arquivo(s)/modulo afetado", "required": false },
+    { "key": "regra_negocio", "label": "Regra de negocio", "required": false },
+    { "key": "origem", "label": "Origem (dev/main/hml) — p/ branch", "required": false }
+  ],
+  "messages": [
+    {
+      "code": "VS-REQ-001", "status": "BLOCKED", "title": "Contexto insuficiente",
+      "short": "[VS-REQ-001] BLOCKED — contexto insuficiente para execucao segura.",
+      "dev_msg": "Tarefa bloqueada: contexto insuficiente. Complemente para execucao segura:\n{faltando}",
+      "when": "UserPromptSubmit: dev inicia tarefa sem os campos obrigatorios (descricao/objetivo/criterio de aceite).",
+      "how": "Hook aborta o turno e devolve esta msg + lista dinamica de {faltando}. A IA NAO e acionada.",
+      "fields_dynamic": ["faltando"]
+    },
+    {
+      "code": "VS-REQ-002", "status": "WAITING", "title": "Aguardando requisito",
+      "short": "[VS-REQ-002] WAITING — tarefa no aguardo de requisito.",
+      "dev_msg": "Tarefa registrada, mas em espera. Aguardando: {faltando}. Envie para liberar a execucao.",
+      "when": "Dev optou por deixar a tarefa pendente ate complementar; ou requisito solicitado e ainda nao recebido.",
+      "how": "Hook marca a tarefa como pendente (nao executa), guarda o que falta. Reavalia quando o dev complementar.",
+      "fields_dynamic": ["faltando"]
+    },
+    {
+      "code": "VS-REQ-003", "status": "PARTIAL", "title": "Requisito parcial",
+      "short": "[VS-REQ-003] PARTIAL — requisito parcial; falta {faltando}.",
+      "dev_msg": "Requisito parcial. Ja tenho: {presente}. Falta: {faltando}. Posso seguir com risco reduzido se voce confirmar.",
+      "when": "Campos obrigatorios presentes, mas opcionais relevantes (arquivo afetado / regra de negocio) ausentes.",
+      "how": "Hook alerta mas NAO bloqueia; pede confirmacao explicita antes de executar.",
+      "fields_dynamic": ["presente", "faltando"]
+    },
+    {
+      "code": "VS-REQ-004", "status": "AMBIGUOUS", "title": "Requisito ambiguo",
+      "short": "[VS-REQ-004] AMBIGUOUS — decisao de produto necessaria.",
+      "dev_msg": "Requisito ambiguo em: {ponto}. Isso e decisao de produto — preciso do requisito exato antes de executar.",
+      "when": "Ha conflito/ambiguidade que nao e decisao tecnica (ex.: 2 comportamentos possiveis, regra de negocio incerta).",
+      "how": "Hook bloqueia e escala pergunta objetiva ao dev. Nunca 'chuta' decisao de produto.",
+      "fields_dynamic": ["ponto"]
+    },
+    {
+      "code": "VS-REQ-005", "status": "READY", "title": "Requisito suficiente",
+      "short": "[VS-REQ-005] READY — requisito suficiente, liberado.",
+      "dev_msg": "Requisito OK. Executando: {resumo}.",
+      "when": "Todos os obrigatorios presentes e sem ambiguidade.",
+      "how": "Hook libera o fluxo; a partir daqui o Escalation Engine (AI) decide se precisa do modelo completo.",
+      "fields_dynamic": ["resumo"]
+    }
+  ]
+}
