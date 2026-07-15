@@ -60,33 +60,22 @@ if (isSessionOff(sid)) {
   process.exit(0);
 }
 
-// FECHAMENTO DE DIA — controle de horas. Ao pedir pra fechar/encerrar o dia,
-// injeta a ordem de COLETAR início/fim/almoço/dailys ANTES de registrar.
-if (/\b(fech(a|ar|amento)|encerr\w*)\b[\s\wçãáéíóú]{0,14}\bdia\b/i.test(prompt) ||
+// FECHAMENTO = o DIA (controle de horas). "fechamento"/"fechar"/"encerramento"
+// sozinho, ou "...dia"/"controle de horas" -> SEMPRE dia. (Tarefa fecha durante o
+// trabalho pelo gate/commit, não por essa palavra.) Só pede início/fim/almoço/dailys;
+// o resto a IA monta.
+if (/^\s*(fechamento|fechar|encerramento|encerrar)\s*[.!]?\s*$/i.test(prompt) ||
+    /\b(fech(a|ar|amento)|encerr\w*)\b[\s\wçãáéíóú]{0,14}\bdia\b/i.test(prompt) ||
     /\bfim do dia\b/i.test(prompt) || /\bcontrole de horas\b/i.test(prompt)) {
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: {
       hookEventName: 'UserPromptSubmit',
       additionalContext:
-        '[governança] FECHAMENTO DE DIA — NÃO registre ainda. PERGUNTE ao Fabiano, nesta ordem: ' +
+        '[governança] FECHAMENTO DE DIA (controle de horas). NÃO registre ainda — PERGUNTE ao Fabiano, nesta ordem: ' +
         '(1) início, (2) fim, (3) almoço (horário/duração ou "não teve"), (4) dailys (teve/não). ' +
-        'Só depois registre em C:/Veloso/ProjetosMsb/ControleHoras/<YYYY-MM>.md — ' +
-        'horas líquidas = (fim − início) − almoço; descreva a atividade puxando o git log dos projetos do dia.',
-    },
-  }));
-  process.exit(0);
-}
-
-// "fechamento"/"fechar" SOZINHO é ambíguo: dia (horas) ou tarefa (commit/push).
-// Não deixa a IA chutar — injeta desambiguação.
-if (/^\s*(fechamento|fechar|encerra(r|mento)?)\s*[.!]?\s*$/i.test(prompt)) {
-  process.stdout.write(JSON.stringify({
-    hookSpecificOutput: {
-      hookEventName: 'UserPromptSubmit',
-      additionalContext:
-        '[governança] "fechamento" AMBÍGUO — PERGUNTE ao Fabiano qual: ' +
-        '(a) fechar o DIA (controle de horas → colete início/fim/almoço/dailys e registre em ControleHoras/<YYYY-MM>.md), ' +
-        'ou (b) fechar a TAREFA (gate → commit → push → doc). NÃO assuma; pergunte antes.',
+        'Com as 4 respostas, monte tudo sozinho: registre em C:/Veloso/ProjetosMsb/ControleHoras/<YYYY-MM>.md — ' +
+        'horas líquidas = (fim − início) − almoço; descreva a atividade puxando o git log dos projetos do dia. ' +
+        'NÃO é fechamento de tarefa (isso é durante o trabalho, via gate/commit).',
     },
   }));
   process.exit(0);
