@@ -117,10 +117,8 @@ if (existsSync(join(process.cwd(), '.git', 'qa-gate-pending-doc'))) {
 
 const pedeBranch = /#?\d{3,6}\b/.test(prompt) || /\bbranch\b/i.test(prompt);
 const temOrigem = /\b(dev|develop|hml|homolog\w*|main|master|prod|produ[çc][ãa]o|staging)\b/i.test(prompt);
-// tipo: palavra explícita OU verbo que mapeia pra um tipo (corrige->fix, cria->feat, refatora->refactor, otimiza->perf)
-const temTipo =
-  /\b(fix|bug|feat|feature|refactor|refact|perf|hotfix|chore|test|docs?)\b/i.test(prompt) ||
-  /\b(corrig\w*|arrum\w*|conserta\w*|resolv\w*|cri[ae]\w*|nov[ao]s?|adicion\w*|implement\w*|desenvolv\w*|refator\w*|otimiz\w*)/i.test(prompt);
+// tipo: EXIGE palavra de tipo EXPLÍCITA (não infere de verbo). O dev declara: bug/fix/feat/refactor/...
+const temTipo = /\b(fix|bug|feat|feature|refactor|refact|perf|hotfix|chore|test|docs?)\b/i.test(prompt);
 
 if (pedeBranch && (!temOrigem || !temTipo)) {
   const faltam = [
