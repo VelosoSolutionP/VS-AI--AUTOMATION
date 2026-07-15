@@ -8,7 +8,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { readFileSync } from 'node:fs';
-import { checkApp, simulateFlows, runGate, loadConfig } from '../engine/core.mjs';
+import { checkApp, simulateFlows, runGate, loadConfig, targetsFor } from '../engine/core.mjs';
 import { validateTask } from '../engine/requirements.mjs';
 import { loadEvents, aggregate, report } from '../engine/metrics.mjs';
 import { hasConsent } from '../engine/consent.mjs';
@@ -75,26 +75,35 @@ server.tool('qa_list_flows',
     return { content: [text(JSON.stringify((cfg.flows || []).map((f) => ({ name: f.name, path: f.path })), null, 2))] };
   });
 
-/* ---- qa_simulate (licenciado) ---- */
+/* ---- qa_simulate (licenciado) — multi-alvo (front/mobile/ambos) ---- */
 server.tool('qa_simulate',
-  'Simula UM fluxo em browser real: injeta bug (submit vazio) e exige mensagem amigável + console limpo. Retorna status + screenshot inline.',
+  'Simula UM fluxo em browser real: injeta bug (submit vazio) e exige mensagem amigável + console limpo. ALVO: front | mobile | (vazio=ambos). Retorna status + screenshot inline por alvo. Use pra DIAGNOSTICAR bug de CRUD/validação: reproduz o erro real.',
   {
-    configPath: z.string().describe('caminho do qa-gate.config.json (login/baseUrl)'),
-    path: z.string().describe('rota do fluxo, ex: /clientes/create'),
+    configPath: z.string().describe('caminho do qa-gate.config.json'),
+    path: z.string().describe('rota do fluxo, ex: /medico/pacientes/36/editar'),
+    alvo: z.enum(['front', 'mobile']).optional().describe('vazio = roda front E mobile'),
     submitText: z.string().optional(),
     submitSelector: z.string().optional(),
     expectFriendlyError: z.boolean().optional(),
   },
-  async ({ configPath, path, submitText, submitSelector, expectFriendlyError }) => {
+  async ({ configPath, path, alvo, submitText, submitSelector, expectFriendlyError }) => {
     requireLicense();
     const cfg = loadConfig(configPath);
     if (!cfg) { throw new Error('sem config em ' + configPath); }
     const flow = { name: 'adhoc' + path, path, submitText, submitSelector, expectFriendlyError };
-    const [res] = await simulateFlows(cfg, [flow], { repo: configPath });
-    const content = [text(`${res.status === 'green' ? '✔ VERDE' : '✖ VERMELHO'} ${path}\n${res.errors.join('\n') || 'bug injetado retornou msg amigável, console limpo'}`)];
-    const img = res.screenshot && imageOf(res.screenshot);
-    if (img) { content.push(img); }
-    return { content, isError: res.status === 'red' };
+    const content = [];
+    let anyRed = false;
+    for (const { name, tcfg } of targetsFor(cfg, alvo)) {
+      const up = await checkApp(tcfg.baseUrl, tcfg.healthPath || cfg.healthPath);
+      if (!up) { content.push(text(`⚠ ${name}: app fora do ar (${tcfg.baseUrl}) — não testado`)); continue; }
+      const [res] = await simulateFlows({ ...tcfg }, [flow], { repo: `${configPath}-${name}` });
+      if (res.status === 'red') { anyRed = true; }
+      content.push(text(`${res.status === 'green' ? '✔ VERDE' : '✖ VERMELHO'} [${name}] ${path}\n${res.errors.join('\n') || 'bug injetado retornou msg amigável, console limpo'}`));
+      const img = res.screenshot && imageOf(res.screenshot);
+      if (img) { content.push(img); }
+    }
+    if (!content.length) { content.push(text('nenhum alvo configurado/no ar')); }
+    return { content, isError: anyRed };
   });
 
 /* ---- qa_run_gate (licenciado) ---- */
