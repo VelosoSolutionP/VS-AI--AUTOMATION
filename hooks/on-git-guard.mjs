@@ -30,6 +30,9 @@ if (existsSync(join(process.cwd(), '.qa-gate-off'))) { allow(); }
 const isGit = /\bgit\b/.test(cmd);
 if (!isGit) { allow(); }
 
+// REGRA MOBILE: acumula commits locais, SEM branch de tarefa, SEM push (deploy fim do dia).
+const isMobile = /[\\/]mobile([\\/]|$)/i.test(process.cwd());
+
 // add cego
 if (/\bgit\s+add\s+(\.|-A\b|--all\b|:\/)/.test(cmd)) {
   deny('[VS-GIT-001] BLOCKED — `git add .` proibido. Adicione só os arquivos da tarefa explicitamente (ex.: git add app/Foo.php resources/views/foo.blade.php).');
@@ -37,6 +40,9 @@ if (/\bgit\s+add\s+(\.|-A\b|--all\b|:\/)/.test(cmd)) {
 
 // criação de branch: exige base de ORIGEM explícita (origin/<x>)
 const criaBranch = /\bgit\s+checkout\s+-b\b/.test(cmd) || /\bgit\s+switch\s+-c\b/.test(cmd) || /\bgit\s+branch\s+\S/.test(cmd);
+if (criaBranch && isMobile) {
+  deny('[VS-MOBILE-002] BLOCKED — mobile NÃO usa branch de tarefa. Acumule os commits na branch atual; o deploy (APK) é só no fim do dia.');
+}
 if (criaBranch) {
   // estado de branch pendente (número/tipo/origem incompletos) -> não deixa criar
   let pend = null; try { pend = loadReq(sid); } catch {}
@@ -56,6 +62,11 @@ if (!isCommit && !isPush) { allow(); }
 // modo CONSULTA/DOC -> sem commit/push (não abriu tarefa)
 if (isConsult(sid)) {
   deny('[VS-CONSULT-001] BLOCKED — sessão em modo CONSULTA/DOC: não commita nem faz push. Pra habilitar, inicie uma tarefa: informe número + tipo + origem (cria a branch).');
+}
+
+// mobile não faz push — acumula local; deploy (APK) só no fim do dia, a pedido do Fabiano
+if (isPush && isMobile && !existsSync(join(process.cwd(), '.qa-gate-mobile-ok'))) {
+  deny('[VS-MOBILE-001] BLOCKED — mobile NÃO faz push. Acumula commits locais; deploy só no fim do dia, quando o Fabiano pedir. Pra liberar agora: touch .qa-gate-mobile-ok');
 }
 
 // --no-verify burla os hooks

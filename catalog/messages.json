@@ -176,6 +176,31 @@
       "when": "Dev bateu escape (n/esc/doc/consulta) no fluxo de branch, OU pediu doc avulso p/ passar pra analista.",
       "how": "on-task marca modo consulta e libera doc; git-guard bloqueia commit/push ate iniciar tarefa (branch). Doc de TAREFA (branch criada) sobe normal.",
       "fields_dynamic": []
+    },
+
+    {
+      "code": "VS-ALVO", "status": "REQUIRED", "title": "Alvo obrigatório",
+      "short": "ALVO obrigatorio na tarefa: mobile | front | back — onde atacar.",
+      "dev_msg": "Informe o ALVO (camada). Com o alvo o agente vai DIRETO no codigo certo, sem vasculhar outras camadas (economia de tempo/token).",
+      "when": "4o campo do fluxo de branch (numero+tipo+origem+ALVO).",
+      "how": "Detectado por palavra (mobile/app/flutter; back/api/controller; front/tela/web). Injetado como diretiva: trabalhe SO na camada do alvo.",
+      "fields_dynamic": []
+    },
+    {
+      "code": "VS-MOBILE-001", "status": "BLOCKED", "title": "Mobile não faz push",
+      "short": "[VS-MOBILE-001] BLOCKED — mobile nao faz push; acumula local, deploy fim do dia.",
+      "dev_msg": "Mobile acumula commits LOCAIS. Sem push ate o Fabiano pedir; deploy (APK) so no fim do dia. Liberar agora: touch .qa-gate-mobile-ok",
+      "when": "git push num repo mobile (cwd contem /mobile).",
+      "how": "git-guard bloqueia push no mobile salvo override .qa-gate-mobile-ok.",
+      "fields_dynamic": []
+    },
+    {
+      "code": "VS-MOBILE-002", "status": "BLOCKED", "title": "Mobile sem branch de tarefa",
+      "short": "[VS-MOBILE-002] BLOCKED — mobile nao usa branch de tarefa; acumula na branch atual.",
+      "dev_msg": "No mobile nao se cria branch por tarefa — acumula na branch atual; deploy so no fim do dia.",
+      "when": "git checkout -b / branch num repo mobile.",
+      "how": "git-guard bloqueia criacao de branch no mobile.",
+      "fields_dynamic": []
     }
   ]
 }

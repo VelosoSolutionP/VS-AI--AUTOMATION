@@ -116,27 +116,31 @@ if (isDocumentationTask) {
       num: cur.num || pending?.num || null,
       tipo: cur.tipo || pending?.tipo || null,
       origem: cur.origem || pending?.origem || null,
+      alvo: cur.alvo || pending?.alvo || null,
     };
     const missing = [];
-    if (!merged.num) { missing.push('NÚMERO da tarefa'); }
-    if (!merged.tipo) { missing.push('TIPO (fix/feat/refactor/perf/hotfix/chore/test/docs)'); }
-    if (!merged.origem) { missing.push('ORIGEM (dev/hml/main)'); }
+    if (!merged.num) { missing.push('num'); }
+    if (!merged.tipo) { missing.push('tipo'); }
+    if (!merged.origem) { missing.push('origem'); }
+    if (!merged.alvo) { missing.push('alvo'); }
 
     if (missing.length) {
       saveReq(sid, merged);
-      const providedThisTurn = !!(cur.num || cur.tipo || cur.origem) || /\bbranch\b/i.test(prompt);
+      const providedThisTurn = !!(cur.num || cur.tipo || cur.origem || cur.alvo) || /\bbranch\b/i.test(prompt);
       if (providedThisTurn) {
         const check =
           (merged.num ? '✅' : '❌') + ' NÚMERO' + (merged.num ? ' ' + merged.num : '') + '   ' +
           (merged.tipo ? '✅' : '❌') + ' TIPO' + (merged.tipo ? ' ' + merged.tipo : '') + '   ' +
-          (merged.origem ? '✅' : '❌') + ' ORIGEM' + (merged.origem ? ' ' + merged.origem : '');
+          (merged.origem ? '✅' : '❌') + ' ORIGEM' + (merged.origem ? ' ' + merged.origem : '') + '   ' +
+          (merged.alvo ? '✅' : '❌') + ' ALVO' + (merged.alvo ? ' ' + merged.alvo : '');
         const next = !merged.num ? 'o NÚMERO da tarefa'
           : !merged.tipo ? 'o TIPO → fix | feat | refactor | perf | hotfix | chore | test | docs'
-            : 'a ORIGEM → dev | hml | main';
+            : !merged.origem ? 'a ORIGEM → dev | hml | main'
+              : 'o ALVO → mobile | front | back (onde atacar)';
         process.stdout.write(JSON.stringify({
           decision: 'block',
           reason:
-            '[VS-BRANCH-001] Falta pra criar a branch:\n' +
+            '[VS-BRANCH-001] Falta pra criar a tarefa:\n' +
             check + '\n\n' +
             '→ Responda ' + next + '   (ou "cancela" pra sair)',
         }));
@@ -145,12 +149,15 @@ if (isDocumentationTask) {
       // pendente mas sem dado novo neste turno -> não bloqueia o chat; git-guard segura a criação
     } else {
       clearReq(sid);
-      clearConsult(sid); // entrou em modo TAREFA -> commit/push/doc liberados
+      clearConsult(sid); // entrou em modo TAREFA
+      let ctx;
+      if (merged.alvo === 'mobile') {
+        ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · ALVO=MOBILE. REGRA MOBILE: NÃO cria branch de tarefa, NÃO faz push. Acumula commits LOCAIS; deploy (APK) só no fim do dia, quando o Fabiano pedir. Vá DIRETO no código Flutter/dart do alvo — NÃO investigue front/back (o alvo é mobile).`;
+      } else {
+        ctx = `[governança] branch OK: ${merged.tipo}/fabiano.veloso/${merged.num} a partir de origin/${merged.origem}. ALVO=${merged.alvo.toUpperCase()} — trabalhe SÓ na camada ${merged.alvo}, vá direto no alvo, NÃO vasculhe outras camadas. Crie: git fetch origin ${merged.origem} && git checkout -b ${merged.tipo}/fabiano.veloso/${merged.num} origin/${merged.origem}`;
+      }
       process.stdout.write(JSON.stringify({
-        hookSpecificOutput: {
-          hookEventName: 'UserPromptSubmit',
-          additionalContext: '[governança] branch OK: ' + merged.tipo + '/fabiano.veloso/' + merged.num + ' a partir de origin/' + merged.origem + '. Modo TAREFA (commit/push/doc liberados). Crie: git fetch origin ' + merged.origem + ' && git checkout -b ' + merged.tipo + '/fabiano.veloso/' + merged.num + ' origin/' + merged.origem,
-        },
+        hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: ctx },
       }));
       process.exit(0);
     }
