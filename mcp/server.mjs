@@ -85,16 +85,18 @@ server.tool('qa_simulate',
     mode: z.enum(['form', 'read']).optional().describe('form=injeta bug via submit + exige msg amigavel (default). read=lista/visualiza sem submit, exige conteudo renderizado'),
     submitText: z.string().optional(),
     submitSelector: z.string().optional(),
+    fill: z.record(z.string()).optional().describe('form: preenche campos ANTES do submit p/ reproduzir validacao de negocio. Ex: {"#email":"existente@x.com","#nome":"Teste"} (email duplicado, formato invalido)'),
     expectFriendlyError: z.boolean().optional(),
+    expectMessageText: z.string().optional().describe('form: exige que a msg amigavel contenha esse texto (ex: "ja cadastrado")'),
     expectSelector: z.string().optional().describe('read: seletor que DEVE renderizar (ex: linha da tabela)'),
     expectMinCount: z.number().optional().describe('read: quantidade minima do expectSelector (ex: 1)'),
     expectText: z.string().optional().describe('read: texto que deve aparecer no DOM'),
   },
-  async ({ configPath, path, alvo, mode, submitText, submitSelector, expectFriendlyError, expectSelector, expectMinCount, expectText }) => {
+  async ({ configPath, path, alvo, mode, submitText, submitSelector, fill, expectFriendlyError, expectMessageText, expectSelector, expectMinCount, expectText }) => {
     requireLicense();
     const cfg = loadConfig(configPath);
     if (!cfg) { throw new Error('sem config em ' + configPath); }
-    const flow = { name: 'adhoc' + path, path, mode, submitText, submitSelector, expectFriendlyError, expectSelector, expectMinCount, expectText };
+    const flow = { name: 'adhoc' + path, path, mode, submitText, submitSelector, fill, expectFriendlyError, expectMessageText, expectSelector, expectMinCount, expectText };
     const content = [];
     let anyRed = false;
     for (const { name, tcfg } of targetsFor(cfg, alvo)) {

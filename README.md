@@ -194,7 +194,9 @@ Colocado na raiz do seu projeto:
 | `flows[].path` | rota do form/modal/lista a exercer |
 | `flows[].mode` | `form` (default) ou `read` (sem submit) |
 | `flows[].submitText` / `submitSelector` | (form) como acionar o submit |
-| `flows[].expectFriendlyError` | (form) exige mensagem amigável ao injetar o bug |
+| `flows[].fill` | (form) preenche campos antes do submit — reproduz validação de negócio (ex.: email duplicado): `{"#email":"existente@x.com"}` |
+| `flows[].expectFriendlyError` | (form) exige mensagem amigável ao submeter |
+| `flows[].expectMessageText` | (form) exige que a msg amigável contenha esse texto (ex.: `"já cadastrado"`) |
 | `flows[].expectSelector` / `expectMinCount` / `expectText` | (read) conteúdo que deve renderizar |
 | `deps.dockerUp` | comando p/ subir o ambiente quando o app está fora do ar (ex.: `./docker/scripts/dev.sh up`) |
 | `deps.seed` | comando p/ semear dados de QA — **idempotente**, NUNCA `migrate:fresh` (apaga dados) |
