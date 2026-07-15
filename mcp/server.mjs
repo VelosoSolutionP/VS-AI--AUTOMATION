@@ -8,7 +8,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { readFileSync } from 'node:fs';
-import { checkApp, simulateFlows, runGate, loadConfig, targetsFor } from '../engine/core.mjs';
+import { checkApp, ensureUp, simulateFlows, runGate, loadConfig, targetsFor } from '../engine/core.mjs';
 import { validateTask } from '../engine/requirements.mjs';
 import { loadEvents, aggregate, report } from '../engine/metrics.mjs';
 import { hasConsent } from '../engine/consent.mjs';
@@ -94,8 +94,8 @@ server.tool('qa_simulate',
     const content = [];
     let anyRed = false;
     for (const { name, tcfg } of targetsFor(cfg, alvo)) {
-      const up = await checkApp(tcfg.baseUrl, tcfg.healthPath || cfg.healthPath);
-      if (!up) { content.push(text(`⚠ ${name}: app fora do ar (${tcfg.baseUrl}) — não testado`)); continue; }
+      const up = tcfg.start ? await ensureUp(tcfg.baseUrl, tcfg.healthPath || cfg.healthPath, tcfg) : await checkApp(tcfg.baseUrl, tcfg.healthPath || cfg.healthPath);
+      if (!up) { content.push(text(`⚠ ${name}: app fora do ar (${tcfg.baseUrl}) — não subiu/não testado`)); continue; }
       const [res] = await simulateFlows({ ...tcfg }, [flow], { repo: `${configPath}-${name}` });
       if (res.status === 'red') { anyRed = true; }
       content.push(text(`${res.status === 'green' ? '✔ VERDE' : '✖ VERMELHO'} [${name}] ${path}\n${res.errors.join('\n') || 'bug injetado retornou msg amigável, console limpo'}`));
