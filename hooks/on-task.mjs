@@ -150,155 +150,88 @@ if (isDocumentationTask) {
   const cur = parseBranch(prompt);
   const pending = loadReq(sid);
 
-  // PERGUNTA não abre tarefa. Se o dev está questionando/discutindo (mesmo citando um
-  // número), NÃO engata o muro — só engata com intenção EXPLÍCITA de tarefa.
-  const isQuestion = /\?\s*$/.test(prompt) ||
-    /^\s*(por ?que|porqu[eê]|como|o que|qual|quais|quando|onde|pode|consegue|poderia|voc[êe]|vc|e se|ser[áa]|tem como|d[áa] pra|explica|entendi|acho que|n[ãa]o entendi|e o|e a|mas )/i.test(prompt);
-  // O MURO SÓ ENGATA COM NÚMERO. "só pode pedir tarefa se eu mandar o número."
-  // Palavras casuais (bug/mobile/dev/front) num desabafo/pergunta NÃO abrem tarefa.
-  const estrutural = /\b(nova|pr[óo]xima|outra)\s+tarefa\b/i.test(prompt) || /\bcria(r)?\s+(a\s+)?branch\b/i.test(prompt);
-  const numHere = !!cur.num && !isQuestion; // número presente e não é pergunta
-  const taskTrigger = numHere || estrutural;
-  // só continua acumulando se JÁ existe tarefa em curso COM número
-  const emCurso = !!(pending && pending.num);
-
+  // cancelar tarefa em curso
   if (pending && /\b(cancela|cancelar|esquece|aborta|deixa pra l[áa])\b/i.test(prompt)) {
     clearReq(sid);
-  } else if (emCurso || taskTrigger) {
-    const merged = {
-      num: cur.num || pending?.num || null,
-      tipo: cur.tipo || pending?.tipo || null,
-      origem: cur.origem || pending?.origem || null,
-      alvo: cur.alvo || pending?.alvo || null,
-      crud: cur.crud || pending?.crud || false,
-    };
-    // SEM NÚMERO não há tarefa — não nag, não guarda estado (evita muro em desabafo/papo)
-    if (!merged.num) {
-      clearReq(sid);
-    } else {
-    // bug de CRUD/validação: não trava adivinhando camada — o gate reproduz e mostra o erro.
-    // default alvo=front (gate browser diagnostica); se o dev disse mobile, respeita.
-    if (merged.crud && !merged.alvo) { merged.alvo = 'front'; }
-    const missing = [];
-    if (!merged.tipo) { missing.push('tipo'); }
-    if (!merged.origem) { missing.push('origem'); }
-    if (!merged.alvo) { missing.push('alvo'); }
-
-    if (missing.length) {
-      saveReq(sid, merged);
-      {
-        const check =
-          (merged.num ? '✅' : '❌') + ' NÚMERO' + (merged.num ? ' ' + merged.num : '') + '   ' +
-          (merged.tipo ? '✅' : '❌') + ' TIPO' + (merged.tipo ? ' ' + merged.tipo : '') + '   ' +
-          (merged.origem ? '✅' : '❌') + ' ORIGEM' + (merged.origem ? ' ' + merged.origem : '') + '   ' +
-          (merged.alvo ? '✅' : '❌') + ' ALVO' + (merged.alvo ? ' ' + merged.alvo : '');
-        const next = !merged.num ? 'o NÚMERO da tarefa'
-          : !merged.tipo ? 'o TIPO → fix | feat | refactor | perf | hotfix | chore | test | docs'
-            : !merged.origem ? 'a ORIGEM → dev | hml | main'
-              : 'o ALVO → mobile | front | back (onde atacar)';
-        process.stdout.write(JSON.stringify({
-          decision: 'block',
-          reason:
-            '[VS-BRANCH-001] Falta pra criar a tarefa:\n' +
-            check + '\n\n' +
-            '→ Responda ' + next + '   (ou "cancela" pra sair)',
-        }));
-        process.exit(0);
-      }
-      // pendente mas sem dado novo neste turno -> não bloqueia o chat; git-guard segura a criação
-    } else {
-      clearReq(sid);
-      clearConsult(sid); // entrou em modo TAREFA
-      let ctx;
-      if (merged.alvo === 'mobile') {
-        ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · ALVO=MOBILE. REGRA MOBILE: NÃO cria branch de tarefa, NÃO faz push. Acumula commits LOCAIS; deploy (APK) só no fim do dia, quando o Fabiano pedir. Vá DIRETO no código Flutter/dart do alvo — NÃO investigue front/back (o alvo é mobile).`;
-      } else {
-        ctx = `[governança] branch OK: ${merged.tipo}/fabiano.veloso/${merged.num} a partir de origin/${merged.origem}. ALVO=${merged.alvo.toUpperCase()} — trabalhe SÓ na camada ${merged.alvo}, vá direto no alvo, NÃO vasculhe outras camadas. Crie: git fetch origin ${merged.origem} && git checkout -b ${merged.tipo}/fabiano.veloso/${merged.num} origin/${merged.origem}`;
-      }
-      if (merged.crud) {
-        ctx += ` | BUG CRUD/VALIDAÇÃO: NÃO fique adivinhando a camada. Rode o QA-Gate na rota/fluxo afetado PRIMEIRO — ele reproduz o erro (ex.: tenta editar o paciente), e você vê o erro REAL no DOM/console/screenshot. Corrija com base no que o gate mostrar, depois re-simula.`;
-      }
-      process.stdout.write(JSON.stringify({
-        hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: ctx },
-      }));
-      process.exit(0);
-    }
-    }
+    process.exit(0);
   }
-}
 
-// =====================================================
-// FAIL-OPEN: só bloqueia com SINAL FORTE de tarefa de dev.
-// Papo normal, dúvida, comentário -> passa direto (nunca bloqueia).
-// Sinal forte: número de tarefa (#123), /task, verbo de dev no INÍCIO,
-// ou tarefa estruturada (descrição: + objetivo/critério).
-// =====================================================
+  const isQuestion = /\?\s*$/.test(prompt) ||
+    /^\s*(por ?que|porqu[eê]|como|o que|qual|quais|quando|onde|pode|consegue|poderia|voc[êe]|vc|e se|ser[áa]|tem como|d[áa] pra|explica|entendi|acho que|n[ãa]o entendi|e o|e a|mas )/i.test(prompt);
 
-// pergunta/dúvida NUNCA é sinal forte de tarefa (mesmo começando com verbo)
-const perguntaTopo = /\?\s*$/.test(prompt) ||
-  /^\s*(por ?que|porqu[eê]|como|o que|qual|quais|quando|onde|pode|consegue|poderia|d[áa] pra|tem como|ser[áa]|e se|explica|n[ãa]o entendi|entendi)/i.test(prompt);
+  // ABRIR TAREFA = palavra "tarefa"/"task" + NÚMERO deliberado. Número solto
+  // (porta :3333, /paths, versão, hash) NÃO conta. Até isso, a IA fica LIVRE.
+  const temTarefa = /\btarefas?\b|\btask\b/i.test(prompt);
+  const limpo = prompt
+    .replace(/https?:\/\/\S+/gi, ' ')    // URLs
+    .replace(/:\d+/g, ' ')                // :porta
+    .replace(/\/\S+/g, ' ')               // /paths
+    .replace(/\b[0-9a-f]{7,}\b/gi, ' ');  // hashes
+  const numMatch = limpo.match(/#?\b(\d{3,6})\b/);
+  const numDeliberado = (temTarefa && numMatch && !isQuestion) ? numMatch[1] : null;
+  const emCurso = !!(pending && pending.num);
 
-const strongDevSignal = !perguntaTopo && (
-  /#\d{3,}/.test(prompt) ||
-  /^\s*#?\d{3,6}\b/.test(prompt) ||
-  /^\s*\/task\b/i.test(prompt) ||
-  /^\s*(corrig\w*|arrum\w*|implement\w*|refator\w*|cri[ae]\w*|ajust\w*|adicion\w*|remov\w*|desenvolv\w*|fix\b)\b/i.test(prompt) ||
-  (/descri[çc][ãa]o\s*:/i.test(prompt) && /(objetivo|crit[ée]rio)/i.test(prompt)));
+  // LIVRE: sem "tarefa <número>" e sem tarefa em curso, a IA faz o que o Fabiano pedir.
+  if (!emCurso && !numDeliberado) {
+    process.exit(0);
+  }
 
-if (!strongDevSignal) {
-  process.exit(0);
-}
-
-// =====================================================
-// DOC PENDENTE — não inicia nova tarefa com doc da anterior pendente.
-// (a doc em si é DOC-001 e passa pelo bypass de documentação acima)
-// =====================================================
-
-if (existsSync(join(process.cwd(), '.git', 'qa-gate-pending-doc'))) {
-  process.stdout.write(
-    JSON.stringify({
+  // abrindo tarefa nova: doc da anterior tem que estar feita
+  if (numDeliberado && !emCurso && existsSync(join(process.cwd(), '.git', 'qa-gate-pending-doc'))) {
+    process.stdout.write(JSON.stringify({
       decision: 'block',
       reason:
         '[VS-DOC-002] BLOCKED — documentação da tarefa anterior pendente.\n' +
-        'Fluxo atômico: branch → tarefa → gate → commit → push → DOC. Documente a tarefa anterior (Redmine) antes de iniciar outra.\n' +
-        'Após documentar, limpe: rm .git/qa-gate-pending-doc',
-    })
-  );
-  process.exit(0);
-}
+        'Documente (Redmine) antes de iniciar outra. Após documentar: rm .git/qa-gate-pending-doc',
+    }));
+    process.exit(0);
+  }
 
-// =====================================================
-// DESENVOLVIMENTO — valida requisitos obrigatórios
-// =====================================================
+  const merged = {
+    num: numDeliberado || pending?.num || null,
+    tipo: cur.tipo || pending?.tipo || null,
+    origem: cur.origem || pending?.origem || null,
+    alvo: cur.alvo || pending?.alvo || null,
+    crud: cur.crud || pending?.crud || false,
+  };
+  if (merged.crud && !merged.alvo) { merged.alvo = 'front'; }
 
-const result = validateTask(prompt);
+  const missing = [];
+  if (!merged.tipo) { missing.push('tipo'); }
+  if (!merged.origem) { missing.push('origem'); }
+  if (!merged.alvo) { missing.push('alvo'); }
 
-if (result.blocked) {
-  process.stdout.write(
-    JSON.stringify({
+  if (missing.length) {
+    saveReq(sid, merged);
+    const check =
+      '✅ NÚMERO ' + merged.num + '   ' +
+      (merged.tipo ? '✅' : '❌') + ' TIPO' + (merged.tipo ? ' ' + merged.tipo : '') + '   ' +
+      (merged.origem ? '✅' : '❌') + ' ORIGEM' + (merged.origem ? ' ' + merged.origem : '') + '   ' +
+      (merged.alvo ? '✅' : '❌') + ' ALVO' + (merged.alvo ? ' ' + merged.alvo : '');
+    const next = !merged.tipo ? 'o TIPO → fix | feat | refactor | perf | hotfix | chore | test | docs'
+      : !merged.origem ? 'a ORIGEM → dev | hml | main'
+        : 'o ALVO → mobile | front | back (onde atacar)';
+    process.stdout.write(JSON.stringify({
       decision: 'block',
-      reason: `${result.short}\n\n${result.dev_msg}`,
-    })
-  );
+      reason: '[VS-BRANCH-001] Falta pra criar a tarefa:\n' + check + '\n\n→ Responda ' + next + '   (ou "cancela" pra sair)',
+    }));
+    process.exit(0);
+  }
 
+  // completo -> injeta contexto da tarefa
+  clearReq(sid);
+  clearConsult(sid);
+  let ctx;
+  if (merged.alvo === 'mobile') {
+    ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · ALVO=MOBILE. REGRA MOBILE: NÃO cria branch de tarefa, NÃO faz push. Acumula commits LOCAIS; deploy (APK) só no fim do dia, quando o Fabiano pedir. Vá DIRETO no código Flutter/dart do alvo — NÃO investigue front/back.`;
+  } else {
+    ctx = `[governança] branch OK: ${merged.tipo}/fabiano.veloso/${merged.num} a partir de origin/${merged.origem}. ALVO=${merged.alvo.toUpperCase()} — trabalhe SÓ na camada ${merged.alvo}, vá direto no alvo. Crie: git fetch origin ${merged.origem} && git checkout -b ${merged.tipo}/fabiano.veloso/${merged.num} origin/${merged.origem}`;
+  }
+  if (merged.crud) {
+    ctx += ` | BUG CRUD/VALIDAÇÃO: rode o QA-Gate na rota/fluxo afetado PRIMEIRO — ele reproduz o erro real (DOM/console/screenshot). Corrija com base no que o gate mostrar.`;
+  }
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: ctx },
+  }));
   process.exit(0);
 }
-
-// =====================================================
-// Tarefa liberada
-// =====================================================
-
-const aiMessage = result.escalate.call_ai
-  ? `sim (${result.escalate.reason})`
-  : 'não — tarefa simples';
-
-process.stdout.write(
-  JSON.stringify({
-    hookSpecificOutput: {
-      hookEventName: 'UserPromptSubmit',
-      additionalContext: `[governança] ${result.code} ${result.status}. Escalar IA: ${aiMessage}.`,
-    },
-  })
-);
-
-process.exit(0);
