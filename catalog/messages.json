@@ -183,7 +183,15 @@
       "short": "ALVO obrigatorio na tarefa: mobile | front | back — onde atacar.",
       "dev_msg": "Informe o ALVO (camada). Com o alvo o agente vai DIRETO no codigo certo, sem vasculhar outras camadas (economia de tempo/token).",
       "when": "4o campo do fluxo de branch (numero+tipo+origem+ALVO).",
-      "how": "Detectado por palavra (mobile/app/flutter; back/api/controller; front/tela/web). Injetado como diretiva: trabalhe SO na camada do alvo.",
+      "how": "Detectado por palavra (mobile/app/flutter; back/api/controller; front/tela/web). Injetado como diretiva: trabalhe SO na camada do alvo. EXCECAO: bug de CRUD/validacao nao trava no alvo (ver VS-CRUD).",
+      "fields_dynamic": []
+    },
+    {
+      "code": "VS-CRUD", "status": "DIAGNOSE", "title": "CRUD/validação → gate diagnostica",
+      "short": "Bug de CRUD/validacao: rode o QA-Gate direto — ele reproduz e mostra o erro real.",
+      "dev_msg": "Nao adivinhe a camada. O gate reproduz o fluxo (ex.: editar paciente), voce ve o erro REAL (DOM/console/screenshot) e corrige com base nisso.",
+      "when": "Task com operacao CRUD (editar/cadastrar/salvar/lista) + sintoma (erro/validacao/mensagem/campo/500/422).",
+      "how": "Nao bloqueia por ALVO (default front, gate-diagnosticavel; mobile explicito respeitado). Injeta diretiva: rode o gate primeiro.",
       "fields_dynamic": []
     },
     {

@@ -20,11 +20,16 @@ export function parseBranch(prompt) {
   if (/\b(mobile|app|flutter|dart|apk)\b/i.test(p)) { alvo = 'mobile'; }
   else if (/\b(back|backend|api|laravel|controller|service|repository|migration|model|endpoint)\b/i.test(p)) { alvo = 'back'; }
   else if (/\b(front|frontend|web|tela|ui|componente|component|next|react|blade|livewire|p[áa]gina|view)\b/i.test(p)) { alvo = 'front'; }
+  // bug de CRUD/validação (editar/cadastrar/salvar + erro/validação/mensagem/campo)
+  const crudOp = /\b(editar|edi[çc][ãa]o|cadastr\w*|criar|cria[çc][ãa]o|excluir|deletar|salvar|atualizar|remover|lista\w*|carreg\w*)\b/i.test(p);
+  const crudSymptom = /\b(erro|falha|quebr\w*|n[ãa]o (salva|valida|trata|carrega|aparece|mostra)|valida[çc][ãa]o|mensagem|campo|500|422)\b/i.test(p);
+  const crud = (crudOp && crudSymptom) || /erro ao (editar|salvar|cadastrar|criar|carregar)/i.test(p);
   return {
     num,
     tipo: tipoM ? (TIPOS[tipoM.toLowerCase()] || tipoM.toLowerCase()) : null,
     origem: origM ? origM.toLowerCase() : null,
     alvo,
+    crud,
   };
 }
 

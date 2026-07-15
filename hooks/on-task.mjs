@@ -117,7 +117,11 @@ if (isDocumentationTask) {
       tipo: cur.tipo || pending?.tipo || null,
       origem: cur.origem || pending?.origem || null,
       alvo: cur.alvo || pending?.alvo || null,
+      crud: cur.crud || pending?.crud || false,
     };
+    // bug de CRUD/validação: não trava adivinhando camada — o gate reproduz e mostra o erro.
+    // default alvo=front (gate browser diagnostica); se o dev disse mobile, respeita.
+    if (merged.crud && !merged.alvo) { merged.alvo = 'front'; }
     const missing = [];
     if (!merged.num) { missing.push('num'); }
     if (!merged.tipo) { missing.push('tipo'); }
@@ -155,6 +159,9 @@ if (isDocumentationTask) {
         ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · ALVO=MOBILE. REGRA MOBILE: NÃO cria branch de tarefa, NÃO faz push. Acumula commits LOCAIS; deploy (APK) só no fim do dia, quando o Fabiano pedir. Vá DIRETO no código Flutter/dart do alvo — NÃO investigue front/back (o alvo é mobile).`;
       } else {
         ctx = `[governança] branch OK: ${merged.tipo}/fabiano.veloso/${merged.num} a partir de origin/${merged.origem}. ALVO=${merged.alvo.toUpperCase()} — trabalhe SÓ na camada ${merged.alvo}, vá direto no alvo, NÃO vasculhe outras camadas. Crie: git fetch origin ${merged.origem} && git checkout -b ${merged.tipo}/fabiano.veloso/${merged.num} origin/${merged.origem}`;
+      }
+      if (merged.crud) {
+        ctx += ` | BUG CRUD/VALIDAÇÃO: NÃO fique adivinhando a camada. Rode o QA-Gate na rota/fluxo afetado PRIMEIRO — ele reproduz o erro (ex.: tenta editar o paciente), e você vê o erro REAL no DOM/console/screenshot. Corrija com base no que o gate mostrar, depois re-simula.`;
       }
       process.stdout.write(JSON.stringify({
         hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: ctx },
