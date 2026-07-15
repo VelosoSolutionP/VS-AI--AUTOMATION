@@ -58,10 +58,12 @@ if (r.status === 'blocked' || r.status === 'error') {
     if (n.kind === 'app-up') {
       const passos = [];
       if (n.dockerUp) { passos.push(`suba o ambiente: \`${n.dockerUp}\``); }
-      else if (n.start) { passos.push('tem `start` no config — veja por que não subiu'); }
-      else { passos.push('suba o app (dev/live)'); }
-      if (n.seed) { passos.push(`se faltar dados: \`${n.seed}\` (seed idempotente de QA — NUNCA migrate:fresh que apaga dados)`); }
-      return `• APP FORA DO AR: ${n.target} não responde em ${n.baseUrl}. VOCÊ resolve: ${passos.join('; ')}. Espere subir e re-tente.`;
+      else if (n.start) { passos.push('rode o `start` do config'); }
+      else { passos.push('suba o app (docker/dev)'); }
+      if (n.rebuild) { passos.push(`rebuilde o front com as edições da branch: \`${n.rebuild}\` (o build no ar pode ser antigo/prod)`); }
+      else { passos.push('se o front no ar for build antigo, rebuilde com as edições da branch (npm run build / restart do container)'); }
+      if (n.seed) { passos.push(`se faltar dados: \`${n.seed}\` (seed idempotente de QA — NUNCA migrate:fresh)`); }
+      return `• APP FORA DO AR / DESATUALIZADO: ${n.target} em ${n.baseUrl}. VOCÊ resolve (não peça pro Fabiano): ${passos.join('; ')}. Espere subir e RE-TENTE o commit.`;
     }
     if (n.kind === 'sim-error') { return `• GATE QUEBROU em ${n.target}: ${n.detail}. VOCÊ resolve: ajuste o seletor/rota/login no config e re-tente.`; }
     if (n.kind === 'flutter') { return `• FLUTTER FALTANDO: ${n.detail}. VOCÊ resolve: garanta o Flutter SDK no PATH (flutter --version) e re-tente.`; }
@@ -70,8 +72,10 @@ if (r.status === 'blocked' || r.status === 'error') {
   }).join('\n');
   deny(
     `[VS-AUD-003] BLOCKED — QA-Gate NÃO validou (faltou algo pra rodar). Regra absoluta: sem gate verde, sem commit.\n` +
-    `RESOLVA TUDO até o gate rodar (Docker parado → sobe; falta dados → seed; falta lib → instala; falta flow → adiciona) e SÓ ENTÃO commite. É responsabilidade da IA deixar o gate rodar, não pular:\n${acoes}\n` +
-    `Resolva um por um, re-testando o commit a cada passo — o gate roda de novo até ficar verde.`
+    `⛔ PROIBIDO pedir pro Fabiano subir/rebuildar/semear o ambiente e "esperar". A ferramenta é AUTÔNOMA: VOCÊ faz o que for preciso — subir Docker, rebuildar o front com as edições da branch, rodar seed, instalar lib, adicionar flow — e roda o gate. "Se for papai noel, se vira": resolve e roda.\n` +
+    `RESOLVA TUDO até o gate rodar e SÓ ENTÃO commite:\n${acoes}\n` +
+    `Execute um por um, re-testando o commit a cada passo — o gate roda de novo até ficar verde. ` +
+    `Só acione o Fabiano se, DEPOIS de tentar TODOS os passos acima, ainda falhar — e diga exatamente o que rodou e o erro real (não peça antes de tentar).`
   );
 }
 // red
