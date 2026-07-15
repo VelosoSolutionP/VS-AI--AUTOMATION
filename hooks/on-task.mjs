@@ -12,7 +12,7 @@
  */
 
 import { validateTask } from '../engine/requirements.mjs';
-import { parseBranch, loadReq, saveReq, clearReq } from '../engine/branch-req.mjs';
+import { parseBranch, loadReq, saveReq, clearReq, setConsult, clearConsult } from '../engine/branch-req.mjs';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -52,6 +52,23 @@ if (!prompt) {
 // opt-out por pasta: .qa-gate-off no cwd desliga a governança nesta sessão/pasta
 // (usado na bancada de conserto do próprio produto)
 if (existsSync(join(process.cwd(), '.qa-gate-off'))) {
+  process.exit(0);
+}
+
+// ESCAPE -> modo CONSULTA/DOC: se o dev bate n/esc/doc/consulta (curto), pula o fluxo
+// de tarefa e libera a sessão só p/ leitura e geração de documento. Sem commit/push.
+if (/^\s*(n|n[ãa]o|esc|doc|s[óo] ?consulta|consulta|sair|deixa|cancela|cancelar)\s*$/i.test(prompt)) {
+  clearReq(sid);
+  setConsult(sid);
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: 'UserPromptSubmit',
+      additionalContext:
+        '[governança] Sessão em modo CONSULTA/DOC: leitura e geração de documento liberadas. ' +
+        'NÃO commita nem faz push (é consulta, não abre tarefa). ' +
+        'Pra iniciar tarefa real: informe número + tipo + origem.',
+    },
+  }));
   process.exit(0);
 }
 
@@ -119,10 +136,11 @@ if (isDocumentationTask) {
       // pendente mas sem dado novo neste turno -> não bloqueia o chat; git-guard segura a criação
     } else {
       clearReq(sid);
+      clearConsult(sid); // entrou em modo TAREFA -> commit/push/doc liberados
       process.stdout.write(JSON.stringify({
         hookSpecificOutput: {
           hookEventName: 'UserPromptSubmit',
-          additionalContext: '[governança] branch OK: ' + merged.tipo + '/fabiano.veloso/' + merged.num + ' a partir de origin/' + merged.origem + '. Crie: git fetch origin ' + merged.origem + ' && git checkout -b ' + merged.tipo + '/fabiano.veloso/' + merged.num + ' origin/' + merged.origem,
+          additionalContext: '[governança] branch OK: ' + merged.tipo + '/fabiano.veloso/' + merged.num + ' a partir de origin/' + merged.origem + '. Modo TAREFA (commit/push/doc liberados). Crie: git fetch origin ' + merged.origem + ' && git checkout -b ' + merged.tipo + '/fabiano.veloso/' + merged.num + ' origin/' + merged.origem,
         },
       }));
       process.exit(0);

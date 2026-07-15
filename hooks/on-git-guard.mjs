@@ -13,7 +13,7 @@
 import { execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { loadReq } from '../engine/branch-req.mjs';
+import { loadReq, isConsult } from '../engine/branch-req.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
@@ -52,6 +52,11 @@ if (criaBranch) {
 const isCommit = /\bcommit\b/.test(cmd);
 const isPush = /\bpush\b/.test(cmd);
 if (!isCommit && !isPush) { allow(); }
+
+// modo CONSULTA/DOC -> sem commit/push (não abriu tarefa)
+if (isConsult(sid)) {
+  deny('[VS-CONSULT-001] BLOCKED — sessão em modo CONSULTA/DOC: não commita nem faz push. Pra habilitar, inicie uma tarefa: informe número + tipo + origem (cria a branch).');
+}
 
 // --no-verify burla os hooks
 if (/--no-verify|-n\b/.test(cmd)) {

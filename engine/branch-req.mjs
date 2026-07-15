@@ -24,9 +24,20 @@ export function parseBranch(prompt) {
 
 // Estado chaveado por SESSION_ID (constante na sessão) — não depende de cwd.
 // Mesma sessão do Claude Code = mesmo estado, independente da pasta atual.
-export function reqPath(key) {
-  const safe = String(key || 'default').replace(/[^a-z0-9_-]/gi, '').slice(0, 48) || 'default';
-  return join(tmpdir(), `qa-gate-branch-${safe}.json`);
+const slug = (key) => String(key || 'default').replace(/[^a-z0-9_-]/gi, '').slice(0, 48) || 'default';
+export function reqPath(key) { return join(tmpdir(), `qa-gate-branch-${slug(key)}.json`); }
+
+// Modo CONSULTA/DOC: sessão liberada só p/ leitura e geração de documento — sem commit/push.
+const consultPath = (key) => join(tmpdir(), `qa-gate-consult-${slug(key)}.json`);
+export function setConsult(key) { try { writeFileSync(consultPath(key), JSON.stringify({ ts: Date.now() })); } catch {} }
+export function clearConsult(key) { try { rmSync(consultPath(key)); } catch {} }
+export function isConsult(key) {
+  try {
+    if (!existsSync(consultPath(key))) { return false; }
+    const o = JSON.parse(readFileSync(consultPath(key), 'utf8'));
+    if (Date.now() - (o.ts || 0) > TTL) { rmSync(consultPath(key)); return false; }
+    return true;
+  } catch { return false; }
 }
 
 export function loadReq(key) {

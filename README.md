@@ -44,6 +44,7 @@ Além do QA-Gate, o produto é uma **camada de governança executável** — o m
 - **Git-guard** (`hooks/on-git-guard.mjs`): bloqueia `git add .` cego, `--no-verify`, commit/push em branch protegida (main/dev/hml) e criação de branch sem base `origin/<x>` (`VS-BRANCH-002`).
 - **Muro de origem** (`hooks/on-task.mjs`, `VS-BRANCH-001`): pedido de branch sem **origem** informada é bloqueado — exige número + tipo + origem (dev/hml/main). Evita origem assumida que quebra no merge.
 - **Documentação obrigatória** (`hooks/on-doc.mjs`, `VS-DOC-001/002`): após o `git push`, marca pendência e exige a doc (Redmine) — fecha o fluxo atômico **branch → tarefa → gate → commit → push → DOC**. Doc pendente **bloqueia iniciar nova tarefa** até documentar.
+- **Modo consulta/doc** (`VS-CONSULT-001`): `n`/`esc`/`doc`/`consulta` pula o fluxo de tarefa e libera a sessão só p/ **leitura e geração de documento** — **sem commit/push** (não abre tarefa). Doc que faz parte de uma tarefa (branch criada) sobe normal. Estado por `session_id`. Opt-out por pasta: `.qa-gate-off`.
 - **Âncora de fluxo** (`hooks/on-egle-anchor.mjs`, `SessionStart`): injeta o passo-a-passo obrigatório (branch → escopo → QA-Gate → commit → push → doc) pro agente não se perder.
 - **Fechamento & relatório de horas** (`catalog/fechamento.json`): checklist com campos obrigatórios (início/fim/almoço/dailys); monta o `.md` diário do git e o PDF mensal.
 - **Revisão semanal** (`engine/weekly-review.mjs`): análise determinística (git 7 dias + auditoria de aderência) que sinaliza jornadas longas/churn — sem IA, custo ~0.

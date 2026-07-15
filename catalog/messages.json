@@ -167,6 +167,15 @@
       "when": "Hook UserPromptSubmit: nova tarefa com .git/qa-gate-pending-doc presente.",
       "how": "Bloqueia o inicio de nova tarefa/branch. Impede acumular doc pendente.",
       "fields_dynamic": []
+    },
+
+    {
+      "code": "VS-CONSULT-001", "status": "CONSULT", "title": "Modo consulta/doc (sem commit/push)",
+      "short": "[VS-CONSULT-001] modo consulta/doc — leitura e geracao de documento; sem commit/push.",
+      "dev_msg": "Sessao liberada so p/ consulta e geracao de documento (nao abriu tarefa). NAO commita nem faz push. Pra habilitar: inicie tarefa (numero+tipo+origem).",
+      "when": "Dev bateu escape (n/esc/doc/consulta) no fluxo de branch, OU pediu doc avulso p/ passar pra analista.",
+      "how": "on-task marca modo consulta e libera doc; git-guard bloqueia commit/push ate iniciar tarefa (branch). Doc de TAREFA (branch criada) sobe normal.",
+      "fields_dynamic": []
     }
   ]
 }
