@@ -37,14 +37,16 @@ Por [Veloso Solution](https://velososolution.online) — Consultoria em IA Aplic
 
 Além do QA-Gate, o produto é uma **camada de governança executável** — o modelo só é acionado quando compensa, e cada etapa é auditada.
 
-- **Triagem de requisito** (`engine/requirements.mjs` + hook `UserPromptSubmit`): tarefa mal-especificada é **bloqueada antes da IA entrar** (`VS-REQ-001`). Economia de token real.
+- **Triagem de requisito** (`engine/requirements.mjs` + hook `UserPromptSubmit`): tarefa mal-especificada é **bloqueada antes da IA entrar** (`VS-REQ-001`). Fail-open — papo normal passa. Economia de token real.
 - **Escalation Engine**: decide `call_ai` — só escala pro modelo em causa raiz, arquitetura, segurança, performance ou bug. O resto trata local.
 - **Gate de commit** (hook `PreToolUse`): bloqueia commit fora do padrão e assinatura de IA (`VS-AUD-003`).
+- **Git-guard** (`hooks/on-git-guard.mjs`): bloqueia `git add .` cego, `--no-verify`, e commit/push em branch protegida (main/dev/hml). Força a branch da tarefa.
+- **Âncora de fluxo** (`hooks/on-egle-anchor.mjs`, `SessionStart`): injeta o passo-a-passo obrigatório (branch → escopo → QA-Gate → commit → push → doc) pro agente não se perder.
 - **Telemetria Tier 1** (`engine/metrics.mjs`): tempo economizado, redução de tokens, chamadas de IA evitadas, retrabalho de QA, commits no padrão, ROI — **agregado e anônimo** (LGPD).
 - **Consentimento** (`engine/consent.mjs`): coleta técnica só com aceite. Sem consentimento, a governança segue; só a telemetria desativa.
-- **Catálogo de mensagens** (`catalog/`): protocolo executável, códigos `VS-*` curtos (economia de token).
+- **Catálogo** (`catalog/`): protocolo executável — mensagens `VS-*` (REQ/AI/AUD/OK/MON) + boas práticas de branch (`branches.json`).
 
-Tools MCP: `qa_validate_task` (triagem, livre), `qa_report` (dashboard executivo), `qa_simulate` / `qa_run_gate` (QA-Gate). Hooks prontos em `hooks/` + `hooks/settings.example.json`.
+Tools MCP: `qa_validate_task` (triagem, livre), `qa_report` (dashboard executivo), `qa_check_app`, `qa_list_flows`, `qa_simulate` / `qa_run_gate` (QA-Gate). Hooks prontos em `hooks/` + `hooks/settings.example.json` (SessionStart + UserPromptSubmit + PreToolUse).
 
 > Não vendemos Claude Code — vendemos a camada que o transforma em **processo empresarial auditável**.
 
