@@ -167,10 +167,23 @@ Colocado na raiz do seu projeto:
       "path": "/clientes/create",
       "submitText": "Salvar",
       "expectFriendlyError": true
+    },
+    {
+      "name": "cliente-lista",
+      "watch": ["**cliente**lista**", "**ClienteTable**"],
+      "path": "/clientes",
+      "mode": "read",
+      "expectSelector": "table tbody tr",
+      "expectMinCount": 1
     }
   ]
 }
 ```
+
+### Modos de fluxo
+
+- **`form`** (default): injeta bug via submit vazio/inválido e exige **mensagem amigável** visível. Para formulários/modais.
+- **`read`**: **sem submit** — carrega a rota e exige o **conteúdo renderizado** (`expectSelector`/`expectMinCount`/`expectText`) + console limpo + zero request falho. Para **listagem/visualização** (ex.: "pacientes não lista", parse quebrado, request 500 na tela). O modo `read` é inferido quando não há submit e há `expect*`.
 
 | Campo | Papel |
 |---|---|
@@ -178,9 +191,11 @@ Colocado na raiz do seu projeto:
 | `login` | rota + seletores + credencial do usuário QA (seed, **só local**) |
 | `uiGlobs` | o que conta como "tocou UI" (dispara o browser) |
 | `flows[].watch` | globs de arquivos que disparam este fluxo |
-| `flows[].path` | rota do form/modal a exercer |
-| `flows[].submitText` / `submitSelector` | como acionar o submit |
-| `flows[].expectFriendlyError` | exige mensagem amigável ao injetar o bug |
+| `flows[].path` | rota do form/modal/lista a exercer |
+| `flows[].mode` | `form` (default) ou `read` (sem submit) |
+| `flows[].submitText` / `submitSelector` | (form) como acionar o submit |
+| `flows[].expectFriendlyError` | (form) exige mensagem amigável ao injetar o bug |
+| `flows[].expectSelector` / `expectMinCount` / `expectText` | (read) conteúdo que deve renderizar |
 | `blockOnUncovered` | se `true`, bloqueia commit de UI sem fluxo mapeado |
 
 **Usuário QA:** crie um seeder guardado por ambiente (`app()->environment('local')`) — **nunca** semeie em homolog/produção.

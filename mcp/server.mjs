@@ -82,15 +82,19 @@ server.tool('qa_simulate',
     configPath: z.string().describe('caminho do qa-gate.config.json'),
     path: z.string().describe('rota do fluxo, ex: /medico/pacientes/36/editar'),
     alvo: z.enum(['front', 'mobile']).optional().describe('vazio = roda front E mobile'),
+    mode: z.enum(['form', 'read']).optional().describe('form=injeta bug via submit + exige msg amigavel (default). read=lista/visualiza sem submit, exige conteudo renderizado'),
     submitText: z.string().optional(),
     submitSelector: z.string().optional(),
     expectFriendlyError: z.boolean().optional(),
+    expectSelector: z.string().optional().describe('read: seletor que DEVE renderizar (ex: linha da tabela)'),
+    expectMinCount: z.number().optional().describe('read: quantidade minima do expectSelector (ex: 1)'),
+    expectText: z.string().optional().describe('read: texto que deve aparecer no DOM'),
   },
-  async ({ configPath, path, alvo, submitText, submitSelector, expectFriendlyError }) => {
+  async ({ configPath, path, alvo, mode, submitText, submitSelector, expectFriendlyError, expectSelector, expectMinCount, expectText }) => {
     requireLicense();
     const cfg = loadConfig(configPath);
     if (!cfg) { throw new Error('sem config em ' + configPath); }
-    const flow = { name: 'adhoc' + path, path, submitText, submitSelector, expectFriendlyError };
+    const flow = { name: 'adhoc' + path, path, mode, submitText, submitSelector, expectFriendlyError, expectSelector, expectMinCount, expectText };
     const content = [];
     let anyRed = false;
     for (const { name, tcfg } of targetsFor(cfg, alvo)) {
