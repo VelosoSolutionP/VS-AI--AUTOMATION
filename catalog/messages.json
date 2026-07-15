@@ -161,6 +161,14 @@
     },
 
     {
+      "code": "VS-BRANCH-005", "status": "BLOCKED", "title": "Número da tarefa obrigatório no nome da branch",
+      "short": "[VS-BRANCH-005] BLOCKED — branch sem numero da tarefa.",
+      "dev_msg": "O nome da branch precisa carregar o NUMERO da tarefa: <tipo>/fabiano.veloso/<numero>. Sem numero, o commit/push nao rastreia a tarefa. Recrie/renomeie com o numero. Mobile isento.",
+      "when": "Hook PreToolUse: criacao de branch cujo nome nao tem numero, OU commit/push em branch de tarefa (fabiano.veloso) sem numero.",
+      "how": "Bloqueia. Garante rastreabilidade da tarefa no nome da branch e no push.",
+      "fields_dynamic": ["branch"]
+    },
+    {
       "code": "VS-DOC-001", "status": "REQUIRED", "title": "Documentação obrigatória (pós-push)",
       "short": "[VS-DOC-001] REQUIRED — documentacao Redmine obrigatoria apos o push.",
       "dev_msg": "Push feito. Fluxo atomico exige DOC agora (template Backend/Frontend conforme o que tocou). Ao concluir: rm .git/qa-gate-pending-doc.",

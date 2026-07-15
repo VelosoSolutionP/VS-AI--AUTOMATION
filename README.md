@@ -202,6 +202,26 @@ Colocado na raiz do seu projeto:
 | `deps.seed` | comando p/ semear dados de QA — **idempotente**, NUNCA `migrate:fresh` (apaga dados) |
 | `blockOnUncovered` | se `true`, bloqueia commit de UI sem fluxo mapeado |
 
+### Gate mobile (Flutter) — `type: "flutter-test"`
+
+Browser não dirige Flutter 3.44 (canvaskit/headless). O gate mobile roda **`flutter test`** (headless, sem emulador) — pega a classe de bug que volta no mobile: **contrato API↔model** (parse: `created_at:""`, `_JsonMap is not a subtype of List`, null em não-nulo) e **widget** (tela + mensagem amigável).
+
+```json
+"targets": {
+  "mobile": {
+    "type": "flutter-test",
+    "testCmd": "flutter test test/contract test/widget",
+    "testCwd": "C:/.../mobile",
+    "watch": ["lib/**"],
+    "deps": { "dockerUp": "...", "seed": "..." }
+  }
+}
+```
+
+- Roda só quando o commit mexe em `.dart`. Vermelho (teste falhou) → **bloqueia commit**.
+- **Sem teste cobrindo** → `needs: flutter-test-missing` → a IA escreve o teste que reproduz a correção (contract: joga a resposta REAL da API no `fromJson` do model; widget: pumpa a tela e exige msg/lista) antes de commitar.
+- `integration_test`/`patrol` no emulador = só bug de interação real (opt-in, pesado).
+
 ### Auto-resolução (a IA resolve até o gate rodar)
 
 Se o gate não conseguir validar, ele **bloqueia o commit** e devolve `needs[]` com o que falta — e a IA **resolve sozinha** até rodar verde, só então commita:

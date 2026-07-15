@@ -64,6 +64,8 @@ if (r.status === 'blocked' || r.status === 'error') {
       return `• APP FORA DO AR: ${n.target} não responde em ${n.baseUrl}. VOCÊ resolve: ${passos.join('; ')}. Espere subir e re-tente.`;
     }
     if (n.kind === 'sim-error') { return `• GATE QUEBROU em ${n.target}: ${n.detail}. VOCÊ resolve: ajuste o seletor/rota/login no config e re-tente.`; }
+    if (n.kind === 'flutter') { return `• FLUTTER FALTANDO: ${n.detail}. VOCÊ resolve: garanta o Flutter SDK no PATH (flutter --version) e re-tente.`; }
+    if (n.kind === 'flutter-test-missing') { return `• TESTE MOBILE FALTANDO: ${n.detail}. VOCÊ resolve: escreva o teste que reproduz a correção (contract = joga a resposta REAL da API no fromJson do model; widget = pumpa a tela e exige msg amigável/lista) e re-tente. Sem teste cobrindo, não commita o mobile.`; }
     return `• ${n.kind}: ${n.detail || ''}`;
   }).join('\n');
   deny(

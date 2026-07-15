@@ -150,9 +150,21 @@ if (isDocumentationTask) {
   const cur = parseBranch(prompt);
   const pending = loadReq(sid);
 
+  // PERGUNTA não abre tarefa. Se o dev está questionando/discutindo (mesmo citando um
+  // número), NÃO engata o muro — só engata com intenção EXPLÍCITA de tarefa.
+  const isQuestion = /\?\s*$/.test(prompt) ||
+    /^\s*(por ?que|porqu[eê]|como|o que|qual|quais|quando|onde|pode|consegue|poderia|voc[êe]|vc|e se|ser[áa]|tem como|d[áa] pra|explica|entendi|acho que|n[ãa]o entendi|e o|e a|mas )/i.test(prompt);
+  // O MURO SÓ ENGATA COM NÚMERO. "só pode pedir tarefa se eu mandar o número."
+  // Palavras casuais (bug/mobile/dev/front) num desabafo/pergunta NÃO abrem tarefa.
+  const estrutural = /\b(nova|pr[óo]xima|outra)\s+tarefa\b/i.test(prompt) || /\bcria(r)?\s+(a\s+)?branch\b/i.test(prompt);
+  const numHere = !!cur.num && !isQuestion; // número presente e não é pergunta
+  const taskTrigger = numHere || estrutural;
+  // só continua acumulando se JÁ existe tarefa em curso COM número
+  const emCurso = !!(pending && pending.num);
+
   if (pending && /\b(cancela|cancelar|esquece|aborta|deixa pra l[áa])\b/i.test(prompt)) {
     clearReq(sid);
-  } else if (pending || cur.num || /\bbranch\b/i.test(prompt)) {
+  } else if (emCurso || taskTrigger) {
     const merged = {
       num: cur.num || pending?.num || null,
       tipo: cur.tipo || pending?.tipo || null,
@@ -160,19 +172,21 @@ if (isDocumentationTask) {
       alvo: cur.alvo || pending?.alvo || null,
       crud: cur.crud || pending?.crud || false,
     };
+    // SEM NÚMERO não há tarefa — não nag, não guarda estado (evita muro em desabafo/papo)
+    if (!merged.num) {
+      clearReq(sid);
+    } else {
     // bug de CRUD/validação: não trava adivinhando camada — o gate reproduz e mostra o erro.
     // default alvo=front (gate browser diagnostica); se o dev disse mobile, respeita.
     if (merged.crud && !merged.alvo) { merged.alvo = 'front'; }
     const missing = [];
-    if (!merged.num) { missing.push('num'); }
     if (!merged.tipo) { missing.push('tipo'); }
     if (!merged.origem) { missing.push('origem'); }
     if (!merged.alvo) { missing.push('alvo'); }
 
     if (missing.length) {
       saveReq(sid, merged);
-      const providedThisTurn = !!(cur.num || cur.tipo || cur.origem || cur.alvo) || /\bbranch\b/i.test(prompt);
-      if (providedThisTurn) {
+      {
         const check =
           (merged.num ? '✅' : '❌') + ' NÚMERO' + (merged.num ? ' ' + merged.num : '') + '   ' +
           (merged.tipo ? '✅' : '❌') + ' TIPO' + (merged.tipo ? ' ' + merged.tipo : '') + '   ' +
@@ -209,6 +223,7 @@ if (isDocumentationTask) {
       }));
       process.exit(0);
     }
+    }
   }
 }
 
@@ -219,12 +234,16 @@ if (isDocumentationTask) {
 // ou tarefa estruturada (descrição: + objetivo/critério).
 // =====================================================
 
-const strongDevSignal =
+// pergunta/dúvida NUNCA é sinal forte de tarefa (mesmo começando com verbo)
+const perguntaTopo = /\?\s*$/.test(prompt) ||
+  /^\s*(por ?que|porqu[eê]|como|o que|qual|quais|quando|onde|pode|consegue|poderia|d[áa] pra|tem como|ser[áa]|e se|explica|n[ãa]o entendi|entendi)/i.test(prompt);
+
+const strongDevSignal = !perguntaTopo && (
   /#\d{3,}/.test(prompt) ||
   /^\s*#?\d{3,6}\b/.test(prompt) ||
   /^\s*\/task\b/i.test(prompt) ||
   /^\s*(corrig\w*|arrum\w*|implement\w*|refator\w*|cri[ae]\w*|ajust\w*|adicion\w*|remov\w*|desenvolv\w*|fix\b)\b/i.test(prompt) ||
-  (/descri[çc][ãa]o\s*:/i.test(prompt) && /(objetivo|crit[ée]rio)/i.test(prompt));
+  (/descri[çc][ãa]o\s*:/i.test(prompt) && /(objetivo|crit[ée]rio)/i.test(prompt)));
 
 if (!strongDevSignal) {
   process.exit(0);

@@ -69,6 +69,12 @@ if (criaBranch) {
   if (!/\borigin\/\w/.test(cmd)) {
     deny('[VS-BRANCH-002] BLOCKED — crie a branch a partir da ORIGEM explícita. Ex.: git fetch origin <origem> && git checkout -b <tipo>/<autor>/<numero> origin/<origem>. Sem origin/<x> a branch nasce do lugar errado e quebra no merge.');
   }
+  // NOME da branch tem que carregar o NÚMERO da tarefa (senão o número some no push)
+  const bm = cmd.match(/\b(?:checkout\s+-b|switch\s+-c|branch)\s+(\S+)/);
+  const novoNome = bm ? bm[1] : '';
+  if (novoNome && !/\d{3,6}/.test(novoNome)) {
+    deny(`[VS-BRANCH-005] BLOCKED — a branch "${novoNome}" não tem o NÚMERO da tarefa. Padrão: <tipo>/fabiano.veloso/<numero>. Sem número, o push não rastreia a tarefa. Recrie com o número.`);
+  }
 }
 
 const isCommit = /\bcommit\b/.test(cmd);
@@ -96,6 +102,11 @@ try { branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' })
 const PROTECTED = /^(main|master|dev|develop|hml|homolog\w*|production|prod|staging)$/i;
 if (PROTECTED.test(branch)) {
   deny(`[VS-GIT-002] BLOCKED — ${isPush ? 'push' : 'commit'} direto em "${branch}" proibido. Crie a branch da tarefa: git checkout -b fix/fabiano.veloso/<numero> origin/${branch}`);
+}
+
+// branch de tarefa (tem fabiano.veloso) SEM número -> bloqueia commit/push (número some)
+if (/fabiano\.veloso/i.test(branch) && !/\d{3,6}/.test(branch) && !isMobile) {
+  deny(`[VS-BRANCH-005] BLOCKED — a branch "${branch}" não tem o NÚMERO da tarefa; ${isPush ? 'push' : 'commit'} bloqueado. Renomeie: git branch -m ${branch.replace(/\/?$/, '')}/<numero> (ou recrie no padrão <tipo>/fabiano.veloso/<numero>).`);
 }
 
 // branch fora do padrão -> só avisa (não bloqueia)
