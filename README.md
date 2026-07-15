@@ -6,6 +6,8 @@
 
 Por [Veloso Solution](https://velososolution.online) — Consultoria em IA Aplicada.
 
+📖 **[Manual de uso passo a passo → MANUAL.md](MANUAL.md)** · Status do produto → [STATUS.md](STATUS.md)
+
 ---
 
 ## Por que usar — plugin + MCP
