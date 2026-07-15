@@ -4,7 +4,9 @@
  * Marcador em .git/qa-gate-branch-req.json (TTL 15min, nunca commitado).
  */
 import { readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, isAbsolute } from 'node:path';
+import { execSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 
 const TIPOS = { fix: 'fix', bug: 'fix', feat: 'feat', feature: 'feat', refactor: 'refactor', refact: 'refactor', perf: 'perf', hotfix: 'hotfix', chore: 'chore', test: 'test', doc: 'docs', docs: 'docs' };
 const TTL = 15 * 60 * 1000;
@@ -21,7 +23,16 @@ export function parseBranch(prompt) {
   };
 }
 
-export const reqPath = (cwd) => join(cwd, '.git', 'qa-gate-branch-req.json');
+// caminho robusto: acha o .git real (funciona de subpasta/worktree); se não houver repo,
+// cai num arquivo em temp keyed pelo cwd — assim o estado SEMPRE persiste entre turns.
+export function reqPath(cwd) {
+  try {
+    const g = execSync('git rev-parse --git-dir', { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    if (g) { return join(isAbsolute(g) ? g : join(cwd, g), 'qa-gate-branch-req.json'); }
+  } catch {}
+  const key = Buffer.from(cwd || 'x').toString('hex').slice(0, 20);
+  return join(tmpdir(), `qa-gate-branch-${key}.json`);
+}
 
 export function loadReq(cwd) {
   try {
