@@ -196,7 +196,21 @@ Colocado na raiz do seu projeto:
 | `flows[].submitText` / `submitSelector` | (form) como acionar o submit |
 | `flows[].expectFriendlyError` | (form) exige mensagem amigável ao injetar o bug |
 | `flows[].expectSelector` / `expectMinCount` / `expectText` | (read) conteúdo que deve renderizar |
+| `deps.dockerUp` | comando p/ subir o ambiente quando o app está fora do ar (ex.: `./docker/scripts/dev.sh up`) |
+| `deps.seed` | comando p/ semear dados de QA — **idempotente**, NUNCA `migrate:fresh` (apaga dados) |
 | `blockOnUncovered` | se `true`, bloqueia commit de UI sem fluxo mapeado |
+
+### Auto-resolução (a IA resolve até o gate rodar)
+
+Se o gate não conseguir validar, ele **bloqueia o commit** e devolve `needs[]` com o que falta — e a IA **resolve sozinha** até rodar verde, só então commita:
+
+- **Docker/app parado** → roda `deps.dockerUp`, espera subir.
+- **Falta dados** → roda `deps.seed` (idempotente de QA).
+- **Lib faltando** → `npm i -D playwright` + `npx playwright install chromium`.
+- **Flow faltando** → adiciona flow (`form`/`read`) cobrindo a rota tocada.
+- **Seletor/rota errado** → ajusta o config.
+
+É **opt-in por config**: sem `deps`/`start`, o gate não mexe no seu Docker — quem sobe o ambiente continua sendo você. Com `deps` declarado, a IA cuida do ambiente pra fechar o gate.
 
 **Usuário QA:** crie um seeder guardado por ambiente (`app()->environment('local')`) — **nunca** semeie em homolog/produção.
 

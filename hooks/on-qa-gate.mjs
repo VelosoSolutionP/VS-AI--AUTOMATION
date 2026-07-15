@@ -55,14 +55,21 @@ if (r.status === 'blocked' || r.status === 'error') {
       const files = (n.uiFiles || []).slice(0, 8).join(', ');
       return `• FLOW FALTANDO: você tocou UI (${files}) e NENHUM flow no qa-gate.config.json cobre. VOCÊ resolve: adicione um flow apontando a rota afetada — mode "form" (cadastro/edição: injeta bug + exige msg amigável) ou mode "read" (lista/visualização: expectSelector+expectMinCount). NÃO é mudar regra de negócio, é dar cobertura à ferramenta.`;
     }
-    if (n.kind === 'app-up') { return `• APP FORA DO AR: ${n.target} não responde em ${n.baseUrl}. ${n.start ? 'Tem `start` no config — verifique por que não subiu' : 'Suba o app (dev/live)'}; se depender de Docker+dados, peça ao Fabiano. Re-tente.`; }
+    if (n.kind === 'app-up') {
+      const passos = [];
+      if (n.dockerUp) { passos.push(`suba o ambiente: \`${n.dockerUp}\``); }
+      else if (n.start) { passos.push('tem `start` no config — veja por que não subiu'); }
+      else { passos.push('suba o app (dev/live)'); }
+      if (n.seed) { passos.push(`se faltar dados: \`${n.seed}\` (seed idempotente de QA — NUNCA migrate:fresh que apaga dados)`); }
+      return `• APP FORA DO AR: ${n.target} não responde em ${n.baseUrl}. VOCÊ resolve: ${passos.join('; ')}. Espere subir e re-tente.`;
+    }
     if (n.kind === 'sim-error') { return `• GATE QUEBROU em ${n.target}: ${n.detail}. VOCÊ resolve: ajuste o seletor/rota/login no config e re-tente.`; }
     return `• ${n.kind}: ${n.detail || ''}`;
   }).join('\n');
   deny(
     `[VS-AUD-003] BLOCKED — QA-Gate NÃO validou (faltou algo pra rodar). Regra absoluta: sem gate verde, sem commit.\n` +
-    `RESOLVA o que falta (é responsabilidade da IA completar a ferramenta, não deixar passar):\n${acoes}\n` +
-    `Depois de resolver, re-tente o commit — o gate roda de novo.`
+    `RESOLVA TUDO até o gate rodar (Docker parado → sobe; falta dados → seed; falta lib → instala; falta flow → adiciona) e SÓ ENTÃO commite. É responsabilidade da IA deixar o gate rodar, não pular:\n${acoes}\n` +
+    `Resolva um por um, re-testando o commit a cada passo — o gate roda de novo até ficar verde.`
   );
 }
 // red
