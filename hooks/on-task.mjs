@@ -77,6 +77,21 @@ if (/\b(fech(a|ar|amento)|encerr\w*)\b[\s\wçãáéíóú]{0,14}\bdia\b/i.test(p
   process.exit(0);
 }
 
+// "fechamento"/"fechar" SOZINHO é ambíguo: dia (horas) ou tarefa (commit/push).
+// Não deixa a IA chutar — injeta desambiguação.
+if (/^\s*(fechamento|fechar|encerra(r|mento)?)\s*[.!]?\s*$/i.test(prompt)) {
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: 'UserPromptSubmit',
+      additionalContext:
+        '[governança] "fechamento" AMBÍGUO — PERGUNTE ao Fabiano qual: ' +
+        '(a) fechar o DIA (controle de horas → colete início/fim/almoço/dailys e registre em ControleHoras/<YYYY-MM>.md), ' +
+        'ou (b) fechar a TAREFA (gate → commit → push → doc). NÃO assuma; pergunte antes.',
+    },
+  }));
+  process.exit(0);
+}
+
 // ESCAPE -> modo CONSULTA/DOC: se o dev bate n/esc/doc/consulta (curto), pula o fluxo
 // de tarefa e libera a sessão só p/ leitura e geração de documento. Sem commit/push.
 if (/^\s*(n|n[ãa]o|esc|doc|s[óo] ?consulta|consulta|sair|deixa|cancela|cancelar)\s*$/i.test(prompt)) {
