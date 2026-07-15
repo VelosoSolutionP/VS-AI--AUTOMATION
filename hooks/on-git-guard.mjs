@@ -11,6 +11,7 @@
  *  - branch fora do padrão tipo/fabiano.veloso/<n>  (VS-GIT-003)
  */
 import { execSync } from 'node:child_process';
+import { loadReq } from '../engine/branch-req.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
@@ -31,8 +32,16 @@ if (/\bgit\s+add\s+(\.|-A\b|--all\b|:\/)/.test(cmd)) {
 
 // criação de branch: exige base de ORIGEM explícita (origin/<x>)
 const criaBranch = /\bgit\s+checkout\s+-b\b/.test(cmd) || /\bgit\s+switch\s+-c\b/.test(cmd) || /\bgit\s+branch\s+\S/.test(cmd);
-if (criaBranch && !/\borigin\/\w/.test(cmd)) {
-  deny('[VS-BRANCH-002] BLOCKED — crie a branch a partir da ORIGEM explícita. Ex.: git fetch origin <origem> && git checkout -b <tipo>/<autor>/<numero> origin/<origem>. Sem origin/<x> a branch nasce do lugar errado e quebra no merge.');
+if (criaBranch) {
+  // estado de branch pendente (número/tipo/origem incompletos) -> não deixa criar
+  let pend = null; try { pend = loadReq(process.cwd()); } catch {}
+  if (pend) {
+    const falta = ['num', 'tipo', 'origem'].filter((k) => !pend[k]).join('/');
+    deny(`[VS-BRANCH-003] BLOCKED — dados da branch incompletos (falta ${falta}). Informe no chat antes de criar. (desistir: "cancela")`);
+  }
+  if (!/\borigin\/\w/.test(cmd)) {
+    deny('[VS-BRANCH-002] BLOCKED — crie a branch a partir da ORIGEM explícita. Ex.: git fetch origin <origem> && git checkout -b <tipo>/<autor>/<numero> origin/<origem>. Sem origin/<x> a branch nasce do lugar errado e quebra no merge.');
+  }
 }
 
 const isCommit = /\bcommit\b/.test(cmd);

@@ -12,6 +12,7 @@
  */
 
 import { validateTask } from '../engine/requirements.mjs';
+import { parseBranch, loadReq, saveReq, clearReq } from '../engine/branch-req.mjs';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -74,6 +75,54 @@ if (isDocumentationTask) {
 }
 
 // =====================================================
+// MURO DE BRANCH (multi-turn) — roda ANTES do gate de sinal, pois follow-ups
+// ("origem dev", "fix") não são sinal forte sozinhos. Acumula número+tipo+origem;
+// só libera com os 3. Estado em .git/qa-gate-branch-req.json (TTL 15min).
+// =====================================================
+{
+  const cwd = process.cwd();
+  const cur = parseBranch(prompt);
+  const pending = loadReq(cwd);
+
+  if (pending && /\b(cancela|cancelar|esquece|aborta|deixa pra l[áa])\b/i.test(prompt)) {
+    clearReq(cwd);
+  } else if (pending || cur.num || /\bbranch\b/i.test(prompt)) {
+    const merged = {
+      num: cur.num || pending?.num || null,
+      tipo: cur.tipo || pending?.tipo || null,
+      origem: cur.origem || pending?.origem || null,
+    };
+    const missing = [];
+    if (!merged.num) { missing.push('NÚMERO da tarefa'); }
+    if (!merged.tipo) { missing.push('TIPO (fix/feat/refactor/perf/hotfix/chore/test/docs)'); }
+    if (!merged.origem) { missing.push('ORIGEM (dev/hml/main)'); }
+
+    if (missing.length) {
+      saveReq(cwd, merged);
+      const providedThisTurn = !!(cur.num || cur.tipo || cur.origem) || /\bbranch\b/i.test(prompt);
+      if (providedThisTurn) {
+        const have = [merged.num && ('nº ' + merged.num), merged.tipo && ('tipo ' + merged.tipo), merged.origem && ('origem ' + merged.origem)].filter(Boolean).join(', ');
+        process.stdout.write(JSON.stringify({
+          decision: 'block',
+          reason: '[VS-BRANCH-001] BLOCKED — faltam dados para criar a branch.\nFalta: ' + missing.join('  +  ') + '.' + (have ? '\nJá tenho: ' + have + '.' : '') + '\nRegra: NÚMERO + TIPO + ORIGEM. Sem os 3 não crio. (desistir: "cancela")',
+        }));
+        process.exit(0);
+      }
+      // pendente mas sem dado novo neste turno -> não bloqueia o chat; git-guard segura a criação
+    } else {
+      clearReq(cwd);
+      process.stdout.write(JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: 'UserPromptSubmit',
+          additionalContext: '[governança] branch OK: ' + merged.tipo + '/fabiano.veloso/' + merged.num + ' a partir de origin/' + merged.origem + '. Crie: git fetch origin ' + merged.origem + ' && git checkout -b ' + merged.tipo + '/fabiano.veloso/' + merged.num + ' origin/' + merged.origem,
+        },
+      }));
+      process.exit(0);
+    }
+  }
+}
+
+// =====================================================
 // FAIL-OPEN: só bloqueia com SINAL FORTE de tarefa de dev.
 // Papo normal, dúvida, comentário -> passa direto (nunca bloqueia).
 // Sinal forte: número de tarefa (#123), /task, verbo de dev no INÍCIO,
@@ -104,34 +153,6 @@ if (existsSync(join(process.cwd(), '.git', 'qa-gate-pending-doc'))) {
         '[VS-DOC-002] BLOCKED — documentação da tarefa anterior pendente.\n' +
         'Fluxo atômico: branch → tarefa → gate → commit → push → DOC. Documente a tarefa anterior (Redmine) antes de iniciar outra.\n' +
         'Após documentar, limpe: rm .git/qa-gate-pending-doc',
-    })
-  );
-  process.exit(0);
-}
-
-// =====================================================
-// MURO — criação de branch exige NÚMERO + TIPO + ORIGEM.
-// Origem é bloqueio DURO: sem ela não cria (evita branch de ambiente
-// errado -> merge puxa lixo de outro ambiente e quebra).
-// =====================================================
-
-const pedeBranch = /#?\d{3,6}\b/.test(prompt) || /\bbranch\b/i.test(prompt);
-const temOrigem = /\b(dev|develop|hml|homolog\w*|main|master|prod|produ[çc][ãa]o|staging)\b/i.test(prompt);
-// tipo: EXIGE palavra de tipo EXPLÍCITA (não infere de verbo). O dev declara: bug/fix/feat/refactor/...
-const temTipo = /\b(fix|bug|feat|feature|refactor|refact|perf|hotfix|chore|test|docs?)\b/i.test(prompt);
-
-if (pedeBranch && (!temOrigem || !temTipo)) {
-  const faltam = [
-    !temTipo ? 'TIPO (fix/feat/refactor/perf/hotfix/chore/test/docs)' : null,
-    !temOrigem ? 'ORIGEM (dev/hml/main)' : null,
-  ].filter(Boolean).join('  +  ');
-  process.stdout.write(
-    JSON.stringify({
-      decision: 'block',
-      reason:
-        '[VS-BRANCH-001] BLOCKED — faltam dados obrigatórios para criar a branch.\n' +
-        `Falta: ${faltam}.\n` +
-        'Regra: número da tarefa + TIPO + ORIGEM. Sem os 3 NÃO crio — tipo errado/origem errada quebra no merge. Informe o que falta.',
     })
   );
   process.exit(0);
