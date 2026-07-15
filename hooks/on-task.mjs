@@ -89,6 +89,28 @@ if (!strongDevSignal) {
 }
 
 // =====================================================
+// MURO — criação de branch exige NÚMERO + TIPO + ORIGEM.
+// Origem é bloqueio DURO: sem ela não cria (evita branch de ambiente
+// errado -> merge puxa lixo de outro ambiente e quebra).
+// =====================================================
+
+const pedeBranch = /#?\d{3,6}\b/.test(prompt) || /\bbranch\b/i.test(prompt);
+const temOrigem = /\b(dev|develop|hml|homolog\w*|main|master|prod|produ[çc][ãa]o|staging)\b/i.test(prompt);
+
+if (pedeBranch && !temOrigem) {
+  process.stdout.write(
+    JSON.stringify({
+      decision: 'block',
+      reason:
+        '[VS-BRANCH-001] BLOCKED — origem OBRIGATÓRIA para criar branch.\n' +
+        'Pra criar a branch preciso das 3: número da tarefa + tipo (fix|feat|refactor|perf|hotfix|chore|test|docs) + ORIGEM (dev/hml/main).\n' +
+        'Sem a origem NÃO crio — branch de ambiente errado quebra no merge. Informe a origem.',
+    })
+  );
+  process.exit(0);
+}
+
+// =====================================================
 // DESENVOLVIMENTO — valida requisitos obrigatórios
 // =====================================================
 

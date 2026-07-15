@@ -29,6 +29,12 @@ if (/\bgit\s+add\s+(\.|-A\b|--all\b|:\/)/.test(cmd)) {
   deny('[VS-GIT-001] BLOCKED — `git add .` proibido. Adicione só os arquivos da tarefa explicitamente (ex.: git add app/Foo.php resources/views/foo.blade.php).');
 }
 
+// criação de branch: exige base de ORIGEM explícita (origin/<x>)
+const criaBranch = /\bgit\s+checkout\s+-b\b/.test(cmd) || /\bgit\s+switch\s+-c\b/.test(cmd) || /\bgit\s+branch\s+\S/.test(cmd);
+if (criaBranch && !/\borigin\/\w/.test(cmd)) {
+  deny('[VS-BRANCH-002] BLOCKED — crie a branch a partir da ORIGEM explícita. Ex.: git fetch origin <origem> && git checkout -b <tipo>/<autor>/<numero> origin/<origem>. Sem origin/<x> a branch nasce do lugar errado e quebra no merge.');
+}
+
 const isCommit = /\bcommit\b/.test(cmd);
 const isPush = /\bpush\b/.test(cmd);
 if (!isCommit && !isPush) { allow(); }

@@ -133,6 +133,23 @@
       "when": "Dev recusou o VS-MON-001.",
       "how": "Nenhuma metrica coletada. Hooks de qualidade seguem funcionando.",
       "fields_dynamic": []
+    },
+
+    {
+      "code": "VS-BRANCH-001", "status": "BLOCKED", "title": "Origem obrigatória (prompt)",
+      "short": "[VS-BRANCH-001] BLOCKED — origem obrigatoria para criar branch.",
+      "dev_msg": "Pra criar a branch preciso das 3: numero + tipo (fix|feat|refactor|perf|hotfix|chore|test|docs) + ORIGEM (dev/hml/main). Sem origem NAO crio — branch de ambiente errado quebra no merge.",
+      "when": "Hook UserPromptSubmit: pedido de branch (numero da tarefa) sem origem informada.",
+      "how": "Bloqueia o turno ate o dev informar a origem. Impede origem assumida.",
+      "fields_dynamic": []
+    },
+    {
+      "code": "VS-BRANCH-002", "status": "BLOCKED", "title": "Origem explícita no comando",
+      "short": "[VS-BRANCH-002] BLOCKED — crie a branch a partir de origin/<origem> explicita.",
+      "dev_msg": "Ex.: git fetch origin <origem> && git checkout -b <tipo>/<autor>/<numero> origin/<origem>. Sem origin/<x> a branch nasce do lugar errado.",
+      "when": "Hook PreToolUse: git checkout -b / switch -c / branch sem base origin/<x>.",
+      "how": "Bloqueia o comando. Forca base de origem explicita.",
+      "fields_dynamic": []
     }
   ]
 }
