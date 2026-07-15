@@ -1,0 +1,35 @@
+{
+  "version": "1.0",
+  "note": "Boas práticas de criação de branch. Consumido pelo fluxo de branch-create do plugin.",
+  "pattern": "<tipo>/<autor>/<identificador>",
+  "autor_default": "fabiano.veloso",
+  "identificador": "numero da tarefa (ex.: 36166) ou slug curto",
+  "tipos": [
+    { "tipo": "fix",      "quando": "correção de bug" },
+    { "tipo": "feat",     "alias": ["feature"], "quando": "nova funcionalidade" },
+    { "tipo": "refactor", "alias": ["refact"], "quando": "refatoração sem mudar comportamento" },
+    { "tipo": "perf",     "quando": "melhoria de performance" },
+    { "tipo": "hotfix",   "quando": "correção urgente direto em produção" },
+    { "tipo": "chore",    "quando": "manutenção, deps, config" },
+    { "tipo": "test",     "quando": "adição/ajuste de testes" },
+    { "tipo": "docs",     "quando": "documentação" },
+    { "tipo": "build",    "quando": "build/empacotamento" },
+    { "tipo": "ci",       "quando": "pipeline/CI" },
+    { "tipo": "style",    "quando": "formatação, sem lógica" },
+    { "tipo": "revert",   "quando": "reverter um commit" }
+  ],
+  "inferencia_tipo": "Inferir o tipo pelo contexto: bug->fix, nova coisa->feat, refatorar->refactor, lento/otimizar->perf, urgente em prod->hotfix. Ambíguo -> perguntar.",
+  "regras_criacao": [
+    "Só o número da tarefa informado -> assumir NOVA branch; perguntar apenas a ORIGEM (dev/hml/main).",
+    "Comando base: git fetch origin <origem> && git checkout -f -b <tipo>/<autor>/<numero> origin/<origem>",
+    "Origem informada -> criar em TODOS os repositórios do projeto (ex.: Egle = backend, frontend, mobile), salvo condição explícita do dev.",
+    "MOBILE: acumula no dia (deploy lento). NÃO forçar deploy/merge por tarefa — seguir acumulando na branch.",
+    "ORIGEM = dev (ou base compartilhada): ANTES de criar, verificar se todos os commits locais/branch atual estão mergeados na origem. Se NÃO -> NÃO criar; informar o dev pra: (a) mergear, (b) criar stash, ou (c) descartar. Só criar após resolver.",
+    "Nunca trabalhar/commitar direto em branch protegida (main/dev/hml) — a branch da tarefa é obrigatória.",
+    "Após criar -> seguir o fluxo orquestrado (escopo -> QA-Gate se UI -> commit padrão -> push -> doc)."
+  ],
+  "configuravel": {
+    "autor": "trocável por dev (autor_default no install)",
+    "tipos": "conjunto default acima; dev pode estender no install do MCP"
+  }
+}
