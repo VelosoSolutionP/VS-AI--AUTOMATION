@@ -82,6 +82,7 @@ if (isDocumentationTask) {
 
 const strongDevSignal =
   /#\d{3,}/.test(prompt) ||
+  /^\s*#?\d{3,6}\b/.test(prompt) ||
   /^\s*\/task\b/i.test(prompt) ||
   /^\s*(corrig\w*|arrum\w*|implement\w*|refator\w*|cri[ae]\w*|ajust\w*|adicion\w*|remov\w*|desenvolv\w*|fix\b)\b/i.test(prompt) ||
   (/descri[çc][ãa]o\s*:/i.test(prompt) && /(objetivo|crit[ée]rio)/i.test(prompt));
