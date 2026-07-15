@@ -40,8 +40,11 @@ Além do QA-Gate, o produto é uma **camada de governança executável** — o m
 - **Triagem de requisito** (`engine/requirements.mjs` + hook `UserPromptSubmit`): tarefa mal-especificada é **bloqueada antes da IA entrar** (`VS-REQ-001`). Fail-open — papo normal passa. Economia de token real.
 - **Escalation Engine**: decide `call_ai` — só escala pro modelo em causa raiz, arquitetura, segurança, performance ou bug. O resto trata local.
 - **Gate de commit** (hook `PreToolUse`): bloqueia commit fora do padrão e assinatura de IA (`VS-AUD-003`).
-- **Git-guard** (`hooks/on-git-guard.mjs`): bloqueia `git add .` cego, `--no-verify`, e commit/push em branch protegida (main/dev/hml). Força a branch da tarefa.
+- **Git-guard** (`hooks/on-git-guard.mjs`): bloqueia `git add .` cego, `--no-verify`, commit/push em branch protegida (main/dev/hml) e criação de branch sem base `origin/<x>` (`VS-BRANCH-002`).
+- **Muro de origem** (`hooks/on-task.mjs`, `VS-BRANCH-001`): pedido de branch sem **origem** informada é bloqueado — exige número + tipo + origem (dev/hml/main). Evita origem assumida que quebra no merge.
 - **Âncora de fluxo** (`hooks/on-egle-anchor.mjs`, `SessionStart`): injeta o passo-a-passo obrigatório (branch → escopo → QA-Gate → commit → push → doc) pro agente não se perder.
+- **Fechamento & relatório de horas** (`catalog/fechamento.json`): checklist com campos obrigatórios (início/fim/almoço/dailys); monta o `.md` diário do git e o PDF mensal.
+- **Revisão semanal** (`engine/weekly-review.mjs`): análise determinística (git 7 dias + auditoria de aderência) que sinaliza jornadas longas/churn — sem IA, custo ~0.
 - **Telemetria Tier 1** (`engine/metrics.mjs`): tempo economizado, redução de tokens, chamadas de IA evitadas, retrabalho de QA, commits no padrão, ROI — **agregado e anônimo** (LGPD).
 - **Consentimento** (`engine/consent.mjs`): coleta técnica só com aceite. Sem consentimento, a governança segue; só a telemetria desativa.
 - **Catálogo** (`catalog/`): protocolo executável — mensagens `VS-*` (REQ/AI/AUD/OK/MON) + boas práticas de branch (`branches.json`).
