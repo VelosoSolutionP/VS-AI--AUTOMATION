@@ -40,6 +40,7 @@ Além do QA-Gate, o produto é uma **camada de governança executável** — o m
 - **Triagem de requisito** (`engine/requirements.mjs` + hook `UserPromptSubmit`): tarefa mal-especificada é **bloqueada antes da IA entrar** (`VS-REQ-001`). Fail-open — papo normal passa. Economia de token real.
 - **Escalation Engine**: decide `call_ai` — só escala pro modelo em causa raiz, arquitetura, segurança, performance ou bug. O resto trata local.
 - **Gate de commit** (hook `PreToolUse`): bloqueia commit fora do padrão e assinatura de IA (`VS-AUD-003`).
+- **QA-Gate OBRIGATÓRIO** (`hooks/on-qa-gate.mjs`, regra absoluta): commit que toca UI **só passa com o gate browser VERDE**. Se o gate não rodar (app fora do ar / não validável), **bloqueia o commit** — sem gate, sem commit. Requer o app em **modo dev/live** (o gate valida o código atual, não build antigo). Backend puro pula.
 - **Git-guard** (`hooks/on-git-guard.mjs`): bloqueia `git add .` cego, `--no-verify`, commit/push em branch protegida (main/dev/hml) e criação de branch sem base `origin/<x>` (`VS-BRANCH-002`).
 - **Muro de origem** (`hooks/on-task.mjs`, `VS-BRANCH-001`): pedido de branch sem **origem** informada é bloqueado — exige número + tipo + origem (dev/hml/main). Evita origem assumida que quebra no merge.
 - **Âncora de fluxo** (`hooks/on-egle-anchor.mjs`, `SessionStart`): injeta o passo-a-passo obrigatório (branch → escopo → QA-Gate → commit → push → doc) pro agente não se perder.
