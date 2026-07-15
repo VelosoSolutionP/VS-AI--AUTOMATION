@@ -176,6 +176,15 @@ if (isDocumentationTask) {
     process.exit(0);
   }
 
+  // TAREFA EM CURSO: só cobra os campos que faltam quando o turno REALMENTE traz dado
+  // de branch (tipo/origem/alvo) ou é uma resposta curta. Se o Fabiano só conversa/
+  // pergunta no meio da tarefa, NÃO fica nagando — deixa livre e mantém o pendente.
+  const trouxeCampo = !!(cur.tipo || cur.origem || cur.alvo) || !!numDeliberado;
+  const respostaCurta = prompt.trim().length <= 25;
+  if (emCurso && !numDeliberado && !trouxeCampo && !respostaCurta) {
+    process.exit(0);
+  }
+
   // abrindo tarefa nova: doc da anterior tem que estar feita
   if (numDeliberado && !emCurso && existsSync(join(process.cwd(), '.git', 'qa-gate-pending-doc'))) {
     process.stdout.write(JSON.stringify({
