@@ -10,12 +10,17 @@
 import { execSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { setFree } from '../engine/branch-req.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
-try { const j = JSON.parse(raw || '{}'); cmd = j.tool_input?.command || j.command || ''; } catch { cmd = raw; }
+let sid = 'default';
+try { const j = JSON.parse(raw || '{}'); cmd = j.tool_input?.command || j.command || ''; sid = j.session_id || 'default'; } catch { cmd = raw; }
 
 if (!/\bgit\b[\s\S]*\bpush\b/.test(cmd)) { process.exit(0); }
+
+// push feito -> janela LIVRE: perguntas/confirmações liberadas até a próxima tarefa.
+setFree(sid);
 
 let branch = '';
 try { branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim(); } catch {}

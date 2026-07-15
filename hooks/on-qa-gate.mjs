@@ -35,8 +35,18 @@ let r;
 try { r = await runGate(repo, cfg); }
 catch (e) { deny(`[VS-AUD-003] BLOCKED — QA-Gate não rodou (${e.message}). Regra absoluta: sem gate verde, sem commit. Suba o app em modo dev/live e re-tente.`); }
 
-if (r.status === 'skip') { allow(`[VS-AUD-002] backend puro — gate browser não se aplica (${r.reason || ''}).`); }
-if (r.status === 'green') { allow('[VS-AUD-002] QA-Gate VERDE — pode commitar.'); }
+if (r.status === 'skip') {
+  allow(`[VS-AUD-002] backend puro — gate browser não se aplica (${r.reason || ''}). INFORME AO USUÁRIO: gate pulou porque nenhum arquivo de UI foi staged (só backend); validado por sintaxe/pint. Não é bug puro deixado passar.`);
+}
+if (r.status === 'green') {
+  const flows = (r.results || []).map((x) => x.name).join(', ') || 'fluxo(s) do config';
+  allow(
+    `[VS-AUD-002] QA-Gate VERDE. INFORME O USUÁRIO ANTES DE COMMITAR (obrigatório, não commite calado): ` +
+    `rodei em browser real os fluxos [${flows}]. Em cada um: injetei submit inválido/vazio e exigi MENSAGEM AMIGÁVEL visível no DOM, ` +
+    `console SEVERE = 0 e ZERO request falho; o happy-path salvou com feedback de sucesso. ` +
+    `Está VERDE porque todos passaram nesses checks. Diga isso ao Fabiano (o que rodou + por que verde) e só então commite.`
+  );
+}
 if (r.status === 'error') {
   deny(`[VS-AUD-003] BLOCKED — QA-Gate não conseguiu validar: ${r.reason}. Regra absoluta: sem gate rodando verde, sem commit. Suba o app (modo dev/live) e re-tente.`);
 }

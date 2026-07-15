@@ -12,7 +12,7 @@
  */
 
 import { validateTask } from '../engine/requirements.mjs';
-import { parseBranch, loadReq, saveReq, clearReq, setConsult, clearConsult } from '../engine/branch-req.mjs';
+import { parseBranch, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree } from '../engine/branch-req.mjs';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -70,6 +70,43 @@ if (/^\s*(n|n[ãa]o|esc|doc|s[óo] ?consulta|consulta|sair|deixa|cancela|cancela
     },
   }));
   process.exit(0);
+}
+
+// =====================================================
+// JANELA LIVRE pós-push — depois de commit+push a sessão fica liberada p/
+// perguntas, dúvidas e confirmações. O muro de branch NÃO engata em papo normal.
+// Só re-arma quando o Fabiano manda a PRÓXIMA TAREFA: número de tarefa, ou as
+// frases "próxima/nova/outra tarefa" ou "deploy feito/concluído/ok".
+// =====================================================
+
+if (isFree(sid)) {
+  const cur = parseBranch(prompt);
+  const saidNext = /\b(pr[óo]xima tarefa|nova tarefa|outra tarefa|deploy\s+(feito|conclu[íi]do|ok|pronto|realizado))\b/i.test(prompt);
+  const reArm = saidNext || !!cur.num;
+  if (!reArm) {
+    process.exit(0); // livre: pergunta/dúvida/confirmação passam direto
+  }
+  // vai iniciar tarefa nova: não deixa entrar com doc da anterior pendente
+  if (existsSync(join(process.cwd(), '.git', 'qa-gate-pending-doc'))) {
+    process.stdout.write(JSON.stringify({
+      decision: 'block',
+      reason:
+        '[VS-DOC-002] BLOCKED — documente a tarefa anterior (Redmine) antes de iniciar outra.\n' +
+        'Após documentar, limpe: rm .git/qa-gate-pending-doc',
+    }));
+    process.exit(0);
+  }
+  clearFree(sid); // Fabiano mandou nova tarefa -> re-arma o fluxo
+  if (saidNext && !cur.num) {
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'UserPromptSubmit',
+        additionalContext: '[governança] Fluxo de tarefa RE-ARMADO. Peça ao Fabiano: número + tipo + origem + alvo (mobile/front/back) pra criar a branch.',
+      },
+    }));
+    process.exit(0);
+  }
+  // tem número -> cai no muro de branch abaixo
 }
 
 // =====================================================

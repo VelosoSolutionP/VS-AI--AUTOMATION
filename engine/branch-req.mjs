@@ -51,6 +51,22 @@ export function isConsult(key) {
   } catch { return false; }
 }
 
+// Modo LIVRE pós-tarefa: setado após o push. A sessão fica liberada p/ perguntas,
+// dúvidas e confirmações — o muro de branch NÃO engata. Só re-arma quando o Fabiano
+// mandar a próxima tarefa (número), disser "próxima/nova tarefa" ou "deploy feito".
+const FREE_TTL = 12 * 60 * 60 * 1000; // 12h (janela de trabalho)
+const freePath = (key) => join(tmpdir(), `qa-gate-free-${slug(key)}.json`);
+export function setFree(key) { try { writeFileSync(freePath(key), JSON.stringify({ ts: Date.now() })); } catch {} }
+export function clearFree(key) { try { rmSync(freePath(key)); } catch {} }
+export function isFree(key) {
+  try {
+    if (!existsSync(freePath(key))) { return false; }
+    const o = JSON.parse(readFileSync(freePath(key), 'utf8'));
+    if (Date.now() - (o.ts || 0) > FREE_TTL) { rmSync(freePath(key)); return false; }
+    return true;
+  } catch { return false; }
+}
+
 export function loadReq(key) {
   try {
     const p = reqPath(key);

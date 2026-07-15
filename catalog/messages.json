@@ -185,6 +185,14 @@
       "how": "on-task marca modo consulta e libera doc; git-guard bloqueia commit/push ate iniciar tarefa (branch). Doc de TAREFA (branch criada) sobe normal.",
       "fields_dynamic": []
     },
+    {
+      "code": "VS-FREE-001", "status": "FREE", "title": "Janela livre pós-push",
+      "short": "[VS-FREE-001] sessao livre apos push — perguntas/duvidas/confirmacoes; muro de branch nao engata.",
+      "dev_msg": "Apos commit+push a sessao fica LIVRE: pergunte, tire duvidas, confirme o que quiser sem o hook exigir dados de branch. A proxima tarefa so re-arma o fluxo quando voce mandar o NUMERO da tarefa, ou disser 'proxima/nova tarefa' ou 'deploy feito'.",
+      "when": "Setado por on-doc apos git push. Vale por 12h ou ate re-armar com a proxima tarefa.",
+      "how": "on-doc chama setFree(sid) no push. on-task, em modo livre, so engata o muro se detectar numero de tarefa ou frase de proxima-tarefa/deploy-feito; senao passa direto. Nova tarefa ainda respeita doc pendente (VS-DOC-002).",
+      "fields_dynamic": []
+    },
 
     {
       "code": "VS-ALVO", "status": "REQUIRED", "title": "Alvo obrigatório",
