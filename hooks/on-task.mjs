@@ -60,6 +60,23 @@ if (isSessionOff(sid)) {
   process.exit(0);
 }
 
+// FECHAMENTO DE DIA — controle de horas. Ao pedir pra fechar/encerrar o dia,
+// injeta a ordem de COLETAR início/fim/almoço/dailys ANTES de registrar.
+if (/\b(fech(a|ar|amento)|encerr\w*)\s+(o\s+)?(meu\s+)?dia\b/i.test(prompt) ||
+    /\bfim do dia\b/i.test(prompt) || /\bcontrole de horas\b/i.test(prompt)) {
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: 'UserPromptSubmit',
+      additionalContext:
+        '[governança] FECHAMENTO DE DIA — NÃO registre ainda. PERGUNTE ao Fabiano, nesta ordem: ' +
+        '(1) início, (2) fim, (3) almoço (horário/duração ou "não teve"), (4) dailys (teve/não). ' +
+        'Só depois registre em C:/Veloso/ProjetosMsb/ControleHoras/<YYYY-MM>.md — ' +
+        'horas líquidas = (fim − início) − almoço; descreva a atividade puxando o git log dos projetos do dia.',
+    },
+  }));
+  process.exit(0);
+}
+
 // ESCAPE -> modo CONSULTA/DOC: se o dev bate n/esc/doc/consulta (curto), pula o fluxo
 // de tarefa e libera a sessão só p/ leitura e geração de documento. Sem commit/push.
 if (/^\s*(n|n[ãa]o|esc|doc|s[óo] ?consulta|consulta|sair|deixa|cancela|cancelar)\s*$/i.test(prompt)) {
