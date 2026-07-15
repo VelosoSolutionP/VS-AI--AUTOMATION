@@ -126,10 +126,19 @@ if (isDocumentationTask) {
       saveReq(sid, merged);
       const providedThisTurn = !!(cur.num || cur.tipo || cur.origem) || /\bbranch\b/i.test(prompt);
       if (providedThisTurn) {
-        const have = [merged.num && ('nº ' + merged.num), merged.tipo && ('tipo ' + merged.tipo), merged.origem && ('origem ' + merged.origem)].filter(Boolean).join(', ');
+        const check =
+          (merged.num ? '✅' : '❌') + ' NÚMERO' + (merged.num ? ' ' + merged.num : '') + '   ' +
+          (merged.tipo ? '✅' : '❌') + ' TIPO' + (merged.tipo ? ' ' + merged.tipo : '') + '   ' +
+          (merged.origem ? '✅' : '❌') + ' ORIGEM' + (merged.origem ? ' ' + merged.origem : '');
+        const next = !merged.num ? 'o NÚMERO da tarefa'
+          : !merged.tipo ? 'o TIPO → fix | feat | refactor | perf | hotfix | chore | test | docs'
+            : 'a ORIGEM → dev | hml | main';
         process.stdout.write(JSON.stringify({
           decision: 'block',
-          reason: '[VS-BRANCH-001] BLOCKED — faltam dados para criar a branch.\nFalta: ' + missing.join('  +  ') + '.' + (have ? '\nJá tenho: ' + have + '.' : '') + '\nRegra: NÚMERO + TIPO + ORIGEM. Sem os 3 não crio. (desistir: "cancela")',
+          reason:
+            '[VS-BRANCH-001] Falta pra criar a branch:\n' +
+            check + '\n\n' +
+            '→ Responda ' + next + '   (ou "cancela" pra sair)',
         }));
         process.exit(0);
       }
