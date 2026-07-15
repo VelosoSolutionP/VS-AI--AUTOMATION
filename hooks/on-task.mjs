@@ -12,6 +12,8 @@
  */
 
 import { validateTask } from '../engine/requirements.mjs';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 
 // =====================================================
 // Lê o prompt recebido do Claude Code
@@ -49,7 +51,7 @@ if (!prompt) {
 
 // Documentação / Marketing / Relatórios
 const isDocumentationTask =
-  /(html|documenta[cç][aã]o|documento|apresenta[cç][aã]o|relat[oó]rio|readme|cat[aá]logo|divulga[cç][aã]o|material|landing\s?page|p[aá]gina|manual|guia|artigo|markdown|md)/i.test(
+  /(html|documenta\w*|redmine|apresenta[cç][aã]o|relat[oó]rio|readme|cat[aá]logo|divulga[cç][aã]o|material|landing\s?page|p[aá]gina|manual|guia|artigo|markdown|md)/i.test(
     prompt
   );
 
@@ -85,6 +87,24 @@ const strongDevSignal =
   (/descri[çc][ãa]o\s*:/i.test(prompt) && /(objetivo|crit[ée]rio)/i.test(prompt));
 
 if (!strongDevSignal) {
+  process.exit(0);
+}
+
+// =====================================================
+// DOC PENDENTE — não inicia nova tarefa com doc da anterior pendente.
+// (a doc em si é DOC-001 e passa pelo bypass de documentação acima)
+// =====================================================
+
+if (existsSync(join(process.cwd(), '.git', 'qa-gate-pending-doc'))) {
+  process.stdout.write(
+    JSON.stringify({
+      decision: 'block',
+      reason:
+        '[VS-DOC-002] BLOCKED — documentação da tarefa anterior pendente.\n' +
+        'Fluxo atômico: branch → tarefa → gate → commit → push → DOC. Documente a tarefa anterior (Redmine) antes de iniciar outra.\n' +
+        'Após documentar, limpe: rm .git/qa-gate-pending-doc',
+    })
+  );
   process.exit(0);
 }
 

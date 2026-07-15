@@ -24,6 +24,14 @@
           { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-qa-gate.mjs" }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-doc.mjs" }
+        ]
+      }
     ]
   }
 }

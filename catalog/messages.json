@@ -150,6 +150,23 @@
       "when": "Hook PreToolUse: git checkout -b / switch -c / branch sem base origin/<x>.",
       "how": "Bloqueia o comando. Forca base de origem explicita.",
       "fields_dynamic": []
+    },
+
+    {
+      "code": "VS-DOC-001", "status": "REQUIRED", "title": "Documentação obrigatória (pós-push)",
+      "short": "[VS-DOC-001] REQUIRED — documentacao Redmine obrigatoria apos o push.",
+      "dev_msg": "Push feito. Fluxo atomico exige DOC agora (template Backend/Frontend conforme o que tocou). Ao concluir: rm .git/qa-gate-pending-doc.",
+      "when": "Hook PostToolUse: git push concluido.",
+      "how": "Marca pendencia em .git/qa-gate-pending-doc e injeta a ordem. Fecha o fluxo branch->tarefa->gate->commit->push->DOC.",
+      "fields_dynamic": []
+    },
+    {
+      "code": "VS-DOC-002", "status": "BLOCKED", "title": "Doc pendente bloqueia nova tarefa",
+      "short": "[VS-DOC-002] BLOCKED — documente a tarefa anterior antes de iniciar outra.",
+      "dev_msg": "Doc da tarefa anterior pendente. Documente (Redmine) e limpe: rm .git/qa-gate-pending-doc. Só então inicie outra.",
+      "when": "Hook UserPromptSubmit: nova tarefa com .git/qa-gate-pending-doc presente.",
+      "how": "Bloqueia o inicio de nova tarefa/branch. Impede acumular doc pendente.",
+      "fields_dynamic": []
     }
   ]
 }
