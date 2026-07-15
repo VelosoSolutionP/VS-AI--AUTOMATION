@@ -47,8 +47,23 @@ if (r.status === 'green') {
     `Está VERDE porque todos passaram nesses checks. Diga isso ao Fabiano (o que rodou + por que verde) e só então commite.`
   );
 }
-if (r.status === 'error') {
-  deny(`[VS-AUD-003] BLOCKED — QA-Gate não conseguiu validar: ${r.reason}. Regra absoluta: sem gate rodando verde, sem commit. Suba o app (modo dev/live) e re-tente.`);
+// BLOQUEADO por FALTA (lib/flow/app/seletor) — a IA RESOLVE, não muda regra de negócio.
+if (r.status === 'blocked' || r.status === 'error') {
+  const acoes = (r.needs || []).map((n) => {
+    if (n.kind === 'playwright') { return '• LIB FALTANDO: playwright não instalado. VOCÊ resolve: `npm i -D playwright` e depois `npx playwright install chromium`. Re-tente o commit.'; }
+    if (n.kind === 'flow') {
+      const files = (n.uiFiles || []).slice(0, 8).join(', ');
+      return `• FLOW FALTANDO: você tocou UI (${files}) e NENHUM flow no qa-gate.config.json cobre. VOCÊ resolve: adicione um flow apontando a rota afetada — mode "form" (cadastro/edição: injeta bug + exige msg amigável) ou mode "read" (lista/visualização: expectSelector+expectMinCount). NÃO é mudar regra de negócio, é dar cobertura à ferramenta.`;
+    }
+    if (n.kind === 'app-up') { return `• APP FORA DO AR: ${n.target} não responde em ${n.baseUrl}. ${n.start ? 'Tem `start` no config — verifique por que não subiu' : 'Suba o app (dev/live)'}; se depender de Docker+dados, peça ao Fabiano. Re-tente.`; }
+    if (n.kind === 'sim-error') { return `• GATE QUEBROU em ${n.target}: ${n.detail}. VOCÊ resolve: ajuste o seletor/rota/login no config e re-tente.`; }
+    return `• ${n.kind}: ${n.detail || ''}`;
+  }).join('\n');
+  deny(
+    `[VS-AUD-003] BLOCKED — QA-Gate NÃO validou (faltou algo pra rodar). Regra absoluta: sem gate verde, sem commit.\n` +
+    `RESOLVA o que falta (é responsabilidade da IA completar a ferramenta, não deixar passar):\n${acoes}\n` +
+    `Depois de resolver, re-tente o commit — o gate roda de novo.`
+  );
 }
 // red
 const falhas = (r.results || []).filter((x) => x.status === 'red').map((x) => `${x.name}: ${x.errors?.join('; ')}`).join(' | ');

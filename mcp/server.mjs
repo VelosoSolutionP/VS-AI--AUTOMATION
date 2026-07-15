@@ -119,11 +119,15 @@ server.tool('qa_run_gate',
     const cfg = configPath || `${repo}/qa-gate.config.json`;
     const r = await runGate(repo, cfg);
     const lines = [`status: ${r.status}${r.reason ? ' — ' + r.reason : ''}`];
-    (r.results || []).forEach((x) => lines.push(`  ${x.status === 'green' ? '✔' : '✖'} ${x.name}${x.errors?.length ? ' — ' + x.errors.join('; ') : ''}`));
+    (r.results || []).forEach((x) => lines.push(`  ${x.status === 'green' ? '✔' : x.status === 'red' ? '✖' : '·'} ${x.name}${x.errors?.length ? ' — ' + x.errors.join('; ') : ''}`));
+    if (r.needs?.length) {
+      lines.push('FALTA pro gate rodar (a IA resolve):');
+      r.needs.forEach((n) => lines.push(`  → ${n.kind}${n.detail ? ': ' + n.detail : ''}${n.baseUrl ? ' (' + n.baseUrl + ')' : ''}${n.uiFiles ? ' [' + n.uiFiles.slice(0, 6).join(', ') + ']' : ''}`));
+    }
     const content = [text(lines.join('\n'))];
     const firstRed = (r.results || []).find((x) => x.status === 'red' && x.screenshot);
     if (firstRed) { const img = imageOf(firstRed.screenshot); if (img) { content.push(img); } }
-    return { content, isError: r.status === 'red' || r.status === 'error' };
+    return { content, isError: r.status === 'red' || r.status === 'error' || r.status === 'blocked' };
   });
 
 const transport = new StdioServerTransport();
