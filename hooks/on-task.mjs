@@ -117,15 +117,23 @@ if (existsSync(join(process.cwd(), '.git', 'qa-gate-pending-doc'))) {
 
 const pedeBranch = /#?\d{3,6}\b/.test(prompt) || /\bbranch\b/i.test(prompt);
 const temOrigem = /\b(dev|develop|hml|homolog\w*|main|master|prod|produ[çc][ãa]o|staging)\b/i.test(prompt);
+// tipo: palavra explícita OU verbo que mapeia pra um tipo (corrige->fix, cria->feat, refatora->refactor, otimiza->perf)
+const temTipo =
+  /\b(fix|bug|feat|feature|refactor|refact|perf|hotfix|chore|test|docs?)\b/i.test(prompt) ||
+  /\b(corrig\w*|arrum\w*|conserta\w*|resolv\w*|cri[ae]\w*|nov[ao]s?|adicion\w*|implement\w*|desenvolv\w*|refator\w*|otimiz\w*)/i.test(prompt);
 
-if (pedeBranch && !temOrigem) {
+if (pedeBranch && (!temOrigem || !temTipo)) {
+  const faltam = [
+    !temTipo ? 'TIPO (fix/feat/refactor/perf/hotfix/chore/test/docs)' : null,
+    !temOrigem ? 'ORIGEM (dev/hml/main)' : null,
+  ].filter(Boolean).join('  +  ');
   process.stdout.write(
     JSON.stringify({
       decision: 'block',
       reason:
-        '[VS-BRANCH-001] BLOCKED — origem OBRIGATÓRIA para criar branch.\n' +
-        'Pra criar a branch preciso das 3: número da tarefa + tipo (fix|feat|refactor|perf|hotfix|chore|test|docs) + ORIGEM (dev/hml/main).\n' +
-        'Sem a origem NÃO crio — branch de ambiente errado quebra no merge. Informe a origem.',
+        '[VS-BRANCH-001] BLOCKED — faltam dados obrigatórios para criar a branch.\n' +
+        `Falta: ${faltam}.\n` +
+        'Regra: número da tarefa + TIPO + ORIGEM. Sem os 3 NÃO crio — tipo errado/origem errada quebra no merge. Informe o que falta.',
     })
   );
   process.exit(0);
