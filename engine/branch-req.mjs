@@ -4,8 +4,7 @@
  * Marcador em .git/qa-gate-branch-req.json (TTL 15min, nunca commitado).
  */
 import { readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
-import { join, isAbsolute } from 'node:path';
-import { execSync } from 'node:child_process';
+import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 const TIPOS = { fix: 'fix', bug: 'fix', feat: 'feat', feature: 'feat', refactor: 'refactor', refact: 'refactor', perf: 'perf', hotfix: 'hotfix', chore: 'chore', test: 'test', doc: 'docs', docs: 'docs' };
@@ -23,24 +22,21 @@ export function parseBranch(prompt) {
   };
 }
 
-// caminho robusto: acha o .git real (funciona de subpasta/worktree); se não houver repo,
-// cai num arquivo em temp keyed pelo cwd — assim o estado SEMPRE persiste entre turns.
-export function reqPath(cwd) {
-  try {
-    const g = execSync('git rev-parse --git-dir', { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-    if (g) { return join(isAbsolute(g) ? g : join(cwd, g), 'qa-gate-branch-req.json'); }
-  } catch {}
-  const key = Buffer.from(cwd || 'x').toString('hex').slice(0, 20);
-  return join(tmpdir(), `qa-gate-branch-${key}.json`);
+// Estado chaveado por SESSION_ID (constante na sessão) — não depende de cwd.
+// Mesma sessão do Claude Code = mesmo estado, independente da pasta atual.
+export function reqPath(key) {
+  const safe = String(key || 'default').replace(/[^a-z0-9_-]/gi, '').slice(0, 48) || 'default';
+  return join(tmpdir(), `qa-gate-branch-${safe}.json`);
 }
 
-export function loadReq(cwd) {
+export function loadReq(key) {
   try {
-    if (!existsSync(reqPath(cwd))) { return null; }
-    const o = JSON.parse(readFileSync(reqPath(cwd), 'utf8'));
-    if (Date.now() - (o.ts || 0) > TTL) { rmSync(reqPath(cwd)); return null; }
+    const p = reqPath(key);
+    if (!existsSync(p)) { return null; }
+    const o = JSON.parse(readFileSync(p, 'utf8'));
+    if (Date.now() - (o.ts || 0) > TTL) { rmSync(p); return null; }
     return o;
   } catch { return null; }
 }
-export function saveReq(cwd, o) { try { writeFileSync(reqPath(cwd), JSON.stringify({ ...o, ts: Date.now() })); } catch {} }
-export function clearReq(cwd) { try { rmSync(reqPath(cwd)); } catch {} }
+export function saveReq(key, o) { try { writeFileSync(reqPath(key), JSON.stringify({ ...o, ts: Date.now() })); } catch {} }
+export function clearReq(key) { try { rmSync(reqPath(key)); } catch {} }

@@ -11,17 +11,22 @@
  *  - branch fora do padrão tipo/fabiano.veloso/<n>  (VS-GIT-003)
  */
 import { execSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { loadReq } from '../engine/branch-req.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
-try { const j = JSON.parse(raw || '{}'); cmd = j.tool_input?.command || j.command || ''; } catch { cmd = raw; }
+let sid = 'default';
+try { const j = JSON.parse(raw || '{}'); cmd = j.tool_input?.command || j.command || ''; sid = j.session_id || 'default'; } catch { cmd = raw; }
 
 const allow = () => process.exit(0);
 function deny(reason) {
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }));
   process.exit(0);
 }
+// opt-out por pasta (bancada de conserto): .qa-gate-off desliga
+if (existsSync(join(process.cwd(), '.qa-gate-off'))) { allow(); }
 const isGit = /\bgit\b/.test(cmd);
 if (!isGit) { allow(); }
 
@@ -34,7 +39,7 @@ if (/\bgit\s+add\s+(\.|-A\b|--all\b|:\/)/.test(cmd)) {
 const criaBranch = /\bgit\s+checkout\s+-b\b/.test(cmd) || /\bgit\s+switch\s+-c\b/.test(cmd) || /\bgit\s+branch\s+\S/.test(cmd);
 if (criaBranch) {
   // estado de branch pendente (número/tipo/origem incompletos) -> não deixa criar
-  let pend = null; try { pend = loadReq(process.cwd()); } catch {}
+  let pend = null; try { pend = loadReq(sid); } catch {}
   if (pend) {
     const falta = ['num', 'tipo', 'origem'].filter((k) => !pend[k]).join('/');
     deny(`[VS-BRANCH-003] BLOCKED — dados da branch incompletos (falta ${falta}). Informe no chat antes de criar. (desistir: "cancela")`);

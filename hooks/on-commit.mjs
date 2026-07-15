@@ -7,11 +7,16 @@
  * Contrato PreToolUse: stdin { tool_name, tool_input:{command} };
  * nega com permissionDecision "deny".
  */
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
 const raw = await new Promise((res) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => res(s)); });
 let cmd = '';
 try { const j = JSON.parse(raw || '{}'); cmd = j.tool_input?.command || j.command || ''; } catch { cmd = raw; }
 
 const allow = () => process.exit(0);
+// opt-out por pasta (bancada de conserto): .qa-gate-off desliga
+if (existsSync(join(process.cwd(), '.qa-gate-off'))) { process.exit(0); }
 function deny(reason) {
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }));
   process.exit(0);

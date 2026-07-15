@@ -8,3 +8,4 @@ license/.keys/
 
 .metrics/
 .consent/
+.qa-gate-off

@@ -33,9 +33,12 @@ const raw = await new Promise((resolve) => {
 });
 
 let prompt = '';
+let sid = 'default';
 
 try {
-  prompt = (JSON.parse(raw || '{}').prompt) || '';
+  const j = JSON.parse(raw || '{}');
+  prompt = j.prompt || '';
+  sid = j.session_id || 'default';
 } catch {
   prompt = raw || '';
 }
@@ -43,6 +46,12 @@ try {
 prompt = prompt.trim();
 
 if (!prompt) {
+  process.exit(0);
+}
+
+// opt-out por pasta: .qa-gate-off no cwd desliga a governança nesta sessão/pasta
+// (usado na bancada de conserto do próprio produto)
+if (existsSync(join(process.cwd(), '.qa-gate-off'))) {
   process.exit(0);
 }
 
@@ -80,12 +89,11 @@ if (isDocumentationTask) {
 // só libera com os 3. Estado em .git/qa-gate-branch-req.json (TTL 15min).
 // =====================================================
 {
-  const cwd = process.cwd();
   const cur = parseBranch(prompt);
-  const pending = loadReq(cwd);
+  const pending = loadReq(sid);
 
   if (pending && /\b(cancela|cancelar|esquece|aborta|deixa pra l[áa])\b/i.test(prompt)) {
-    clearReq(cwd);
+    clearReq(sid);
   } else if (pending || cur.num || /\bbranch\b/i.test(prompt)) {
     const merged = {
       num: cur.num || pending?.num || null,
@@ -98,7 +106,7 @@ if (isDocumentationTask) {
     if (!merged.origem) { missing.push('ORIGEM (dev/hml/main)'); }
 
     if (missing.length) {
-      saveReq(cwd, merged);
+      saveReq(sid, merged);
       const providedThisTurn = !!(cur.num || cur.tipo || cur.origem) || /\bbranch\b/i.test(prompt);
       if (providedThisTurn) {
         const have = [merged.num && ('nº ' + merged.num), merged.tipo && ('tipo ' + merged.tipo), merged.origem && ('origem ' + merged.origem)].filter(Boolean).join(', ');
@@ -110,7 +118,7 @@ if (isDocumentationTask) {
       }
       // pendente mas sem dado novo neste turno -> não bloqueia o chat; git-guard segura a criação
     } else {
-      clearReq(cwd);
+      clearReq(sid);
       process.stdout.write(JSON.stringify({
         hookSpecificOutput: {
           hookEventName: 'UserPromptSubmit',
