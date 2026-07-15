@@ -14,7 +14,7 @@
 import { execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { loadReq, isConsult } from '../engine/branch-req.mjs';
+import { loadReq, isConsult, isSessionOff } from '../engine/branch-req.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
@@ -28,6 +28,7 @@ function deny(reason) {
 }
 // opt-out por pasta (bancada de conserto): .qa-gate-off desliga
 if (existsSync(join(process.cwd(), '.qa-gate-off'))) { allow(); }
+if (isSessionOff(sid)) { allow(); }
 const isGit = /\bgit\b/.test(cmd);
 if (!isGit) { allow(); }
 

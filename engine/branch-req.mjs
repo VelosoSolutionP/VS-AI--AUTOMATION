@@ -67,6 +67,14 @@ export function isFree(key) {
   } catch { return false; }
 }
 
+// Opt-out por SESSÃO (não por pasta): desliga a governança nesta sessão do Claude,
+// mesmo trabalhando dentro de um projeto governado (bancada de conserto). Vale até
+// remover o flag. Chave = session_id.
+const sessionOffPath = (key) => join(tmpdir(), `qa-gate-off-session-${slug(key)}.flag`);
+export function setSessionOff(key) { try { writeFileSync(sessionOffPath(key), '1'); } catch {} }
+export function clearSessionOff(key) { try { rmSync(sessionOffPath(key)); } catch {} }
+export function isSessionOff(key) { try { return existsSync(sessionOffPath(key)); } catch { return false; } }
+
 export function loadReq(key) {
   try {
     const p = reqPath(key);

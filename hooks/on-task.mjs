@@ -12,7 +12,7 @@
  */
 
 import { validateTask } from '../engine/requirements.mjs';
-import { parseBranch, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree } from '../engine/branch-req.mjs';
+import { parseBranch, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree, isSessionOff } from '../engine/branch-req.mjs';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -52,6 +52,11 @@ if (!prompt) {
 // opt-out por pasta: .qa-gate-off no cwd desliga a governança nesta sessão/pasta
 // (usado na bancada de conserto do próprio produto)
 if (existsSync(join(process.cwd(), '.qa-gate-off'))) {
+  process.exit(0);
+}
+
+// opt-out por SESSÃO: bancada trabalha dentro de projeto governado sem acordar a governança
+if (isSessionOff(sid)) {
   process.exit(0);
 }
 
