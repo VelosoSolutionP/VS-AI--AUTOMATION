@@ -62,7 +62,7 @@ if (isSessionOff(sid)) {
 
 // FECHAMENTO DE DIA — controle de horas. Ao pedir pra fechar/encerrar o dia,
 // injeta a ordem de COLETAR início/fim/almoço/dailys ANTES de registrar.
-if (/\b(fech(a|ar|amento)|encerr\w*)\s+(o\s+)?(meu\s+)?dia\b/i.test(prompt) ||
+if (/\b(fech(a|ar|amento)|encerr\w*)\b[\s\wçãáéíóú]{0,14}\bdia\b/i.test(prompt) ||
     /\bfim do dia\b/i.test(prompt) || /\bcontrole de horas\b/i.test(prompt)) {
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: {
