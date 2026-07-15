@@ -9,6 +9,7 @@
  *  - commit sem --no-verify burlando   (deixa hooks rodarem)
  * Avisa (não bloqueia):
  *  - branch fora do padrão tipo/fabiano.veloso/<n>  (VS-GIT-003)
+ *  - criar nova branch com trabalho da anterior fora do origin (VS-BRANCH-004) — back/front; mobile isento
  */
 import { execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -42,6 +43,21 @@ if (/\bgit\s+add\s+(\.|-A\b|--all\b|:\/)/.test(cmd)) {
 const criaBranch = /\bgit\s+checkout\s+-b\b/.test(cmd) || /\bgit\s+switch\s+-c\b/.test(cmd) || /\bgit\s+branch\s+\S/.test(cmd);
 if (criaBranch && isMobile) {
   deny('[VS-MOBILE-002] BLOCKED — mobile NÃO usa branch de tarefa. Acumule os commits na branch atual; o deploy (APK) é só no fim do dia.');
+}
+// não iniciar nova branch deixando o trabalho da anterior FORA do ambiente (origin).
+// só back/front; base protegida (main/dev/hml) é isenta (não é tarefa pendente).
+if (criaBranch && !isMobile) {
+  try {
+    const cur = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
+    const PROT = /^(main|master|dev|develop|hml|homolog\w*|production|prod|staging)$/i;
+    if (!PROT.test(cur)) {
+      const unpushed = parseInt((execSync('git rev-list --count HEAD --not --remotes', { encoding: 'utf8' }).trim() || '0'), 10);
+      const dirty = execSync('git status --porcelain', { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean).length;
+      if (unpushed > 0 || dirty > 0) {
+        deny(`[VS-BRANCH-004] BLOCKED — a branch atual "${cur}" tem trabalho fora do ambiente (${unpushed} commit(s) não enviado(s), ${dirty} arquivo(s) não commitado(s)). Antes de criar nova branch: commite os arquivos da tarefa + git push -u origin ${cur}. (mobile é isento; back/front obrigatório)`);
+      }
+    }
+  } catch {}
 }
 if (criaBranch) {
   // estado de branch pendente (número/tipo/origem incompletos) -> não deixa criar

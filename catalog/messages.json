@@ -151,6 +151,14 @@
       "how": "Bloqueia o comando. Forca base de origem explicita.",
       "fields_dynamic": []
     },
+    {
+      "code": "VS-BRANCH-004", "status": "BLOCKED", "title": "Trabalho anterior fora do ambiente",
+      "short": "[VS-BRANCH-004] BLOCKED — branch atual tem trabalho nao enviado ao origin.",
+      "dev_msg": "Antes de criar nova branch: commite os arquivos da tarefa + git push -u origin <branch-atual>. Nao inicie tarefa nova deixando a anterior fora do ambiente. Mobile isento (acumula local); back/front obrigatorio.",
+      "when": "Hook PreToolUse: criacao de branch com commits nao pushados ou arquivos nao commitados na branch de tarefa atual (base protegida e mobile isentos).",
+      "how": "Bloqueia a criacao. Forca push do que falta ao ambiente antes de trocar de tarefa.",
+      "fields_dynamic": ["branch_atual", "commits_nao_enviados", "arquivos_nao_commitados"]
+    },
 
     {
       "code": "VS-DOC-001", "status": "REQUIRED", "title": "Documentação obrigatória (pós-push)",
