@@ -68,14 +68,15 @@ if (r.status === 'blocked' || r.status === 'error') {
     if (n.kind === 'sim-error') { return `• GATE QUEBROU em ${n.target}: ${n.detail}. VOCÊ resolve: ajuste o seletor/rota/login no config e re-tente.`; }
     if (n.kind === 'flutter') { return `• FLUTTER FALTANDO: ${n.detail}. VOCÊ resolve: garanta o Flutter SDK no PATH (flutter --version) e re-tente.`; }
     if (n.kind === 'flutter-test-missing') { return `• TESTE MOBILE FALTANDO: ${n.detail}. VOCÊ resolve: escreva o teste que reproduz a correção (contract = joga a resposta REAL da API no fromJson do model; widget = pumpa a tela e exige msg amigável/lista) e re-tente. Sem teste cobrindo, não commita o mobile.`; }
-    return `• ${n.kind}: ${n.detail || ''}`;
+    return `• ${n.kind}: ${n.detail || ''} — VOCÊ diagnostica e resolve, depois re-roda.`;
   }).join('\n');
   deny(
     `[VS-AUD-003] BLOCKED — QA-Gate NÃO validou (faltou algo pra rodar). Regra absoluta: sem gate verde, sem commit.\n` +
-    `⛔ PROIBIDO pedir pro Fabiano subir/rebuildar/semear o ambiente e "esperar". A ferramenta é AUTÔNOMA: VOCÊ faz o que for preciso — subir Docker, rebuildar o front com as edições da branch, rodar seed, instalar lib, adicionar flow — e roda o gate. "Se for papai noel, se vira": resolve e roda.\n` +
-    `RESOLVA TUDO até o gate rodar e SÓ ENTÃO commite:\n${acoes}\n` +
-    `Execute um por um, re-testando o commit a cada passo — o gate roda de novo até ficar verde. ` +
-    `Só acione o Fabiano se, DEPOIS de tentar TODOS os passos acima, ainda falhar — e diga exatamente o que rodou e o erro real (não peça antes de tentar).`
+    `⛔ PROIBIDO pedir pro Fabiano subir/rebuildar/semear e "esperar". A ferramenta é AUTÔNOMA: VOCÊ faz o que for preciso e roda o gate.\n` +
+    `🔧 RESOLVE-ALL (se vira): a cada passo, se der ERRO (docker não sobe, porta ocupada, nome de container errado, migration pendente, seed falha, build quebra, lib, seletor, o que for) — LEIA a saída do erro, diagnostique a causa raiz e CORRIJA. Você sabe resolver qualquer erro. Loop: resolve → re-roda o gate → resolve o próximo → até VERDE.\n` +
+    `Passos pra este bloqueio:\n${acoes}\n` +
+    `Execute um por um, tratando o erro de cada um, re-testando o commit a cada passo até ficar verde. ` +
+    `Só acione o Fabiano se, DEPOIS de esgotar TUDO (com os erros reais em mãos), ainda estiver travado — e mostre o que rodou + o erro exato. Nunca peça antes de tentar.`
   );
 }
 // red
