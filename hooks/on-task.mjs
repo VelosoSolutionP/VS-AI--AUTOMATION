@@ -113,11 +113,15 @@ if (isFree(sid)) {
 // Classificação da solicitação
 // =====================================================
 
-// Documentação / Marketing / Relatórios
+// DOC = intenção de PRODUZIR documento/material (não palavra de domínio).
+// "relatório"/"dashboard"/"página" numa FEATURE não é doc — é o que implementar.
+// Se o texto tem cara de FEATURE (RF, critério de aceite, implementar/adequar,
+// endpoint, migration, drill-down...), NÃO é doc, mesmo citando relatório.
+const looksLikeFeature =
+  /(requisitos?\s+funciona|\bRF\s*0?\d|crit[ée]rios?\s+de\s+aceita|\bimplementar\b|\badequar\b|\bdesenvolver\b|\bendpoint\b|\bmigration\b|drill-?down|hist[óo]ria de usu[áa]rio|\bHU\b)/i.test(prompt);
 const isDocumentationTask =
-  /(html|documenta\w*|redmine|apresenta[cç][aã]o|relat[oó]rio|readme|cat[aá]logo|divulga[cç][aã]o|material|landing\s?page|p[aá]gina|manual|guia|artigo|markdown|md)/i.test(
-    prompt
-  );
+  !looksLikeFeature &&
+  /(documenta[çc]\w*|redmine|readme|changelog|release\s*notes|markdown|apresenta[çc][ãa]o|landing\s?page|\bgerar?\s+(a\s+)?doc|escrever?\s+(o\s+|a\s+)?(doc|manual|guia|artigo|readme))/i.test(prompt);
 
 // =====================================================
 // DOCUMENTAÇÃO liberada (não valida requisito técnico)

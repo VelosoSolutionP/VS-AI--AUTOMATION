@@ -67,11 +67,26 @@ export function validateTask(text, opts = {}) {
   const missOpt = missing.filter((m) => !m.required);
   const ambiguous = AMBIGUOUS.some((re) => re.test(t));
 
+  // HU/spec RICA: objetivo + RF + critério de aceitação + descrição da solução.
+  // Quando o texto tem estrutura de história de usuário, é requisito SUFICIENTE —
+  // não fica cobrando campo; passa e escala pro modelo interpretar/implementar.
+  const specMarkers = [
+    /requisitos?\s+funciona|\bRF\s*0?\d/i,
+    /crit[ée]rios?\s+de\s+aceita|crit[ée]rio\s*:/i,
+    /descri[çc][ãa]o\s+da\s+solu/i,
+    /requisitos?\s+n[ãa]o\s+funciona|\bRNF/i,
+    /objetivo\b/i,
+    /impacto\s+esperado|regras?\s+de\s+neg[óo]cio/i,
+  ].filter((re) => re.test(t)).length;
+  const wellSpecified = specMarkers >= 3 || (t.length >= 400 && specMarkers >= 2);
+
   const esc = ESCALATE.find((e) => e.re.test(t));
-  const escalate = { call_ai: !!esc, reason: esc ? esc.reason : null };
+  // spec rica sempre escala pro modelo (é feature real p/ interpretar/implementar)
+  const escalate = { call_ai: !!esc || wellSpecified, reason: esc ? esc.reason : (wellSpecified ? 'feature especificada (HU)' : null) };
 
   let code;
   if (opts.pending) { code = 'VS-REQ-002'; }
+  else if (wellSpecified) { code = 'VS-REQ-005'; } // requisito suficiente -> não cobra campo
   else if (missReq.length) { code = 'VS-REQ-001'; }
   else if (ambiguous) { code = 'VS-REQ-004'; }
   else if (missOpt.length) { code = 'VS-REQ-003'; }

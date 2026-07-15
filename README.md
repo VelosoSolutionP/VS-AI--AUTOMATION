@@ -37,7 +37,7 @@ Por [Veloso Solution](https://velososolution.online) — Consultoria em IA Aplic
 
 Além do QA-Gate, o produto é uma **camada de governança executável** — o modelo só é acionado quando compensa, e cada etapa é auditada.
 
-- **Triagem de requisito** (`engine/requirements.mjs` + hook `UserPromptSubmit`): tarefa mal-especificada é **bloqueada antes da IA entrar** (`VS-REQ-001`). Fail-open — papo normal passa. Economia de token real.
+- **Triagem de requisito** (`engine/requirements.mjs` + hook `UserPromptSubmit`): tarefa mal-especificada é **bloqueada antes da IA entrar** (`VS-REQ-001`). Fail-open — papo normal passa. Economia de token real. **HU/spec rica** (objetivo + RF + critério de aceitação) é reconhecida como requisito **suficiente** (`VS-REQ-005`) e escala pro modelo — não fica cobrando campo. **Feature que cita "relatório/dashboard/página" NÃO é confundida com documentação** — doc só por intenção real (documentar/redmine/readme).
 - **Escalation Engine**: decide `call_ai` — só escala pro modelo em causa raiz, arquitetura, segurança, performance ou bug. O resto trata local.
 - **Gate de commit** (hook `PreToolUse`): bloqueia commit fora do padrão e assinatura de IA (`VS-AUD-003`).
 - **Gate multi-alvo** (front/mobile): config `targets` (front=web, mobile=Flutter web). **Sem alvo → roda front E mobile**; `front`/`mobile` filtra. Mobile via Flutter web exige renderer HTML/semantics + seletores por role (camera não roda no web) — tuning à parte.
