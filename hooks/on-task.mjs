@@ -229,33 +229,33 @@ if (isDocumentationTask) {
     crud: cur.crud || pending?.crud || false,
   };
 
-  // OBRIGATÓRIO: só número + tipo + origem. ALVO é OPCIONAL — default 'todos'
-  // (cria branch em back+front, e mobile se houver). Projeto NÃO é pedido (o Fabiano está nele).
+  // OBRIGATÓRIO: número + tipo + origem + alvo. Projeto NÃO é pedido (o Fabiano está nele).
+  // ALVO tem a opção 'todos' = cria em back+front+mobile de uma vez.
   const missing = [];
   if (!merged.tipo) { missing.push('tipo'); }
   if (!merged.origem) { missing.push('origem'); }
+  if (!merged.alvo) { missing.push('alvo'); }
 
   if (missing.length) {
     saveReq(sid, merged);
     const check =
       '① ' + (merged.num ? '✅' : '❌') + ' NÚMERO' + (merged.num ? ' ' + merged.num : '') + '\n' +
       '② ' + (merged.tipo ? '✅' : '❌') + ' TIPO' + (merged.tipo ? ' ' + merged.tipo : '') + '\n' +
-      '③ ' + (merged.origem ? '✅' : '❌') + ' ORIGEM' + (merged.origem ? ' ' + merged.origem : '');
+      '③ ' + (merged.origem ? '✅' : '❌') + ' ORIGEM' + (merged.origem ? ' ' + merged.origem : '') + '\n' +
+      '④ ' + (merged.alvo ? '✅' : '❌') + ' ALVO/REPO' + (merged.alvo ? ' ' + merged.alvo : '');
     const OPTS = {
       tipo: '② TIPO → fix | feat | refactor | perf | hotfix | chore | test | docs',
       origem: '③ ORIGEM → dev | hml | main',
+      alvo: '④ ALVO/REPO → front | back | mobile | todos   (TODOS = cria branch em back+front+mobile; mobile acumula commit local, sem push, até você pedir pra subir)',
     };
     const pedir = missing.map((k) => '• ' + OPTS[k]).join('\n');
     process.stdout.write(JSON.stringify({
       decision: 'block',
-      reason: '[VS-BRANCH-001] Pra criar a tarefa (PROJETO eu já sei; ALVO default = todos, não precisa dizer):\n' +
-        check + '\n\nResponda o que falta (opções EXATAS, NÃO invente, NÃO pergunte repo/módulo):\n' + pedir + '\n\n(ou "cancela")',
+      reason: '[VS-BRANCH-001] Pra criar a tarefa (PROJETO eu já sei — você está nele; NÃO invente opções):\n' +
+        check + '\n\nResponda o que falta:\n' + pedir + '\n\n(ou "cancela")',
     }));
     process.exit(0);
   }
-
-  // ALVO default = 'todos' (back+front, +mobile se tiver) quando o Fabiano não especificou.
-  if (!merged.alvo) { merged.alvo = 'todos'; }
 
   // completo -> injeta contexto da tarefa
   clearReq(sid);
@@ -264,7 +264,7 @@ if (isDocumentationTask) {
   if (merged.alvo === 'mobile') {
     ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · ALVO=MOBILE. REGRA MOBILE: NÃO cria branch de tarefa, NÃO faz push. Acumula commits LOCAIS; deploy (APK) só no fim do dia, quando o Fabiano pedir. Vá DIRETO no código Flutter/dart — NÃO investigue front/back.`;
   } else if (merged.alvo === 'todos') {
-    ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · ALVO=TODOS (cross-repo). Em cada repo tocado crie a branch ${merged.tipo}/fabiano.veloso/${merged.num} a partir de origin/${merged.origem} (git fetch origin ${merged.origem} && git checkout -b ...). NÃO se restrinja a uma camada. REGRA: no repo MOBILE acumula commit local sem push; front/back commit+push normal. O gate roda o alvo aplicável em cada commit.`;
+    ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · ALVO=TODOS = back + front + MOBILE (NÃO esqueça o mobile!). Crie a branch ${merged.tipo}/fabiano.veloso/${merged.num} a partir de origin/${merged.origem} nos TRÊS repos que a tarefa tocar (git fetch origin ${merged.origem} && git checkout -b ... em cada). NÃO se restrinja a uma camada. REGRA MOBILE: commits ficam LOCAIS, SEM push, ATÉ o Fabiano pedir pra subir/deploy. FRONT/BACK: commit + push normal após o gate verde. O gate roda o alvo aplicável em cada commit.`;
   } else {
     ctx = `[governança] branch OK: ${merged.tipo}/fabiano.veloso/${merged.num} a partir de origin/${merged.origem}. ALVO=${merged.alvo.toUpperCase()} — trabalhe SÓ na camada ${merged.alvo}, vá direto no alvo. Crie: git fetch origin ${merged.origem} && git checkout -b ${merged.tipo}/fabiano.veloso/${merged.num} origin/${merged.origem}`;
   }
