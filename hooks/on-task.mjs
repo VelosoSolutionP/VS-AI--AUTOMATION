@@ -11,7 +11,6 @@
  * - Injetar contexto leve para economizar tokens.
  */
 
-import { validateTask } from '../engine/requirements.mjs';
 import { parseBranch, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree, isSessionOff } from '../engine/branch-req.mjs';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
