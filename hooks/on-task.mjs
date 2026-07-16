@@ -244,12 +244,16 @@ if (isDocumentationTask) {
       '② ' + (merged.tipo ? '✅' : '❌') + ' TIPO' + (merged.tipo ? ' ' + merged.tipo : '') + '\n' +
       '③ ' + (merged.origem ? '✅' : '❌') + ' ORIGEM' + (merged.origem ? ' ' + merged.origem : '') + '\n' +
       '④ ' + (merged.alvo ? '✅' : '❌') + ' ALVO/CONDIÇÃO' + (merged.alvo ? ' ' + merged.alvo : '');
-    const next = !merged.tipo ? 'o ② TIPO → fix | feat | refactor | perf | hotfix | chore | test | docs'
-      : !merged.origem ? 'a ③ ORIGEM → dev | hml | main'
-        : 'o ④ ALVO → front | back | mobile | todos   (todos = tarefa em vários repos; mobile = acumula commit local, sem branch/push)';
+    const OPTS = {
+      tipo: '② TIPO → fix | feat | refactor | perf | hotfix | chore | test | docs',
+      origem: '③ ORIGEM → dev | hml | main',
+      alvo: '④ ALVO → front | back | mobile | todos   (todos = vários repos; mobile = acumula commit local, sem branch/push)',
+    };
+    const pedir = missing.map((k) => '• ' + OPTS[k]).join('\n');
     process.stdout.write(JSON.stringify({
       decision: 'block',
-      reason: '[VS-BRANCH-001] Pra criar a tarefa (o PROJETO eu já sei — você está nele):\n' + check + '\n\n→ Responda ' + next + '   (ou "cancela")',
+      reason: '[VS-BRANCH-001] Pra criar a tarefa (o PROJETO eu JÁ SEI — você está nele; NÃO pergunte repo/módulo):\n' +
+        check + '\n\nResponda os que faltam, usando EXATAMENTE estas opções (NÃO invente):\n' + pedir + '\n\n(ou "cancela")',
     }));
     process.exit(0);
   }
