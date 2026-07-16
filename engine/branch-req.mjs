@@ -15,9 +15,11 @@ export function parseBranch(prompt) {
   const num = (p.match(/#?(\d{3,6})\b/) || [])[1] || null;
   const tipoM = (p.match(/\b(fix|bug|feat|feature|refactor|refact|perf|hotfix|chore|test|docs?)\b/i) || [])[1];
   const origM = (p.match(/\b(dev|develop|hml|homolog\w*|main|master|prod|produ[çc][ãa]o|staging)\b/i) || [])[1];
-  // ALVO = camada onde atacar (mobile tem prioridade; depois back; depois front)
+  // ALVO = camada/repo onde atacar. 'todos' = tarefa cross-repo (front+back+mobile).
+  // (mobile tem prioridade; depois back; depois front)
   let alvo = null;
-  if (/\b(mobile|app|flutter|dart|apk)\b/i.test(p)) { alvo = 'mobile'; }
+  if (/\b(todos|tudo|all|geral|cross|full ?stack|fullstack)\b/i.test(p)) { alvo = 'todos'; }
+  else if (/\b(mobile|app|flutter|dart|apk)\b/i.test(p)) { alvo = 'mobile'; }
   else if (/\b(back|backend|api|laravel|controller|service|repository|migration|model|endpoint)\b/i.test(p)) { alvo = 'back'; }
   else if (/\b(front|frontend|web|tela|ui|componente|component|next|react|blade|livewire|p[áa]gina|view)\b/i.test(p)) { alvo = 'front'; }
   // bug de CRUD/validação (editar/cadastrar/salvar + erro/validação/mensagem/campo)

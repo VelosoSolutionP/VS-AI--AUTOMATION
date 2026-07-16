@@ -246,7 +246,7 @@ if (isDocumentationTask) {
       '④ ' + (merged.alvo ? '✅' : '❌') + ' ALVO/CONDIÇÃO' + (merged.alvo ? ' ' + merged.alvo : '');
     const next = !merged.tipo ? 'o ② TIPO → fix | feat | refactor | perf | hotfix | chore | test | docs'
       : !merged.origem ? 'a ③ ORIGEM → dev | hml | main'
-        : 'o ④ ALVO → front | back | mobile   (mobile = acumula commit local, sem branch de tarefa/push)';
+        : 'o ④ ALVO → front | back | mobile | todos   (todos = tarefa em vários repos; mobile = acumula commit local, sem branch/push)';
     process.stdout.write(JSON.stringify({
       decision: 'block',
       reason: '[VS-BRANCH-001] Pra criar a tarefa (o PROJETO eu já sei — você está nele):\n' + check + '\n\n→ Responda ' + next + '   (ou "cancela")',
@@ -259,7 +259,9 @@ if (isDocumentationTask) {
   clearConsult(sid);
   let ctx;
   if (merged.alvo === 'mobile') {
-    ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · ALVO=MOBILE. REGRA MOBILE: NÃO cria branch de tarefa, NÃO faz push. Acumula commits LOCAIS; deploy (APK) só no fim do dia, quando o Fabiano pedir. Vá DIRETO no código Flutter/dart do alvo — NÃO investigue front/back.`;
+    ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · ALVO=MOBILE. REGRA MOBILE: NÃO cria branch de tarefa, NÃO faz push. Acumula commits LOCAIS; deploy (APK) só no fim do dia, quando o Fabiano pedir. Vá DIRETO no código Flutter/dart — NÃO investigue front/back.`;
+  } else if (merged.alvo === 'todos') {
+    ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · ALVO=TODOS (cross-repo). Em cada repo tocado crie a branch ${merged.tipo}/fabiano.veloso/${merged.num} a partir de origin/${merged.origem} (git fetch origin ${merged.origem} && git checkout -b ...). NÃO se restrinja a uma camada. REGRA: no repo MOBILE acumula commit local sem push; front/back commit+push normal. O gate roda o alvo aplicável em cada commit.`;
   } else {
     ctx = `[governança] branch OK: ${merged.tipo}/fabiano.veloso/${merged.num} a partir de origin/${merged.origem}. ALVO=${merged.alvo.toUpperCase()} — trabalhe SÓ na camada ${merged.alvo}, vá direto no alvo. Crie: git fetch origin ${merged.origem} && git checkout -b ${merged.tipo}/fabiano.veloso/${merged.num} origin/${merged.origem}`;
   }
