@@ -238,17 +238,18 @@ if (isDocumentationTask) {
 
   if (missing.length) {
     saveReq(sid, merged);
+    // ordem fixa: número → tipo → origem → alvo. Projeto NÃO é pedido (o Fabiano está nele).
     const check =
-      '✅ NÚMERO ' + merged.num + '   ' +
-      (merged.tipo ? '✅' : '❌') + ' TIPO' + (merged.tipo ? ' ' + merged.tipo : '') + '   ' +
-      (merged.origem ? '✅' : '❌') + ' ORIGEM' + (merged.origem ? ' ' + merged.origem : '') + '   ' +
-      (merged.alvo ? '✅' : '❌') + ' ALVO' + (merged.alvo ? ' ' + merged.alvo : '');
-    const next = !merged.tipo ? 'o TIPO → fix | feat | refactor | perf | hotfix | chore | test | docs'
-      : !merged.origem ? 'a ORIGEM → dev | hml | main'
-        : 'o ALVO → mobile | front | back (onde atacar)';
+      '① ' + (merged.num ? '✅' : '❌') + ' NÚMERO' + (merged.num ? ' ' + merged.num : '') + '\n' +
+      '② ' + (merged.tipo ? '✅' : '❌') + ' TIPO' + (merged.tipo ? ' ' + merged.tipo : '') + '\n' +
+      '③ ' + (merged.origem ? '✅' : '❌') + ' ORIGEM' + (merged.origem ? ' ' + merged.origem : '') + '\n' +
+      '④ ' + (merged.alvo ? '✅' : '❌') + ' ALVO/CONDIÇÃO' + (merged.alvo ? ' ' + merged.alvo : '');
+    const next = !merged.tipo ? 'o ② TIPO → fix | feat | refactor | perf | hotfix | chore | test | docs'
+      : !merged.origem ? 'a ③ ORIGEM → dev | hml | main'
+        : 'o ④ ALVO → front | back | mobile   (mobile = acumula commit local, sem branch de tarefa/push)';
     process.stdout.write(JSON.stringify({
       decision: 'block',
-      reason: '[VS-BRANCH-001] Falta pra criar a tarefa:\n' + check + '\n\n→ Responda ' + next + '   (ou "cancela" pra sair)',
+      reason: '[VS-BRANCH-001] Pra criar a tarefa (o PROJETO eu já sei — você está nele):\n' + check + '\n\n→ Responda ' + next + '   (ou "cancela")',
     }));
     process.exit(0);
   }
