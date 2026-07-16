@@ -229,34 +229,34 @@ if (isDocumentationTask) {
     alvo: cur.alvo || pending?.alvo || null,
     crud: cur.crud || pending?.crud || false,
   };
-  if (merged.crud && !merged.alvo) { merged.alvo = 'front'; }
 
+  // OBRIGATÓRIO: só número + tipo + origem. ALVO é OPCIONAL — default 'todos'
+  // (cria branch em back+front, e mobile se houver). Projeto NÃO é pedido (o Fabiano está nele).
   const missing = [];
   if (!merged.tipo) { missing.push('tipo'); }
   if (!merged.origem) { missing.push('origem'); }
-  if (!merged.alvo) { missing.push('alvo'); }
 
   if (missing.length) {
     saveReq(sid, merged);
-    // ordem fixa: número → tipo → origem → alvo. Projeto NÃO é pedido (o Fabiano está nele).
     const check =
       '① ' + (merged.num ? '✅' : '❌') + ' NÚMERO' + (merged.num ? ' ' + merged.num : '') + '\n' +
       '② ' + (merged.tipo ? '✅' : '❌') + ' TIPO' + (merged.tipo ? ' ' + merged.tipo : '') + '\n' +
-      '③ ' + (merged.origem ? '✅' : '❌') + ' ORIGEM' + (merged.origem ? ' ' + merged.origem : '') + '\n' +
-      '④ ' + (merged.alvo ? '✅' : '❌') + ' ALVO/CONDIÇÃO' + (merged.alvo ? ' ' + merged.alvo : '');
+      '③ ' + (merged.origem ? '✅' : '❌') + ' ORIGEM' + (merged.origem ? ' ' + merged.origem : '');
     const OPTS = {
       tipo: '② TIPO → fix | feat | refactor | perf | hotfix | chore | test | docs',
       origem: '③ ORIGEM → dev | hml | main',
-      alvo: '④ ALVO → front | back | mobile | todos   (todos = vários repos; mobile = acumula commit local, sem branch/push)',
     };
     const pedir = missing.map((k) => '• ' + OPTS[k]).join('\n');
     process.stdout.write(JSON.stringify({
       decision: 'block',
-      reason: '[VS-BRANCH-001] Pra criar a tarefa (o PROJETO eu JÁ SEI — você está nele; NÃO pergunte repo/módulo):\n' +
-        check + '\n\nResponda os que faltam, usando EXATAMENTE estas opções (NÃO invente):\n' + pedir + '\n\n(ou "cancela")',
+      reason: '[VS-BRANCH-001] Pra criar a tarefa (PROJETO eu já sei; ALVO default = todos, não precisa dizer):\n' +
+        check + '\n\nResponda o que falta (opções EXATAS, NÃO invente, NÃO pergunte repo/módulo):\n' + pedir + '\n\n(ou "cancela")',
     }));
     process.exit(0);
   }
+
+  // ALVO default = 'todos' (back+front, +mobile se tiver) quando o Fabiano não especificou.
+  if (!merged.alvo) { merged.alvo = 'todos'; }
 
   // completo -> injeta contexto da tarefa
   clearReq(sid);
@@ -272,6 +272,11 @@ if (isDocumentationTask) {
   if (merged.crud) {
     ctx += ` | BUG CRUD/VALIDAÇÃO: rode o QA-Gate na rota/fluxo afetado PRIMEIRO — ele reproduz o erro real (DOM/console/screenshot). Corrija com base no que o gate mostrar.`;
   }
+  // FLUXO ABSOLUTO — executar agora, sem parar no meio:
+  ctx += ` | FLUXO (execute JÁ, não pare): 1) CRIE a branch agora (nos repos do alvo); 2) faça o trabalho; ` +
+    `3) rode o QA-Gate; 4) VERDE → commit dos arquivos + push das branches alteradas (mobile acumula local, sem push); ` +
+    `5) documente (Redmine). Se o gate faltar algo/der erro, RESPONSABILIDADE É SUA: veja o que é, arruma e roda o gate — ` +
+    `só prossegue no VERDE. Não peça pro Fabiano subir ambiente; se vira.`;
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: ctx },
   }));
