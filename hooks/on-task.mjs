@@ -184,16 +184,18 @@ if (isDocumentationTask) {
   const isQuestion = /\?\s*$/.test(prompt) ||
     /^\s*(por ?que|porqu[eê]|como|o que|qual|quais|quando|onde|pode|consegue|poderia|voc[êe]|vc|e se|ser[áa]|tem como|d[áa] pra|explica|entendi|acho que|n[ãa]o entendi|e o|e a|mas )/i.test(prompt);
 
-  // ABRIR TAREFA = palavra "tarefa"/"task" + NÚMERO deliberado. Número solto
-  // (porta :3333, /paths, versão, hash) NÃO conta. Até isso, a IA fica LIVRE.
+  // ABRIR TAREFA: palavra "tarefa"/"task" + número, OU mensagem que é SÓ o número
+  // (ex.: "36744" / "#36744"). Número DENTRO de frase (porta :3333, /paths, url, hash)
+  // NÃO conta — só aparece acompanhado de outras palavras sem "tarefa". Até isso, LIVRE.
   const temTarefa = /\btarefas?\b|\btask\b/i.test(prompt);
+  const soNumero = /^\s*#?\d{3,6}\s*[.!]?\s*$/.test(prompt);
   const limpo = prompt
     .replace(/https?:\/\/\S+/gi, ' ')    // URLs
     .replace(/:\d+/g, ' ')                // :porta
     .replace(/\/\S+/g, ' ')               // /paths
     .replace(/\b[0-9a-f]{7,}\b/gi, ' ');  // hashes
   const numMatch = limpo.match(/#?\b(\d{3,6})\b/);
-  const numDeliberado = (temTarefa && numMatch && !isQuestion) ? numMatch[1] : null;
+  const numDeliberado = ((temTarefa || soNumero) && numMatch && !isQuestion) ? numMatch[1] : null;
   const emCurso = !!(pending && pending.num);
 
   // LIVRE: sem "tarefa <número>" e sem tarefa em curso, a IA faz o que o Fabiano pedir.
@@ -251,8 +253,9 @@ if (isDocumentationTask) {
     const pedir = missing.map((k) => '• ' + OPTS[k]).join('\n');
     process.stdout.write(JSON.stringify({
       decision: 'block',
-      reason: '[VS-BRANCH-001] Pra criar a tarefa (PROJETO eu já sei — você está nele; NÃO invente opções):\n' +
-        check + '\n\nResponda o que falta:\n' + pedir + '\n\n(ou "cancela")',
+      reason: '[VS-BRANCH-001] Pra criar a tarefa (PROJETO eu já sei — você está nele). ' +
+        'NÃO assuma tipo/origem, NÃO invente opções e NÃO peça escopo agora — primeiro os campos:\n' +
+        check + '\n\nResponda SÓ o que falta:\n' + pedir + '\n\n(ou "cancela")',
     }));
     process.exit(0);
   }
