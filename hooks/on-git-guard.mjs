@@ -14,7 +14,7 @@
 import { execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { loadReq, isConsult, isSessionOff } from '../engine/branch-req.mjs';
+import { loadReq, isConsult, isSessionOff, getTask } from '../engine/branch-req.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
@@ -103,6 +103,20 @@ try { branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' })
 const PROTECTED = /^(main|master|dev|develop|hml|homolog\w*|production|prod|staging)$/i;
 if (PROTECTED.test(branch)) {
   deny(`[VS-GIT-002] BLOCKED — ${isPush ? 'push' : 'commit'} direto em "${branch}" proibido. Crie a branch da tarefa: git checkout -b fix/fabiano.veloso/<numero> origin/${branch}`);
+}
+
+// MURO DE ESTADO: tarefa ativa (checklist completo) EXIGE que o commit/push seja na
+// branch dela. Prova que a branch foi criada — se o agente foi direto pro código sem
+// criar a branch, aqui BLOQUEIA. Vale pra qualquer alvo (inclui mobile: cria a branch,
+// commita nela; só o push do mobile é barrado à parte).
+let task = null; try { task = getTask(sid); } catch {}
+if (task && task.num) {
+  const expected = `${task.tipo}/fabiano.veloso/${task.num}`;
+  if (branch !== expected) {
+    deny(`[VS-BRANCH-006] BLOCKED — a branch da TAREFA #${task.num} não está ativa (você está em "${branch}", esperado "${expected}"). ` +
+      `Crie/entre nela ANTES de ${isPush ? 'pushar' : 'commitar'}: git fetch origin ${task.origem} && git checkout -b ${expected} origin/${task.origem}. ` +
+      `${task.alvo === 'todos' ? 'ALVO=todos: crie essa branch em CADA repo (back/front/mobile). ' : ''}Não pule a criação da branch.`);
+  }
 }
 
 // branch de tarefa (tem fabiano.veloso) SEM número -> bloqueia commit/push (número some)

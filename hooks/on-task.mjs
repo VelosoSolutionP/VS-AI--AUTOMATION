@@ -11,7 +11,7 @@
  * - Injetar contexto leve para economizar tokens.
  */
 
-import { parseBranch, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree, isSessionOff } from '../engine/branch-req.mjs';
+import { parseBranch, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree, isSessionOff, setTask, clearTask } from '../engine/branch-req.mjs';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -178,6 +178,7 @@ if (isDocumentationTask) {
   // cancelar tarefa em curso
   if (pending && /\b(cancela|cancelar|esquece|aborta|deixa pra l[áa])\b/i.test(prompt)) {
     clearReq(sid);
+    clearTask(sid);
     process.exit(0);
   }
 
@@ -262,9 +263,11 @@ if (isDocumentationTask) {
     process.exit(0);
   }
 
-  // completo -> injeta contexto da tarefa
+  // completo -> checklist VÁLIDO (num+tipo+origem+alvo). Grava estado da tarefa:
+  // git-guard vai EXIGIR que commit/push seja na branch dela (prova da criação).
   clearReq(sid);
   clearConsult(sid);
+  setTask(sid, { num: merged.num, tipo: merged.tipo, origem: merged.origem, alvo: merged.alvo });
   const branchName = `${merged.tipo}/fabiano.veloso/${merged.num}`;
   const criar = `git fetch origin ${merged.origem} && git checkout -b ${branchName} origin/${merged.origem}`;
   let ctx;

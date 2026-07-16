@@ -77,6 +77,21 @@ export function setSessionOff(key) { try { writeFileSync(sessionOffPath(key), '1
 export function clearSessionOff(key) { try { rmSync(sessionOffPath(key)); } catch {} }
 export function isSessionOff(key) { try { return existsSync(sessionOffPath(key)); } catch { return false; } }
 
+// ESTADO DA TAREFA ATIVA (checklist validado). Setado quando o muro completa
+// (num+tipo+origem+alvo válidos). git-guard usa pra EXIGIR que o commit/push seja
+// na branch da tarefa (prova de que a branch foi criada). TTL = janela de trabalho.
+const taskPath = (key) => join(tmpdir(), `qa-gate-task-${slug(key)}.json`);
+export function setTask(key, o) { try { writeFileSync(taskPath(key), JSON.stringify({ ...o, ts: Date.now() })); } catch {} }
+export function clearTask(key) { try { rmSync(taskPath(key)); } catch {} }
+export function getTask(key) {
+  try {
+    if (!existsSync(taskPath(key))) { return null; }
+    const o = JSON.parse(readFileSync(taskPath(key), 'utf8'));
+    if (Date.now() - (o.ts || 0) > FREE_TTL) { rmSync(taskPath(key)); return null; }
+    return o;
+  } catch { return null; }
+}
+
 export function loadReq(key) {
   try {
     const p = reqPath(key);
