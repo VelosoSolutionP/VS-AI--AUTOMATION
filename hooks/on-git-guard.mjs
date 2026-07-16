@@ -76,6 +76,18 @@ if (criaBranch) {
   if (novoNome && !/\d{3,6}/.test(novoNome)) {
     deny(`[VS-BRANCH-005] BLOCKED — a branch "${novoNome}" não tem o NÚMERO da tarefa. Padrão: <tipo>/fabiano.veloso/<numero>. Sem número, o push não rastreia a tarefa. Recrie com o número.`);
   }
+  // BUG VOLTOU: se já existe branch (local OU remota) com esse número, NÃO cria nova —
+  // acessa a existente. Sinaliza que a correção anterior não segurou.
+  const numB = (novoNome.match(/(\d{3,6})/) || [])[1];
+  if (numB) {
+    let existente = '';
+    try { existente = execSync(`git branch -a --list "*${numB}" --list "*${numB}-*" --list "*fabiano.veloso/${numB}*"`, { encoding: 'utf8' }).trim(); } catch {}
+    if (!existente) { try { existente = execSync(`git ls-remote --heads origin "*fabiano.veloso/${numB}" "*${numB}"`, { encoding: 'utf8' }).trim(); } catch {} }
+    if (existente) {
+      const bName = existente.split(/\r?\n/)[0].replace(/^[*\s]+/, '').replace(/^remotes\//, '').replace(/^[0-9a-f]+\s+refs\/heads\//, '');
+      deny(`[VS-BRANCH-007] BUG #${numB} VOLTOU — já existe a branch "${bName}". NÃO crie nova. Acesse a existente: git fetch origin && git checkout ${bName.replace(/^origin\//, '')} — e trabalhe NELA (a correção anterior não segurou; investigue o que regrediu).`);
+    }
+  }
 }
 
 const isCommit = /\bcommit\b/.test(cmd);

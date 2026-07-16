@@ -286,6 +286,8 @@ if (isDocumentationTask) {
   if (merged.crud) {
     ctx += `\nBUG CRUD/VALIDAÇÃO: rode o QA-Gate na rota/fluxo afetado — ele reproduz o erro real. Corrija com base no que o gate mostrar.`;
   }
+  // BUG VOLTOU: branch do número já pode existir.
+  ctx += `\n⚠️ Antes de criar: se JÁ existir branch com o número #${merged.num} (local/remota) = BUG VOLTOU → NÃO crie nova, faça \`git checkout\` na existente e investigue a regressão (a correção anterior não segurou).`;
   // FLUXO ABSOLUTO — na ordem, sem pular:
   ctx += `\nFLUXO (na ordem): ① CRIA a(s) branch(es) → ② trabalha → ③ roda o QA-Gate → ④ VERDE: commit + push das branches (mobile acumula local) → ⑤ documenta (Redmine). ` +
     `Gate faltando/erro = RESPONSABILIDADE SUA: vê o que é, arruma e roda até VERDE (se vira, não peça pro Fabiano subir ambiente). Só prossegue no verde.`;
