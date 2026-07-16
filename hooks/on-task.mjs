@@ -188,14 +188,16 @@ if (isDocumentationTask) {
   // (ex.: "36744" / "#36744"). Número DENTRO de frase (porta :3333, /paths, url, hash)
   // NÃO conta — só aparece acompanhado de outras palavras sem "tarefa". Até isso, LIVRE.
   const temTarefa = /\btarefas?\b|\btask\b/i.test(prompt);
-  const soNumero = /^\s*#?\d{3,6}\s*[.!]?\s*$/.test(prompt);
+  // mensagem que COMEÇA com número (ex.: "36744", "36744 feat dev todos", "36744 novo modal") = tarefa.
+  const iniciaNum = (prompt.match(/^\s*#?(\d{3,6})\b/) || [])[1] || null;
   const limpo = prompt
     .replace(/https?:\/\/\S+/gi, ' ')    // URLs
     .replace(/:\d+/g, ' ')                // :porta
     .replace(/\/\S+/g, ' ')               // /paths
     .replace(/\b[0-9a-f]{7,}\b/gi, ' ');  // hashes
   const numMatch = limpo.match(/#?\b(\d{3,6})\b/);
-  const numDeliberado = ((temTarefa || soNumero) && numMatch && !isQuestion) ? numMatch[1] : null;
+  // engata com: começa com número, OU "tarefa"+número. Número no MEIO de frase (porta/path) NÃO.
+  const numDeliberado = (!isQuestion && (iniciaNum || (temTarefa && numMatch))) ? (iniciaNum || numMatch[1]) : null;
   const emCurso = !!(pending && pending.num);
 
   // LIVRE: sem "tarefa <número>" e sem tarefa em curso, a IA faz o que o Fabiano pedir.
@@ -263,22 +265,27 @@ if (isDocumentationTask) {
   // completo -> injeta contexto da tarefa
   clearReq(sid);
   clearConsult(sid);
+  const branchName = `${merged.tipo}/fabiano.veloso/${merged.num}`;
+  const criar = `git fetch origin ${merged.origem} && git checkout -b ${branchName} origin/${merged.origem}`;
   let ctx;
   if (merged.alvo === 'mobile') {
-    ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · ALVO=MOBILE. REGRA MOBILE: NÃO cria branch de tarefa, NÃO faz push. Acumula commits LOCAIS; deploy (APK) só no fim do dia, quando o Fabiano pedir. Vá DIRETO no código Flutter/dart — NÃO investigue front/back.`;
+    ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · ALVO=MOBILE.\n` +
+      `⚠️ PASSO 1 OBRIGATÓRIO — ANTES de editar/corrigir qualquer arquivo: crie a branch no repo MOBILE (\`${criar}\`). NÃO comece a implementar antes da branch criada.\n` +
+      `REGRA MOBILE: commits ficam LOCAIS, SEM push, até o Fabiano pedir pra subir/deploy. Vá DIRETO no código Flutter/dart.`;
   } else if (merged.alvo === 'todos') {
-    ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · ALVO=TODOS = back + front + MOBILE (NÃO esqueça o mobile!). Crie a branch ${merged.tipo}/fabiano.veloso/${merged.num} a partir de origin/${merged.origem} nos TRÊS repos que a tarefa tocar (git fetch origin ${merged.origem} && git checkout -b ... em cada). NÃO se restrinja a uma camada. REGRA MOBILE: commits ficam LOCAIS, SEM push, ATÉ o Fabiano pedir pra subir/deploy. FRONT/BACK: commit + push normal após o gate verde. O gate roda o alvo aplicável em cada commit.`;
+    ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · ALVO=TODOS = back + front + MOBILE (NÃO esqueça o mobile!).\n` +
+      `⚠️ PASSO 1 OBRIGATÓRIO — ANTES de editar/corrigir QUALQUER arquivo: crie a branch \`${branchName}\` em CADA repo que a tarefa tocar (back, front e mobile). Em cada repo: \`${criar}\`. Só DEPOIS de criar TODAS as branches, comece a trabalhar. NÃO pule esse passo, NÃO vá direto pro código.\n` +
+      `REGRA MOBILE: no repo mobile os commits ficam LOCAIS, SEM push, até o Fabiano pedir pra subir. FRONT/BACK: commit + push após o gate verde.`;
   } else {
-    ctx = `[governança] branch OK: ${merged.tipo}/fabiano.veloso/${merged.num} a partir de origin/${merged.origem}. ALVO=${merged.alvo.toUpperCase()} — trabalhe SÓ na camada ${merged.alvo}, vá direto no alvo. Crie: git fetch origin ${merged.origem} && git checkout -b ${merged.tipo}/fabiano.veloso/${merged.num} origin/${merged.origem}`;
+    ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · ALVO=${merged.alvo.toUpperCase()}.\n` +
+      `⚠️ PASSO 1 OBRIGATÓRIO — ANTES de editar qualquer arquivo: crie a branch (\`${criar}\`). NÃO comece a corrigir antes da branch criada. Trabalhe SÓ na camada ${merged.alvo}.`;
   }
   if (merged.crud) {
-    ctx += ` | BUG CRUD/VALIDAÇÃO: rode o QA-Gate na rota/fluxo afetado PRIMEIRO — ele reproduz o erro real (DOM/console/screenshot). Corrija com base no que o gate mostrar.`;
+    ctx += `\nBUG CRUD/VALIDAÇÃO: rode o QA-Gate na rota/fluxo afetado — ele reproduz o erro real. Corrija com base no que o gate mostrar.`;
   }
-  // FLUXO ABSOLUTO — executar agora, sem parar no meio:
-  ctx += ` | FLUXO (execute JÁ, não pare): 1) CRIE a branch agora (nos repos do alvo); 2) faça o trabalho; ` +
-    `3) rode o QA-Gate; 4) VERDE → commit dos arquivos + push das branches alteradas (mobile acumula local, sem push); ` +
-    `5) documente (Redmine). Se o gate faltar algo/der erro, RESPONSABILIDADE É SUA: veja o que é, arruma e roda o gate — ` +
-    `só prossegue no VERDE. Não peça pro Fabiano subir ambiente; se vira.`;
+  // FLUXO ABSOLUTO — na ordem, sem pular:
+  ctx += `\nFLUXO (na ordem): ① CRIA a(s) branch(es) → ② trabalha → ③ roda o QA-Gate → ④ VERDE: commit + push das branches (mobile acumula local) → ⑤ documenta (Redmine). ` +
+    `Gate faltando/erro = RESPONSABILIDADE SUA: vê o que é, arruma e roda até VERDE (se vira, não peça pro Fabiano subir ambiente). Só prossegue no verde.`;
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: ctx },
   }));
