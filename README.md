@@ -17,7 +17,7 @@ Por [Veloso Solution](https://velososolution.online) — Consultoria em IA Aplic
 **Vantagens do plugin**
 - 🔒 **Governança automatizada** — commit, branch, teste e documentação no mesmo padrão em toda a equipe, sem depender de disciplina manual.
 - 🧠 **Contexto preservado** — memory system carrega arquitetura, gotchas e feedback do seu negócio em cada sessão. Sem re-explicar tudo.
-- ✅ **Qualidade no commit** — QA-Gate simula o fluxo em browser real e só libera no verde. Bug morre antes do QA.
+- ✅ **Qualidade no commit** — QA-Gate simula o fluxo em browser real e só libera no verde. Bug morre antes de chegar à homologação.
 - 💸 **Custo previsível** — tokens são frações de centavos por operação; menos retrabalho, menos bug em produção.
 
 **Vantagens do MCP**
@@ -29,7 +29,7 @@ Por [Veloso Solution](https://velososolution.online) — Consultoria em IA Aplic
 **Resultados observados em operação real**
 - ⏱️ **−79% no tempo por tarefa** (de ~115 min para ~22 min no mesmo bug)
 - 🚀 **−84% de queries / −82% de latência** em um caso real de N+1 pego em produção
-- ♻️ Menos reincidência de QA, dívida técnica em queda
+- ♻️ Menos reincidência em homologação, dívida técnica em queda
 
 > Esses números vêm da **orquestração completa** — não só do plugin. Quer o mesmo na sua squad? A Veloso Solution faz **diagnóstico + setup + capacitação**: **[velososolution.online](https://velososolution.online)** · página do produto: **https://velososolution.online/qa-gate**
 
@@ -43,7 +43,8 @@ Além do QA-Gate, o produto é uma **camada de governança executável** — o m
 - **Escalation Engine**: decide `call_ai` — só escala pro modelo em causa raiz, arquitetura, segurança, performance ou bug. O resto trata local.
 - **Gate de commit** (hook `PreToolUse`): bloqueia commit fora do padrão e assinatura de IA (`VS-AUD-003`).
 - **Gate multi-alvo** (front/mobile): config `targets` (front=web, mobile=Flutter web). **Sem alvo → roda front E mobile**; `front`/`mobile` filtra. Mobile via Flutter web exige renderer HTML/semantics + seletores por role (camera não roda no web) — tuning à parte.
-- **QA-Gate OBRIGATÓRIO** (`hooks/on-qa-gate.mjs`, regra absoluta): commit que toca UI **só passa com o gate browser VERDE**. Se o gate não rodar (app fora do ar / não validável), **bloqueia o commit** — sem gate, sem commit. Requer o app em **modo dev/live** (o gate valida o código atual, não build antigo). Backend puro pula.
+- **QA-Gate OBRIGATÓRIO** (`hooks/on-qa-gate.mjs`, regra absoluta): commit que toca UI **só passa com o gate browser VERDE**. Se o gate não rodar por qualquer motivo (app fora do ar, ambiente/Docker parado, dados ausentes), o **commit fica BLOQUEADO** — sem gate verde, sem commit; **não existe commit liberado enquanto uma pessoa resolve**. A IA é **delegada a resolver** o que impede o gate (sobe o ambiente, semeia, rebuilda) e só commita no verde. Requer o app em **modo dev/live** (o gate valida o código atual, não build antigo). Backend puro pula.
+- **Teste unitário obrigatório — camada extra** (`VS-AUD-004`, regra absoluta): se a tarefa **tocou código de produção** (criou/alterou arquivo de código) em **backend, front ou mobile**, exige um **teste unitário válido correspondente** à mudança (cobre o que mudou, não placeholder). **Sem teste → commit BLOQUEADO**, no mesmo nível do "só commita no verde". É responsabilidade da **IA criar** o teste, mesmo que não tenha sido pedido no escopo/alvo — ela não commita código sem ele. Vale pros 3 stacks (backend: PHPUnit/Pest; front: vitest/jest; mobile: flutter test), conforme o projeto.
 - **Git-guard** (`hooks/on-git-guard.mjs`): bloqueia `git add .` cego, `--no-verify`, commit/push em branch protegida (main/dev/hml) e criação de branch sem base `origin/<x>` (`VS-BRANCH-002`).
 - **Trabalho no ambiente** (`VS-BRANCH-004`): ao criar nova branch, se a branch de tarefa atual tiver commit não enviado ou arquivo não commitado, **bloqueia** e força `git push -u origin <branch>` antes — não inicia tarefa nova deixando a anterior fora do ambiente. Só back/front (base protegida e mobile isentos).
 - **Muro de tarefa** (`hooks/on-task.mjs`, `VS-BRANCH-001`): a IA fica **LIVRE** até você abrir tarefa com a palavra **`tarefa` + número** (ex.: `tarefa 36481 fix dev mobile`). Número solto (porta `:3333`, path, URL, hash), pergunta e desabafo **NÃO** abrem tarefa — evita falso-positivo. Aberta a tarefa, exige **número + tipo + origem + ALVO** (checklist ✅/❌). O **ALVO** manda o agente direto na camada certa (não vasculha front quando é mobile).
@@ -56,7 +57,7 @@ Além do QA-Gate, o produto é uma **camada de governança executável** — o m
 - **Âncora de fluxo** (`hooks/on-egle-anchor.mjs`, `SessionStart`): injeta o passo-a-passo obrigatório (branch → escopo → QA-Gate → commit → push → doc) pro agente não se perder.
 - **Fechamento & relatório de horas** (`catalog/fechamento.json`): checklist com campos obrigatórios (início/fim/almoço/dailys); monta o `.md` diário do git e o PDF mensal.
 - **Revisão semanal** (`engine/weekly-review.mjs`): análise determinística (git 7 dias + auditoria de aderência) que sinaliza jornadas longas/churn — sem IA, custo ~0.
-- **Telemetria Tier 1** (`engine/metrics.mjs`): tempo economizado, redução de tokens, chamadas de IA evitadas, retrabalho de QA, commits no padrão, ROI — **agregado e anônimo** (LGPD).
+- **Telemetria Tier 1** (`engine/metrics.mjs`): tempo economizado, redução de tokens, chamadas de IA evitadas, retrabalho, commits no padrão, ROI — **agregado e anônimo** (LGPD).
 - **Consentimento** (`engine/consent.mjs`): coleta técnica só com aceite. Sem consentimento, a governança segue; só a telemetria desativa.
 - **Catálogo** (`catalog/`): protocolo executável — mensagens `VS-*` (REQ/AI/AUD/OK/MON) + boas práticas de branch (`branches.json`).
 
@@ -234,7 +235,9 @@ Se o gate não conseguir validar, ele **bloqueia o commit** e devolve `needs[]` 
 - **Flow faltando** → adiciona flow (`form`/`read`) cobrindo a rota tocada.
 - **Seletor/rota errado** → ajusta o config.
 
-É **opt-in por config**: sem `deps`/`start`, o gate não mexe no seu Docker — quem sobe o ambiente continua sendo você. Com `deps` declarado, a IA cuida do ambiente pra fechar o gate.
+É **opt-in por config**: sem `deps`/`start`, o gate não mexe no seu Docker; com `deps` declarado, a IA cuida do ambiente pra fechar o gate. Em qualquer caso, a regra é **absoluta**: enquanto o gate não estiver verde o **commit fica bloqueado** — não há commit liberado enquanto alguém resolve o problema, e a IA é delegada a resolver até rodar verde.
+
+Se, mesmo depois de esgotar as tentativas, o bloqueio depender de **pessoas** ou de uma **regra de negócio** que a IA não resolve sozinha, o commit **continua bloqueado** e a IA registra um **impedimento** na documentação de fechamento da tarefa, endereçado ao **tech lead ou gestor**.
 
 **Usuário QA:** crie um seeder guardado por ambiente (`app()->environment('local')`) — **nunca** semeie em homolog/produção.
 

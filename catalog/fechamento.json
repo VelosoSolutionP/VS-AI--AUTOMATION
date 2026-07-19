@@ -2,22 +2,22 @@
   "version": "1.0",
   "note": "Checklist de fechamento (dia e mês). Campos obrigatórios são SEMPRE pedidos — evita relatório errado por omissão (ex.: almoço). O que é auto vem do git.",
   "fechamento_dia": {
-    "trigger": "dev diz 'fechamento do dia'",
+    "trigger": "quem usa pede 'fechamento do dia'",
     "campos_do_dev": [
       { "key": "data", "label": "Data", "obrigatorio": true, "default": "hoje" },
       { "key": "inicio", "label": "Início do expediente", "obrigatorio": true, "exemplo": "06:00" },
       { "key": "fim", "label": "Fim do expediente", "obrigatorio": true, "exemplo": "23:00" },
       { "key": "almoco", "label": "Pausa almoço", "obrigatorio": true, "exemplo": "12h-13h", "aceita": "'sem' se não teve — mas TEM que responder" },
-      { "key": "dailys", "label": "Dailys/reuniões do dia", "obrigatorio": true, "exemplo": "EGLE, Ouv", "regra": "só no 1º fechamento; nos próximos repete o padrão salvo, dev só confirma ou altera" }
+      { "key": "dailys", "label": "Dailys/reuniões do dia", "obrigatorio": true, "exemplo": "EGLE, Ouv", "regra": "só no 1º fechamento; nos próximos repete o padrão salvo, o solicitante só confirma ou altera" }
     ],
     "auto_do_git": "commits + merges por projeto (o 'que fiz') — puxado dos repos sob a raiz de projetos salva na memória.",
     "regra": "NUNCA montar o .md com campo obrigatório faltando. Se faltar, PERGUNTAR antes (evita correção/retrabalho = custo atribuído à não-aderência).",
     "saida": "entrada no .md mensal (Relatorio_Prestacao_Servico_<mes>_<ano>.md) + atualiza acumulado."
   },
   "fechamento_mes": {
-    "trigger": "dev diz 'fechamento do mês'",
+    "trigger": "quem usa pede 'fechamento do mês'",
     "campos_do_dev": [],
-    "auto": "pega o modelo/padrão (ou o do dev) + os fechamentos diários do mês -> gera o PDF sozinho, SEM perguntar.",
+    "auto": "pega o modelo/padrão (ou o do solicitante) + os fechamentos diários do mês -> gera o PDF sozinho, SEM perguntar.",
     "modelos": {
       "diario_md": "ControleHoras/Relatorio_Prestacao_Servico_<mes>_<ano>.md",
       "mensal_pdf": "ControleHoras/Relatorio_<NOME>_<MM>-<AAAA>.pdf"

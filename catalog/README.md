@@ -62,7 +62,8 @@ checklist_requisito
 
 ## Próximas famílias (a desenhar)
 
-- **AUD** — checklist de commit/push (testes, lint, diff, padrão, doc, segurança) → `VS-AUD-001 CHECKING`, `VS-AUD-002 APPROVED`, `VS-AUD-003 BLOCKED`.
+- **AUD** — checklist de commit/push (testes, lint, diff, padrão, doc, segurança) → `VS-AUD-001 CHECKING`, `VS-AUD-002 APPROVED`, `VS-AUD-003 BLOCKED`, `VS-AUD-004 BLOCKED` (teste unitário obrigatório). **Regra absoluta:** só libera no **verde** — não há commit liberado enquanto alguém resolve o problema; se o gate não roda, a IA é delegada a resolver até ficar verde. Bloqueio que dependa de pessoas ou de regra de negócio (após esgotar tentativas) vira **impedimento** endereçado ao **tech lead ou gestor** na doc de fechamento — mesmo assim, sem verde, sem commit.
+  - **Camada extra — teste unitário obrigatório (`VS-AUD-004`):** se a tarefa **tocou código de produção** (criou/alterou arquivo de código) em **backend, front ou mobile**, é obrigatório existir um **teste unitário válido correspondente** à mudança (cobre o que mudou, não placeholder vazio). **Sem teste correspondente → commit BLOQUEADO**, no mesmo nível do "só commita no verde". É responsabilidade da **IA criar** o teste — mesmo que não tenha sido pedido no escopo/alvo — antes de commitar. Vale pros 3 stacks (backend: PHPUnit/Pest; front: vitest/jest; mobile: flutter test), conforme o projeto.
 - **AI** — escalação (`VS-AI-001 ESCALATED` + motivo). Decide e loga por que o modelo foi chamado.
 - **OK** — aprovações (`VS-OK-001 APPROVED`).
 - **CTX** — carga de contexto/memory na sessão.

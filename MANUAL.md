@@ -147,7 +147,7 @@ Trabalhe normal. Ao **commitar**, o `on-qa-gate` roda o QA-Gate:
 - **Tocou UI** → sobe o app (se tiver `start`/`deps`), loga, simula os flows.
 - **Verde** → informa o que rodou e libera o commit.
 - **Vermelho** → bloqueia + screenshot em `shotDir`. Arruma e re-tenta.
-- **Faltou algo** (`needs`) → a IA resolve (ver §7) e re-tenta.
+- **Faltou algo** (`needs`) → **commit bloqueado**; a IA resolve (ver §7) e re-tenta até verde — não espera uma pessoa.
 
 ### Passo 4 — Commit
 ```bash
@@ -192,12 +192,22 @@ Com as 4 respostas, monta sozinho o registro em `ControleHoras/<YYYY-MM>.md` (ho
 `type: flutter-test` → roda `flutter test` (headless, sem emulador). Verde = "All tests passed"; vermelho bloqueia. Cobre contrato API↔model (parse) e widget.
 > E2E real (`integration_test` no emulador) roda em **CI** ou **device USB** — não headless comum.
 
-### Auto-diagnóstico (`needs`) — a IA resolve
-Se o gate não rodou, ele diz o que falta e a IA resolve **até rodar verde**:
+### Auto-diagnóstico (`needs`) — a IA resolve (regra absoluta)
+**Regra absoluta:** enquanto o gate não estiver **VERDE**, o **commit fica BLOQUEADO**. Não existe commit "liberado" enquanto uma pessoa resolve o problema. Se o gate não roda por qualquer motivo (ambiente/Docker fora, serviço indisponível, dados ausentes), a **IA é delegada a resolver** — ela sobe o ambiente, semeia, rebuilda, o que for — **até rodar verde**. Não espera uma pessoa resolver.
+
 - **flow faltando** → adiciona flow (form/read) no config.
 - **playwright** → `npm i -D playwright` + `npx playwright install chromium`.
 - **app-up** → roda `deps.dockerUp` / sobe o app; se faltar dado, `deps.seed`.
 - **flutter / teste faltando** → escreve o teste da correção.
+
+**Impedimento (fallback):** se, depois de esgotar as tentativas, o bloqueio depender de **pessoas** ou de uma **regra de negócio** que a IA não resolve sozinha, o commit **continua bloqueado** (sem verde, sem commit) e a IA registra um **IMPEDIMENTO** na documentação de fechamento da tarefa, endereçado ao **tech lead ou gestor** para resolverem.
+
+### Teste unitário obrigatório — camada extra (`VS-AUD-004`, regra absoluta)
+Se a tarefa **tocou código de produção** (criou/alterou arquivo de código) em **backend, front ou mobile**, é OBRIGATÓRIO existir um **teste unitário VÁLIDO correspondente** à mudança. **Sem teste correspondente → COMMIT BLOQUEADO**, no mesmo nível do "só commita no verde".
+
+- É responsabilidade da **IA CRIAR** o teste — **mesmo que não tenha sido pedido** no escopo/alvo. A IA não commita código sem o teste; ela mesma escreve.
+- **"Teste válido"** = cobre a mudança feita, não placeholder vazio só pra passar.
+- Vale pros 3 stacks, conforme o projeto: backend (ex.: PHPUnit/Pest), front (ex.: vitest/jest), mobile (ex.: flutter test).
 
 ---
 
@@ -227,6 +237,7 @@ Se o gate não rodou, ele diz o que falta e a IA resolve **até rodar verde**:
 - **REQ-001..005** — triagem de requisito (001 bloqueia; 005 = suficiente; HU rica = 005).
 - **BRANCH-001** — abre tarefa só com `tarefa`+número. **002** — origem explícita. **004** — trabalho anterior não enviado. **005** — número no nome da branch.
 - **AUD-002/003** — gate verde reporta / sem gate verde não commita.
+- **AUD-004** — tocou código (back/front/mobile) exige teste unitário válido correspondente; sem teste, sem commit (a IA escreve o teste, mesmo sem pedido).
 - **DOC-001/002** — doc obrigatória pós-push / bloqueia nova tarefa com doc pendente.
 - **FREE-001** — janela livre pós-push.
 - **CONSULT-001** — modo consulta (sem commit/push).

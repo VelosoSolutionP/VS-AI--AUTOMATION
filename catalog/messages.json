@@ -23,7 +23,7 @@
       "code": "VS-REQ-001", "status": "BLOCKED", "title": "Contexto insuficiente",
       "short": "[VS-REQ-001] BLOCKED — contexto insuficiente para execucao segura.",
       "dev_msg": "Tarefa bloqueada: contexto insuficiente. Complemente para execucao segura:\n{faltando}",
-      "when": "UserPromptSubmit: dev inicia tarefa sem os campos obrigatorios (descricao/objetivo/criterio de aceite).",
+      "when": "UserPromptSubmit: o solicitante inicia tarefa sem os campos obrigatorios (descricao/objetivo/criterio de aceite).",
       "how": "Hook aborta o turno e devolve esta msg + lista dinamica de {faltando}. A IA NAO e acionada.",
       "fields_dynamic": ["faltando"]
     },
@@ -31,8 +31,8 @@
       "code": "VS-REQ-002", "status": "WAITING", "title": "Aguardando requisito",
       "short": "[VS-REQ-002] WAITING — tarefa no aguardo de requisito.",
       "dev_msg": "Tarefa registrada, mas em espera. Aguardando: {faltando}. Envie para liberar a execucao.",
-      "when": "Dev optou por deixar a tarefa pendente ate complementar; ou requisito solicitado e ainda nao recebido.",
-      "how": "Hook marca a tarefa como pendente (nao executa), guarda o que falta. Reavalia quando o dev complementar.",
+      "when": "Quem abriu a tarefa optou por deixa-la pendente ate complementar; ou requisito solicitado e ainda nao recebido.",
+      "how": "Hook marca a tarefa como pendente (nao executa), guarda o que falta. Reavalia quando o solicitante complementar.",
       "fields_dynamic": ["faltando"]
     },
     {
@@ -48,7 +48,7 @@
       "short": "[VS-REQ-004] AMBIGUOUS — decisao de produto necessaria.",
       "dev_msg": "Requisito ambiguo em: {ponto}. Isso e decisao de produto — preciso do requisito exato antes de executar.",
       "when": "Ha conflito/ambiguidade que nao e decisao tecnica (ex.: 2 comportamentos possiveis, regra de negocio incerta).",
-      "how": "Hook bloqueia e escala pergunta objetiva ao dev. Nunca 'chuta' decisao de produto.",
+      "how": "Hook bloqueia e escala pergunta objetiva ao solicitante. Nunca 'chuta' decisao de produto.",
       "fields_dynamic": ["ponto"]
     },
     {
@@ -97,8 +97,16 @@
       "code": "VS-AUD-003", "status": "BLOCKED", "title": "Push bloqueado",
       "short": "[VS-AUD-003] BLOCKED — correcoes necessarias: {faltando}.",
       "dev_msg": "Commit/push bloqueado. Corrija antes de subir:\n{faltando}",
-      "when": "Checklist reprovou (teste vermelho, lint, fora do padrao, sem doc, QA-Gate vermelho).",
-      "how": "Hook aborta a operacao (exit 2). So libera no verde.",
+      "when": "Checklist reprovou (teste vermelho, lint, fora do padrao, sem doc, QA-Gate vermelho ou QA-Gate que nao rodou).",
+      "how": "Hook aborta a operacao (exit 2). Regra ABSOLUTA: so libera no verde — nao existe commit liberado enquanto uma pessoa resolve o problema. Se o gate nao roda, a IA e delegada a resolver o impedimento tecnico ate ficar verde; bloqueio que dependa de pessoas ou de regra de negocio (apos esgotar as tentativas) vira IMPEDIMENTO registrado na doc de fechamento, endereçado ao tech lead ou gestor — mesmo assim, sem verde, sem commit.",
+      "fields_dynamic": ["faltando"]
+    },
+    {
+      "code": "VS-AUD-004", "status": "BLOCKED", "title": "Teste unitário obrigatório (camada extra)",
+      "short": "[VS-AUD-004] BLOCKED — tocou codigo sem teste unitario correspondente: {faltando}.",
+      "dev_msg": "Commit bloqueado: a tarefa tocou codigo de producao sem teste unitario VALIDO correspondente. Camada EXTRA de qualidade, no mesmo nivel do 'so commita no verde'. A IA escreve o teste que cobre a mudanca (nao placeholder vazio) ANTES de commitar, mesmo que nao tenha sido pedido no escopo/alvo. Sem teste, sem commit:\n{faltando}",
+      "when": "PreToolUse git commit: o diff staged criou/alterou arquivo de codigo de producao (backend, front OU mobile) e NAO ha teste unitario cobrindo a mudanca.",
+      "how": "Bloqueia no mesmo nivel do gate verde. Responsabilidade da IA CRIAR o teste correspondente aos 3 stacks (backend: PHPUnit/Pest; front: vitest/jest; mobile: flutter test) conforme o projeto, mesmo sem pedido explicito. 'Teste valido' = cobre a mudanca feita, nao placeholder so pra passar.",
       "fields_dynamic": ["faltando"]
     },
     {
@@ -122,7 +130,7 @@
       "code": "VS-MON-002", "status": "GRANTED", "title": "Coleta autorizada",
       "short": "[VS-MON-002] GRANTED — coleta tecnica autorizada.",
       "dev_msg": "Consentimento registrado. Coleta tecnica anonima ativa.",
-      "when": "Dev aceitou o VS-MON-001.",
+      "when": "O usuario aceitou o VS-MON-001.",
       "how": "Grava consent {granted:true, ts, scope:tecnico}. Metricas passam a ser coletadas.",
       "fields_dynamic": []
     },
@@ -130,7 +138,7 @@
       "code": "VS-MON-003", "status": "DENIED", "title": "Coleta desativada",
       "short": "[VS-MON-003] DENIED — coleta desativada; governanca segue sem telemetria.",
       "dev_msg": "Sem consentimento. Governanca (requisito/gate) continua; telemetria fica desativada.",
-      "when": "Dev recusou o VS-MON-001.",
+      "when": "O usuario recusou o VS-MON-001.",
       "how": "Nenhuma metrica coletada. Hooks de qualidade seguem funcionando.",
       "fields_dynamic": []
     },
@@ -140,7 +148,7 @@
       "short": "[VS-BRANCH-001] BLOCKED — origem obrigatoria para criar branch.",
       "dev_msg": "Pra criar a branch preciso das 3: numero + tipo (fix|feat|refactor|perf|hotfix|chore|test|docs) + ORIGEM (dev/hml/main). Sem origem NAO crio — branch de ambiente errado quebra no merge.",
       "when": "Hook UserPromptSubmit: pedido de branch (numero da tarefa) sem origem informada.",
-      "how": "Bloqueia o turno ate o dev informar a origem. Impede origem assumida.",
+      "how": "Bloqueia o turno ate o solicitante informar a origem. Impede origem assumida.",
       "fields_dynamic": []
     },
     {
@@ -189,7 +197,7 @@
       "code": "VS-CONSULT-001", "status": "CONSULT", "title": "Modo consulta/doc (sem commit/push)",
       "short": "[VS-CONSULT-001] modo consulta/doc — leitura e geracao de documento; sem commit/push.",
       "dev_msg": "Sessao liberada so p/ consulta e geracao de documento (nao abriu tarefa). NAO commita nem faz push. Pra habilitar: inicie tarefa (numero+tipo+origem).",
-      "when": "Dev bateu escape (n/esc/doc/consulta) no fluxo de branch, OU pediu doc avulso p/ passar pra analista.",
+      "when": "Quem usa bateu escape (n/esc/doc/consulta) no fluxo de branch, OU pediu doc avulso p/ repassar a outro papel/pessoa.",
       "how": "on-task marca modo consulta e libera doc; git-guard bloqueia commit/push ate iniciar tarefa (branch). Doc de TAREFA (branch criada) sobe normal.",
       "fields_dynamic": []
     },

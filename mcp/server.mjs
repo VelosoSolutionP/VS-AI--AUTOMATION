@@ -123,7 +123,7 @@ server.tool('qa_run_gate',
     const lines = [`status: ${r.status}${r.reason ? ' — ' + r.reason : ''}`];
     (r.results || []).forEach((x) => lines.push(`  ${x.status === 'green' ? '✔' : x.status === 'red' ? '✖' : '·'} ${x.name}${x.errors?.length ? ' — ' + x.errors.join('; ') : ''}`));
     if (r.needs?.length) {
-      lines.push('FALTA pro gate rodar (a IA resolve):');
+      lines.push('FALTA pro gate rodar (a IA resolve; commit fica BLOQUEADO até o gate VERDE — não commite nem espere uma pessoa):');
       r.needs.forEach((n) => lines.push(`  → ${n.kind}${n.detail ? ': ' + n.detail : ''}${n.baseUrl ? ' (' + n.baseUrl + ')' : ''}${n.uiFiles ? ' [' + n.uiFiles.slice(0, 6).join(', ') + ']' : ''}`));
     }
     const content = [text(lines.join('\n'))];

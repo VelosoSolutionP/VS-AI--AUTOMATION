@@ -37,4 +37,8 @@ if (!PATTERN.test(subject)) {
 if (/co-authored-by:\s*claude|generated with .*claude/i.test(m[2])) {
   deny('[VS-AUD-003] BLOCKED — commit não pode conter assinatura/atribuição de IA.');
 }
-allow();
+// padrão OK -> libera, mas REFORÇA a camada extra de qualidade (regra absoluta):
+// tocou código de produção exige teste unitário válido correspondente (VS-AUD-004).
+process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', permissionDecisionReason:
+  '[VS-AUD-004] Mensagem no padrão. CAMADA EXTRA (regra absoluta): se este commit toca código de produção (back/front/mobile), confirme que existe teste unitário VÁLIDO correspondente à mudança (cobre o que mudou, não placeholder). Sem teste, sem commit — se faltar, VOCÊ (a IA) escreve antes, mesmo que não tenha sido pedido no escopo.' } }));
+process.exit(0);
