@@ -7,6 +7,7 @@
  *  - git add . / -A / --all           (VS-GIT-001)  -> add cego proibido
  *  - commit/push em branch protegida  (VS-GIT-002)  -> main/master/dev/hml/prod
  *  - commit sem --no-verify burlando   (deixa hooks rodarem)
+ *  - commit de código de produção SEM teste unitário  (VS-AUD-004) -> escape: .qa-gate-notest-ok
  * Avisa (não bloqueia):
  *  - branch fora do padrão tipo/fabiano.veloso/<n>  (VS-GIT-003)
  *  - criar nova branch com trabalho da anterior fora do origin (VS-BRANCH-004) — back/front; mobile isento
@@ -107,6 +108,24 @@ if (isPush && isMobile && !existsSync(join(process.cwd(), '.qa-gate-mobile-ok'))
 // --no-verify burla os hooks
 if (/--no-verify|-n\b/.test(cmd)) {
   deny('[VS-GIT-002] BLOCKED — `--no-verify` proibido: burla o QA-Gate/governança. Rode a validação.');
+}
+
+// [VS-AUD-004] camada extra: tocou código de produção -> exige teste unitário no MESMO commit.
+// Determinístico: compara arquivos staged (código × teste). Escape justificado: .qa-gate-notest-ok
+if (isCommit && !existsSync(join(process.cwd(), '.qa-gate-notest-ok'))) {
+  try {
+    const staged = execSync('git diff --cached --name-only', { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean);
+    const isTest = (f) => /(^|\/)tests?\//i.test(f) || /__tests__\//.test(f) || /(_test\.dart|_test\.py|\.test\.[jt]sx?|\.spec\.[jt]sx?|Test\.php)$/i.test(f);
+    const isGen = (f) => /(\.g\.dart|\.freezed\.dart|\.gr\.dart|\.g\.ts)$/i.test(f);
+    const isExempt = (f) => /(^|\/)database\/(migrations|seeders|factories)\//i.test(f) || /\.(config|conf)\.[jt]s$/i.test(f);
+    const isProd = (f) => /\.(php|dart|ts|tsx|js|jsx|vue)$/i.test(f) && !isTest(f) && !isGen(f) && !isExempt(f);
+    const prod = staged.filter(isProd);
+    const tests = staged.filter(isTest);
+    if (prod.length > 0 && tests.length === 0) {
+      const amostra = prod.slice(0, 3).join(', ') + (prod.length > 3 ? ` (+${prod.length - 3})` : '');
+      deny(`[VS-AUD-004] BLOCKED — código de produção no commit SEM teste unitário correspondente (${amostra}). Regra absoluta: sem teste, sem commit. Você (IA) é responsável por CRIAR o teste unitário válido que cobre a mudança — mesmo que não tenha sido pedido no alvo — e incluí-lo no commit (back: PHPUnit/Pest · front: vitest/jest · mobile: flutter test). Exceção rara e justificada: touch .qa-gate-notest-ok`);
+    }
+  } catch {}
 }
 
 let branch = '';
