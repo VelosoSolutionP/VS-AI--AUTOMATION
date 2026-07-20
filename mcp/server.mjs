@@ -7,7 +7,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { join } from 'node:path';
 import { checkApp, ensureUp, simulateFlows, runGate, loadConfig, targetsFor } from '../engine/core.mjs';
 import { validateTask } from '../engine/requirements.mjs';
 import { loadEvents, aggregate, report } from '../engine/metrics.mjs';
@@ -120,6 +122,17 @@ server.tool('qa_run_gate',
     requireLicense();
     const cfg = configPath || `${repo}/qa-gate.config.json`;
     const r = await runGate(repo, cfg);
+    // RECIBO VERDE: prova determinística p/ o git-guard liberar o commit (front/back).
+    // Só grava no verde; qualquer edição posterior invalida (git-guard compara com o
+    // mtime dos arquivos staged). Sem recibo fresco = commit BLOQUEADO (VS-GATE-001).
+    try {
+      const receipt = join(repo, '.git', 'qa-gate-green.json');
+      if (r.status === 'green') {
+        let branch = '';
+        try { branch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: repo, encoding: 'utf8' }).trim(); } catch {}
+        writeFileSync(receipt, JSON.stringify({ status: 'green', branch, ts: Date.now() }));
+      }
+    } catch {}
     const lines = [`status: ${r.status}${r.reason ? ' — ' + r.reason : ''}`];
     (r.results || []).forEach((x) => lines.push(`  ${x.status === 'green' ? '✔' : x.status === 'red' ? '✖' : '·'} ${x.name}${x.errors?.length ? ' — ' + x.errors.join('; ') : ''}`));
     if (r.needs?.length) {

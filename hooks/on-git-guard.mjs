@@ -13,7 +13,7 @@
  *  - criar nova branch com trabalho da anterior fora do origin (VS-BRANCH-004) — back/front; mobile isento
  */
 import { execSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadReq, isConsult, isSessionOff, getTask } from '../engine/branch-req.mjs';
 
@@ -130,6 +130,47 @@ if (isCommit && !existsSync(join(process.cwd(), '.qa-gate-notest-ok'))) {
 
 let branch = '';
 try { branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim(); } catch { allow(); }
+
+// [VS-GATE-001] REGRA ABSOLUTA — tocou código de produção no commit -> exige RECIBO
+// do QA-Gate VERDE nesta branch, gravado DEPOIS da última edição staged. É a prova
+// determinística de que o gate rodou verde; a IA NÃO consegue pular nem "opinar" que
+// não precisa. Front/back: 100% dos verdes passaram no QA — então roda sempre.
+// Mobile é ISENTO (gate browser inviável — tratado à parte). Escape raro: .qa-gate-green-ok
+if (isCommit && !isMobile && !existsSync(join(process.cwd(), '.qa-gate-green-ok'))) {
+  try {
+    const staged = execSync('git diff --cached --name-only', { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean);
+    const isTest = (f) => /(^|\/)tests?\//i.test(f) || /__tests__\//.test(f) || /(_test\.dart|_test\.py|\.test\.[jt]sx?|\.spec\.[jt]sx?|Test\.php)$/i.test(f);
+    const isGen = (f) => /(\.g\.dart|\.freezed\.dart|\.gr\.dart|\.g\.ts)$/i.test(f);
+    const isExempt = (f) => /(^|\/)database\/(migrations|seeders|factories)\//i.test(f) || /\.(config|conf)\.[jt]s$/i.test(f);
+    const isProd = (f) => /\.(php|dart|ts|tsx|js|jsx|vue)$/i.test(f) && !isTest(f) && !isGen(f) && !isExempt(f);
+    const prod = staged.filter(isProd);
+    if (prod.length > 0) {
+      const receiptPath = join(process.cwd(), '.git', 'qa-gate-green.json');
+      let ok = false; let why = 'o gate nunca rodou verde nesta branch';
+      if (existsSync(receiptPath)) {
+        try {
+          const rc = JSON.parse(readFileSync(receiptPath, 'utf8'));
+          const TTL = 30 * 60 * 1000;
+          const age = Date.now() - (rc.ts || 0);
+          let newest = 0;
+          for (const f of staged) { try { const m = statSync(join(process.cwd(), f)).mtimeMs; if (m > newest) { newest = m; } } catch {} }
+          if (rc.status !== 'green') { why = 'último resultado não foi verde'; }
+          else if (rc.branch && rc.branch !== branch) { why = `o recibo é de outra branch (${rc.branch})`; }
+          else if (age > TTL) { why = 'o recibo verde expirou (>30min) — rode de novo'; }
+          else if (newest > (rc.ts || 0)) { why = 'houve edição DEPOIS do gate verde — rode de novo'; }
+          else { ok = true; }
+        } catch { why = 'recibo ilegível'; }
+      }
+      if (!ok) {
+        deny(`[VS-GATE-001] BLOCKED — commit de código de produção SEM QA-Gate VERDE (${why}). ` +
+          `Regra ABSOLUTA da governança: front/back só commitam no verde (todo verde passou no QA — funciona). ` +
+          `Rode o gate DE VERDADE neste repo (MCP qa_run_gate) até VERDE — ele grava o recibo — e só então commite. ` +
+          `Se o app não sobe/faltam dados, VOCÊ resolve (sobe ambiente, seed, rebuild) — NÃO pule, NÃO opine que não precisa, NÃO espere uma pessoa. ` +
+          `Exceção rara e justificada (ex.: só refactor sem runtime): touch .qa-gate-green-ok`);
+      }
+    }
+  } catch {}
+}
 
 const PROTECTED = /^(main|master|dev|develop|hml|homolog\w*|production|prod|staging)$/i;
 if (PROTECTED.test(branch)) {
