@@ -10,18 +10,36 @@ import { tmpdir } from 'node:os';
 const TIPOS = { fix: 'fix', bug: 'fix', feat: 'feat', feature: 'feat', refactor: 'refactor', refact: 'refactor', perf: 'perf', hotfix: 'hotfix', chore: 'chore', test: 'test', doc: 'docs', docs: 'docs' };
 const TTL = 15 * 60 * 1000;
 
+// Mapeia uma palavra p/ camada/repo canônica: todos | front | back | mobile.
+function canonTarget(word) {
+  if (!word) { return null; }
+  const w = word.toLowerCase();
+  if (/\b(todos|tudo|all|geral|cross|full ?stack|fullstack|ambos)\b/.test(w)) { return 'todos'; }
+  if (/\b(mobile|app|flutter|dart|apk)\b/.test(w)) { return 'mobile'; }
+  if (/\b(back|backend|api|laravel|controller|service|repository|migration|model|endpoint)\b/.test(w)) { return 'back'; }
+  if (/\b(front|frontend|web|tela|ui|componente|component|next|react|blade|livewire|p[áa]gina|view)\b/.test(w)) { return 'front'; }
+  return null;
+}
+
 export function parseBranch(prompt) {
   const p = prompt || '';
   const num = (p.match(/#?(\d{3,6})\b/) || [])[1] || null;
   const tipoM = (p.match(/\b(fix|bug|feat|feature|refactor|refact|perf|hotfix|chore|test|docs?)\b/i) || [])[1];
   const origM = (p.match(/\b(dev|develop|hml|homolog\w*|main|master|prod|produ[çc][ãa]o|staging)\b/i) || [])[1];
-  // ALVO = camada/repo onde atacar. 'todos' = tarefa cross-repo (front+back+mobile).
-  // (mobile tem prioridade; depois back; depois front)
-  let alvo = null;
-  if (/\b(todos|tudo|all|geral|cross|full ?stack|fullstack)\b/i.test(p)) { alvo = 'todos'; }
-  else if (/\b(mobile|app|flutter|dart|apk)\b/i.test(p)) { alvo = 'mobile'; }
-  else if (/\b(back|backend|api|laravel|controller|service|repository|migration|model|endpoint)\b/i.test(p)) { alvo = 'back'; }
-  else if (/\b(front|frontend|web|tela|ui|componente|component|next|react|blade|livewire|p[áa]gina|view)\b/i.test(p)) { alvo = 'front'; }
+
+  // REPOSITÓRIOS e ALVO são estágios DISTINTOS (#velvet):
+  // - repositorios = em QUAIS repos criar a branch. 'todos' = mesma branch em back+front+mobile.
+  // - alvo = a camada onde a mudança ataca (front/back/mobile/todos).
+  // Quando vêm ROTULADOS ("repositorios: todos", "alvo front"), respeita o rótulo;
+  // um valor solto (só "todos"/"front") vira `target` e o hook preenche o próximo
+  // campo faltante na sequência (repositorios antes de alvo).
+  const repoLabel = (p.match(/reposit[óo]rios?\s*[:\-]?\s*([\wçãáéíóúâêô ]+)/i) || [])[1];
+  const alvoLabel = (p.match(/\balvo\s*[:\-]?\s*([\wçãáéíóúâêô ]+)/i) || [])[1];
+  const repositorios = canonTarget(repoLabel);
+  const alvo = canonTarget(alvoLabel);
+  // valor genérico (palavra solta) — sem rótulo — p/ preencher em sequência.
+  const target = canonTarget(p);
+
   // bug de CRUD/validação (editar/cadastrar/salvar + erro/validação/mensagem/campo)
   const crudOp = /\b(editar|edi[çc][ãa]o|cadastr\w*|criar|cria[çc][ãa]o|excluir|deletar|salvar|atualizar|remover|lista\w*|carreg\w*)\b/i.test(p);
   const crudSymptom = /\b(erro|falha|quebr\w*|n[ãa]o (salva|valida|trata|carrega|aparece|mostra)|valida[çc][ãa]o|mensagem|campo|500|422)\b/i.test(p);
@@ -30,7 +48,9 @@ export function parseBranch(prompt) {
     num,
     tipo: tipoM ? (TIPOS[tipoM.toLowerCase()] || tipoM.toLowerCase()) : null,
     origem: origM ? origM.toLowerCase() : null,
+    repositorios,
     alvo,
+    target,
     crud,
   };
 }

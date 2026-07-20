@@ -7,6 +7,30 @@ import { hasConsent, setConsent, collectIfConsented } from '../engine/consent.mj
 import { verifyLicense } from '../license/license.mjs';
 import { issueLicense } from '../license/issue.mjs';
 import { globToRe, matchAny } from '../engine/core.mjs';
+import { parseBranch } from '../engine/branch-req.mjs';
+
+test('parseBranch: repositorios e alvo rotulados separados', () => {
+  const r = parseBranch('36885 fix origem dev repositorios todos alvo mobile');
+  assert.equal(r.num, '36885');
+  assert.equal(r.tipo, 'fix');
+  assert.equal(r.origem, 'dev');
+  assert.equal(r.repositorios, 'todos');
+  assert.equal(r.alvo, 'mobile');
+});
+
+test('parseBranch: valor solto vira target (sem rotulo)', () => {
+  const r = parseBranch('todos');
+  assert.equal(r.target, 'todos');
+  assert.equal(r.repositorios, null);
+  assert.equal(r.alvo, null);
+});
+
+test('parseBranch: origem so aceita dev/hml/main-like; lixo nao vira origem', () => {
+  const r = parseBranch('36885 feat repositorios front alvo front');
+  assert.equal(r.origem, null); // sem origem valida -> null (muro segura)
+  assert.equal(r.repositorios, 'front');
+  assert.equal(r.alvo, 'front');
+});
 
 test('requirements: tarefa insuficiente bloqueia (REQ-001)', () => {
   const r = validateTask('arruma o login');

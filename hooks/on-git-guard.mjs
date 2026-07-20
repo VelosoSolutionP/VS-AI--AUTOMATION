@@ -146,7 +146,7 @@ if (task && task.num) {
   if (branch !== expected) {
     deny(`[VS-BRANCH-006] BLOCKED — a branch da TAREFA #${task.num} não está ativa (você está em "${branch}", esperado "${expected}"). ` +
       `Crie/entre nela ANTES de ${isPush ? 'pushar' : 'commitar'}: git fetch origin ${task.origem} && git checkout -b ${expected} origin/${task.origem}. ` +
-      `${task.alvo === 'todos' ? 'ALVO=todos: crie essa branch em CADA repo (back/front/mobile). ' : ''}Não pule a criação da branch.`);
+      `${(task.repositorios || task.alvo) === 'todos' ? 'REPOSITÓRIOS=todos: crie essa MESMA branch em CADA repo (back/front/mobile). ' : ''}Não pule a criação da branch.`);
   }
 }
 
