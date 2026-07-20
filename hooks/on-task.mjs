@@ -126,7 +126,7 @@ if (isFree(sid)) {
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: {
         hookEventName: 'UserPromptSubmit',
-        additionalContext: '[governança] Fluxo de tarefa RE-ARMADO. Peça ao Fabiano, NA ORDEM: número → tipo → origem → repositórios → alvo (front/back/mobile/todos) pra criar a branch.',
+        additionalContext: '[governança] Fluxo de tarefa RE-ARMADO. Peça ao Fabiano, NA ORDEM: número → tipo → origem → repositórios (front/back/mobile/todos) → escopo (descrição da tarefa) pra criar a branch.',
       },
     }));
     process.exit(0);
@@ -231,25 +231,27 @@ if (isDocumentationTask) {
     tipo: cur.tipo || pending?.tipo || null,
     origem: cur.origem || pending?.origem || null,
     repositorios: cur.repositorios || pending?.repositorios || null,
-    alvo: cur.alvo || pending?.alvo || null,
+    escopo: pending?.escopo || null,
     crud: cur.crud || pending?.crud || false,
   };
-  // Valor solto (sem rótulo) preenche o PRÓXIMO campo faltante na sequência:
-  // repositorios ANTES de alvo. Assim "todos" no estágio de repositórios cai em
-  // repositorios; no estágio de alvo cai em alvo.
-  if (cur.target) {
-    if (!merged.repositorios) { merged.repositorios = cur.target; }
-    else if (!merged.alvo) { merged.alvo = cur.target; }
+  // Valor solto (sem rótulo) preenche repositorios quando ainda falta.
+  if (cur.target && !merged.repositorios) { merged.repositorios = cur.target; }
+  // ⑤ ESCOPO = descrição da tarefa (texto livre). Só captura DEPOIS dos 4 campos
+  // e quando o turno NÃO trouxe campo (é texto descritivo, não resposta de campo).
+  const broughtField = !!(numDeliberado || cur.tipo || cur.origem || cur.repositorios || cur.target);
+  const coreReady = !!(merged.num && merged.tipo && merged.origem && merged.repositorios);
+  if (!merged.escopo && coreReady && !broughtField && prompt.trim().length >= 8) {
+    merged.escopo = prompt.trim();
   }
 
   // OBRIGATÓRIO e NA ORDEM (absoluto, sem pular): número → tipo → origem →
-  // repositorios → alvo. Projeto NÃO é pedido (o Fabiano está nele).
+  // repositorios → ESCOPO. Projeto NÃO é pedido (o Fabiano está nele).
   // repositorios='todos' = cria a MESMA branch em back+front+mobile.
   const missing = [];
   if (!merged.tipo) { missing.push('tipo'); }
   if (!merged.origem) { missing.push('origem'); }
   if (!merged.repositorios) { missing.push('repositorios'); }
-  if (!merged.alvo) { missing.push('alvo'); }
+  if (!merged.escopo) { missing.push('escopo'); }
 
   if (missing.length) {
     saveReq(sid, merged);
@@ -258,12 +260,12 @@ if (isDocumentationTask) {
       '② ' + (merged.tipo ? '✅' : '❌') + ' TIPO' + (merged.tipo ? ' ' + merged.tipo : '') + '\n' +
       '③ ' + (merged.origem ? '✅' : '❌') + ' ORIGEM' + (merged.origem ? ' ' + merged.origem : '') + '\n' +
       '④ ' + (merged.repositorios ? '✅' : '❌') + ' REPOSITÓRIOS' + (merged.repositorios ? ' ' + merged.repositorios : '') + '\n' +
-      '⑤ ' + (merged.alvo ? '✅' : '❌') + ' ALVO' + (merged.alvo ? ' ' + merged.alvo : '');
+      '⑤ ' + (merged.escopo ? '✅' : '❌') + ' ESCOPO' + (merged.escopo ? ' ✓' : '');
     const OPTS = {
       tipo: '② TIPO → fix | feat | refactor | perf | hotfix | chore | test | docs',
       origem: '③ ORIGEM → dev | hml | main',
       repositorios: '④ REPOSITÓRIOS → front | back | mobile | todos   (TODOS = cria a MESMA branch em back+front+mobile)',
-      alvo: '⑤ ALVO → front | back | mobile | todos   (camada onde a mudança ataca)',
+      escopo: '⑤ ESCOPO → descreva a tarefa/bug: o que é, em qual tela/fluxo, comportamento esperado',
     };
     const pedir = missing.map((k) => '• ' + OPTS[k]).join('\n');
     process.stdout.write(JSON.stringify({
@@ -277,27 +279,26 @@ if (isDocumentationTask) {
     process.exit(0);
   }
 
-  // completo -> checklist VÁLIDO (num+tipo+origem+repositorios+alvo). Grava estado:
+  // completo -> checklist VÁLIDO (num+tipo+origem+repositorios+escopo). Grava estado:
   // git-guard vai EXIGIR que commit/push seja na branch dela (prova da criação).
   clearReq(sid);
   clearConsult(sid);
-  setTask(sid, { num: merged.num, tipo: merged.tipo, origem: merged.origem, repositorios: merged.repositorios, alvo: merged.alvo });
+  setTask(sid, { num: merged.num, tipo: merged.tipo, origem: merged.origem, repositorios: merged.repositorios, escopo: merged.escopo });
   const branchName = `${merged.tipo}/fabiano.veloso/${merged.num}`;
   const criar = `git fetch origin ${merged.origem} && git checkout -b ${branchName} origin/${merged.origem}`;
-  // REPOSITÓRIOS decide ONDE criar a branch; ALVO é a camada foco da mudança.
-  const foco = `ALVO=${merged.alvo.toUpperCase()} (camada foco da mudança)`;
+  const escopoLinha = `ESCOPO: ${merged.escopo}`;
   let ctx;
   if (merged.repositorios === 'todos') {
-    ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · REPOSITÓRIOS=TODOS (back + front + MOBILE) · ${foco}.\n` +
+    ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · REPOSITÓRIOS=TODOS (back + front + MOBILE).\n${escopoLinha}\n` +
       `⚠️ PASSO 1 OBRIGATÓRIO — ANTES de editar/corrigir QUALQUER arquivo: crie a MESMA branch \`${branchName}\` em CADA repo (back, front e mobile). Em cada repo: \`${criar}\`. Só DEPOIS de criar TODAS as branches, comece a trabalhar. NÃO pule esse passo, NÃO vá direto pro código.\n` +
       `REGRA MOBILE: no repo mobile os commits ficam LOCAIS, SEM push, até o Fabiano pedir pra subir. FRONT/BACK: commit + push após o gate verde.`;
   } else if (merged.repositorios === 'mobile') {
-    ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · REPOSITÓRIO=MOBILE · ${foco}.\n` +
+    ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · REPOSITÓRIO=MOBILE.\n${escopoLinha}\n` +
       `⚠️ PASSO 1 OBRIGATÓRIO — ANTES de editar/corrigir qualquer arquivo: crie a branch no repo MOBILE (\`${criar}\`). NÃO comece a implementar antes da branch criada.\n` +
       `REGRA MOBILE: commits ficam LOCAIS, SEM push, até o Fabiano pedir pra subir/deploy. Vá DIRETO no código Flutter/dart.`;
   } else {
-    ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · REPOSITÓRIO=${merged.repositorios.toUpperCase()} · ${foco}.\n` +
-      `⚠️ PASSO 1 OBRIGATÓRIO — ANTES de editar qualquer arquivo: crie a branch (\`${criar}\`) no repo ${merged.repositorios}. NÃO comece a corrigir antes da branch criada. Trabalhe SÓ na camada ${merged.alvo}.`;
+    ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · REPOSITÓRIO=${merged.repositorios.toUpperCase()}.\n${escopoLinha}\n` +
+      `⚠️ PASSO 1 OBRIGATÓRIO — ANTES de editar qualquer arquivo: crie a branch (\`${criar}\`) no repo ${merged.repositorios}. NÃO comece a corrigir antes da branch criada. Trabalhe SÓ no repo ${merged.repositorios}.`;
   }
   if (merged.crud) {
     ctx += `\nBUG CRUD/VALIDAÇÃO: rode o QA-Gate na rota/fluxo afetado — ele reproduz o erro real. Corrija com base no que o gate mostrar.`;
