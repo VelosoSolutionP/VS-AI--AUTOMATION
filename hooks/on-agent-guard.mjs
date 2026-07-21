@@ -54,7 +54,7 @@ if (cfg.allowAgents === true) { allow(); }
 deny(
   `[VS-AGENT-001] BLOCKED — não abra SUBAGENTE pra investigar/corrigir (agent_type="${subagentType || 'geral'}"). ` +
   `A ferramenta é pra REDUZIR token — vários agentes pra investigar um alvo já dado é desperdício inaceitável.\n` +
-  `• Se o ALVO está especificado (arquivo/tela/fluxo/causa): pesquise DIRETO — Serena (find_symbol/search_for_pattern), grep, read, glob — e corrija você mesmo.\n` +
+  `• Se o ALVO está especificado (arquivo/tela/fluxo/causa): pesquise DIRETO — grep (padrão preciso, files_with_matches antes de conteúdo), read com offset/limit (fatia, não arquivo inteiro), glob — e corrija você mesmo.\n` +
   `• Se o ALVO NÃO está claro: PERGUNTE ao Fabiano o que falta. NÃO chute com agente.\n` +
   `Exceção (feature extensa REAL, >3 arquivos + investigação profunda): touch .qa-gate-agents-ok (ou "allowAgents": true no qa-gate.company.json).`
 );
