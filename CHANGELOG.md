@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1 — Escopo do commit = NÚMERO da tarefa (todos os projetos) (21/07/2026)
+
+- **Commit `<tipo>(<numero>): <descrição>` obrigatório (`on-commit.mjs`, `on-task.mjs`)**: o escopo do commit passa a ser SEMPRE o **número da tarefa** (ex.: `feat(36846): termo de consentimento único`), não o módulo. Determinístico: quando há tarefa ativa (`getTask`), o `on-commit` **bloqueia** (VS-AUD-003) qualquer escopo diferente do número e mostra a correção. O ctx da tarefa (`on-task`) já instrui o formato com o número. Módulo/contexto vai na descrição. Decisão do Fabiano em 21/07 valendo pra TODOS os projetos (Velvet, sigater, Egle).
+
 ## 1.2.0 — Multi-repo, mobile acumulando e fecho do furo do gate (cd) (21/07/2026)
 
 - **Repositórios MULTI-escolha (`branch-req.mjs`, `on-task.mjs`)**: a criação de tarefa passa a aceitar combinação de repos — `front back`, `back mobile` etc. — e cria a branch em **cada um** escolhido. `todos` = front+back+mobile. Campo `repositorios` virou **lista** canônica `[front, back, mobile]`. Novo `canonTargets()` (multi) ao lado do `canonTarget()` (único, usado pelo `alvo`).
