@@ -23,6 +23,9 @@ export const DEFAULT_CONFIG = {
   tipos: ['fix', 'feat', 'feature', 'perf', 'refactor', 'hotfix', 'chore', 'test', 'docs', 'build', 'ci', 'style', 'revert'],
   doc: { template: 'redmine', required: true },
   push: { setUpstream: true },
+  // Anti-desperdício: por padrão a IA NÃO abre subagente pra investigar/corrigir —
+  // pesquisa direto (Serena/grep/read). Agente só p/ feature extensa REAL (escape .qa-gate-agents-ok).
+  allowAgents: false,
 };
 
 function readJson(p) {

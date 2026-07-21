@@ -49,6 +49,13 @@ if (!prompt) {
   process.exit(0);
 }
 
+// MENSAGENS DO HARNESS (não são prompt do Fabiano): resultado de agente
+// (<task-notification>), lembretes de sistema, saída de comando local, etc. NÃO engatar
+// a governança nisso — senão pede escopo/branch em cima de notificação de agente.
+if (/^\s*<\/?(task-notification|system-reminder|command-name|command-message|command-args|local-command-stdout|local-command-stderr|task-id|tool-use-id)\b/i.test(prompt)) {
+  process.exit(0);
+}
+
 // opt-out por pasta: .qa-gate-off no cwd desliga a governança nesta sessão/pasta
 // (usado na bancada de conserto do próprio produto)
 if (existsSync(join(process.cwd(), '.qa-gate-off'))) {

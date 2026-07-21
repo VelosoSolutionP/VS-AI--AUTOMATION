@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0 — Anti-desperdício de agentes + governança não engata em notificação de harness (21/07/2026)
+
+- **AGENT GUARD (`hooks/on-agent-guard.mjs`, novo — VS-AGENT-001)**: barra o disparo de SUBAGENTE (tool `Task`) pra investigar/corrigir. A ferramenta é pra REDUZIR token — abrir agentes pra investigar alvo já especificado é desperdício. Regra: alvo dado → pesquisa direto (Serena/grep/read); alvo não claro → PERGUNTA. Escape p/ feature extensa real: `.qa-gate-agents-ok` ou `"allowAgents": true` no `qa-gate.company.json`. Registrar em `PreToolUse` matcher `Task`.
+- **`on-task.mjs` ignora mensagens do HARNESS**: `<task-notification>` (resultado de agente), `<system-reminder>`, saída de comando local etc. não engatam mais a governança — antes o resultado de um agente era tratado como prompt de tarefa e pedia ESCOPO/branch em cima da notificação.
+- **`allowAgents: false`** no default da config de empresa.
+- **FIX de registro (settings do usuário)**: `on-git-guard.mjs` (VS-GATE-001/VS-BRANCH/VS-MOBILE) não estava registrado no `PreToolUse` — o gate de commit "era ignorado" porque o hook nunca rodava. Passa a ser registrado junto do `on-commit.mjs`.
+
 ## 1.3.0 — Config de EMPRESA: padrão de branch/commit configurável no install (21/07/2026)
 
 - **`engine/company-config.mjs` (novo)**: a empresa define seu padrão de branch/commit/doc num `qa-gate.company.json` — a governança lê daqui em vez de assumir um padrão fixo. Resolução: `env QA_GATE_COMPANY_CONFIG` → arquivo subindo a partir do repo → `~/.qa-gate/company.json` → **DEFAULT embutido** (padrão Fabiano: autor `fabiano.veloso`, escopo = número). Quem não configurar não quebra.
