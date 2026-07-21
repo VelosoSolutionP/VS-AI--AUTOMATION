@@ -14,27 +14,46 @@
  */
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve, isAbsolute } from 'node:path';
 import { loadReq, isConsult, isSessionOff, getTask } from '../engine/branch-req.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
 let sid = 'default';
-try { const j = JSON.parse(raw || '{}'); cmd = j.tool_input?.command || j.command || ''; sid = j.session_id || 'default'; } catch { cmd = raw; }
+let sessionCwd = process.cwd();
+try { const j = JSON.parse(raw || '{}'); cmd = j.tool_input?.command || j.command || ''; sid = j.session_id || 'default'; sessionCwd = j.cwd || j.tool_input?.cwd || process.cwd(); } catch { cmd = raw; }
 
 const allow = () => process.exit(0);
 function deny(reason) {
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }));
   process.exit(0);
 }
-// opt-out por pasta (bancada de conserto): .qa-gate-off desliga
-if (existsSync(join(process.cwd(), '.qa-gate-off'))) { allow(); }
+
+// FIX cwd (fecha o furo do "cd fura"): o `cd X && git ...` — ou `git -C X` — do comando
+// enganava o hook, que checava a pasta da SESSÃO (ex.: sigater) em vez do repo real
+// (ex.: egle/frontend), fazendo VS-GATE-001/VS-AUD-004 não verem os arquivos staged e
+// LIBERAREM o commit. Aqui extraímos o diretório REAL onde o git roda e usamos ele em
+// TODAS as checagens (execSync com cwd + flags de pasta).
+function resolveGitCwd(command, base) {
+  try {
+    const mC = command.match(/\bgit\s+-C\s+("([^"]+)"|'([^']+)'|([^\s&;|]+))/);
+    if (mC) { const d = mC[2] || mC[3] || mC[4]; return isAbsolute(d) ? d : resolve(base, d); }
+    const cds = [...command.matchAll(/\bcd\s+("([^"]+)"|'([^']+)'|([^\s&;|]+))/g)];
+    if (cds.length) { const c = cds[cds.length - 1]; const d = c[2] || c[3] || c[4]; return isAbsolute(d) ? d : resolve(base, d); }
+  } catch {}
+  return base;
+}
+const gitCwd = resolveGitCwd(cmd, sessionCwd);
+
+// opt-out por pasta (bancada de conserto): .qa-gate-off desliga — no repo real OU na sessão
+if (existsSync(join(gitCwd, '.qa-gate-off')) || existsSync(join(sessionCwd, '.qa-gate-off'))) { allow(); }
 if (isSessionOff(sid)) { allow(); }
 const isGit = /\bgit\b/.test(cmd);
 if (!isGit) { allow(); }
 
-// REGRA MOBILE: acumula commits locais, SEM branch de tarefa, SEM push (deploy fim do dia).
-const isMobile = /[\\/]mobile([\\/]|$)/i.test(process.cwd());
+// REGRA MOBILE: branch da tarefa SAI DA ATUAL (acumula o trabalho anterior), commits
+// LOCAIS, SEM push (deploy/APK só no fim do dia).
+const isMobile = /[\\/]mobile([\\/]|$)/i.test(gitCwd);
 
 // add cego
 if (/\bgit\s+add\s+(\.|-A\b|--all\b|:\/)/.test(cmd)) {
@@ -43,18 +62,20 @@ if (/\bgit\s+add\s+(\.|-A\b|--all\b|:\/)/.test(cmd)) {
 
 // criação de branch: exige base de ORIGEM explícita (origin/<x>)
 const criaBranch = /\bgit\s+checkout\s+-b\b/.test(cmd) || /\bgit\s+switch\s+-c\b/.test(cmd) || /\bgit\s+branch\s+\S/.test(cmd);
-if (criaBranch && isMobile) {
-  deny('[VS-MOBILE-002] BLOCKED — mobile NÃO usa branch de tarefa. Acumule os commits na branch atual; o deploy (APK) é só no fim do dia.');
+// MOBILE acumula: a branch da tarefa DEVE sair da branch ATUAL (carrega o trabalho
+// anterior). Usar origin/<x> RESETA e perde o acúmulo -> bloqueia.
+if (criaBranch && isMobile && /\borigin\/\w/.test(cmd)) {
+  deny('[VS-MOBILE-002] BLOCKED — mobile ACUMULA: crie a branch a partir da ATUAL (git checkout -b <tipo>/fabiano.veloso/<numero>), SEM origin/<x>. Sair do origin reseta e perde o trabalho acumulado.');
 }
 // não iniciar nova branch deixando o trabalho da anterior FORA do ambiente (origin).
 // só back/front; base protegida (main/dev/hml) é isenta (não é tarefa pendente).
 if (criaBranch && !isMobile) {
   try {
-    const cur = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
+    const cur = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8', cwd: gitCwd }).trim();
     const PROT = /^(main|master|dev|develop|hml|homolog\w*|production|prod|staging)$/i;
     if (!PROT.test(cur)) {
-      const unpushed = parseInt((execSync('git rev-list --count HEAD --not --remotes', { encoding: 'utf8' }).trim() || '0'), 10);
-      const dirty = execSync('git status --porcelain', { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean).length;
+      const unpushed = parseInt((execSync('git rev-list --count HEAD --not --remotes', { encoding: 'utf8', cwd: gitCwd }).trim() || '0'), 10);
+      const dirty = execSync('git status --porcelain', { encoding: 'utf8', cwd: gitCwd }).split(/\r?\n/).filter(Boolean).length;
       if (unpushed > 0 || dirty > 0) {
         deny(`[VS-BRANCH-004] BLOCKED — a branch atual "${cur}" tem trabalho fora do ambiente (${unpushed} commit(s) não enviado(s), ${dirty} arquivo(s) não commitado(s)). Antes de criar nova branch: commite os arquivos da tarefa + git push -u origin ${cur}. (mobile é isento; back/front obrigatório)`);
       }
@@ -68,8 +89,9 @@ if (criaBranch) {
     const falta = ['num', 'tipo', 'origem'].filter((k) => !pend[k]).join('/');
     deny(`[VS-BRANCH-003] BLOCKED — dados da branch incompletos (falta ${falta}). Informe no chat antes de criar. (desistir: "cancela")`);
   }
-  if (!/\borigin\/\w/.test(cmd)) {
-    deny('[VS-BRANCH-002] BLOCKED — crie a branch a partir da ORIGEM explícita. Ex.: git fetch origin <origem> && git checkout -b <tipo>/<autor>/<numero> origin/<origem>. Sem origin/<x> a branch nasce do lugar errado e quebra no merge.');
+  // front/back: exige origin/ (base correta). MOBILE é ISENTO — sai da branch atual (acumula).
+  if (!isMobile && !/\borigin\/\w/.test(cmd)) {
+    deny('[VS-BRANCH-002] BLOCKED — crie a branch a partir da ORIGEM explícita. Ex.: git fetch origin <origem> && git checkout -b <tipo>/<autor>/<numero> origin/<origem>. Sem origin/<x> a branch nasce do lugar errado e quebra no merge. (mobile é isento — acumula da branch atual)');
   }
   // NOME da branch tem que carregar o NÚMERO da tarefa (senão o número some no push)
   const bm = cmd.match(/\b(?:checkout\s+-b|switch\s+-c|branch)\s+(\S+)/);
@@ -82,8 +104,8 @@ if (criaBranch) {
   const numB = (novoNome.match(/(\d{3,6})/) || [])[1];
   if (numB) {
     let existente = '';
-    try { existente = execSync(`git branch -a --list "*${numB}" --list "*${numB}-*" --list "*fabiano.veloso/${numB}*"`, { encoding: 'utf8' }).trim(); } catch {}
-    if (!existente) { try { existente = execSync(`git ls-remote --heads origin "*fabiano.veloso/${numB}" "*${numB}"`, { encoding: 'utf8' }).trim(); } catch {} }
+    try { existente = execSync(`git branch -a --list "*${numB}" --list "*${numB}-*" --list "*fabiano.veloso/${numB}*"`, { encoding: 'utf8', cwd: gitCwd }).trim(); } catch {}
+    if (!existente) { try { existente = execSync(`git ls-remote --heads origin "*fabiano.veloso/${numB}" "*${numB}"`, { encoding: 'utf8', cwd: gitCwd }).trim(); } catch {} }
     if (existente) {
       const bName = existente.split(/\r?\n/)[0].replace(/^[*\s]+/, '').replace(/^remotes\//, '').replace(/^[0-9a-f]+\s+refs\/heads\//, '');
       deny(`[VS-BRANCH-007] BUG #${numB} VOLTOU — já existe a branch "${bName}". NÃO crie nova. Acesse a existente: git fetch origin && git checkout ${bName.replace(/^origin\//, '')} — e trabalhe NELA (a correção anterior não segurou; investigue o que regrediu).`);
@@ -101,7 +123,7 @@ if (isConsult(sid)) {
 }
 
 // mobile não faz push — acumula local; deploy (APK) só no fim do dia, a pedido do Fabiano
-if (isPush && isMobile && !existsSync(join(process.cwd(), '.qa-gate-mobile-ok'))) {
+if (isPush && isMobile && !existsSync(join(gitCwd, '.qa-gate-mobile-ok'))) {
   deny('[VS-MOBILE-001] BLOCKED — mobile NÃO faz push. Acumula commits locais; deploy só no fim do dia, quando o Fabiano pedir. Pra liberar agora: touch .qa-gate-mobile-ok');
 }
 
@@ -112,9 +134,9 @@ if (/--no-verify|-n\b/.test(cmd)) {
 
 // [VS-AUD-004] camada extra: tocou código de produção -> exige teste unitário no MESMO commit.
 // Determinístico: compara arquivos staged (código × teste). Escape justificado: .qa-gate-notest-ok
-if (isCommit && !existsSync(join(process.cwd(), '.qa-gate-notest-ok'))) {
+if (isCommit && !existsSync(join(gitCwd, '.qa-gate-notest-ok'))) {
   try {
-    const staged = execSync('git diff --cached --name-only', { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean);
+    const staged = execSync('git diff --cached --name-only', { encoding: 'utf8', cwd: gitCwd }).split(/\r?\n/).filter(Boolean);
     const isTest = (f) => /(^|\/)tests?\//i.test(f) || /__tests__\//.test(f) || /(_test\.dart|_test\.py|\.test\.[jt]sx?|\.spec\.[jt]sx?|Test\.php)$/i.test(f);
     const isGen = (f) => /(\.g\.dart|\.freezed\.dart|\.gr\.dart|\.g\.ts)$/i.test(f);
     const isExempt = (f) => /(^|\/)database\/(migrations|seeders|factories)\//i.test(f) || /\.(config|conf)\.[jt]s$/i.test(f);
@@ -129,23 +151,23 @@ if (isCommit && !existsSync(join(process.cwd(), '.qa-gate-notest-ok'))) {
 }
 
 let branch = '';
-try { branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim(); } catch { allow(); }
+try { branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8', cwd: gitCwd }).trim(); } catch { allow(); }
 
 // [VS-GATE-001] REGRA ABSOLUTA — tocou código de produção no commit -> exige RECIBO
 // do QA-Gate VERDE nesta branch, gravado DEPOIS da última edição staged. É a prova
 // determinística de que o gate rodou verde; a IA NÃO consegue pular nem "opinar" que
 // não precisa. Front/back: 100% dos verdes passaram no QA — então roda sempre.
 // Mobile é ISENTO (gate browser inviável — tratado à parte). Escape raro: .qa-gate-green-ok
-if (isCommit && !isMobile && !existsSync(join(process.cwd(), '.qa-gate-green-ok'))) {
+if (isCommit && !isMobile && !existsSync(join(gitCwd, '.qa-gate-green-ok'))) {
   try {
-    const staged = execSync('git diff --cached --name-only', { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean);
+    const staged = execSync('git diff --cached --name-only', { encoding: 'utf8', cwd: gitCwd }).split(/\r?\n/).filter(Boolean);
     const isTest = (f) => /(^|\/)tests?\//i.test(f) || /__tests__\//.test(f) || /(_test\.dart|_test\.py|\.test\.[jt]sx?|\.spec\.[jt]sx?|Test\.php)$/i.test(f);
     const isGen = (f) => /(\.g\.dart|\.freezed\.dart|\.gr\.dart|\.g\.ts)$/i.test(f);
     const isExempt = (f) => /(^|\/)database\/(migrations|seeders|factories)\//i.test(f) || /\.(config|conf)\.[jt]s$/i.test(f);
     const isProd = (f) => /\.(php|dart|ts|tsx|js|jsx|vue)$/i.test(f) && !isTest(f) && !isGen(f) && !isExempt(f);
     const prod = staged.filter(isProd);
     if (prod.length > 0) {
-      const receiptPath = join(process.cwd(), '.git', 'qa-gate-green.json');
+      const receiptPath = join(gitCwd, '.git', 'qa-gate-green.json');
       let ok = false; let why = 'o gate nunca rodou verde nesta branch';
       if (existsSync(receiptPath)) {
         try {
@@ -153,7 +175,7 @@ if (isCommit && !isMobile && !existsSync(join(process.cwd(), '.qa-gate-green-ok'
           const TTL = 30 * 60 * 1000;
           const age = Date.now() - (rc.ts || 0);
           let newest = 0;
-          for (const f of staged) { try { const m = statSync(join(process.cwd(), f)).mtimeMs; if (m > newest) { newest = m; } } catch {} }
+          for (const f of staged) { try { const m = statSync(join(gitCwd, f)).mtimeMs; if (m > newest) { newest = m; } } catch {} }
           if (rc.status !== 'green') { why = 'último resultado não foi verde'; }
           else if (rc.branch && rc.branch !== branch) { why = `o recibo é de outra branch (${rc.branch})`; }
           else if (age > TTL) { why = 'o recibo verde expirou (>30min) — rode de novo'; }
@@ -185,9 +207,14 @@ let task = null; try { task = getTask(sid); } catch {}
 if (task && task.num) {
   const expected = `${task.tipo}/fabiano.veloso/${task.num}`;
   if (branch !== expected) {
+    const repos = Array.isArray(task.repositorios) ? task.repositorios : (task.repositorios ? [task.repositorios] : []);
+    const multi = repos.length > 1;
+    const criarExpected = isMobile
+      ? `git checkout -b ${expected}  (mobile: sai da branch atual, acumula — SEM origin/)`
+      : `git fetch origin ${task.origem} && git checkout -b ${expected} origin/${task.origem}`;
     deny(`[VS-BRANCH-006] BLOCKED — a branch da TAREFA #${task.num} não está ativa (você está em "${branch}", esperado "${expected}"). ` +
-      `Crie/entre nela ANTES de ${isPush ? 'pushar' : 'commitar'}: git fetch origin ${task.origem} && git checkout -b ${expected} origin/${task.origem}. ` +
-      `${(task.repositorios || task.alvo) === 'todos' ? 'REPOSITÓRIOS=todos: crie essa MESMA branch em CADA repo (back/front/mobile). ' : ''}Não pule a criação da branch.`);
+      `Crie/entre nela ANTES de ${isPush ? 'pushar' : 'commitar'}: ${criarExpected}. ` +
+      `${multi ? `REPOSITÓRIOS=${repos.join('+')}: crie essa MESMA branch em CADA repo escolhido (mobile acumula da atual). ` : ''}Não pule a criação da branch.`);
   }
 }
 

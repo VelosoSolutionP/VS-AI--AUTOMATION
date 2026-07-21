@@ -10,15 +10,32 @@ import { tmpdir } from 'node:os';
 const TIPOS = { fix: 'fix', bug: 'fix', feat: 'feat', feature: 'feat', refactor: 'refactor', refact: 'refactor', perf: 'perf', hotfix: 'hotfix', chore: 'chore', test: 'test', doc: 'docs', docs: 'docs' };
 const TTL = 15 * 60 * 1000;
 
-// Mapeia uma palavra p/ camada/repo canônica: todos | front | back | mobile.
+// Mapeia uma palavra p/ camada/repo canônica única: todos | front | back | mobile.
+// (mantido p/ o campo `alvo`, que continua sendo valor único.)
 function canonTarget(word) {
   if (!word) { return null; }
   const w = word.toLowerCase();
-  if (/\b(todos|tudo|all|geral|cross|full ?stack|fullstack|ambos)\b/.test(w)) { return 'todos'; }
+  if (/\b(todos|tudo|all|geral|cross|full ?stack|fullstack)\b/.test(w)) { return 'todos'; }
   if (/\b(mobile|app|flutter|dart|apk)\b/.test(w)) { return 'mobile'; }
   if (/\b(back|backend|api|laravel|controller|service|repository|migration|model|endpoint)\b/.test(w)) { return 'back'; }
   if (/\b(front|frontend|web|tela|ui|componente|component|next|react|blade|livewire|p[áa]gina|view)\b/.test(w)) { return 'front'; }
   return null;
+}
+
+// REPOSITÓRIOS = MULTI-escolha. Uma frase pode pedir vários repos ("front back",
+// "front e back", "back mobile"). Retorna LISTA canônica ordenada [front, back, mobile]
+// (dedup), ou ['front','back','mobile'] p/ "todos". null quando não reconhece nenhum.
+function canonTargets(word) {
+  if (!word) { return null; }
+  const w = word.toLowerCase();
+  if (/\b(todos|tudo|all|geral|cross|full ?stack|fullstack)\b/.test(w)) { return ['front', 'back', 'mobile']; }
+  const set = new Set();
+  if (/\b(front|frontend|web|tela|ui|componente|component|next|react|blade|livewire|p[áa]gina|view)\b/.test(w)) { set.add('front'); }
+  if (/\b(back|backend|api|laravel|controller|service|repository|migration|model|endpoint)\b/.test(w)) { set.add('back'); }
+  if (/\b(mobile|app|flutter|dart|apk)\b/.test(w)) { set.add('mobile'); }
+  const order = ['front', 'back', 'mobile'];
+  const out = order.filter((r) => set.has(r));
+  return out.length ? out : null;
 }
 
 export function parseBranch(prompt) {
@@ -33,12 +50,12 @@ export function parseBranch(prompt) {
   // Quando vêm ROTULADOS ("repositorios: todos", "alvo front"), respeita o rótulo;
   // um valor solto (só "todos"/"front") vira `target` e o hook preenche o próximo
   // campo faltante na sequência (repositorios antes de alvo).
-  const repoLabel = (p.match(/reposit[óo]rios?\s*[:\-]?\s*([\wçãáéíóúâêô ]+)/i) || [])[1];
+  const repoLabel = (p.match(/reposit[óo]rios?\s*[:\-]?\s*([\wçãáéíóúâêô ,]+)/i) || [])[1];
   const alvoLabel = (p.match(/\balvo\s*[:\-]?\s*([\wçãáéíóúâêô ]+)/i) || [])[1];
-  const repositorios = canonTarget(repoLabel);
+  // repositorios = LISTA (multi-repo). target = lista solta (sem rótulo) p/ preencher em sequência.
+  const repositorios = canonTargets(repoLabel);
   const alvo = canonTarget(alvoLabel);
-  // valor genérico (palavra solta) — sem rótulo — p/ preencher em sequência.
-  const target = canonTarget(p);
+  const target = canonTargets(p);
 
   // bug de CRUD/validação (editar/cadastrar/salvar + erro/validação/mensagem/campo)
   const crudOp = /\b(editar|edi[çc][ãa]o|cadastr\w*|criar|cria[çc][ãa]o|excluir|deletar|salvar|atualizar|remover|lista\w*|carreg\w*)\b/i.test(p);

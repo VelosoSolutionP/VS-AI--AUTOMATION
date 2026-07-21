@@ -9,18 +9,23 @@ import { issueLicense } from '../license/issue.mjs';
 import { globToRe, matchAny } from '../engine/core.mjs';
 import { parseBranch } from '../engine/branch-req.mjs';
 
-test('parseBranch: repositorios e alvo rotulados separados', () => {
+test('parseBranch: repositorios (lista) e alvo rotulados separados', () => {
   const r = parseBranch('36885 fix origem dev repositorios todos alvo mobile');
   assert.equal(r.num, '36885');
   assert.equal(r.tipo, 'fix');
   assert.equal(r.origem, 'dev');
-  assert.equal(r.repositorios, 'todos');
+  assert.deepEqual(r.repositorios, ['front', 'back', 'mobile']); // todos = lista completa
   assert.equal(r.alvo, 'mobile');
 });
 
-test('parseBranch: valor solto vira target (sem rotulo)', () => {
+test('parseBranch: MULTI-repo — "front back" vira lista', () => {
+  const r = parseBranch('36885 feat dev repositorios front back');
+  assert.deepEqual(r.repositorios, ['front', 'back']);
+});
+
+test('parseBranch: valor solto vira target lista (sem rotulo)', () => {
   const r = parseBranch('todos');
-  assert.equal(r.target, 'todos');
+  assert.deepEqual(r.target, ['front', 'back', 'mobile']);
   assert.equal(r.repositorios, null);
   assert.equal(r.alvo, null);
 });
@@ -28,7 +33,7 @@ test('parseBranch: valor solto vira target (sem rotulo)', () => {
 test('parseBranch: origem so aceita dev/hml/main-like; lixo nao vira origem', () => {
   const r = parseBranch('36885 feat repositorios front alvo front');
   assert.equal(r.origem, null); // sem origem valida -> null (muro segura)
-  assert.equal(r.repositorios, 'front');
+  assert.deepEqual(r.repositorios, ['front']);
   assert.equal(r.alvo, 'front');
 });
 
