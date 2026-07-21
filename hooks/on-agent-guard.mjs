@@ -23,11 +23,13 @@ const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) 
 let sid = 'default';
 let cwd = process.cwd();
 let subagentType = '';
+let toolName = '';
 try {
   const j = JSON.parse(raw || '{}');
   sid = j.session_id || 'default';
   cwd = j.cwd || j.tool_input?.cwd || process.cwd();
   subagentType = j.tool_input?.subagent_type || '';
+  toolName = j.tool_name || j.toolName || '';
 } catch {}
 
 const allow = () => process.exit(0);
@@ -35,6 +37,10 @@ function deny(reason) {
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }));
   process.exit(0);
 }
+
+// Só age no tool de SUBAGENTE (nome varia por versão do CLI: Task | Agent). Qualquer
+// outro tool passa direto. Se o nome não veio, o matcher do settings já filtrou.
+if (toolName && !/^(task|agent|subagent|dispatch_agent)$/i.test(toolName)) { allow(); }
 
 // opt-outs (bancada / sessão)
 if (existsSync(join(cwd, '.qa-gate-off'))) { allow(); }
