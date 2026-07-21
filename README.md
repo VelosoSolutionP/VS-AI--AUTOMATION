@@ -138,7 +138,33 @@ QA-Gate exige uma chave válida (`QA_GATE_LICENSE`). A validação é **offline*
 
 ---
 
-## Configuração — `qa-gate.config.json`
+## Configuração da empresa — `qa-gate.company.json`
+
+Define o **padrão de branch/commit/documentação da sua empresa** — a governança lê daqui em vez de assumir um padrão fixo. **Sem este arquivo vale o DEFAULT embutido**, então quem não configurar não quebra. Resolução: `env QA_GATE_COMPANY_CONFIG` → `qa-gate.company.json` subindo a partir do repo → `~/.qa-gate/company.json` → default.
+
+```json
+{
+  "autor": "nome.sobrenome",
+  "branchPattern": "<tipo>/<autor>/<numero>",
+  "commitScope": "numero",
+  "commitScopeRegex": null,
+  "tipos": ["fix", "feat", "perf", "refactor", "hotfix", "chore", "test", "docs"],
+  "doc": { "template": "redmine", "required": true }
+}
+```
+
+| Campo | O que faz |
+|---|---|
+| `autor` | Segmento de autor do nome da branch (ex.: `fix/nome.sobrenome/36846`). |
+| `branchPattern` | Tokens `<tipo>` `<autor>` `<numero>` `<slug>`. Ex.: `<tipo>/<numero>` (Jira), `<tipo>/<autor>/<numero>`. |
+| `commitScope` | `numero` (escopo = número da tarefa), `modulo` (escopo = módulo/contexto), `any` (livre). |
+| `commitScopeRegex` | Sobrepõe `commitScope` com um regex próprio (ex.: `^[A-Z]+-\\d+$` p/ chave Jira). |
+| `tipos` | Tipos de branch/commit aceitos. |
+| `doc` | Template/obrigatoriedade da documentação de fechamento. |
+
+O gate de commit (`VS-AUD-003`) e a criação de branch passam a **exigir** o padrão configurado — determinístico, não dá pra burlar. Modelo completo em `qa-gate.company.example.json`.
+
+## Configuração do gate de browser — `qa-gate.config.json`
 
 Colocado na raiz do seu projeto:
 

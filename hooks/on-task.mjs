@@ -12,6 +12,7 @@
  */
 
 import { parseBranch, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree, isSessionOff, setTask, clearTask } from '../engine/branch-req.mjs';
+import { loadCompanyConfig, branchName as buildBranchName } from '../engine/company-config.mjs';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -288,7 +289,8 @@ if (isDocumentationTask) {
   clearConsult(sid);
   setTask(sid, { num: merged.num, tipo: merged.tipo, origem: merged.origem, repositorios: merged.repositorios, escopo: merged.escopo });
   const repos = merged.repositorios; // lista canônica [front?, back?, mobile?]
-  const branchName = `${merged.tipo}/fabiano.veloso/${merged.num}`;
+  const cfg = loadCompanyConfig(process.cwd());
+  const branchName = buildBranchName(cfg, { tipo: merged.tipo, numero: merged.num });
   const cmdOrigin = `git fetch origin ${merged.origem} && git checkout -b ${branchName} origin/${merged.origem}`;
   const cmdAcc = `git checkout -b ${branchName}`; // mobile: sai da branch ATUAL (acumula), SEM origin/
   const escopoLinha = `ESCOPO: ${merged.escopo}`;
@@ -306,8 +308,13 @@ if (isDocumentationTask) {
   }
   // BUG VOLTOU: branch do número já pode existir.
   ctx += `\n⚠️ Antes de criar: se JÁ existir branch com o número #${merged.num} (local/remota) = BUG VOLTOU → NÃO crie nova, faça \`git checkout\` na existente e investigue a regressão (a correção anterior não segurou).`;
-  // PADRÃO DE COMMIT: escopo = NÚMERO da tarefa (todos os projetos).
-  ctx += `\nCOMMIT: escopo é o NÚMERO da tarefa → \`${merged.tipo}(${merged.num}): <descrição breve>\` (o módulo/contexto vai NA descrição, não no parêntese). Sem assinatura de IA.`;
+  // PADRÃO DE COMMIT conforme a config da empresa (default = número da tarefa).
+  const commitEx = (cfg.commitScope === 'modulo')
+    ? `${merged.tipo}(<modulo>): <descrição breve>`
+    : (cfg.commitScope === 'any' ? `${merged.tipo}(<escopo>): <descrição breve>` : `${merged.tipo}(${merged.num}): <descrição breve>`);
+  ctx += `\nCOMMIT (padrão da empresa): \`${commitEx}\`` +
+    (cfg.commitScope === 'numero' ? ` — escopo é o NÚMERO da tarefa; módulo/contexto vai NA descrição.` : '') +
+    ` Sem assinatura de IA.`;
   // FLUXO ABSOLUTO — na ordem, sem pular:
   ctx += `\nFLUXO (na ordem): ① CRIA a(s) branch(es) → ② trabalha → ③ roda o QA-Gate → ④ VERDE: commit + push das branches (mobile acumula local) → ⑤ documenta (Redmine). ` +
     `Gate faltando/erro = RESPONSABILIDADE SUA: vê o que é, arruma e roda até VERDE (se vira, não peça pro Fabiano subir ambiente). Só prossegue no verde.`;

@@ -16,6 +16,7 @@ import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve, isAbsolute } from 'node:path';
 import { loadReq, isConsult, isSessionOff, getTask } from '../engine/branch-req.mjs';
+import { loadCompanyConfig, branchName as buildBranchName, branchRegex, branchGlobsForNumber, patternUsesNumero } from '../engine/company-config.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
@@ -44,6 +45,8 @@ function resolveGitCwd(command, base) {
   return base;
 }
 const gitCwd = resolveGitCwd(cmd, sessionCwd);
+// CONFIG DA EMPRESA (autor/branch/commit) — default = padrão Fabiano se não houver arquivo.
+const cfg = loadCompanyConfig(gitCwd);
 
 // opt-out por pasta (bancada de conserto): .qa-gate-off desliga — no repo real OU na sessão
 if (existsSync(join(gitCwd, '.qa-gate-off')) || existsSync(join(sessionCwd, '.qa-gate-off'))) { allow(); }
@@ -93,19 +96,23 @@ if (criaBranch) {
   if (!isMobile && !/\borigin\/\w/.test(cmd)) {
     deny('[VS-BRANCH-002] BLOCKED — crie a branch a partir da ORIGEM explícita. Ex.: git fetch origin <origem> && git checkout -b <tipo>/<autor>/<numero> origin/<origem>. Sem origin/<x> a branch nasce do lugar errado e quebra no merge. (mobile é isento — acumula da branch atual)');
   }
-  // NOME da branch tem que carregar o NÚMERO da tarefa (senão o número some no push)
+  // NOME da branch tem que carregar o NÚMERO da tarefa (senão o número some no push).
+  // Só exige número quando o pattern da empresa usa <numero>.
   const bm = cmd.match(/\b(?:checkout\s+-b|switch\s+-c|branch)\s+(\S+)/);
   const novoNome = bm ? bm[1] : '';
-  if (novoNome && !/\d{3,6}/.test(novoNome)) {
-    deny(`[VS-BRANCH-005] BLOCKED — a branch "${novoNome}" não tem o NÚMERO da tarefa. Padrão: <tipo>/fabiano.veloso/<numero>. Sem número, o push não rastreia a tarefa. Recrie com o número.`);
+  if (patternUsesNumero(cfg) && novoNome && !/\d{3,6}/.test(novoNome)) {
+    deny(`[VS-BRANCH-005] BLOCKED — a branch "${novoNome}" não tem o NÚMERO da tarefa. Padrão: ${cfg.branchPattern}. Sem número, o push não rastreia a tarefa. Recrie com o número.`);
   }
   // BUG VOLTOU: se já existe branch (local OU remota) com esse número, NÃO cria nova —
   // acessa a existente. Sinaliza que a correção anterior não segurou.
   const numB = (novoNome.match(/(\d{3,6})/) || [])[1];
   if (numB) {
+    const globs = branchGlobsForNumber(cfg, numB);
+    const listArgs = globs.map((g) => `--list "${g}"`).join(' ');
+    const remoteArgs = globs.map((g) => `"${g}"`).join(' ');
     let existente = '';
-    try { existente = execSync(`git branch -a --list "*${numB}" --list "*${numB}-*" --list "*fabiano.veloso/${numB}*"`, { encoding: 'utf8', cwd: gitCwd }).trim(); } catch {}
-    if (!existente) { try { existente = execSync(`git ls-remote --heads origin "*fabiano.veloso/${numB}" "*${numB}"`, { encoding: 'utf8', cwd: gitCwd }).trim(); } catch {} }
+    try { existente = execSync(`git branch -a ${listArgs}`, { encoding: 'utf8', cwd: gitCwd }).trim(); } catch {}
+    if (!existente) { try { existente = execSync(`git ls-remote --heads origin ${remoteArgs}`, { encoding: 'utf8', cwd: gitCwd }).trim(); } catch {} }
     if (existente) {
       const bName = existente.split(/\r?\n/)[0].replace(/^[*\s]+/, '').replace(/^remotes\//, '').replace(/^[0-9a-f]+\s+refs\/heads\//, '');
       deny(`[VS-BRANCH-007] BUG #${numB} VOLTOU — já existe a branch "${bName}". NÃO crie nova. Acesse a existente: git fetch origin && git checkout ${bName.replace(/^origin\//, '')} — e trabalhe NELA (a correção anterior não segurou; investigue o que regrediu).`);
@@ -196,7 +203,8 @@ if (isCommit && !isMobile && !existsSync(join(gitCwd, '.qa-gate-green-ok'))) {
 
 const PROTECTED = /^(main|master|dev|develop|hml|homolog\w*|production|prod|staging)$/i;
 if (PROTECTED.test(branch)) {
-  deny(`[VS-GIT-002] BLOCKED — ${isPush ? 'push' : 'commit'} direto em "${branch}" proibido. Crie a branch da tarefa: git checkout -b fix/fabiano.veloso/<numero> origin/${branch}`);
+  const exemplo = buildBranchName(cfg, { tipo: 'fix', numero: '<numero>' });
+  deny(`[VS-GIT-002] BLOCKED — ${isPush ? 'push' : 'commit'} direto em "${branch}" proibido. Crie a branch da tarefa: git checkout -b ${exemplo} origin/${branch}`);
 }
 
 // MURO DE ESTADO: tarefa ativa (checklist completo) EXIGE que o commit/push seja na
@@ -205,7 +213,7 @@ if (PROTECTED.test(branch)) {
 // commita nela; só o push do mobile é barrado à parte).
 let task = null; try { task = getTask(sid); } catch {}
 if (task && task.num) {
-  const expected = `${task.tipo}/fabiano.veloso/${task.num}`;
+  const expected = buildBranchName(cfg, { tipo: task.tipo, numero: task.num });
   if (branch !== expected) {
     const repos = Array.isArray(task.repositorios) ? task.repositorios : (task.repositorios ? [task.repositorios] : []);
     const multi = repos.length > 1;
@@ -218,15 +226,18 @@ if (task && task.num) {
   }
 }
 
-// branch de tarefa (tem fabiano.veloso) SEM número -> bloqueia commit/push (número some)
-if (/fabiano\.veloso/i.test(branch) && !/\d{3,6}/.test(branch) && !isMobile) {
-  deny(`[VS-BRANCH-005] BLOCKED — a branch "${branch}" não tem o NÚMERO da tarefa; ${isPush ? 'push' : 'commit'} bloqueado. Renomeie: git branch -m ${branch.replace(/\/?$/, '')}/<numero> (ou recrie no padrão <tipo>/fabiano.veloso/<numero>).`);
+// branch de tarefa (bate o autor da empresa) SEM número -> bloqueia commit/push (número some).
+// Só vale quando o pattern usa <numero> e o autor está presente no nome da branch.
+const autorEsc = String(cfg.autor || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const temAutorNaBranch = cfg.autor && /<autor>/.test(cfg.branchPattern || '') ? new RegExp(autorEsc, 'i').test(branch) : false;
+if (patternUsesNumero(cfg) && temAutorNaBranch && !/\d{3,6}/.test(branch) && !isMobile) {
+  deny(`[VS-BRANCH-005] BLOCKED — a branch "${branch}" não tem o NÚMERO da tarefa; ${isPush ? 'push' : 'commit'} bloqueado. Recrie no padrão ${cfg.branchPattern}.`);
 }
 
 // branch fora do padrão -> só avisa (não bloqueia)
-const PATTERN = /^(fix|feat|feature|perf|refactor|chore|test|docs)\/fabiano\.veloso\/.+/i;
+const PATTERN = branchRegex(cfg);
 if (!PATTERN.test(branch)) {
-  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', permissionDecisionReason: `[VS-GIT-003] aviso — branch "${branch}" fora do padrão tipo/fabiano.veloso/<numero>.` } }));
+  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', permissionDecisionReason: `[VS-GIT-003] aviso — branch "${branch}" fora do padrão ${cfg.branchPattern}.` } }));
   process.exit(0);
 }
 allow();

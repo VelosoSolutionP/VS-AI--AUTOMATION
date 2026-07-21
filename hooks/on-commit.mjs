@@ -10,6 +10,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { getTask } from '../engine/branch-req.mjs';
+import { loadCompanyConfig, checkCommitScope } from '../engine/company-config.mjs';
 
 const raw = await new Promise((res) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => res(s)); });
 let cmd = '';
@@ -36,14 +37,18 @@ if (!PATTERN.test(subject)) {
   deny(`[VS-AUD-003] BLOCKED — commit fora do padrão.\nRecebido: "${subject}"\nEsperado: <tipo>(<numero-da-tarefa>): <descrição>\nEx.: feat(36846): termo de consentimento único\nTipos: feat|fix|perf|refactor|chore|test|docs`);
 }
 
-// ESCOPO = NÚMERO DA TAREFA (decisão 21/07: todos os projetos). Quando há tarefa ativa,
-// o escopo do commit TEM que ser o número dela — determinístico, não dá pra pôr módulo.
+// ESCOPO DO COMMIT conforme a CONFIG DA EMPRESA (default = número da tarefa). Quando há
+// tarefa ativa, valida o escopo pela regra configurada — determinístico, não dá pra burlar.
 let task = null; try { task = getTask(sid); } catch {}
 if (task && task.num) {
+  const cfg = loadCompanyConfig(process.cwd());
   const escopo = (subject.match(/^[a-z]+\(([^)]*)\)/i) || [])[1] || '';
-  if (escopo !== String(task.num)) {
-    deny(`[VS-AUD-003] BLOCKED — escopo do commit tem que ser o NÚMERO da tarefa (#${task.num}), não "${escopo || '—'}".\n` +
-      `Recebido: "${subject}"\nCorrija p/: ${(subject.match(/^([a-z]+)/i) || [])[1] || 'feat'}(${task.num}): <descrição breve>  (o módulo/contexto vai na descrição, não no parêntese).`);
+  const { ok, expected } = checkCommitScope(cfg, escopo, task.num);
+  if (!ok) {
+    const tipo = (subject.match(/^([a-z]+)/i) || [])[1] || 'feat';
+    const exemplo = (cfg.commitScope === 'modulo') ? `${tipo}(<modulo>): <descrição>` : `${tipo}(${task.num}): <descrição breve>`;
+    deny(`[VS-AUD-003] BLOCKED — escopo do commit deve ser ${expected}, não "${escopo || '—'}".\n` +
+      `Recebido: "${subject}"\nCorrija p/: ${exemplo}`);
   }
 }
 // tempo/assinatura de IA proibida no commit

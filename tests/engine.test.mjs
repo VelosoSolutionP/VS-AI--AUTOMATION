@@ -8,6 +8,7 @@ import { verifyLicense } from '../license/license.mjs';
 import { issueLicense } from '../license/issue.mjs';
 import { globToRe, matchAny } from '../engine/core.mjs';
 import { parseBranch } from '../engine/branch-req.mjs';
+import { DEFAULT_CONFIG, branchName, branchRegex, checkCommitScope, patternUsesNumero } from '../engine/company-config.mjs';
 
 test('parseBranch: repositorios (lista) e alvo rotulados separados', () => {
   const r = parseBranch('36885 fix origem dev repositorios todos alvo mobile');
@@ -35,6 +36,28 @@ test('parseBranch: origem so aceita dev/hml/main-like; lixo nao vira origem', ()
   assert.equal(r.origem, null); // sem origem valida -> null (muro segura)
   assert.deepEqual(r.repositorios, ['front']);
   assert.equal(r.alvo, 'front');
+});
+
+test('company-config: DEFAULT = padrão Fabiano (autor + escopo número)', () => {
+  assert.equal(DEFAULT_CONFIG.autor, 'fabiano.veloso');
+  assert.equal(branchName(DEFAULT_CONFIG, { tipo: 'feat', numero: '36846' }), 'feat/fabiano.veloso/36846');
+  assert.equal(checkCommitScope(DEFAULT_CONFIG, '36846', '36846').ok, true);
+  assert.equal(checkCommitScope(DEFAULT_CONFIG, 'consent', '36846').ok, false); // módulo barra
+  assert.equal(patternUsesNumero(DEFAULT_CONFIG), true);
+});
+
+test('company-config: empresa com escopo por MÓDULO', () => {
+  const cfg = { ...DEFAULT_CONFIG, commitScope: 'modulo' };
+  assert.equal(checkCommitScope(cfg, 'auth', '10').ok, true);
+  assert.equal(checkCommitScope(cfg, '10', '10').ok, false); // número não vale quando é módulo
+});
+
+test('company-config: pattern sem autor + escopo regex (Jira)', () => {
+  const cfg = { ...DEFAULT_CONFIG, autor: '', branchPattern: '<tipo>/<numero>', commitScopeRegex: '^[A-Z]+-\\d+$' };
+  assert.equal(branchName(cfg, { tipo: 'fix', numero: 'PROJ-1' }), 'fix/PROJ-1');
+  assert.equal(checkCommitScope(cfg, 'PROJ-123', 'x').ok, true);
+  assert.equal(checkCommitScope(cfg, 'auth', 'x').ok, false);
+  assert.ok(branchRegex(cfg).test('fix/PROJ-1'));
 });
 
 test('requirements: tarefa insuficiente bloqueia (REQ-001)', () => {

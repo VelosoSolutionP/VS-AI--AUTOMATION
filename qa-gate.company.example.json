@@ -1,0 +1,19 @@
+{
+  "_doc": "Padrão de branch/commit/documentação da EMPRESA. Copie para 'qa-gate.company.json' na raiz do projeto (ou ~/.qa-gate/company.json, ou aponte via env QA_GATE_COMPANY_CONFIG). Sem este arquivo, vale o DEFAULT embutido.",
+  "autor": "nome.sobrenome",
+  "branchPattern": "<tipo>/<autor>/<numero>",
+  "commitScope": "numero",
+  "commitScopeRegex": null,
+  "tipos": ["fix", "feat", "feature", "perf", "refactor", "hotfix", "chore", "test", "docs", "build", "ci", "style", "revert"],
+  "doc": { "template": "redmine", "required": true },
+  "push": { "setUpstream": true },
+
+  "_exemplos": {
+    "escopo_por_numero": { "commitScope": "numero", "resultado": "feat(36846): descrição" },
+    "escopo_por_modulo": { "commitScope": "modulo", "resultado": "feat(auth): descrição" },
+    "escopo_livre": { "commitScope": "any" },
+    "escopo_regex_jira": { "commitScopeRegex": "^[A-Z]+-\\d+$", "resultado": "feat(PROJ-123): descrição" },
+    "branch_sem_autor": { "branchPattern": "<tipo>/<numero>-<slug>" },
+    "branch_jira": { "branchPattern": "<tipo>/<numero>", "commitScope": "numero" }
+  }
+}

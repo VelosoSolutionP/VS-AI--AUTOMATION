@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0 — Config de EMPRESA: padrão de branch/commit configurável no install (21/07/2026)
+
+- **`engine/company-config.mjs` (novo)**: a empresa define seu padrão de branch/commit/doc num `qa-gate.company.json` — a governança lê daqui em vez de assumir um padrão fixo. Resolução: `env QA_GATE_COMPANY_CONFIG` → arquivo subindo a partir do repo → `~/.qa-gate/company.json` → **DEFAULT embutido** (padrão Fabiano: autor `fabiano.veloso`, escopo = número). Quem não configurar não quebra.
+- **Campos**: `autor` (slug da branch), `branchPattern` (tokens `<tipo>/<autor>/<numero>/<slug>`), `commitScope` (`numero`|`modulo`|`any`), `commitScopeRegex` (ex.: chave Jira `^[A-Z]+-\d+$`), `tipos`, `doc`.
+- **Hooks passam a ler a config (fim do hardcode `fabiano.veloso`)**: `on-git-guard.mjs` (nome/pattern/detecção de branch, bug-voltou, VS-BRANCH-002/005/006, VS-GIT-002/003 via `branchName`/`branchRegex`/`branchGlobsForNumber`/`patternUsesNumero`), `on-commit.mjs` (escopo do commit via `checkCommitScope`), `on-task.mjs` (nome da branch e instrução de commit conforme a empresa).
+- **Docs**: `qa-gate.company.example.json` + seção no README. Testes: +3 casos (default Fabiano, escopo por módulo, pattern sem autor + regex Jira) — 16/16 verde.
+
 ## 1.2.1 — Escopo do commit = NÚMERO da tarefa (todos os projetos) (21/07/2026)
 
 - **Commit `<tipo>(<numero>): <descrição>` obrigatório (`on-commit.mjs`, `on-task.mjs`)**: o escopo do commit passa a ser SEMPRE o **número da tarefa** (ex.: `feat(36846): termo de consentimento único`), não o módulo. Determinístico: quando há tarefa ativa (`getTask`), o `on-commit` **bloqueia** (VS-AUD-003) qualquer escopo diferente do número e mostra a correção. O ctx da tarefa (`on-task`) já instrui o formato com o número. Módulo/contexto vai na descrição. Decisão do Fabiano em 21/07 valendo pra TODOS os projetos (Velvet, sigater, Egle).
