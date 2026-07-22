@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.7.0 — Time-box de tarefa simples + rodar so testes criados (21/07/2026)
+
+- **TIME-BOX (on-session)**: tarefa de ALVO ÚNICO simples (criar CRUD, ajuste pontual) passando de ~10min OU muitas iterações sem entregar -> a IA PARA, EXPLICA o que está fazendo/onde travou e PERGUNTA ao dev. Proibido varredura à toa / investigar fora do alvo. Corta o caso "mudou 1 coisa no back e enrolou 1h".
+- **TESTES (regra absoluta, on-session)**: no FIM da tarefa, ANTES do commit, roda SÓ os testes criados/alterados pra a mudança (filtro por arquivo/nome/--filter), nunca a suíte inteira (lenta). Testes novos têm que passar antes do commit.
+
+# Changelog
+
 ## 1.6.0 — Fix falso-positivo de tarefa + regra de impedimento paliativo (21/07/2026)
 
 - **FIX falso-positivo (on-task.mjs)**: mensagem de conversa/pushback fechava tarefa fantasma. Ex.: "nao me trava em" era capturada como ESCOPO e completava uma tarefa #100 travada. Agora: (a) `isMeta` — pushback/meta ("não me trava", "no mcp", "na ferramenta", "nessa sessão", "governança"…) com tarefa pendente **ABORTA** o pending (não vira campo/escopo); (b) captura de escopo só de mensagem descritiva (nunca pergunta/meta); (c) escopo LONGO agora é capturado corretamente quando se espera o escopo (`coreReadyBefore`) — antes a regra de "conversa longa" derrubava escopos grandes.
