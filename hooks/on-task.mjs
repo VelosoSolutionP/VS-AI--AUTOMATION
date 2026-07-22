@@ -182,9 +182,15 @@ if (isDocumentationTask) {
 {
   const cur = parseBranch(prompt);
   const pending = loadReq(sid);
+  const hasList = (v) => Array.isArray(v) && v.length > 0;
+  // 4 campos core já preenchidos em turnos anteriores = estamos ESPERANDO o escopo.
+  const coreReadyBefore = !!(pending?.num && pending?.tipo && pending?.origem && hasList(pending?.repositorios));
 
-  // cancelar tarefa em curso
-  if (pending && /\b(cancela|cancelar|esquece|aborta|deixa pra l[áa])\b/i.test(prompt)) {
+  // META/PUSHBACK: dev pedindo pra NÃO ser travado, falando da ferramenta/sessão/MCP, ou
+  // cancelando. Se há tarefa pendente, ABORTA — NUNCA trata conversa como campo/escopo
+  // (bug: "nao me trava em" fechava tarefa #100 capturando a frase como escopo).
+  const isMeta = /(n[ãa]o me trava|me trava\b|me destrav|para com|deixa (isso|pra l[áa]|pra depois)|\bno mcp\b|\bna ferramenta\b|ferramenta\b|ness[ae] sess[ãa]o|altera[çc]\w*.{0,6}\bmcp\b|\bno gate\b|governan[çc]a)/i.test(prompt);
+  if (pending && (/\b(cancela|cancelar|esquece|aborta|deixa pra l[áa])\b/i.test(prompt) || isMeta)) {
     clearReq(sid);
     clearTask(sid);
     process.exit(0);
@@ -219,7 +225,9 @@ if (isDocumentationTask) {
   // pergunta no meio da tarefa, NÃO fica nagando — deixa livre e mantém o pendente.
   const trouxeCampo = !!(cur.tipo || cur.origem || cur.repositorios || cur.alvo || cur.target) || !!numDeliberado;
   const respostaCurta = prompt.trim().length <= 25;
-  if (emCurso && !numDeliberado && !trouxeCampo && !respostaCurta) {
+  // Conversa longa no meio da tarefa = não naga. MAS se estamos esperando o escopo
+  // (coreReadyBefore), a mensagem descritiva longa É o escopo — deixa passar pra captura.
+  if (emCurso && !numDeliberado && !trouxeCampo && !respostaCurta && !coreReadyBefore) {
     process.exit(0);
   }
 
@@ -234,7 +242,6 @@ if (isDocumentationTask) {
     process.exit(0);
   }
 
-  const hasList = (v) => Array.isArray(v) && v.length > 0;
   const merged = {
     num: numDeliberado || pending?.num || null,
     tipo: cur.tipo || pending?.tipo || null,
@@ -249,9 +256,10 @@ if (isDocumentationTask) {
   // estavam preenchidos (em turnos ANTERIORES), a PRÓXIMA mensagem é o escopo INTEIRO —
   // NÃO parseia palavra (front/back/tela não trava mais). A IA usa pra saber a tela/fluxo
   // onde corrigir/implementar.
-  const coreReadyBefore = !!(pending?.num && pending?.tipo && pending?.origem && hasList(pending?.repositorios));
   const cancelou = /^\s*(cancela|cancelar|esquece|aborta)\b/i.test(prompt);
-  if (!merged.escopo && coreReadyBefore && !cancelou && prompt.trim().length >= 3) {
+  // Só captura escopo de mensagem DESCRITIVA — nunca de pergunta ou pushback/meta
+  // (senão conversa vira escopo e fecha tarefa fantasma, como o bug do #100).
+  if (!merged.escopo && coreReadyBefore && !cancelou && !isMeta && !isQuestion && prompt.trim().length >= 3) {
     merged.escopo = prompt.trim();
   }
 

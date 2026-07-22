@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.0 — Fix falso-positivo de tarefa + regra de impedimento paliativo (21/07/2026)
+
+- **FIX falso-positivo (on-task.mjs)**: mensagem de conversa/pushback fechava tarefa fantasma. Ex.: "nao me trava em" era capturada como ESCOPO e completava uma tarefa #100 travada. Agora: (a) `isMeta` — pushback/meta ("não me trava", "no mcp", "na ferramenta", "nessa sessão", "governança"…) com tarefa pendente **ABORTA** o pending (não vira campo/escopo); (b) captura de escopo só de mensagem descritiva (nunca pergunta/meta); (c) escopo LONGO agora é capturado corretamente quando se espera o escopo (`coreReadyBefore`) — antes a regra de "conversa longa" derrubava escopos grandes.
+- **Regra IMPEDIMENTO (on-session)**: bloqueio por dependência de INFRA (devops/deploy/ambiente flaky/não-confiável) — antes de escalar, a IA busca um **paliativo CONFIÁVEL que desacople da infra** (fallback defensivo, boundary mockado, feature flag, retry/timeout, caminho alternativo), desde que CORRETO, REVERSÍVEL e sem esconder bug de código nem mudar comportamento de negócio. Achou → aplica, DOCUMENTA o paliativo + a dívida de infra e roda o gate de novo; mudou produto/arriscado → pergunta antes; sem paliativo → reporta impedimento. BUG de código = fix na causa raiz, nunca paliativo.
+
 ## 1.5.0 — Gate mobile (device real via USB) + regra de colaboracao dev (21/07/2026)
 
 - **Gate mobile Flutter (`mobile/run-mobile-gate.mjs`, novo)**: prova de funcional no APARELHO REAL via adb/USB — fecha a lacuna do gate de browser (inviavel no Flutter) e do emulador. 3 camadas: flutter analyze -> flutter build apk --release (pega quebra release-only: R8/proguard/obfuscacao) -> integration_test rodando NO DEVICE (runtime real: Reverb/websocket, permissao, camera, path, render). Grava recibo `.git/qa-gate-green-mobile.json`. Sem device = AMARELO; falha no device = VERMELHO.
