@@ -5,8 +5,6 @@
 - **Gate mobile Flutter (`mobile/run-mobile-gate.mjs`, novo)**: prova de funcional no APARELHO REAL via adb/USB — fecha a lacuna do gate de browser (inviavel no Flutter) e do emulador. 3 camadas: flutter analyze -> flutter build apk --release (pega quebra release-only: R8/proguard/obfuscacao) -> integration_test rodando NO DEVICE (runtime real: Reverb/websocket, permissao, camera, path, render). Grava recibo `.git/qa-gate-green-mobile.json`. Sem device = AMARELO; falha no device = VERMELHO.
 - **Regra COLABORACAO DEV (on-session)**: tarefa simples arrastando (mudanca componente-a-componente quando ha solucao sistemica; muitas iteracoes sem convergir; tempo alto no mesmo ponto) -> a IA PARA e PERGUNTA ao dev (que conhece o projeto) se ha abordagem melhor, antes de seguir. Se o dev indicar caminho, avalia e adota se fizer sentido.
 
-# Changelog
-
 ## 1.4.0 — Anti-desperdício de agentes + governança não engata em notificação de harness (21/07/2026)
 
 - **AGENT GUARD (`hooks/on-agent-guard.mjs`, novo — VS-AGENT-001)**: barra o disparo de SUBAGENTE (tool `Task`) pra investigar/corrigir. A ferramenta é pra REDUZIR token — abrir agentes pra investigar alvo já especificado é desperdício. Regra: alvo dado → pesquisa direto (Serena/grep/read); alvo não claro → PERGUNTA. Escape p/ feature extensa real: `.qa-gate-agents-ok` ou `"allowAgents": true` no `qa-gate.company.json`. Registrar em `PreToolUse` matcher `Task`.
