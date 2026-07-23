@@ -10,7 +10,7 @@
  */
 import esbuild from 'esbuild';
 import JavaScriptObfuscator from 'javascript-obfuscator';
-import { readFileSync, writeFileSync, rmSync, mkdirSync, existsSync, cpSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync, mkdirSync, existsSync, cpSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
 const ROOT = dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
@@ -54,8 +54,15 @@ const OBFU = {
 };
 
 async function run() {
-  if (existsSync(DIST)) { rmSync(DIST, { recursive: true, force: true }); }
-  mkdirSync(DIST, { recursive: true });
+  // Limpa só os artefatos gerados; PRESERVA .git e .gitignore (dist é repo de release).
+  if (existsSync(DIST)) {
+    for (const item of readdirSync(DIST)) {
+      if (item === '.git' || item === '.gitignore' || item === 'README.md') { continue; }
+      rmSync(join(DIST, item), { recursive: true, force: true });
+    }
+  } else {
+    mkdirSync(DIST, { recursive: true });
+  }
 
   for (const [src, out] of ENTRIES) {
     const outfile = join(DIST, out);
@@ -97,6 +104,16 @@ async function run() {
   // catalog/ é lido em runtime (createRequire nao inlina o JSON) — copia pro dist.
   // De dist/hooks/* e dist/mcp/*, "../catalog" resolve pra dist/catalog. OK.
   cpSync(join(ROOT, 'catalog'), join(DIST, 'catalog'), { recursive: true });
+
+  // Estrutura de plugin instalavel (config, nao-IP): manifestos + comandos +
+  // exemplo de hooks. O Claude Code auto-descobre hooks/ e commands/.
+  cpSync(join(ROOT, '.claude-plugin'), join(DIST, '.claude-plugin'), { recursive: true });
+  cpSync(join(ROOT, 'commands'), join(DIST, 'commands'), { recursive: true });
+  if (existsSync(join(ROOT, 'hooks', 'settings.example.json'))) {
+    cpSync(join(ROOT, 'hooks', 'settings.example.json'), join(DIST, 'hooks', 'settings.example.json'));
+  }
+  mkdirSync(join(DIST, 'license'), { recursive: true });
+  cpSync(join(ROOT, 'license', 'pubkey.pem'), join(DIST, 'license', 'pubkey.pem'));
 
   // package.json do artefato
   const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
