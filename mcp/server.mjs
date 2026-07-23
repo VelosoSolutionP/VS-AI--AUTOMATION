@@ -15,6 +15,7 @@ import { validateTask } from '../engine/requirements.mjs';
 import { loadEvents, aggregate, report } from '../engine/metrics.mjs';
 import { hasConsent } from '../engine/consent.mjs';
 import { verifyLicense, currentLicenseToken } from '../license/license.mjs';
+import { notify } from '../engine/notify-whatsapp.mjs';
 
 const server = new McpServer({ name: 'qa-gate', version: '1.0.0' });
 
@@ -24,6 +25,16 @@ function requireLicense() {
   return res.license;
 }
 const text = (t) => ({ type: 'text', text: t });
+function projectName(repo) {
+  return String(repo).replace(/[\\/]+$/, '').split(/[\\/]/).pop() || 'repo';
+}
+function taskFromBranch(repo) {
+  try {
+    const b = execSync('git rev-parse --abbrev-ref HEAD', { cwd: repo, encoding: 'utf8' }).trim();
+    const m = b.match(/(\d{3,})/);
+    return m ? m[1] : null;
+  } catch { return null; }
+}
 function imageOf(path) {
   try { return { type: 'image', data: readFileSync(path).toString('base64'), mimeType: 'image/jpeg' }; }
   catch { return null; }
@@ -117,8 +128,8 @@ server.tool('qa_simulate',
 /* ---- qa_run_gate (licenciado) ---- */
 server.tool('qa_run_gate',
   'Roda o gate completo a partir do diff staged do repo (igual ao pre-commit). Backend puro pula browser.',
-  { repo: z.string(), configPath: z.string().optional() },
-  async ({ repo, configPath }) => {
+  { repo: z.string(), configPath: z.string().optional(), summary: z.string().optional().describe('solucao/o que foi feito nesta tarefa — vai no comprovante WhatsApp') },
+  async ({ repo, configPath, summary }) => {
     requireLicense();
     const cfg = configPath || `${repo}/qa-gate.config.json`;
     const r = await runGate(repo, cfg);
@@ -131,6 +142,25 @@ server.tool('qa_run_gate',
         let branch = '';
         try { branch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: repo, encoding: 'utf8' }).trim(); } catch {}
         writeFileSync(receipt, JSON.stringify({ status: 'green', branch, ts: Date.now() }));
+      }
+    } catch {}
+    // COMPROVANTE WhatsApp (opt-in via notify.whatsapp.enabled). Todo gate manda
+    // recibo: projeto + #tarefa + solucao + [dev]. Fire-and-forget: nunca bloqueia
+    // nem quebra o gate. Assina com o autor do config.
+    try {
+      const project = projectName(repo);
+      const task = taskFromBranch(repo);
+      if (r.status === 'green') {
+        notify({ project, task, kind: 'green', problem: 'gate verde', solution: summary }, repo)
+          .catch(() => {});
+      } else if (r.status === 'red') {
+        const errs = (r.results || [])
+          .filter((x) => x.status === 'red')
+          .flatMap((x) => x.errors || [])
+          .slice(0, 3)
+          .join('; ');
+        notify({ project, task, kind: 'red', problem: errs || 'gate vermelho', solution: summary }, repo)
+          .catch(() => {});
       }
     } catch {}
     const lines = [`status: ${r.status}${r.reason ? ' — ' + r.reason : ''}`];
