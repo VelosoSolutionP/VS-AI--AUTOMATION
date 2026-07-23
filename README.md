@@ -4,7 +4,7 @@
 
 > Teste unitário passa e a tela quebra mesmo assim — hidratação errada, lib JS que não subiu, mensagem de erro que não aparece no modal. QA-Gate fecha essa brecha exercendo o fluxo num Chrome de verdade, do jeito que o usuário faz.
 
-Por [Veloso Solution](https://velososolution.online) — Consultoria em IA Aplicada.
+Por [Veloso Solution](https://devpointinnovation.com.br/) — Consultoria em IA Aplicada.
 
 📖 **[Manual de uso passo a passo → MANUAL.md](MANUAL.md)** · Status do produto → [STATUS.md](STATUS.md)
 
@@ -26,12 +26,12 @@ Por [Veloso Solution](https://velososolution.online) — Consultoria em IA Aplic
 - 🔐 Validação de licença **offline** — seu código não sai da sua máquina.
 - 🧩 Editor-agnóstico: Claude Code, Cursor, VS Code ou CI.
 
-**Resultados observados em operação real**
-- ⏱️ **−79% no tempo por tarefa** (de ~115 min para ~22 min no mesmo bug)
-- 🚀 **−84% de queries / −82% de latência** em um caso real de N+1 pego em produção
-- ♻️ Menos reincidência em homologação, dívida técnica em queda
+**Ganhos esperados — variam conforme a forma de uso**
+- 📈 Melhorias expressivas — **de 20% a 70%** em tempo, custo e retrabalho, **dependendo de como a ferramenta é usada**.
+- 🧪 Exemplo real: um caso de **N+1 pego em produção** teve forte redução de queries e latência depois da correção guiada pelo gate.
+- ♻️ Menos reincidência em homologação e dívida técnica em queda.
 
-> Esses números vêm da **orquestração completa** — não só do plugin. Quer o mesmo na sua squad? A Veloso Solution faz **diagnóstico + setup + capacitação**: **[velososolution.online](https://velososolution.online)** · página do produto: **https://velososolution.online/qa-gate**
+> **Não prometemos número fixo.** O resultado real de cada cliente é **medido e comprovado na auditoria ao fim dos 30 dias** (entregue em mãos: processo, forma de uso e, havendo economia, o percentual com evidências). Quer o mesmo na sua squad? Fazemos **diagnóstico + setup + capacitação**: **[devpointinnovation.com.br](https://devpointinnovation.com.br/)**
 
 ---
 
@@ -84,7 +84,7 @@ Funciona como **hook de pre-commit** (piso duro, inescapável) e como **MCP** (o
 - **Node 18+**
 - **Google Chrome** instalado (usa o Chrome do sistema, não baixa chromium)
 - App rodando **local com dados** (Docker de paridade ou `php artisan db:seed`)
-- Uma **licença** (chave) — compre em [velososolution.online](https://velososolution.online)
+- Uma **licença** (chave) — compre em [devpointinnovation.com.br](https://devpointinnovation.com.br/)
 
 ---
 
@@ -132,7 +132,7 @@ A partir daí, cada `git commit` roda o gate. Backend puro pula; UI tocada simul
 
 QA-Gate exige uma chave válida (`QA_GATE_LICENSE`). A validação é **offline** (assinatura Ed25519) — não manda seu código pra lugar nenhum, não precisa de internet a cada run.
 
-- Compre em **[velososolution.online](https://velososolution.online)**.
+- Compre em **[devpointinnovation.com.br](https://devpointinnovation.com.br/)**.
 - Você recebe um token. Exporte como `QA_GATE_LICENSE` (ou coloque no `.env` do CI).
 - Sem chave válida, a simulação não roda.
 
