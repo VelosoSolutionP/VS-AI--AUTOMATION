@@ -10,7 +10,12 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const PUBKEY = readFileSync(join(HERE, 'pubkey.pem'), 'utf8');
+// __QAGATE_PUBKEY__ é injetado no build protegido (esbuild define) pra embutir a
+// chave PÚBLICA no bundle. Em dev (não definido) cai no arquivo. typeof evita
+// ReferenceError com identificador não declarado.
+const PUBKEY = (typeof __QAGATE_PUBKEY__ !== 'undefined')
+  ? __QAGATE_PUBKEY__
+  : readFileSync(join(HERE, 'pubkey.pem'), 'utf8');
 
 const b64urlDecode = (s) => Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
 
@@ -18,11 +23,7 @@ const b64urlDecode = (s) => Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'),
  * @returns {{valid:boolean, reason?:string, license?:object}}
  */
 export function verifyLicense(token) {
-  // Modo demo: aceita chave mock explícita (só pra testar a ideia sem backend).
-  if (token && token.startsWith('DEMO-') && process.env.QA_GATE_ALLOW_DEMO === '1') {
-    return { valid: true, license: { plan: 'demo', email: 'demo@local', mock: true } };
-  }
-  if (!token || !token.includes('.')) { return { valid: false, reason: 'sem licença. Compre em velososolution.online e configure QA_GATE_LICENSE.' }; }
+  if (!token || !token.includes('.')) { return { valid: false, reason: 'sem licença. Compre em devpointinnovation.com.br e configure QA_GATE_LICENSE.' }; }
   try {
     const [payloadB64, sigB64] = token.split('.');
     const payloadBuf = b64urlDecode(payloadB64);

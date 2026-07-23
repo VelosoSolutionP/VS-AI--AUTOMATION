@@ -5,12 +5,11 @@
  *
  * Sem dependências, sem modelo. Consumido por hook (UserPromptSubmit) e MCP.
  */
-import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const CATALOG = JSON.parse(readFileSync(join(HERE, '..', 'catalog', 'messages.json'), 'utf8'));
+// require() do JSON: em dev resolve relativo a este arquivo; no build protegido
+// o esbuild INLINA o catálogo no bundle (sem depender de path em runtime).
+const CATALOG = createRequire(import.meta.url)('../catalog/messages.json');
 const MSG = Object.fromEntries(CATALOG.messages.map((m) => [m.code, m]));
 
 /** Campos e como detectá-los (rótulo explícito OU heurística). */

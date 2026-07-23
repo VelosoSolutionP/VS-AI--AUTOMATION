@@ -10,7 +10,16 @@
   },
   "author": "Veloso Solution <velosobil@gmail.com>",
   "license": "SEE LICENSE IN README.md",
-  "keywords": ["qa", "testing", "pre-commit", "playwright", "livewire", "laravel", "browser", "mcp"],
+  "keywords": [
+    "qa",
+    "testing",
+    "pre-commit",
+    "playwright",
+    "livewire",
+    "laravel",
+    "browser",
+    "mcp"
+  ],
   "bin": {
     "qa-gate": "./qa-gate.mjs",
     "qa-gate-mcp": "./mcp/server.mjs"
@@ -41,5 +50,9 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "playwright": "^1.61.1",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1",
+    "javascript-obfuscator": "^5.5.0"
   }
 }

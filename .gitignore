@@ -9,3 +9,6 @@ license/.keys/
 .metrics/
 .consent/
 .qa-gate-off
+
+# artefato de distribuicao (gerado por build-protected.mjs)
+dist/
