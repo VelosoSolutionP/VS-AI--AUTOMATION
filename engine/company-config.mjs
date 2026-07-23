@@ -26,6 +26,17 @@ export const DEFAULT_CONFIG = {
   // Anti-desperdício: por padrão a IA NÃO abre subagente pra investigar/corrigir —
   // pesquisa direto (Serena/grep/read). Agente só p/ feature extensa REAL (escape .qa-gate-agents-ok).
   allowAgents: false,
+  // Auditoria via WhatsApp (opt-in na instalação). Desligado por padrão; placeholders
+  // 'xxx' pra não vazar credencial de quem instala. Preenche no company.json local.
+  notify: {
+    whatsapp: {
+      enabled: false,
+      provider: 'callmebot',
+      phone: 'xxx',
+      apikey: 'xxx',
+      helpTimeoutMin: 15,
+    },
+  },
 };
 
 function readJson(p) {
@@ -68,6 +79,14 @@ export function loadCompanyConfig(baseDir) {
     ...(user || {}),
     doc: { ...DEFAULT_CONFIG.doc, ...(user?.doc || {}) },
     push: { ...DEFAULT_CONFIG.push, ...(user?.push || {}) },
+    notify: {
+      ...DEFAULT_CONFIG.notify,
+      ...(user?.notify || {}),
+      whatsapp: {
+        ...DEFAULT_CONFIG.notify.whatsapp,
+        ...(user?.notify?.whatsapp || {}),
+      },
+    },
     _source: file || 'default',
   };
 }

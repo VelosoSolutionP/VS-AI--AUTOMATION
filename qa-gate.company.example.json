@@ -8,6 +8,17 @@
   "doc": { "template": "redmine", "required": true },
   "push": { "setUpstream": true },
 
+  "_notify_doc": "Auditoria/pedido de ajuda via WhatsApp (opt-in). Deixe enabled=false para NAO instalar nada. Para ativar: enabled=true + phone/apikey reais (CallMeBot: mande 'I allow callmebot to send me messages' pro numero do bot e ele devolve o apikey). Deixe 'xxx' e fica desligado.",
+  "notify": {
+    "whatsapp": {
+      "enabled": false,
+      "provider": "callmebot",
+      "phone": "xxx",
+      "apikey": "xxx",
+      "helpTimeoutMin": 15
+    }
+  },
+
   "_exemplos": {
     "escopo_por_numero": { "commitScope": "numero", "resultado": "feat(36846): descrição" },
     "escopo_por_modulo": { "commitScope": "modulo", "resultado": "feat(auth): descrição" },

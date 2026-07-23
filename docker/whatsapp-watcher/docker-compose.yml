@@ -1,0 +1,22 @@
+# Watcher do qa-gate — roda o whatsapp-watcher a cada 10 min.
+# Sobe com:  docker compose -f docker/whatsapp-watcher/docker-compose.yml up -d
+# Requer notify.whatsapp.enabled=true no ~/.qa-gate/company.json (montado abaixo).
+#
+# No Windows, defina USERPROFILE (Git Bash já tem) ou troque pelo caminho absoluto
+# do seu perfil em ${HOME_QA:-${USERPROFILE}}.
+services:
+  qa-gate-watcher:
+    image: node:20-alpine
+    container_name: qa-gate-watcher
+    working_dir: /app
+    volumes:
+      # repo do qa-gate (este projeto) em /app
+      - ../..:/app:ro
+      # config + estado do usuario (markers de bloqueio) em /root/.qa-gate
+      - ${HOME_QA:-${USERPROFILE}}/.qa-gate:/root/.qa-gate
+    command: >
+      sh -c "while true; do
+        node hooks/whatsapp-watcher.mjs || true;
+        sleep 600;
+      done"
+    restart: unless-stopped
