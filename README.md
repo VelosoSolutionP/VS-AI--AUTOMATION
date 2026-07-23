@@ -1,10 +1,21 @@
 # QA-Gate
 
+### Pare de mandar bug pra homologação. Mate no commit. 🚦
+
 **Simulação em browser real antes de cada commit.** Injeta o bug, exige que o sistema responda com mensagem amigável no DOM real e console limpo. Só deixa commitar no verde.
 
 > Teste unitário passa e a tela quebra mesmo assim — hidratação errada, lib JS que não subiu, mensagem de erro que não aparece no modal. QA-Gate fecha essa brecha exercendo o fluxo num Chrome de verdade, do jeito que o usuário faz.
 
-Por [Veloso Solution](https://devpointinnovation.com.br/) — Consultoria em IA Aplicada.
+**O que você ganha:**
+- ✅ **Bug de UI barrado no commit** — não chega no QA nem na homologação
+- 🔒 **Governança automática** — commit, branch, teste e documentação no mesmo padrão, sem depender de disciplina manual
+- 🧠 **Contexto preservado** — a IA carrega arquitetura, gotchas e feedback do seu projeto a cada sessão, sem re-explicar
+- 🧪 **Teste unitário obrigatório** — tocou código de produção, tem teste cobrindo; senão não commita
+- 🌐 **Simulação em Chrome real** — pega lib quebrada e hidratação errada que o teste unitário deixa passar
+- 🔐 **Licença offline** — seu código nunca sai da sua máquina
+- 💸 **Menos retrabalho, menos bug em produção** — custo previsível (tokens em frações de centavo por operação)
+
+Por [DevPoint Innovation](https://devpointinnovation.com.br/) — Consultoria em IA Aplicada.
 
 📖 **[Manual de uso passo a passo → MANUAL.md](MANUAL.md)** · Status do produto → [STATUS.md](STATUS.md)
 
@@ -316,4 +327,4 @@ mensagem amigável visível? + console SEVERE=0 + zero request falho?
 
 ---
 
-© Veloso Solution. Uso mediante licença.
+© DevPoint Innovation. Uso mediante licença.
