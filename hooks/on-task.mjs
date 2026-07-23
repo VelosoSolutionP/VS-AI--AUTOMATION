@@ -302,7 +302,17 @@ if (isDocumentationTask) {
   // git-guard vai EXIGIR que commit/push seja na branch dela (prova da criação).
   clearReq(sid);
   clearConsult(sid);
+  // Governança não usa o tipo `test` (decisão Fabiano 23/07/2026): coage para `fix`.
+  if (merged.tipo === 'test') merged.tipo = 'fix';
   setTask(sid, { num: merged.num, tipo: merged.tipo, origem: merged.origem, repositorios: merged.repositorios, escopo: merged.escopo });
+  // Marcador de tempo da tarefa (relógio de 15min): o watcher pinga no WhatsApp
+  // se a tarefa passar do timeout sem fechar (verde/push limpam). É como a IA
+  // deixa de rodar "solta" 40min — passou de 15min, avisa o Fabiano.
+  try {
+    const { reportBlock } = await import('../engine/help-state.mjs');
+    const proj = (process.cwd().replace(/[\\/]+$/, '').split(/[\\/]/).pop()) || 'projeto';
+    reportBlock({ project: proj, task: merged.num, problem: `tarefa em andamento (passou do tempo)`, tsMs: Date.now() });
+  } catch {}
   const repos = merged.repositorios; // lista canônica [front?, back?, mobile?]
   const cfg = loadCompanyConfig(process.cwd());
   const branchName = buildBranchName(cfg, { tipo: merged.tipo, numero: merged.num });

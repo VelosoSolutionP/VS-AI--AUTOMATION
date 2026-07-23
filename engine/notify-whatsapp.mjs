@@ -51,7 +51,7 @@ export function formatMessage({ project, task, kind, problem, solution, dev } = 
   const who = dev ? ` [dev: ${sanitize(dev)}]` : '';
   switch (kind) {
     case 'help':
-      return `[qa-gate AJUDA] ${base} - travei: ${sanitize(problem)}. Preciso de voce.${who}`;
+      return `[qa-gate AJUDA] ${base} - ${sanitize(problem)}. Precisa de voce?${who}`;
     case 'impediment':
       return `[qa-gate IMPEDIMENTO] ${base} - ${sanitize(problem)}. Solucao: ${sanitize(solution || 'aguardando')}.${who}`;
     case 'red':
