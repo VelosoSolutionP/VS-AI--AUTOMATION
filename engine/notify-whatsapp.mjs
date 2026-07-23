@@ -80,13 +80,19 @@ export async function sendWhatsApp(text, baseDir) {
     `?phone=${encodeURIComponent(wa.phone)}` +
     `&text=${encodeURIComponent(sanitize(text))}` +
     `&apikey=${encodeURIComponent(wa.apikey)}`;
+  // Timeout curto: o envio NUNCA pode travar um commit/gate. Se o CallMeBot
+  // demorar/estiver fora, aborta e segue (fire-and-forget defensivo).
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 5000);
   try {
-    const res = await fetch(url, { method: 'GET' });
+    const res = await fetch(url, { method: 'GET', signal: ctrl.signal });
     const body = await res.text();
     const ok = /queued|will receive/i.test(body);
     return { ok, status: res.status, body: body.slice(0, 300) };
   } catch (e) {
     return { ok: false, error: String(e) };
+  } finally {
+    clearTimeout(t);
   }
 }
 

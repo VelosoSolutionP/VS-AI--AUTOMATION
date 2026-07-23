@@ -9,7 +9,36 @@
  */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { execSync } from 'node:child_process';
 import { runGate } from '../engine/core.mjs';
+import { notify } from '../engine/notify-whatsapp.mjs';
+import { reportBlock, clearBlock } from '../engine/help-state.mjs';
+
+function projectName(repo) {
+  return String(repo).replace(/[\\/]+$/, '').split(/[\\/]/).pop() || 'repo';
+}
+function taskFromBranch(repo) {
+  try {
+    const b = execSync('git rev-parse --abbrev-ref HEAD', { cwd: repo, encoding: 'utf8' }).trim();
+    const m = b.match(/(\d{3,})/);
+    return m ? m[1] : null;
+  } catch { return null; }
+}
+// Comprovante WhatsApp + marcador de bloqueio. Nunca lança; awaited antes de
+// allow/deny pra o envio completar (o hook sai com process.exit).
+async function gateSignal(repo, status, detail) {
+  try {
+    const project = projectName(repo);
+    const task = taskFromBranch(repo);
+    if (status === 'green') {
+      clearBlock(project);
+      await notify({ project, task, kind: 'green', problem: 'gate verde' }, repo);
+    } else {
+      reportBlock({ project, task, problem: detail || 'gate bloqueado/vermelho', tsMs: Date.now() });
+      await notify({ project, task, kind: status === 'impediment' ? 'impediment' : 'red', problem: detail || 'gate bloqueado' }, repo);
+    }
+  } catch {}
+}
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
@@ -33,7 +62,7 @@ if (!existsSync(cfg)) { allow('[VS-AUD-000] sem qa-gate.config.json — gate bro
 
 let r;
 try { r = await runGate(repo, cfg); }
-catch (e) { deny(`[VS-AUD-003] BLOCKED — QA-Gate não rodou (${e.message}). Regra ABSOLUTA da governança: o commit fica BLOQUEADO até o gate VERDE. VOCÊ (a IA) é responsável por RESOLVER o que impede o gate de rodar — suba o app em modo dev/live, semeie dados, rebuilde — e re-tente. NÃO commite e NÃO espere uma pessoa resolver.`); }
+catch (e) { await gateSignal(repo, 'impediment', `gate nao rodou: ${e.message}`); deny(`[VS-AUD-003] BLOCKED — QA-Gate não rodou (${e.message}). Regra ABSOLUTA da governança: o commit fica BLOQUEADO até o gate VERDE. VOCÊ (a IA) é responsável por RESOLVER o que impede o gate de rodar — suba o app em modo dev/live, semeie dados, rebuilde — e re-tente. NÃO commite e NÃO espere uma pessoa resolver.`); }
 
 if (r.status === 'skip') {
   allow(`[VS-AUD-002] backend puro — gate browser não se aplica (${r.reason || ''}). INFORME AO USUÁRIO: gate pulou porque nenhum arquivo de UI foi staged (só backend); validado por sintaxe/pint. Não é bug puro deixado passar.\n` +
@@ -41,6 +70,7 @@ if (r.status === 'skip') {
 }
 if (r.status === 'green') {
   const flows = (r.results || []).map((x) => x.name).join(', ') || 'fluxo(s) do config';
+  await gateSignal(repo, 'green');
   allow(
     `[VS-AUD-002] QA-Gate VERDE. INFORME O USUÁRIO ANTES DE COMMITAR (obrigatório, não commite calado): ` +
     `rodei em browser real os fluxos [${flows}]. Em cada um: injetei submit inválido/vazio e exigi MENSAGEM AMIGÁVEL visível no DOM, ` +
@@ -72,6 +102,7 @@ if (r.status === 'blocked' || r.status === 'error') {
     if (n.kind === 'flutter-test-missing') { return `• TESTE MOBILE FALTANDO: ${n.detail}. VOCÊ resolve: escreva o teste que reproduz a correção (contract = joga a resposta REAL da API no fromJson do model; widget = pumpa a tela e exige msg amigável/lista) e re-tente. Sem teste cobrindo, não commita o mobile.`; }
     return `• ${n.kind}: ${n.detail || ''} — VOCÊ diagnostica e resolve, depois re-roda.`;
   }).join('\n');
+  await gateSignal(repo, 'impediment', `gate bloqueado: ${(r.needs || []).map((n) => n.kind).join(', ') || 'faltou algo pra rodar'}`);
   deny(
     `[VS-AUD-003] BLOCKED — QA-Gate NÃO validou (faltou algo pra rodar). REGRA ABSOLUTA da governança: sem gate VERDE, sem commit. NÃO existe commit "liberado" enquanto alguém resolve o problema — o commit fica BLOQUEADO até o gate ficar verde.\n` +
     `⛔ PROIBIDO pedir pra outra pessoa subir/rebuildar/semear e "esperar" enquanto commita. A ferramenta é AUTÔNOMA: VOCÊ (a IA) é DELEGADA a resolver o que for preciso e rodar o gate.\n` +
@@ -83,4 +114,5 @@ if (r.status === 'blocked' || r.status === 'error') {
 }
 // red
 const falhas = (r.results || []).filter((x) => x.status === 'red').map((x) => `${x.name}: ${x.errors?.join('; ')}`).join(' | ');
+await gateSignal(repo, 'red', falhas || 'fluxo reprovou');
 deny(`[VS-AUD-003] BLOCKED — QA-Gate VERMELHO: ${falhas || 'fluxo reprovou'}. Arruma e re-simula. Screenshots em C:/Veloso/ProjetosMsb/QA.`);
