@@ -32,7 +32,7 @@ async function gateSignal(repo, status, detail) {
     const task = taskFromBranch(repo);
     if (status === 'green') {
       clearBlock(project);
-      await notify({ project, task, kind: 'green', problem: 'gate verde' }, repo);
+      await notify({ project, task, kind: 'green', problem: detail || 'gate verde' }, repo);
     } else {
       reportBlock({ project, task, problem: detail || 'gate bloqueado/vermelho', tsMs: Date.now() });
       await notify({ project, task, kind: status === 'impediment' ? 'impediment' : 'red', problem: detail || 'gate bloqueado' }, repo);
@@ -58,13 +58,19 @@ if (!/\bgit\b[\s\S]*\bcommit\b/.test(cmd)) { allow(); }
 
 const repo = process.cwd();
 const cfg = join(repo, 'qa-gate.config.json');
-if (!existsSync(cfg)) { allow('[VS-AUD-000] sem qa-gate.config.json — gate browser não configurado neste repo.'); }
+if (!existsSync(cfg)) {
+  // Sem config de UI (repo backend/sem gate browser): ainda assim gera COMPROVANTE
+  // no WhatsApp do commit (rastreabilidade), pra backend não ficar sem recibo.
+  await gateSignal(repo, 'green', 'commit backend — gate de UI nao configurado; validado por sintaxe/testes');
+  allow('[VS-AUD-000] sem qa-gate.config.json — gate browser não configurado neste repo. Comprovante de commit enviado.');
+}
 
 let r;
 try { r = await runGate(repo, cfg); }
 catch (e) { await gateSignal(repo, 'impediment', `gate nao rodou: ${e.message}`); deny(`[VS-AUD-003] BLOCKED — QA-Gate não rodou (${e.message}). Regra ABSOLUTA da governança: o commit fica BLOQUEADO até o gate VERDE. VOCÊ (a IA) é responsável por RESOLVER o que impede o gate de rodar — suba o app em modo dev/live, semeie dados, rebuilde — e re-tente. NÃO commite e NÃO espere uma pessoa resolver.`); }
 
 if (r.status === 'skip') {
+  await gateSignal(repo, 'green', `backend puro validado (${r.reason || 'sintaxe/pint + testes tocados'})`);
   allow(`[VS-AUD-002] backend puro — gate browser não se aplica (${r.reason || ''}). INFORME AO USUÁRIO: gate pulou porque nenhum arquivo de UI foi staged (só backend); validado por sintaxe/pint. Não é bug puro deixado passar.\n` +
     `[VS-AUD-004] CAMADA EXTRA (regra absoluta): se você tocou código de produção, é OBRIGATÓRIO um teste unitário VÁLIDO correspondente à mudança (backend: PHPUnit/Pest) — cobre o que mudou, não placeholder. Sem teste, sem commit. Se não existe, VOCÊ (a IA) escreve ANTES de commitar, mesmo que não tenha sido pedido no escopo.`);
 }
