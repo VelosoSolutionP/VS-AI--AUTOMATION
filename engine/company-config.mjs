@@ -36,6 +36,20 @@ export const DEFAULT_CONFIG = {
       apikey: 'xxx',
       helpTimeoutMin: 15,
     },
+    // Slack: GRATIS (incoming webhook). Cole a URL do webhook e enabled:true.
+    slack: {
+      enabled: false,
+      webhookUrl: 'xxx',
+    },
+  },
+  // Integracoes/recursos opcionais — CONFIGURAVEIS, desligados por padrao.
+  // O que e free (slack, auditoria local) roda ao ligar; o resto (jira/azure)
+  // exige credencial/endpoint e e roadmap ate ser implementado.
+  integrations: {
+    promptAudit: { enabled: false, hashOnly: true, retentionDays: 30 },
+    dashboard: { enabled: false },
+    jira: { enabled: false, baseUrl: 'xxx', token: 'xxx' },
+    azureDevops: { enabled: false, org: 'xxx', token: 'xxx' },
   },
 };
 
@@ -86,6 +100,14 @@ export function loadCompanyConfig(baseDir) {
         ...DEFAULT_CONFIG.notify.whatsapp,
         ...(user?.notify?.whatsapp || {}),
       },
+      slack: {
+        ...DEFAULT_CONFIG.notify.slack,
+        ...(user?.notify?.slack || {}),
+      },
+    },
+    integrations: {
+      ...DEFAULT_CONFIG.integrations,
+      ...(user?.integrations || {}),
     },
     _source: file || 'default',
   };

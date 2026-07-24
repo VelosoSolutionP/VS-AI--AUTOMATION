@@ -10,20 +10,21 @@
  */
 import { readMarkers, markNotified } from '../engine/help-state.mjs';
 import {
-  sendWhatsApp,
-  formatMessage,
+  notify,
   whatsappConfig,
   whatsappEnabled,
+  slackConfig,
+  slackEnabled,
   devName,
 } from '../engine/notify-whatsapp.mjs';
 
 async function main() {
   const wa = whatsappConfig();
-  if (!whatsappEnabled(wa)) {
-    console.log('[watcher] WhatsApp desativado/placeholder — nada a fazer.');
+  if (!whatsappEnabled(wa) && !slackEnabled(slackConfig())) {
+    console.log('[watcher] WhatsApp e Slack desativados — nada a fazer.');
     return;
   }
-  const timeoutMs = (wa.helpTimeoutMin || 10) * 60 * 1000;
+  const timeoutMs = (wa.helpTimeoutMin || 15) * 60 * 1000;
   const now = Date.now();
   const markers = readMarkers();
   if (markers.length === 0) {
@@ -38,14 +39,13 @@ async function main() {
     if (age < timeoutMs) {
       continue;
     }
-    const msg = formatMessage({
+    const r = await notify({
       project: data.project,
       task: data.task,
       kind: 'help',
       problem: data.problem,
       dev: data.dev || devName(),
     });
-    const r = await sendWhatsApp(msg);
     if (r.ok) {
       markNotified(file, data);
       console.log(`[watcher] avisado: ${data.project} #${data.task || '-'}`);

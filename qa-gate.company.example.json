@@ -16,7 +16,18 @@
       "phone": "xxx",
       "apikey": "xxx",
       "helpTimeoutMin": 15
+    },
+    "slack": {
+      "enabled": false,
+      "webhookUrl": "xxx"
     }
+  },
+  "_integrations_doc": "Recursos opcionais configuraveis (off por padrao). Free (slack) roda ao ligar; jira/azure exigem credencial e sao roadmap.",
+  "integrations": {
+    "promptAudit": { "enabled": false, "hashOnly": true, "retentionDays": 30 },
+    "dashboard": { "enabled": false },
+    "jira": { "enabled": false, "baseUrl": "xxx", "token": "xxx" },
+    "azureDevops": { "enabled": false, "org": "xxx", "token": "xxx" }
   },
 
   "_exemplos": {

@@ -96,8 +96,44 @@ export async function sendWhatsApp(text, baseDir) {
   }
 }
 
-/** Atalho: monta e envia. Assina com o dev (autor do config) se não vier no evt. */
-export function notify(evt, baseDir) {
+// ── Slack (GRATIS via incoming webhook) ──────────────────────────────────────
+export function slackConfig(baseDir) {
+  const cfg = loadCompanyConfig(baseDir);
+  return cfg?.notify?.slack || {};
+}
+export function slackEnabled(sc) {
+  return !!(sc && sc.enabled && sc.webhookUrl && sc.webhookUrl !== 'xxx');
+}
+/** Envia pro Slack (webhook). No-op se desativado. Timeout defensivo. Nunca lança. */
+export async function sendSlack(text, baseDir) {
+  const sc = slackConfig(baseDir);
+  if (!slackEnabled(sc)) {
+    return { ok: false, skipped: true, reason: 'slack desativado/placeholder' };
+  }
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 5000);
+  try {
+    const res = await fetch(sc.webhookUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: sanitize(text) }),
+      signal: ctrl.signal,
+    });
+    return { ok: res.ok, status: res.status };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/** Monta a mensagem 1x e dispara pra TODOS os canais ligados (WhatsApp + Slack). */
+export async function notify(evt, baseDir) {
   const dev = evt?.dev || devName(baseDir);
-  return sendWhatsApp(formatMessage({ ...evt, dev }), baseDir);
+  const msg = formatMessage({ ...evt, dev });
+  const [wa, sl] = await Promise.all([
+    sendWhatsApp(msg, baseDir),
+    sendSlack(msg, baseDir),
+  ]);
+  return { ok: !!(wa.ok || sl.ok), whatsapp: wa, slack: sl };
 }
