@@ -57,6 +57,41 @@ const deny = (reason) => {
 if (!/\bgit\b[\s\S]*\bcommit\b/.test(cmd)) { allow(); }
 
 const repo = process.cwd();
+
+// ── VS-AUD-004 (regra ABSOLUTA): tocou código de produção → EXIGE teste no
+// mesmo commit. Sem teste, sem commit. Bloqueio determinístico (não é aviso).
+// Escape raro p/ mudança sem superfície de teste: touch .qa-gate-notest-ok
+{
+  let staged = [];
+  try {
+    staged = execSync('git diff --cached --name-only', { cwd: repo, encoding: 'utf8' })
+      .trim().split(/\r?\n/).filter(Boolean);
+  } catch {}
+  const isTest = (f) =>
+    /(^|\/)(tests?|__tests__|spec|test)\//i.test(f) ||
+    /\.(spec|test)\.[cm]?[jt]sx?$/i.test(f) ||
+    /_test\.dart$/i.test(f) ||
+    /(Test|Spec)\.(php|java|kt)$/i.test(f) ||
+    /_spec\.rb$/i.test(f) ||
+    /_test\.(py|go)$/i.test(f);
+  const isProdCode = (f) =>
+    /\.(php|ts|tsx|js|jsx|vue|dart|java|kt|py|go|cs|rb|swift)$/i.test(f) &&
+    !/\.blade\.php$/i.test(f) && // view Laravel = gate de browser, não unit test
+    !isTest(f) &&
+    !/(^|\/)migrations?\//i.test(f);
+  const prod = staged.filter(isProdCode);
+  const tests = staged.filter(isTest);
+  if (prod.length > 0 && tests.length === 0 && !existsSync(join(repo, '.qa-gate-notest-ok'))) {
+    await gateSignal(repo, 'red', 'commit sem teste — VS-AUD-004');
+    deny(
+      `[VS-AUD-004] BLOCKED — REGRA ABSOLUTA: você tocou código de produção ` +
+      `(${prod.slice(0, 6).join(', ')}${prod.length > 6 ? '…' : ''}) e NÃO há teste no commit. ` +
+      `Sem teste, sem commit. Escreva o teste unitário que cobre a mudança (backend PHPUnit/Pest; front vitest/jest; mobile flutter test) e faça \`git add\` dele — mesmo que não tenha sido pedido no escopo. ` +
+      `Escape raro (mudança sem superfície de teste, ex.: config/constante): \`touch .qa-gate-notest-ok\`.`
+    );
+  }
+}
+
 const cfg = join(repo, 'qa-gate.config.json');
 if (!existsSync(cfg)) {
   // Sem config de UI (repo backend/sem gate browser): ainda assim gera COMPROVANTE
