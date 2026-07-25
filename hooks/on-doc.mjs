@@ -11,6 +11,8 @@ import { execSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setFree } from '../engine/branch-req.mjs';
+import { clearBlock } from '../engine/help-state.mjs';
+import { notify, devName } from '../engine/notify-whatsapp.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
@@ -22,11 +24,26 @@ if (!/\bgit\b[\s\S]*\bpush\b/.test(cmd)) { process.exit(0); }
 // push feito -> janela LIVRE: perguntas/confirmações liberadas até a próxima tarefa.
 setFree(sid);
 
+// Tarefa ENTREGUE (subiu) -> encerra o relogio de ajuda: limpa o marcador pra o
+// watcher NAO ficar pingando "precisa de ajuda?" de uma tarefa ja concluida.
+try {
+  const proj = (process.cwd().replace(/[\\/]+$/, '').split(/[\\/]/).pop()) || 'projeto';
+  clearBlock(proj);
+} catch {}
+
 let branch = '';
 try { branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim(); } catch {}
 try {
   const gitDir = execSync('git rev-parse --git-dir', { encoding: 'utf8' }).trim();
   writeFileSync(join(gitDir, 'qa-gate-pending-doc'), branch || 'branch');
+} catch {}
+
+// MURO: todo push (tarefa entregue) dispara o COMPROVANTE DE TAREFA CONCLUIDA no
+// WhatsApp — prova pro tech lead/gestor, a IA nao pula (hook determinístico).
+try {
+  const proj = (process.cwd().replace(/[\\/]+$/, '').split(/[\\/]/).pop()) || 'projeto';
+  const task = (branch.match(/(\d{3,})/) || [])[1] || null;
+  await notify({ project: proj, task, kind: 'done', dev: devName() });
 } catch {}
 
 process.stdout.write(JSON.stringify({

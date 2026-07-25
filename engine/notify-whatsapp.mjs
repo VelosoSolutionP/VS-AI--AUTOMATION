@@ -58,6 +58,8 @@ export function formatMessage({ project, task, kind, problem, solution, dev } = 
       return `[qa-gate VERMELHO] ${base} - ${sanitize(problem)}. ${solution ? 'Corrigi: ' + sanitize(solution) : 'Resolvendo ate ficar verde.'}${who}`;
     case 'green':
       return `[qa-gate VERDE] ${base} - ${sanitize(problem || 'gate ok')}.${solution ? ' Correcao: ' + sanitize(solution) + '.' : ''}${who}`;
+    case 'done':
+      return `[qa-gate TAREFA CONCLUIDA] ${base} - entregue (push feito, sem erro pendente).${solution ? ' ' + sanitize(solution) : ''}${who}`;
     default:
       return `[qa-gate] ${base} - ${sanitize(problem || '')}${who}`;
   }
