@@ -28,6 +28,8 @@ export function recordTask(ev, logPath = DEFAULT_LOG) {
   const row = {
     ts: ev.ts ?? Date.now(),
     type: ev.type || 'default',
+    project: ev.project ?? null,
+    task: ev.task ?? null,
     durationMin: Number(ev.durationMin) || 0,
     tokens: Number(ev.tokens) || 0,
     aiCalled: !!ev.aiCalled,
