@@ -11,9 +11,8 @@ import { execSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setFree } from '../engine/branch-req.mjs';
-import { clearBlock, readMarkers } from '../engine/help-state.mjs';
+import { clearBlock } from '../engine/help-state.mjs';
 import { notify, devName } from '../engine/notify-whatsapp.mjs';
-import { recordTask } from '../engine/metrics.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
@@ -25,20 +24,11 @@ if (!/\bgit\b[\s\S]*\bpush\b/.test(cmd)) { process.exit(0); }
 // push feito -> janela LIVRE: perguntas/confirmações liberadas até a próxima tarefa.
 setFree(sid);
 
-// Tarefa ENTREGUE (subiu): (1) captura o TEMPO REAL (abertura -> push) na
-// telemetria pro dashboard; (2) encerra o relogio de ajuda (limpa o marcador).
+// Tarefa ENTREGUE (subiu): encerra o relogio de ajuda (limpa o marcador). A
+// contagem/tempo por tarefa é gravada POR COMMIT (on-qa-gate) — pro modo pacotao
+// (N tarefas, N commits, 1 push) a auditoria contar N, não 1.
 try {
   const proj = (process.cwd().replace(/[\\/]+$/, '').split(/[\\/]/).pop()) || 'projeto';
-  const marker = readMarkers().find((m) => m.data && m.data.project === proj);
-  const openTs = marker?.data?.ts || 0;
-  const durationMin = openTs ? Math.max(0, Math.round((Date.now() - openTs) / 60000)) : 0;
-  recordTask({
-    type: 'task_delivered',
-    project: proj,
-    task: marker?.data?.task || null,
-    durationMin,
-    docAuto: true,
-  });
   clearBlock(proj);
 } catch {}
 

@@ -12,7 +12,8 @@ import { join } from 'node:path';
 import { execSync } from 'node:child_process';
 import { runGate } from '../engine/core.mjs';
 import { notify } from '../engine/notify-whatsapp.mjs';
-import { reportBlock, clearBlock } from '../engine/help-state.mjs';
+import { reportBlock, clearBlock, readMarkers } from '../engine/help-state.mjs';
+import { recordTask } from '../engine/metrics.mjs';
 
 function projectName(repo) {
   return String(repo).replace(/[\\/]+$/, '').split(/[\\/]/).pop() || 'repo';
@@ -37,6 +38,24 @@ async function gateSignal(repo, status, detail) {
       reportBlock({ project, task, problem: detail || 'gate bloqueado/vermelho', tsMs: Date.now() });
       await notify({ project, task, kind: status === 'impediment' ? 'impediment' : 'red', problem: detail || 'gate bloqueado' }, repo);
     }
+  } catch {}
+}
+
+// AUDITORIA POR COMMIT: cada commit liberado = 1 tarefa entregue. O numero da
+// tarefa vem da MENSAGEM do commit (fix(NNNNN): ...) — assim o modo pacotao
+// (N tarefas numa branch, N commits) conta N, nao 1 no push. Tempo do marcador
+// se a tarefa foi aberta formalmente; senao 0.
+function taskFromMsg(c) { const m = (c || '').match(/\((\d{3,})\)/); return m ? m[1] : null; }
+function logDelivered(repo, c) {
+  try {
+    const project = projectName(repo);
+    const task = taskFromMsg(c) || taskFromBranch(repo);
+    let durationMin = 0;
+    try {
+      const mk = readMarkers().find((m) => m.data && m.data.project === project);
+      if (mk?.data?.ts) { durationMin = Math.max(0, Math.round((Date.now() - mk.data.ts) / 60000)); }
+    } catch {}
+    recordTask({ type: 'task_delivered', project, task, durationMin, commitInStandard: true });
   } catch {}
 }
 
@@ -97,6 +116,7 @@ if (!existsSync(cfg)) {
   // Sem config de UI (repo backend/sem gate browser): ainda assim gera COMPROVANTE
   // no WhatsApp do commit (rastreabilidade), pra backend não ficar sem recibo.
   await gateSignal(repo, 'green', 'commit backend — gate de UI nao configurado; validado por sintaxe/testes');
+  logDelivered(repo, cmd);
   allow('[VS-AUD-000] sem qa-gate.config.json — gate browser não configurado neste repo. Comprovante de commit enviado.');
 }
 
@@ -106,12 +126,14 @@ catch (e) { await gateSignal(repo, 'impediment', `gate nao rodou: ${e.message}`)
 
 if (r.status === 'skip') {
   await gateSignal(repo, 'green', `backend puro validado (${r.reason || 'sintaxe/pint + testes tocados'})`);
+  logDelivered(repo, cmd);
   allow(`[VS-AUD-002] backend puro — gate browser não se aplica (${r.reason || ''}). INFORME AO USUÁRIO: gate pulou porque nenhum arquivo de UI foi staged (só backend); validado por sintaxe/pint. Não é bug puro deixado passar.\n` +
     `[VS-AUD-004] CAMADA EXTRA (regra absoluta): se você tocou código de produção, é OBRIGATÓRIO um teste unitário VÁLIDO correspondente à mudança (backend: PHPUnit/Pest) — cobre o que mudou, não placeholder. Sem teste, sem commit. Se não existe, VOCÊ (a IA) escreve ANTES de commitar, mesmo que não tenha sido pedido no escopo.`);
 }
 if (r.status === 'green') {
   const flows = (r.results || []).map((x) => x.name).join(', ') || 'fluxo(s) do config';
   await gateSignal(repo, 'green');
+  logDelivered(repo, cmd);
   allow(
     `[VS-AUD-002] QA-Gate VERDE. INFORME O USUÁRIO ANTES DE COMMITAR (obrigatório, não commite calado): ` +
     `rodei em browser real os fluxos [${flows}]. Em cada um: injetei submit inválido/vazio e exigi MENSAGEM AMIGÁVEL visível no DOM, ` +
