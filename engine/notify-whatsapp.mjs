@@ -45,23 +45,24 @@ export function whatsappEnabled(wa) {
  */
 export function formatMessage({ project, task, kind, problem, solution, dev } = {}) {
   const p = sanitize(project || '?');
-  const t = task ? `#${sanitize(String(task))}` : '';
-  const base = `${p} ${t}`.trim();
-  // Nome do dev fecha a prova concreta (de quem era a sessao).
+  const t = task ? `#${sanitize(String(task))}` : 's/n';
+  // TODO recibo comeca com PROJETO + TAREFA rotulados — pro Fabiano saber
+  // sempre o que e de quem (varios projetos/devs em paralelo).
+  const head = `Projeto ${p} · Tarefa ${t}`;
   const who = dev ? ` [dev: ${sanitize(dev)}]` : '';
   switch (kind) {
     case 'help':
-      return `[qa-gate AJUDA] Projeto ${p}${t ? ' · Tarefa ' + t : ''}: ${sanitize(problem)}. Precisa de voce?${who}`;
+      return `[qa-gate AJUDA] ${head} - ${sanitize(problem)}. Precisa de voce?${who}`;
     case 'impediment':
-      return `[qa-gate IMPEDIMENTO] ${base} - ${sanitize(problem)}. Solucao: ${sanitize(solution || 'aguardando')}.${who}`;
+      return `[qa-gate IMPEDIMENTO] ${head} - ${sanitize(problem)}. Solucao: ${sanitize(solution || 'aguardando')}.${who}`;
     case 'red':
-      return `[qa-gate VERMELHO] ${base} - ${sanitize(problem)}. ${solution ? 'Corrigi: ' + sanitize(solution) : 'Resolvendo ate ficar verde.'}${who}`;
+      return `[qa-gate VERMELHO] ${head} - ${sanitize(problem)}. ${solution ? 'Corrigi: ' + sanitize(solution) : 'Resolvendo ate ficar verde.'}${who}`;
     case 'green':
-      return `[qa-gate VERDE] ${base} - ${sanitize(problem || 'gate ok')}.${solution ? ' Correcao: ' + sanitize(solution) + '.' : ''}${who}`;
+      return `[qa-gate VERDE] ${head} - ${sanitize(problem || 'gate ok')}.${solution ? ' Correcao: ' + sanitize(solution) + '.' : ''}${who}`;
     case 'done':
-      return `[qa-gate TAREFA CONCLUIDA] ${base} - entregue (push feito, sem erro pendente).${solution ? ' ' + sanitize(solution) : ''}${who}`;
+      return `[qa-gate TAREFA CONCLUIDA] ${head} - entregue (push feito, sem erro pendente).${solution ? ' ' + sanitize(solution) : ''}${who}`;
     default:
-      return `[qa-gate] ${base} - ${sanitize(problem || '')}${who}`;
+      return `[qa-gate] ${head} - ${sanitize(problem || '')}${who}`;
   }
 }
 
@@ -69,6 +70,25 @@ export function formatMessage({ project, task, kind, problem, solution, dev } = 
 export function devName(baseDir) {
   const cfg = loadCompanyConfig(baseDir);
   return cfg?.autor || null;
+}
+
+/**
+ * Nome do PROJETO pro recibo. Ordem: config.projectName (override) -> pai/base
+ * (desambigua "backend"/"mobile" entre projetos, ex.: Egle/backend, Velvet/mobile)
+ * -> base. O Fabiano precisa saber sempre o que e de quem.
+ */
+export function projectLabel(repo) {
+  try {
+    const cfg = loadCompanyConfig(repo);
+    if (cfg?.projectName) { return sanitize(cfg.projectName); }
+  } catch {}
+  const parts = String(repo || '').replace(/[\\/]+$/, '').split(/[\\/]/).filter(Boolean);
+  const base = parts[parts.length - 1] || 'projeto';
+  const parent = parts[parts.length - 2];
+  if (parent && !/^[a-z]:$/i.test(parent) && parent !== '') {
+    return `${parent}/${base}`;
+  }
+  return base;
 }
 
 /** Envia via CallMeBot. Retorna {ok, skipped?, status?, body?/error?}. Nunca lança. */

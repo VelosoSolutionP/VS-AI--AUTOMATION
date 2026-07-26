@@ -11,13 +11,13 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
 import { runGate } from '../engine/core.mjs';
-import { notify } from '../engine/notify-whatsapp.mjs';
+import { notify, projectLabel } from '../engine/notify-whatsapp.mjs';
 import { reportBlock, clearBlock, readMarkers } from '../engine/help-state.mjs';
 import { recordTask } from '../engine/metrics.mjs';
 
-function projectName(repo) {
-  return String(repo).replace(/[\\/]+$/, '').split(/[\\/]/).pop() || 'repo';
-}
+// Nome do projeto no recibo/audit: pai/base (desambigua backend/mobile) ou
+// config.projectName. Ex.: Egle/backend, Velvet/mobile, Morar Melhor/portal...
+const projectName = projectLabel;
 function taskFromBranch(repo) {
   try {
     const b = execSync('git rev-parse --abbrev-ref HEAD', { cwd: repo, encoding: 'utf8' }).trim();

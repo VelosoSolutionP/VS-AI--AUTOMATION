@@ -12,7 +12,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setFree } from '../engine/branch-req.mjs';
 import { clearBlock } from '../engine/help-state.mjs';
-import { notify, devName } from '../engine/notify-whatsapp.mjs';
+import { notify, devName, projectLabel } from '../engine/notify-whatsapp.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
@@ -28,7 +28,7 @@ setFree(sid);
 // contagem/tempo por tarefa é gravada POR COMMIT (on-qa-gate) — pro modo pacotao
 // (N tarefas, N commits, 1 push) a auditoria contar N, não 1.
 try {
-  const proj = (process.cwd().replace(/[\\/]+$/, '').split(/[\\/]/).pop()) || 'projeto';
+  const proj = projectLabel(process.cwd());
   clearBlock(proj);
 } catch {}
 
@@ -42,7 +42,7 @@ try {
 // MURO: todo push (tarefa entregue) dispara o COMPROVANTE DE TAREFA CONCLUIDA no
 // WhatsApp — prova pro tech lead/gestor, a IA nao pula (hook determinístico).
 try {
-  const proj = (process.cwd().replace(/[\\/]+$/, '').split(/[\\/]/).pop()) || 'projeto';
+  const proj = projectLabel(process.cwd());
   const task = (branch.match(/(\d{3,})/) || [])[1] || null;
   await notify({ project: proj, task, kind: 'done', dev: devName() });
 } catch {}

@@ -17,6 +17,9 @@ import { homedir } from 'node:os';
 
 export const DEFAULT_CONFIG = {
   autor: 'fabiano.veloso',
+  // Nome amigavel do projeto nos recibos/auditoria (override). Se null, usa
+  // pai/base da pasta (ex.: Egle/backend). Ex.: "Morar Melhor", "Egle Mobile".
+  projectName: null,
   branchPattern: '<tipo>/<autor>/<numero>',
   commitScope: 'numero',        // 'numero' | 'modulo' | 'any'
   commitScopeRegex: null,       // opcional: string de regex; se setado, sobrepõe commitScope
