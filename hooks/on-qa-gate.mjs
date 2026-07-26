@@ -50,11 +50,20 @@ function logDelivered(repo, c) {
   try {
     const project = projectName(repo);
     const task = taskFromMsg(c) || taskFromBranch(repo);
+    // Tempo desta tarefa = agora − último commit (no ato de commitar a tarefa N,
+    // o HEAD ainda é a tarefa N-1). Funciona no pacotão (sem marcador por tarefa).
+    // 1º commit do lote: mede desde a base da branch. Fallback: marcador da tarefa.
     let durationMin = 0;
     try {
-      const mk = readMarkers().find((m) => m.data && m.data.project === project);
-      if (mk?.data?.ts) { durationMin = Math.max(0, Math.round((Date.now() - mk.data.ts) / 60000)); }
+      const ct = parseInt(execSync('git log -1 --format=%ct', { cwd: repo, encoding: 'utf8' }).trim(), 10);
+      if (ct > 0) { durationMin = Math.max(0, Math.round((Date.now() / 1000 - ct) / 60)); }
     } catch {}
+    if (!durationMin) {
+      try {
+        const mk = readMarkers().find((m) => m.data && m.data.project === project);
+        if (mk?.data?.ts) { durationMin = Math.max(0, Math.round((Date.now() - mk.data.ts) / 60000)); }
+      } catch {}
+    }
     recordTask({ type: 'task_delivered', project, task, durationMin, commitInStandard: true });
   } catch {}
 }
