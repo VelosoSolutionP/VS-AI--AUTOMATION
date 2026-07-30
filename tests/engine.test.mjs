@@ -14,6 +14,7 @@ import { globToRe, matchAny, normalizeStartCommand } from '../engine/core.mjs';
 import { timeBoxStatus, timeBoxLimitMin, TIME_BOX_MIN } from '../engine/timebox.mjs';
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
 import { isGitCommit, isGitPush } from '../engine/git-cmd.mjs';
+import { projectLabel } from '../engine/notify-whatsapp.mjs';
 import { resolve as pathResolve } from 'node:path';
 import { parseBranch, setTask, clearTask, setPreflight, clearPreflight, isPreflight } from '../engine/branch-req.mjs';
 import { DEFAULT_CONFIG, branchName, branchRegex, checkCommitScope, patternUsesNumero } from '../engine/company-config.mjs';
@@ -290,6 +291,12 @@ test('git-cmd: invocacao REAL de commit/push (nao palavra solta) — fim do reci
   assert.equal(isGitCommit('git status'), false);
   assert.equal(isGitPush('git log --oneline | grep push'), false);
   assert.equal(isGitPush('cat .git/HEAD'), false);
+});
+
+test('projectLabel: recibo = pai/base consistente (Velvet/frontend), MCP e hooks iguais', () => {
+  assert.equal(projectLabel('C:/Veloso/ProjetosMsb/Velvet/frontend'), 'Velvet/frontend');
+  assert.equal(projectLabel('C:/Veloso/ProjetosMsb/Velvet/mobile'), 'Velvet/mobile');
+  assert.equal(projectLabel('C:/Veloso/ProjetosMsb/Egle/backend'), 'Egle/backend');
 });
 
 test('glob: matchAny casa padroes', () => {

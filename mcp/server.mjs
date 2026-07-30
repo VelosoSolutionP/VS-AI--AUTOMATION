@@ -15,7 +15,7 @@ import { validateTask } from '../engine/requirements.mjs';
 import { loadEvents, aggregate, report } from '../engine/metrics.mjs';
 import { hasConsent } from '../engine/consent.mjs';
 import { verifyLicense, currentLicenseToken } from '../license/license.mjs';
-import { notify } from '../engine/notify-whatsapp.mjs';
+import { notify, projectLabel } from '../engine/notify-whatsapp.mjs';
 
 const server = new McpServer({ name: 'qa-gate', version: '1.0.0' });
 
@@ -25,8 +25,10 @@ function requireLicense() {
   return res.license;
 }
 const text = (t) => ({ type: 'text', text: t });
+// Nome do projeto no recibo: MESMA regra dos hooks (projectLabel = pai/base ou
+// config.projectName), pra não sair "frontend" no MCP e "Velvet/frontend" no hook.
 function projectName(repo) {
-  return String(repo).replace(/[\\/]+$/, '').split(/[\\/]/).pop() || 'repo';
+  return projectLabel(repo);
 }
 function taskFromBranch(repo) {
   try {
