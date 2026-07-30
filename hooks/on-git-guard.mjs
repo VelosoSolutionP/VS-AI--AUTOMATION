@@ -64,6 +64,15 @@ if (/\bgit\s+add\s+(\.|-A\b|--all\b|:\/)/.test(cmd)) {
   deny('[VS-GIT-001] BLOCKED — `git add .` proibido. Adicione só os arquivos da tarefa explicitamente (ex.: git add app/Foo.php resources/views/foo.blade.php).');
 }
 
+// REGRA ABSOLUTA (Fabiano 23/07/2026): depois de criada, a branch NÃO pode
+// ser renomeada — renomear quebra o fluxo (rastreio da tarefa, MR aberto).
+const renomeiaBranch = /\bgit\s+branch\s+(-m|-M|--move)\b/.test(cmd) || /\bgit\s+branch\s+.*\s(-m|-M|--move)\b/.test(cmd);
+// Exceção: só o ADMIN pode renomear, informando a senha (anexar 9601 ao comando).
+const admOverride = /\b9601\b/.test(cmd);
+if (renomeiaBranch && !admOverride) {
+  deny('[VS-BRANCH-007] BLOCKED — proibido renomear branch (git branch -m/-M/--move). Uma vez criada, a branch da tarefa é imutável — renomear quebra o fluxo. Só o admin renomeia, informando a senha (anexe 9601 ao comando). Ou crie nova branch no padrão.');
+}
+
 // criação de branch: exige base de ORIGEM explícita (origin/<x>)
 const criaBranch = /\bgit\s+checkout\s+-b\b/.test(cmd) || /\bgit\s+switch\s+-c\b/.test(cmd) || /\bgit\s+branch\s+\S/.test(cmd);
 // MOBILE acumula: a branch da tarefa DEVE sair da branch ATUAL (carrega o trabalho
@@ -214,7 +223,11 @@ if (PROTECTED.test(branch)) {
 // commita nela; só o push do mobile é barrado à parte).
 let task = null; try { task = getTask(sid); } catch {}
 if (task && task.num) {
-  const expected = buildBranchName(cfg, { tipo: task.tipo, numero: task.num });
+  // Governança não usa o tipo `test` para branch — normaliza para `fix`
+  // (decisão do Fabiano 23/07/2026). Aceita branch fix/ mesmo em tarefa
+  // classificada como test, sem exigir rename.
+  const tipoBranch = task.tipo === 'test' ? 'fix' : task.tipo;
+  const expected = buildBranchName(cfg, { tipo: tipoBranch, numero: task.num });
   if (branch !== expected) {
     const repos = Array.isArray(task.repositorios) ? task.repositorios : (task.repositorios ? [task.repositorios] : []);
     const multi = repos.length > 1;
