@@ -144,27 +144,37 @@ server.tool('qa_run_gate',
         writeFileSync(receipt, JSON.stringify({ status: 'green', branch, ts: Date.now() }));
       }
     } catch {}
-    // COMPROVANTE WhatsApp (opt-in via notify.whatsapp.enabled). Todo gate manda
-    // recibo: projeto + #tarefa + solucao + [dev]. Fire-and-forget: nunca bloqueia
-    // nem quebra o gate. Assina com o autor do config.
+    // COMPROVANTE WhatsApp — AGUARDA e CAPTURA o status de ENTREGA (não é mais
+    // fire-and-forget). Verde no gate != recibo entregue: a IA/dev precisa VER se
+    // o WhatsApp saiu, senão é ponto cego. notify() nunca lança.
+    let waStatus = null;
     try {
       const project = projectName(repo);
       const task = taskFromBranch(repo);
       if (r.status === 'green') {
-        notify({ project, task, kind: 'green', problem: 'gate verde', solution: summary }, repo)
-          .catch(() => {});
+        waStatus = await notify({ project, task, kind: 'green', problem: 'gate verde', solution: summary }, repo);
       } else if (r.status === 'red') {
         const errs = (r.results || [])
           .filter((x) => x.status === 'red')
           .flatMap((x) => x.errors || [])
           .slice(0, 3)
           .join('; ');
-        notify({ project, task, kind: 'red', problem: errs || 'gate vermelho', solution: summary }, repo)
-          .catch(() => {});
+        waStatus = await notify({ project, task, kind: 'red', problem: errs || 'gate vermelho', solution: summary }, repo);
       }
-    } catch {}
+    } catch (e) { waStatus = { whatsapp: { ok: false, error: String(e) } }; }
     const lines = [`status: ${r.status}${r.reason ? ' — ' + r.reason : ''}`];
     (r.results || []).forEach((x) => lines.push(`  ${x.status === 'green' ? '✔' : x.status === 'red' ? '✖' : '·'} ${x.name}${x.errors?.length ? ' — ' + x.errors.join('; ') : ''}`));
+    // ENTREGA do recibo (fecha o ponto cego: verde no gate != recibo entregue).
+    if (waStatus) {
+      const w = waStatus.whatsapp || {};
+      if (w.skipped) {
+        lines.push('recibo WhatsApp: DESATIVADO (opt-out) — recibo só em .git/qa-gate-green.json');
+      } else if (w.ok) {
+        lines.push(`recibo WhatsApp: ENVIADO (HTTP ${w.status})`);
+      } else {
+        lines.push(`recibo WhatsApp: FALHOU (${w.error || 'HTTP ' + w.status}) — ATENCAO: gate verde mas recibo NAO entregue`);
+      }
+    }
     if (r.needs?.length) {
       lines.push('FALTA pro gate rodar (a IA resolve; commit fica BLOQUEADO até o gate VERDE — não commite nem espere uma pessoa):');
       r.needs.forEach((n) => lines.push(`  → ${n.kind}${n.detail ? ': ' + n.detail : ''}${n.baseUrl ? ' (' + n.baseUrl + ')' : ''}${n.uiFiles ? ' [' + n.uiFiles.slice(0, 6).join(', ') + ']' : ''}`));

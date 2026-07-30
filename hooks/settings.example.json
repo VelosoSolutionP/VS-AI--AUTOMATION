@@ -23,11 +23,23 @@
           { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-git-guard.mjs" },
           { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-qa-gate.mjs" }
         ]
+      },
+      {
+        "matcher": "Task|Agent|Dispatch|dispatch_agent",
+        "hooks": [
+          { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-agent-guard.mjs" }
+        ]
+      },
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-bg-guard.mjs" }
+        ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|PowerShell",
         "hooks": [
           { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-doc.mjs" }
         ]
