@@ -35,6 +35,12 @@
         "hooks": [
           { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-bg-guard.mjs" }
         ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-branch-first.mjs" }
+        ]
       }
     ],
     "PostToolUse": [
