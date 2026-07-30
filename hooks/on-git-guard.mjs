@@ -15,8 +15,9 @@
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve, isAbsolute } from 'node:path';
-import { loadReq, isConsult, isSessionOff, getTask } from '../engine/branch-req.mjs';
+import { loadReq, isConsult, isSessionOff, getTask, setTask } from '../engine/branch-req.mjs';
 import { loadCompanyConfig, branchName as buildBranchName, branchRegex, branchGlobsForNumber, patternUsesNumero } from '../engine/company-config.mjs';
+import { timeBoxStatus } from '../engine/timebox.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
@@ -223,6 +224,38 @@ if (task && task.num) {
     deny(`[VS-BRANCH-006] BLOCKED — a branch da TAREFA #${task.num} não está ativa (você está em "${branch}", esperado "${expected}"). ` +
       `Crie/entre nela ANTES de ${isPush ? 'pushar' : 'commitar'}: ${criarExpected}. ` +
       `${multi ? `REPOSITÓRIOS=${repos.join('+')}: crie essa MESMA branch em CADA repo escolhido (mobile acumula da atual). ` : ''}Não pule a criação da branch.`);
+  }
+}
+
+// [VS-TIME-001] TIME-BOX 15min ABSOLUTO: tarefa ativa que passou do tempo pré-estabelecido
+// BLOQUEIA commit/push. Chama o dev no Slack (1 vez) e exige a explicação AO VIVO do porquê
+// da demora. Só o DEV ou ADMIN libera: o admin anexa a senha 9601 ao comando git (reinicia
+// a janela). A IA NÃO se auto-libera nem cria flag/arquivo pra pular.
+if (task && task.num && task.ts) {
+  const st = timeBoxStatus(task, Date.now(), cfg);
+  if (st.overdue) {
+    if (/\b9601\b/.test(cmd)) {
+      try { setTask(sid, { ...task, ts: Date.now() }); } catch {} // admin liberou -> reinicia a janela
+    } else {
+      // chama o dev (Slack/WhatsApp conforme config), 1 vez — dedupe pelo marcador de ajuda da tarefa
+      try {
+        const { readMarkers, markNotified } = await import('../engine/help-state.mjs');
+        const { notify, devName, projectLabel } = await import('../engine/notify-whatsapp.mjs');
+        const mk = readMarkers().find((m) => String(m.data.task) === String(task.num) && !m.data.notified);
+        const r = await notify({
+          project: projectLabel(gitCwd),
+          task: task.num,
+          kind: 'help',
+          problem: `time-box estourado: tarefa #${task.num} passou de ${st.limitMin}min (levou ${st.ageMin}min) — apurar a demora`,
+          dev: (mk && mk.data.dev) || devName(),
+        });
+        if (r && r.ok && mk) { markNotified(mk.file, mk.data); }
+      } catch {}
+      deny(`[VS-TIME-001] BLOCKED — a tarefa #${task.num} passou dos ${st.limitMin}min (já ${st.ageMin}min). ` +
+        `PARE agora e deixe AO VIVO no chat (sem backlog) o PORQUÊ da demora: o que faltou pra fechar no prazo, onde travou e o approach atual. ` +
+        `Chamei o dev no Slack. Só o DEV ou ADMIN libera este ${isPush ? 'push' : 'commit'} — o admin anexa a senha 9601 ao comando git (reinicia a janela). ` +
+        `NÃO se auto-libere, NÃO crie flag/arquivo pra pular, NÃO anexe 9601 por conta própria.`);
+    }
   }
 }
 

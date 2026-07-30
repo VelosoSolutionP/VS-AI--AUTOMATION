@@ -11,6 +11,7 @@ import { hasConsent, setConsent, collectIfConsented } from '../engine/consent.mj
 import { verifyLicense } from '../license/license.mjs';
 import { issueLicense } from '../license/issue.mjs';
 import { globToRe, matchAny, normalizeStartCommand } from '../engine/core.mjs';
+import { timeBoxStatus, timeBoxLimitMin, TIME_BOX_MIN } from '../engine/timebox.mjs';
 import { parseBranch, setTask, clearTask } from '../engine/branch-req.mjs';
 import { DEFAULT_CONFIG, branchName, branchRegex, checkCommitScope, patternUsesNumero } from '../engine/company-config.mjs';
 
@@ -170,6 +171,19 @@ test('gate SEMPRE webpack: normalizeStartCommand tira --turbo/--turbopack', () =
   assert.equal(normalizeStartCommand('next dev --turbo -p 3001'), 'next dev -p 3001');
   assert.equal(normalizeStartCommand('next dev'), 'next dev'); // sem flag -> intacto
   assert.equal(normalizeStartCommand('php artisan serve'), 'php artisan serve');
+});
+
+test('time-box: 15min ABSOLUTO; overdue quando idade >= limite (cfg sobrepoe)', () => {
+  assert.equal(TIME_BOX_MIN, 15);
+  assert.equal(timeBoxLimitMin({}), 15);
+  assert.equal(timeBoxLimitMin({ timeBoxMin: 20 }), 20); // override por config
+  const now = 60 * 60 * 1000; // base qualquer
+  const t14 = { num: '1', tipo: 'fix', ts: now - 14 * 60000 };
+  const t15 = { num: '1', tipo: 'feat', ts: now - 15 * 60000 };
+  assert.equal(timeBoxStatus(t14, now).overdue, false); // 14min < 15 -> ok
+  assert.equal(timeBoxStatus(t15, now).overdue, true);  // 15min -> estourou (tipo nao importa)
+  assert.equal(timeBoxStatus(t15, now).ageMin, 15);
+  assert.equal(timeBoxStatus({ num: '1' }, now).overdue, false); // sem ts -> nunca overdue
 });
 
 test('glob: matchAny casa padroes', () => {
