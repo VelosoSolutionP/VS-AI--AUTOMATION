@@ -15,6 +15,7 @@ import { timeBoxStatus, timeBoxLimitMin, TIME_BOX_MIN } from '../engine/timebox.
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
 import { isGitCommit, isGitPush, hasPowerShellHereStringAt } from '../engine/git-cmd.mjs';
 import { projectLabel } from '../engine/notify-whatsapp.mjs';
+import { isMergeContext, isPromotionBranch } from '../engine/git-merge.mjs';
 import { resolve as pathResolve } from 'node:path';
 import { parseBranch, setTask, clearTask, setPreflight, clearPreflight, isPreflight } from '../engine/branch-req.mjs';
 import { DEFAULT_CONFIG, branchName, branchRegex, checkCommitScope, patternUsesNumero } from '../engine/company-config.mjs';
@@ -328,6 +329,26 @@ test('on-commit: LIBERA commit no padrao correto (aspas normais)', () => {
   const out = runOnCommit('git commit -m "fix(35575): trata dado sensivel na edicao"');
   assert.doesNotMatch(out, /VS-AUD-005/);
   assert.doesNotMatch(out, /"permissionDecision":"deny"/);
+});
+
+test('promocao: branch merge-hml reconhecida (isenta de numero); tarefa normal NAO', () => {
+  assert.equal(isPromotionBranch('fix/fabiano.veloso/merge-hml'), true);
+  assert.equal(isPromotionBranch('fix/fabiano.veloso/merge-main'), true);
+  assert.equal(isPromotionBranch('fix/fabiano.veloso/37069'), false);
+  assert.equal(isPromotionBranch('feat/fabiano.veloso/36846'), false);
+});
+
+test('git-merge: isMergeContext (git merge -> true; commit direto -> false)', () => {
+  const tmp = join(tmpdir(), 'qa-gate-merge2');
+  try { mkdirSync(tmp, { recursive: true }); } catch {}
+  assert.equal(isMergeContext('git merge origin/dev', tmp), true);
+  assert.equal(isMergeContext('git commit -m "fix(1): x"', tmp), false);
+});
+
+test('on-commit: LIBERA merge commit da promocao (Merge branch ...)', () => {
+  const out = runOnCommit("git commit -m \"Merge branch 'dev' into fix/fabiano.veloso/merge-hml\"");
+  assert.doesNotMatch(out, /"permissionDecision":"deny"/);
+  assert.doesNotMatch(out, /VS-AUD-003/);
 });
 
 test('glob: matchAny casa padroes', () => {

@@ -41,6 +41,9 @@ const m = cmd.match(/-m\s+(["'])([\s\S]*?)\1/);
 if (!m) { allow(); } // sem -m (ex.: commit -F arquivo/heredoc) — validado por outra via
 
 const subject = m[2].split(/\r?\n/)[0].trim();
+// merge / promoção de ambiente: "Merge branch ..." não segue o padrão de tarefa (é junção
+// via MR) — liberado. NÃO libera commit direto de código em protegida (VS-GIT-002 segue).
+if (/^Merge\b/i.test(subject)) { allow(); }
 const PATTERN = /^(feat|feature|fix|perf|refactor|chore|test|docs)(\([a-z0-9._\-\/]+\))?: .{3,}$/i;
 
 // belt: subject NUNCA pode começar com "@" (resíduo de here-string) nem char estranho

@@ -20,6 +20,7 @@ import { loadCompanyConfig, branchName as buildBranchName, branchRegex, branchGl
 import { timeBoxStatus } from '../engine/timebox.mjs';
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
 import { isGitCommit, isGitPush } from '../engine/git-cmd.mjs';
+import { isPromotionBranch, isMergeContext } from '../engine/git-merge.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
@@ -103,8 +104,10 @@ if (criaBranch) {
   // Só exige número quando o pattern da empresa usa <numero>.
   const bm = cmd.match(/\b(?:checkout\s+-b|switch\s+-c|branch)\s+(\S+)/);
   const novoNome = bm ? bm[1] : '';
-  if (patternUsesNumero(cfg) && novoNome && !/\d{3,6}/.test(novoNome)) {
-    deny(`[VS-BRANCH-005] BLOCKED — a branch "${novoNome}" não tem o NÚMERO da tarefa. Padrão: ${cfg.branchPattern}. Sem número, o push não rastreia a tarefa. Recrie com o número.`);
+  // Branch de PROMOÇÃO de ambiente (fix/<autor>/merge-hml) é isenta de número — ela integra
+  // dev→hml/main via MR, não rastreia tarefa. Só ela; qualquer outra sem número é barrada.
+  if (patternUsesNumero(cfg) && novoNome && !/\d{3,6}/.test(novoNome) && !isPromotionBranch(novoNome)) {
+    deny(`[VS-BRANCH-005] BLOCKED — a branch "${novoNome}" não tem o NÚMERO da tarefa. Padrão: ${cfg.branchPattern}. Sem número, o push não rastreia a tarefa. Recrie com o número. (Promoção de ambiente: use <tipo>/<autor>/merge-hml.)`);
   }
   // BUG VOLTOU: se já existe branch (local OU remota) com esse número, NÃO cria nova —
   // acessa a existente. Sinaliza que a correção anterior não segurou.
@@ -144,7 +147,8 @@ if (/--no-verify|-n\b/.test(cmd)) {
 
 // [VS-AUD-004] camada extra: tocou código de produção -> exige teste unitário no MESMO commit.
 // Determinístico: compara arquivos staged (código × teste). Escape justificado: .qa-gate-notest-ok
-if (isCommit && !existsSync(join(gitCwd, '.qa-gate-notest-ok'))) {
+// MERGE (integração/promoção) é isento — não é commit de código novo, é junção.
+if (isCommit && !existsSync(join(gitCwd, '.qa-gate-notest-ok')) && !isMergeContext(cmd, gitCwd)) {
   try {
     const staged = execSync('git diff --cached --name-only', { encoding: 'utf8', cwd: gitCwd }).split(/\r?\n/).filter(Boolean);
     const isTest = (f) => /(^|\/)tests?\//i.test(f) || /__tests__\//.test(f) || /(_test\.dart|_test\.py|\.test\.[jt]sx?|\.spec\.[jt]sx?|Test\.php)$/i.test(f);
@@ -168,7 +172,9 @@ try { branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8', c
 // determinística de que o gate rodou verde; a IA NÃO consegue pular nem "opinar" que
 // não precisa. Front/back: 100% dos verdes passaram no QA — então roda sempre.
 // Mobile é ISENTO (gate browser inviável — tratado à parte). Escape raro: .qa-gate-green-ok
-if (isCommit && !isMobile && !existsSync(join(gitCwd, '.qa-gate-green-ok'))) {
+// MERGE (integração/promoção dev→hml/main) é isento do recibo verde — é junção via MR,
+// não commit de código novo; a revisão é a MR (tech lead aprova).
+if (isCommit && !isMobile && !existsSync(join(gitCwd, '.qa-gate-green-ok')) && !isMergeContext(cmd, gitCwd)) {
   try {
     const staged = execSync('git diff --cached --name-only', { encoding: 'utf8', cwd: gitCwd }).split(/\r?\n/).filter(Boolean);
     const isTest = (f) => /(^|\/)tests?\//i.test(f) || /__tests__\//.test(f) || /(_test\.dart|_test\.py|\.test\.[jt]sx?|\.spec\.[jt]sx?|Test\.php)$/i.test(f);
