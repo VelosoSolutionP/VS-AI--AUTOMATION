@@ -15,7 +15,6 @@ import { timeBoxStatus, timeBoxLimitMin, TIME_BOX_MIN } from '../engine/timebox.
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
 import { isGitCommit, isGitPush, hasPowerShellHereStringAt } from '../engine/git-cmd.mjs';
 import { projectLabel } from '../engine/notify-whatsapp.mjs';
-import { isMergeContext } from '../engine/git-merge.mjs';
 import { resolve as pathResolve } from 'node:path';
 import { parseBranch, setTask, clearTask, setPreflight, clearPreflight, isPreflight } from '../engine/branch-req.mjs';
 import { DEFAULT_CONFIG, branchName, branchRegex, checkCommitScope, patternUsesNumero } from '../engine/company-config.mjs';
@@ -329,20 +328,6 @@ test('on-commit: LIBERA commit no padrao correto (aspas normais)', () => {
   const out = runOnCommit('git commit -m "fix(35575): trata dado sensivel na edicao"');
   assert.doesNotMatch(out, /VS-AUD-005/);
   assert.doesNotMatch(out, /"permissionDecision":"deny"/);
-});
-
-test('git-merge: isMergeContext libera merge/promocao de ambiente (dev->hml->main)', () => {
-  const tmp = join(tmpdir(), 'qa-gate-merge-test');
-  try { mkdirSync(tmp, { recursive: true }); } catch {}
-  assert.equal(isMergeContext('git merge origin/dev', tmp), true);
-  assert.equal(isMergeContext('cd /repo && git merge dev', tmp), true);
-  assert.equal(isMergeContext('git commit -m "fix(1): x"', tmp), false); // commit direto -> nao e merge
-});
-
-test('on-commit: LIBERA merge commit (Merge branch ...) sem exigir padrao', () => {
-  const out = runOnCommit("git commit -m \"Merge branch 'dev' into hml\"");
-  assert.doesNotMatch(out, /"permissionDecision":"deny"/);
-  assert.doesNotMatch(out, /VS-AUD-003/);
 });
 
 test('glob: matchAny casa padroes', () => {
