@@ -126,19 +126,59 @@ export function slackConfig(baseDir) {
 export function slackEnabled(sc) {
   return !!(sc && sc.enabled && sc.webhookUrl && sc.webhookUrl !== 'xxx');
 }
-/** Envia pro Slack (webhook). No-op se desativado. Timeout defensivo. Nunca lança. */
-export async function sendSlack(text, baseDir) {
+
+/** Slack aceita acento/emoji (ao contrário do CallMeBot) — só tira controle e limita. */
+function slackClean(s) {
+  return String(s ?? '').replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1500);
+}
+
+/**
+ * Monta o CARD (Block Kit) do recibo: header com status, campos Projeto/Tarefa/Dev,
+ * bloco "Correção aplicada" e barra colorida (verde/vermelho/amarelo). Bem mais legível
+ * que texto cru — o Fabiano bate o olho e sabe projeto, o que foi feito e quem fez.
+ */
+export function formatSlackBlocks({ project, task, kind, problem, solution, dev } = {}) {
+  const meta = ({
+    done: { emoji: ':white_check_mark:', title: 'Tarefa concluida', color: '#2eb67d' },
+    green: { emoji: ':white_check_mark:', title: 'Gate verde', color: '#2eb67d' },
+    red: { emoji: ':x:', title: 'Gate vermelho', color: '#e01e5a' },
+    help: { emoji: ':raising_hand:', title: 'Preciso de voce', color: '#ecb22e' },
+    impediment: { emoji: ':construction:', title: 'Impedimento', color: '#ecb22e' },
+  })[kind] || { emoji: ':clipboard:', title: 'qa-gate', color: '#4a154b' };
+  const p = slackClean(project || '?');
+  const t = task ? `#${slackClean(String(task))}` : 's/n';
+  const fields = [
+    { type: 'mrkdwn', text: `*Projeto:*\n${p}` },
+    { type: 'mrkdwn', text: `*Tarefa:*\n${t}` },
+  ];
+  if (dev) { fields.push({ type: 'mrkdwn', text: `*Dev:*\n${slackClean(dev)}` }); }
+  if (problem) { fields.push({ type: 'mrkdwn', text: `*Status:*\n${slackClean(problem)}` }); }
+  const blocks = [
+    { type: 'header', text: { type: 'plain_text', text: `${meta.emoji} ${meta.title}`, emoji: true } },
+    { type: 'section', fields },
+  ];
+  if (solution) { blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*Correcao aplicada:*\n${slackClean(solution)}` } }); }
+  blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `qa-gate governanca${dev ? ' - ' + slackClean(dev) : ''}` }] });
+  return { attachments: [{ color: meta.color, blocks }] };
+}
+
+/**
+ * Envia pro Slack (webhook). Aceita STRING (texto simples) ou OBJETO (payload
+ * Block Kit pronto). No-op se desativado. Timeout defensivo. Nunca lança.
+ */
+export async function sendSlack(payload, baseDir) {
   const sc = slackConfig(baseDir);
   if (!slackEnabled(sc)) {
     return { ok: false, skipped: true, reason: 'slack desativado/placeholder' };
   }
+  const body = typeof payload === 'string' ? { text: sanitize(payload) } : payload;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 5000);
   try {
     const res = await fetch(sc.webhookUrl, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text: sanitize(text) }),
+      body: JSON.stringify(body),
       signal: ctrl.signal,
     });
     return { ok: res.ok, status: res.status };
@@ -149,13 +189,17 @@ export async function sendSlack(text, baseDir) {
   }
 }
 
-/** Monta a mensagem 1x e dispara pra TODOS os canais ligados (WhatsApp + Slack). */
+/**
+ * Dispara pra TODOS os canais ligados. WhatsApp = texto plano (CallMeBot só ASCII).
+ * Slack = CARD Block Kit (projeto/tarefa/dev/correção + cor por status).
+ */
 export async function notify(evt, baseDir) {
   const dev = evt?.dev || devName(baseDir);
   const msg = formatMessage({ ...evt, dev });
+  const card = formatSlackBlocks({ ...evt, dev });
   const [wa, sl] = await Promise.all([
     sendWhatsApp(msg, baseDir),
-    sendSlack(msg, baseDir),
+    sendSlack(card, baseDir),
   ]);
   return { ok: !!(wa.ok || sl.ok), whatsapp: wa, slack: sl };
 }
