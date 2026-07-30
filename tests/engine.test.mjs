@@ -13,7 +13,7 @@ import { issueLicense } from '../license/issue.mjs';
 import { globToRe, matchAny, normalizeStartCommand } from '../engine/core.mjs';
 import { timeBoxStatus, timeBoxLimitMin, TIME_BOX_MIN } from '../engine/timebox.mjs';
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
-import { isGitCommit, isGitPush } from '../engine/git-cmd.mjs';
+import { isGitCommit, isGitPush, hasPowerShellHereStringAt } from '../engine/git-cmd.mjs';
 import { projectLabel } from '../engine/notify-whatsapp.mjs';
 import { resolve as pathResolve } from 'node:path';
 import { parseBranch, setTask, clearTask, setPreflight, clearPreflight, isPreflight } from '../engine/branch-req.mjs';
@@ -44,6 +44,14 @@ function runTbGuard(sid, toolCommand) {
     cwd,
     encoding: 'utf8',
   });
+  return r.stdout || '';
+}
+
+const ONCOMMIT = join(__dir, '..', 'hooks', 'on-commit.mjs');
+function runOnCommit(command) {
+  const cwd = join(tmpdir(), 'qa-gate-oncommit-test');
+  try { mkdirSync(cwd, { recursive: true }); } catch {}
+  const r = spawnSync('node', [ONCOMMIT], { input: JSON.stringify({ tool_input: { command }, session_id: 'oc-test' }), cwd, encoding: 'utf8' });
   return r.stdout || '';
 }
 
@@ -297,6 +305,29 @@ test('projectLabel: recibo = pai/base consistente (Velvet/frontend), MCP e hooks
   assert.equal(projectLabel('C:/Veloso/ProjetosMsb/Velvet/frontend'), 'Velvet/frontend');
   assert.equal(projectLabel('C:/Veloso/ProjetosMsb/Velvet/mobile'), 'Velvet/mobile');
   assert.equal(projectLabel('C:/Veloso/ProjetosMsb/Egle/backend'), 'Egle/backend');
+});
+
+test('CMMI: hasPowerShellHereStringAt pega @ vazado no commit (VS-AUD-005)', () => {
+  // MISUSO @'...'@ na Bash -> "@" vaza pro titulo -> TRUE (bloqueia)
+  assert.equal(hasPowerShellHereStringAt("git commit -m @'\nfix(35575): trata dado sensivel\n'@"), true);
+  assert.equal(hasPowerShellHereStringAt("git -c user.name=x commit -m @'fix(2): y'@"), true);
+  assert.equal(hasPowerShellHereStringAt('git commit -m @"fix(3): z"@'), true);
+  // formas corretas -> FALSE (libera)
+  assert.equal(hasPowerShellHereStringAt('git commit -m "fix(1): descricao ok"'), false);
+  assert.equal(hasPowerShellHereStringAt('git commit -F msg.txt'), false);
+  assert.equal(hasPowerShellHereStringAt('git commit -m "corrige login do user@dominio"'), false);
+});
+
+test('VS-AUD-005 on-commit: BLOQUEIA commit com @ vazado (here-string @...@)', () => {
+  const out = runOnCommit("git commit -m @'\nfix(35575): trata dado sensivel\n'@");
+  assert.match(out, /VS-AUD-005/);
+  assert.match(out, /"permissionDecision":"deny"/);
+});
+
+test('on-commit: LIBERA commit no padrao correto (aspas normais)', () => {
+  const out = runOnCommit('git commit -m "fix(35575): trata dado sensivel na edicao"');
+  assert.doesNotMatch(out, /VS-AUD-005/);
+  assert.doesNotMatch(out, /"permissionDecision":"deny"/);
 });
 
 test('glob: matchAny casa padroes', () => {

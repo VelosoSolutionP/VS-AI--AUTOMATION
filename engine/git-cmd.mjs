@@ -15,3 +15,14 @@ const RE_COMMIT = subRe('commit');
 
 export function isGitPush(cmd) { return RE_PUSH.test(String(cmd || '')); }
 export function isGitCommit(cmd) { return RE_COMMIT.test(String(cmd || '')); }
+
+/**
+ * Detecta a here-string PowerShell `@'...'@` (ou `@"..."@`) usada POR ENGANO na tool Bash
+ * (POSIX). Aí o `@` fica FORA das aspas e VAZA pro título do commit (ex.: "@ fix(123): x"),
+ * quebrando o padrão e a certificação CMMI — e o parser de `-m` (que casa a partir da aspa)
+ * nem vê o `@`. Assinatura: `-m` seguido de `@`, ou o par `@'...'@` / `@"..."@` no comando.
+ */
+export function hasPowerShellHereStringAt(cmd) {
+  const s = String(cmd || '');
+  return /-m\s*@/.test(s) || /@'[\s\S]*'@/.test(s) || /@"[\s\S]*"@/.test(s);
+}

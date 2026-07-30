@@ -11,7 +11,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { getTask } from '../engine/branch-req.mjs';
 import { loadCompanyConfig, checkCommitScope } from '../engine/company-config.mjs';
-import { isGitCommit } from '../engine/git-cmd.mjs';
+import { isGitCommit, hasPowerShellHereStringAt } from '../engine/git-cmd.mjs';
 
 const raw = await new Promise((res) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => res(s)); });
 let cmd = '';
@@ -28,13 +28,23 @@ function deny(reason) {
 
 // só age em git commit REAL (não palavra "commit" solta em echo/log/string)
 if (!isGitCommit(cmd)) { allow(); }
+
+// BLINDAGEM CMMI (ABSOLUTA, VS-AUD-005): here-string PowerShell @'...'@ usada na tool
+// Bash (POSIX) vaza um "@" pro TÍTULO do commit ("@ fix(123): ..."), quebra o padrão e a
+// certificação. O "@" fica FORA das aspas, então o parser de -m nem enxerga. BLOQUEIA a
+// sintaxe na origem — antes de qualquer outra validação.
+if (hasPowerShellHereStringAt(cmd)) {
+  deny('[VS-AUD-005] BLOCKED — sintaxe de commit inválida: here-string PowerShell @\'...\'@ na tool Bash (POSIX). O "@" vaza pro TÍTULO do commit e quebra o padrão/CMMI. Use `git commit -F <arquivo>` OU heredoc bash (`git commit -F - <<\'EOF\' ... EOF`). NUNCA @\'...\'@ aqui.');
+}
+
 const m = cmd.match(/-m\s+(["'])([\s\S]*?)\1/);
-if (!m) { allow(); } // sem -m (ex.: commit interativo) — não valida
+if (!m) { allow(); } // sem -m (ex.: commit -F arquivo/heredoc) — validado por outra via
 
 const subject = m[2].split(/\r?\n/)[0].trim();
 const PATTERN = /^(feat|feature|fix|perf|refactor|chore|test|docs)(\([a-z0-9._\-\/]+\))?: .{3,}$/i;
 
-if (!PATTERN.test(subject)) {
+// belt: subject NUNCA pode começar com "@" (resíduo de here-string) nem char estranho
+if (/^@/.test(subject) || !PATTERN.test(subject)) {
   deny(`[VS-AUD-003] BLOCKED — commit fora do padrão.\nRecebido: "${subject}"\nEsperado: <tipo>(<numero-da-tarefa>): <descrição>\nEx.: feat(36846): termo de consentimento único\nTipos: feat|fix|perf|refactor|chore|test|docs`);
 }
 
