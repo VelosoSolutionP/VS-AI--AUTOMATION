@@ -12,6 +12,8 @@ import { verifyLicense } from '../license/license.mjs';
 import { issueLicense } from '../license/issue.mjs';
 import { globToRe, matchAny, normalizeStartCommand } from '../engine/core.mjs';
 import { timeBoxStatus, timeBoxLimitMin, TIME_BOX_MIN } from '../engine/timebox.mjs';
+import { resolveGitCwd } from '../engine/git-cwd.mjs';
+import { resolve as pathResolve } from 'node:path';
 import { parseBranch, setTask, clearTask, setPreflight, clearPreflight, isPreflight } from '../engine/branch-req.mjs';
 import { DEFAULT_CONFIG, branchName, branchRegex, checkCommitScope, patternUsesNumero } from '../engine/company-config.mjs';
 
@@ -209,6 +211,17 @@ test('preflight: 1a tarefa da sessao injeta PREFLIGHT; flag fica setada', () => 
   clearTask(sid);
   assert.match(out, /PREFLIGHT/);
   assert.equal(setAfter, true);
+});
+
+test('resolveGitCwd: repo real do comando (cd/-C); leak de projeto fechado', () => {
+  const abs = (p) => (process.platform === 'win32' ? 'C:/' : '/') + p;
+  const base = abs('sessao');
+  assert.equal(resolveGitCwd('git push origin main', base), base); // sem cd/-C -> base (sessao)
+  assert.equal(resolveGitCwd(`cd ${abs('veloso/qa-gate')} && git push`, base), abs('veloso/qa-gate'));
+  assert.equal(resolveGitCwd(`git -C ${abs('veloso/egle/frontend')} commit -m x`, base), abs('veloso/egle/frontend'));
+  assert.equal(resolveGitCwd(`cd ${abs('a')} && cd ${abs('b')} && git push`, base), abs('b')); // ultimo cd
+  assert.equal(resolveGitCwd(`cd "${abs('Morar Melhor/portal')}" && git commit`, base), abs('Morar Melhor/portal'));
+  assert.equal(resolveGitCwd('cd sub && git push', base), pathResolve(base, 'sub')); // relativo -> resolve na base
 });
 
 test('glob: matchAny casa padroes', () => {

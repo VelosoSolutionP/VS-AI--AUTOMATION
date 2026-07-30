@@ -18,6 +18,7 @@ import { join, resolve, isAbsolute } from 'node:path';
 import { loadReq, isConsult, isSessionOff, getTask, setTask } from '../engine/branch-req.mjs';
 import { loadCompanyConfig, branchName as buildBranchName, branchRegex, branchGlobsForNumber, patternUsesNumero } from '../engine/company-config.mjs';
 import { timeBoxStatus } from '../engine/timebox.mjs';
+import { resolveGitCwd } from '../engine/git-cwd.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
@@ -36,15 +37,6 @@ function deny(reason) {
 // (ex.: egle/frontend), fazendo VS-GATE-001/VS-AUD-004 não verem os arquivos staged e
 // LIBERAREM o commit. Aqui extraímos o diretório REAL onde o git roda e usamos ele em
 // TODAS as checagens (execSync com cwd + flags de pasta).
-function resolveGitCwd(command, base) {
-  try {
-    const mC = command.match(/\bgit\s+-C\s+("([^"]+)"|'([^']+)'|([^\s&;|]+))/);
-    if (mC) { const d = mC[2] || mC[3] || mC[4]; return isAbsolute(d) ? d : resolve(base, d); }
-    const cds = [...command.matchAll(/\bcd\s+("([^"]+)"|'([^']+)'|([^\s&;|]+))/g)];
-    if (cds.length) { const c = cds[cds.length - 1]; const d = c[2] || c[3] || c[4]; return isAbsolute(d) ? d : resolve(base, d); }
-  } catch {}
-  return base;
-}
 const gitCwd = resolveGitCwd(cmd, sessionCwd);
 // CONFIG DA EMPRESA (autor/branch/commit) — default = padrão Fabiano se não houver arquivo.
 const cfg = loadCompanyConfig(gitCwd);

@@ -9,17 +9,22 @@
  */
 import { execSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, isAbsolute } from 'node:path';
 import { setFree } from '../engine/branch-req.mjs';
 import { clearBlock } from '../engine/help-state.mjs';
 import { notify, devName, projectLabel } from '../engine/notify-whatsapp.mjs';
+import { resolveGitCwd } from '../engine/git-cwd.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
 let sid = 'default';
-try { const j = JSON.parse(raw || '{}'); cmd = j.tool_input?.command || j.command || ''; sid = j.session_id || 'default'; } catch { cmd = raw; }
+let sessionCwd = process.cwd();
+try { const j = JSON.parse(raw || '{}'); cmd = j.tool_input?.command || j.command || ''; sid = j.session_id || 'default'; sessionCwd = j.cwd || j.tool_input?.cwd || process.cwd(); } catch { cmd = raw; }
 
 if (!/\bgit\b[\s\S]*\bpush\b/.test(cmd)) { process.exit(0); }
+
+// repo REAL do push (não a pasta da sessão) — fecha o leak de projeto no recibo/branch.
+const gitCwd = resolveGitCwd(cmd, sessionCwd);
 
 // push feito -> janela LIVRE: perguntas/confirmações liberadas até a próxima tarefa.
 setFree(sid);
@@ -28,21 +33,22 @@ setFree(sid);
 // contagem/tempo por tarefa é gravada POR COMMIT (on-qa-gate) — pro modo pacotao
 // (N tarefas, N commits, 1 push) a auditoria contar N, não 1.
 try {
-  const proj = projectLabel(process.cwd());
+  const proj = projectLabel(gitCwd);
   clearBlock(proj);
 } catch {}
 
 let branch = '';
-try { branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim(); } catch {}
+try { branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8', cwd: gitCwd }).trim(); } catch {}
 try {
-  const gitDir = execSync('git rev-parse --git-dir', { encoding: 'utf8' }).trim();
-  writeFileSync(join(gitDir, 'qa-gate-pending-doc'), branch || 'branch');
+  const gitDir = execSync('git rev-parse --git-dir', { encoding: 'utf8', cwd: gitCwd }).trim();
+  const absGitDir = isAbsolute(gitDir) ? gitDir : join(gitCwd, gitDir);
+  writeFileSync(join(absGitDir, 'qa-gate-pending-doc'), branch || 'branch');
 } catch {}
 
 // MURO: todo push (tarefa entregue) dispara o COMPROVANTE DE TAREFA CONCLUIDA no
 // WhatsApp — prova pro tech lead/gestor, a IA nao pula (hook determinístico).
 try {
-  const proj = projectLabel(process.cwd());
+  const proj = projectLabel(gitCwd);
   const task = (branch.match(/(\d{3,})/) || [])[1] || null;
   await notify({ project: proj, task, kind: 'done', dev: devName() });
 } catch {}

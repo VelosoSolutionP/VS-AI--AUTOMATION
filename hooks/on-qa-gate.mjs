@@ -14,6 +14,7 @@ import { runGate } from '../engine/core.mjs';
 import { notify, projectLabel } from '../engine/notify-whatsapp.mjs';
 import { reportBlock, clearBlock, readMarkers } from '../engine/help-state.mjs';
 import { recordTask } from '../engine/metrics.mjs';
+import { resolveGitCwd } from '../engine/git-cwd.mjs';
 
 // Nome do projeto no recibo/audit: pai/base (desambigua backend/mobile) ou
 // config.projectName. Ex.: Egle/backend, Velvet/mobile, Morar Melhor/portal...
@@ -70,7 +71,8 @@ function logDelivered(repo, c) {
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
-try { const j = JSON.parse(raw || '{}'); cmd = j.tool_input?.command || j.command || ''; } catch { cmd = raw; }
+let sessionCwd = process.cwd();
+try { const j = JSON.parse(raw || '{}'); cmd = j.tool_input?.command || j.command || ''; sessionCwd = j.cwd || j.tool_input?.cwd || process.cwd(); } catch { cmd = raw; }
 
 const allow = (msg) => {
   if (msg) { process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', permissionDecisionReason: msg } })); }
@@ -84,7 +86,8 @@ const deny = (reason) => {
 // só age em git commit (não amend de mensagem sem código? valida assim mesmo)
 if (!/\bgit\b[\s\S]*\bcommit\b/.test(cmd)) { allow(); }
 
-const repo = process.cwd();
+// repo REAL do commit (não a pasta da sessão) — fecha o leak de projeto no gate/recibo.
+const repo = resolveGitCwd(cmd, sessionCwd);
 
 // ── VS-AUD-004 (regra ABSOLUTA): tocou código de produção → EXIGE teste no
 // mesmo commit. Sem teste, sem commit. Bloqueio determinístico (não é aviso).
