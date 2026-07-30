@@ -60,5 +60,5 @@ try {
 
 deny(`[VS-TIME-001] BLOCKED — SESSÃO TRAVADA: a tarefa #${task.num} passou dos ${st.limitMin}min (já ${st.ageMin}min). ` +
   `PARE tudo agora. Escreva JÁ, em TEXTO (não é tool, não é bloqueado), o PORQUÊ da demora: o que faltou pra fechar, onde travou e o approach atual. ` +
-  `Chamei o dev no Slack — a sessão fica BLOQUEADA (todo tool negado) até ELE voltar e destravar dizendo "liberado" (ou "libera" / "destrava" / "investiguei"). ` +
-  `SÓ o dev destrava — NÃO se auto-libere, NÃO crie flag/arquivo pra pular, NÃO invente senha.`);
+  `Chamei o dev no Slack — a sessão fica BLOQUEADA (todo tool negado) até ELE voltar e destravar dizendo a palavra "liberado". ` +
+  `SÓ o dev destrava, SÓ com "liberado" — NÃO se auto-libere, NÃO crie flag/arquivo pra pular, NÃO invente senha.`);

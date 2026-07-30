@@ -1,10 +1,10 @@
 /**
  * Time-box da tarefa: 30min ABSOLUTO ("sem mimi"). Passou -> a SESSÃO INTEIRA é
  * bloqueada (on-timebox-guard, PreToolUse em todo tool) até o dev voltar e investigar.
- * Chama o dev no Slack. Destrava SÓ o dev, dizendo "liberado" (ou "libera/destrava/
- * investiguei") no chat -> reinicia a janela. SEM senha; a IA não se auto-libera. A IA
- * para e deixa a explicação em TEXTO (não é tool). `cfg.timeBoxMin` sobrepõe (escolha
- * explícita do admin/projeto). Módulo puro (recebe `nowMs`) p/ ser testável.
+ * Chama o dev no Slack. Destrava SÓ o dev, dizendo a palavra "liberado" no chat ->
+ * reinicia a janela. SEM senha; a IA não se auto-libera. A IA para e deixa a explicação
+ * em TEXTO (não é tool). `cfg.timeBoxMin` sobrepõe (escolha explícita do admin/projeto).
+ * Módulo puro (recebe `nowMs`) p/ ser testável.
  */
 export const TIME_BOX_MIN = 30;
 

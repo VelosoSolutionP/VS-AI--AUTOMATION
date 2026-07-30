@@ -267,6 +267,14 @@ test('VS-TIME-001 unlock: dev diz "liberado" -> destrava e reinicia a janela (se
   assert.match(out, /destravado/);
 });
 
+test('VS-TIME-001 unlock: palavra diferente de "liberado" NAO destrava', () => {
+  const sid = 'unit-tb-nounlock';
+  writeTaskFile(sid, { num: '88', tipo: 'fix', origem: 'dev', repositorios: ['back'], escopo: 'x', ts: Date.now() - 45 * 60000 });
+  const out = runOnTask('continua ai', sid);
+  clearTask(sid);
+  assert.doesNotMatch(out, /destravado/);
+});
+
 test('glob: matchAny casa padroes', () => {
   assert.ok(globToRe('**/*.blade.php').test('resources/views/x/y.blade.php'));
   assert.ok(matchAny('app/Http/Livewire/Foo.php', ['app/Http/Livewire/**']));

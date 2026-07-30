@@ -75,7 +75,7 @@ if (isSessionOff(sid)) {
   let t = null; try { t = getTask(sid); } catch {}
   if (t && t.num && t.ts) {
     const st0 = timeBoxStatus(t, Date.now(), loadCompanyConfig(process.cwd()));
-    const libera = /^\s*(libera\w*|destrava\w*|investiguei|voltei|continua\w*|segue|prossegue|pode seguir)\b/i.test(prompt);
+    const libera = /^\s*(liberad[oa]|libera)\b/i.test(prompt);
     if (st0.overdue && libera) {
       setTask(sid, { ...t, ts: Date.now() });
       process.stdout.write(JSON.stringify({
