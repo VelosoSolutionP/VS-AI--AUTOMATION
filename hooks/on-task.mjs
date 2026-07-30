@@ -13,6 +13,7 @@
 
 import { parseBranch, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree, isSessionOff, setTask, clearTask, getTask, isPreflight, setPreflight } from '../engine/branch-req.mjs';
 import { loadCompanyConfig, branchName as buildBranchName } from '../engine/company-config.mjs';
+import { timeBoxStatus } from '../engine/timebox.mjs';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -65,6 +66,27 @@ if (existsSync(join(process.cwd(), '.qa-gate-off'))) {
 // opt-out por SESSÃO: bancada trabalha dentro de projeto governado sem acordar a governança
 if (isSessionOff(sid)) {
   process.exit(0);
+}
+
+// DESTRAVA DO TIME-BOX: tarefa ativa que ESTOUROU o teto trava a sessão inteira
+// (on-timebox-guard). Só o dev destrava: a palavra de liberação reinicia a janela e o
+// guard volta a liberar. Só age quando a tarefa realmente estourou (evita falso positivo).
+{
+  let t = null; try { t = getTask(sid); } catch {}
+  if (t && t.num && t.ts) {
+    const st0 = timeBoxStatus(t, Date.now(), loadCompanyConfig(process.cwd()));
+    const libera = /^\s*(libera\w*|destrava\w*|investiguei|voltei|continua\w*|segue|prossegue|pode seguir)\b/i.test(prompt);
+    if (st0.overdue && libera) {
+      setTask(sid, { ...t, ts: Date.now() });
+      process.stdout.write(JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: 'UserPromptSubmit',
+          additionalContext: `[governança] TIME-BOX destravado pelo dev — janela da tarefa #${t.num} reiniciada (+${st0.limitMin}min). Retome de onde parou; diga rápido o que travou e siga.`,
+        },
+      }));
+      process.exit(0);
+    }
+  }
 }
 
 // FECHAMENTO = o DIA (controle de horas). "fechamento"/"fechar"/"encerramento"

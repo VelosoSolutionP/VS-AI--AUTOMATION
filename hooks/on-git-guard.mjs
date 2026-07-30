@@ -15,7 +15,7 @@
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve, isAbsolute } from 'node:path';
-import { loadReq, isConsult, isSessionOff, getTask, setTask } from '../engine/branch-req.mjs';
+import { loadReq, isConsult, isSessionOff, getTask } from '../engine/branch-req.mjs';
 import { loadCompanyConfig, branchName as buildBranchName, branchRegex, branchGlobsForNumber, patternUsesNumero } from '../engine/company-config.mjs';
 import { timeBoxStatus } from '../engine/timebox.mjs';
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
@@ -232,35 +232,31 @@ if (task && task.num) {
   }
 }
 
-// [VS-TIME-001] TIME-BOX 15min ABSOLUTO: tarefa ativa que passou do tempo pré-estabelecido
-// BLOQUEIA commit/push. Chama o dev no Slack (1 vez) e exige a explicação AO VIVO do porquê
-// da demora. Só o DEV ou ADMIN libera: o admin anexa a senha 9601 ao comando git (reinicia
-// a janela). A IA NÃO se auto-libera nem cria flag/arquivo pra pular.
+// [VS-TIME-001] TIME-BOX (teto 30min): tarefa ativa que passou do tempo BLOQUEIA
+// commit/push (a sessão inteira já é barrada pelo on-timebox-guard; aqui é a barreira
+// específica de git). Chama o dev no Slack (1x) e exige a explicação AO VIVO da demora.
+// Só o DEV destrava dizendo "liberado" no chat (reinicia a janela). A IA NÃO se auto-libera.
 if (task && task.num && task.ts) {
   const st = timeBoxStatus(task, Date.now(), cfg);
   if (st.overdue) {
-    if (/\b9601\b/.test(cmd)) {
-      try { setTask(sid, { ...task, ts: Date.now() }); } catch {} // admin liberou -> reinicia a janela
-    } else {
-      // chama o dev (Slack/WhatsApp conforme config), 1 vez — dedupe pelo marcador de ajuda da tarefa
-      try {
-        const { readMarkers, markNotified } = await import('../engine/help-state.mjs');
-        const { notify, devName, projectLabel } = await import('../engine/notify-whatsapp.mjs');
-        const mk = readMarkers().find((m) => String(m.data.task) === String(task.num) && !m.data.notified);
-        const r = await notify({
-          project: projectLabel(gitCwd),
-          task: task.num,
-          kind: 'help',
-          problem: `time-box estourado: tarefa #${task.num} passou de ${st.limitMin}min (levou ${st.ageMin}min) — apurar a demora`,
-          dev: (mk && mk.data.dev) || devName(),
-        });
-        if (r && r.ok && mk) { markNotified(mk.file, mk.data); }
-      } catch {}
-      deny(`[VS-TIME-001] BLOCKED — a tarefa #${task.num} passou dos ${st.limitMin}min (já ${st.ageMin}min). ` +
-        `PARE agora e deixe AO VIVO no chat (sem backlog) o PORQUÊ da demora: o que faltou pra fechar no prazo, onde travou e o approach atual. ` +
-        `Chamei o dev no Slack. Só o DEV ou ADMIN libera este ${isPush ? 'push' : 'commit'} — o admin anexa a senha 9601 ao comando git (reinicia a janela). ` +
-        `NÃO se auto-libere, NÃO crie flag/arquivo pra pular, NÃO anexe 9601 por conta própria.`);
-    }
+    // chama o dev (Slack/WhatsApp conforme config), 1 vez — dedupe pelo marcador de ajuda da tarefa
+    try {
+      const { readMarkers, markNotified } = await import('../engine/help-state.mjs');
+      const { notify, devName, projectLabel } = await import('../engine/notify-whatsapp.mjs');
+      const mk = readMarkers().find((m) => String(m.data.task) === String(task.num) && !m.data.notified);
+      const r = await notify({
+        project: projectLabel(gitCwd),
+        task: task.num,
+        kind: 'help',
+        problem: `time-box estourado: tarefa #${task.num} passou de ${st.limitMin}min (levou ${st.ageMin}min) — investigar a demora`,
+        dev: (mk && mk.data.dev) || devName(),
+      });
+      if (r && r.ok && mk) { markNotified(mk.file, mk.data); }
+    } catch {}
+    deny(`[VS-TIME-001] BLOCKED — a tarefa #${task.num} passou dos ${st.limitMin}min (já ${st.ageMin}min). ` +
+      `PARE agora e deixe AO VIVO no chat (sem backlog) o PORQUÊ da demora: o que faltou pra fechar, onde travou e o approach atual. ` +
+      `Chamei o dev no Slack. SÓ o DEV destrava este ${isPush ? 'push' : 'commit'} dizendo "liberado" no chat (reinicia a janela). ` +
+      `NÃO se auto-libere, NÃO crie flag/arquivo pra pular, NÃO invente senha.`);
   }
 }
 

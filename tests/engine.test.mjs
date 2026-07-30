@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rmSync, existsSync, mkdirSync } from 'node:fs';
+import { rmSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -19,6 +19,7 @@ import { DEFAULT_CONFIG, branchName, branchRegex, checkCommitScope, patternUsesN
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const HOOK = join(__dir, '..', 'hooks', 'on-task.mjs');
+const TB_GUARD = join(__dir, '..', 'hooks', 'on-timebox-guard.mjs');
 
 // Roda o hook UserPromptSubmit como subprocesso (cwd limpo p/ não pegar .qa-gate-off do repo).
 function runOnTask(prompt, sid) {
@@ -31,6 +32,22 @@ function runOnTask(prompt, sid) {
   });
   return r.stdout || '';
 }
+
+// Roda o guard de time-box (PreToolUse) como subprocesso.
+function runTbGuard(sid, toolCommand) {
+  const cwd = join(tmpdir(), 'qa-gate-tbguard-test');
+  try { mkdirSync(cwd, { recursive: true }); } catch {}
+  const r = spawnSync('node', [TB_GUARD], {
+    input: JSON.stringify({ session_id: sid, cwd, tool_input: { command: toolCommand || 'ls' } }),
+    cwd,
+    encoding: 'utf8',
+  });
+  return r.stdout || '';
+}
+
+// Escreve o estado da tarefa direto (p/ backdatar o ts — setTask sempre carimba now).
+const taskFileFor = (sid) => join(tmpdir(), `qa-gate-task-${String(sid || 'default').replace(/[^a-z0-9_-]/gi, '').slice(0, 48) || 'default'}.json`);
+function writeTaskFile(sid, obj) { writeFileSync(taskFileFor(sid), JSON.stringify(obj)); }
 
 test('parseBranch: repositorios (lista) e alvo rotulados separados', () => {
   const r = parseBranch('36885 fix origem dev repositorios todos alvo mobile');
@@ -175,16 +192,17 @@ test('gate SEMPRE webpack: normalizeStartCommand tira --turbo/--turbopack', () =
   assert.equal(normalizeStartCommand('php artisan serve'), 'php artisan serve');
 });
 
-test('time-box: 15min ABSOLUTO; overdue quando idade >= limite (cfg sobrepoe)', () => {
-  assert.equal(TIME_BOX_MIN, 15);
-  assert.equal(timeBoxLimitMin({}), 15);
-  assert.equal(timeBoxLimitMin({ timeBoxMin: 20 }), 20); // override por config
-  const now = 60 * 60 * 1000; // base qualquer
-  const t14 = { num: '1', tipo: 'fix', ts: now - 14 * 60000 };
-  const t15 = { num: '1', tipo: 'feat', ts: now - 15 * 60000 };
-  assert.equal(timeBoxStatus(t14, now).overdue, false); // 14min < 15 -> ok
-  assert.equal(timeBoxStatus(t15, now).overdue, true);  // 15min -> estourou (tipo nao importa)
-  assert.equal(timeBoxStatus(t15, now).ageMin, 15);
+test('time-box: 30min ABSOLUTO (sem mimi); overdue quando idade >= 30 (cfg sobrepoe)', () => {
+  assert.equal(TIME_BOX_MIN, 30);
+  assert.equal(timeBoxLimitMin({}), 30);
+  assert.equal(timeBoxLimitMin({ repositorios: ['front', 'back', 'mobile'] }), 30); // repos nao mudam mais
+  assert.equal(timeBoxLimitMin({}, { timeBoxMin: 20 }), 20); // cfg sobrepoe (escolha do admin)
+  const now = 60 * 60 * 1000;
+  const t29 = { num: '1', ts: now - 29 * 60000 };
+  const t30 = { num: '1', ts: now - 30 * 60000 };
+  assert.equal(timeBoxStatus(t29, now).overdue, false); // 29min < 30 -> ok
+  assert.equal(timeBoxStatus(t30, now).overdue, true);  // 30min -> estourou
+  assert.equal(timeBoxStatus(t30, now).ageMin, 30);
   assert.equal(timeBoxStatus({ num: '1' }, now).overdue, false); // sem ts -> nunca overdue
 });
 
@@ -222,6 +240,31 @@ test('resolveGitCwd: repo real do comando (cd/-C); leak de projeto fechado', () 
   assert.equal(resolveGitCwd(`cd ${abs('a')} && cd ${abs('b')} && git push`, base), abs('b')); // ultimo cd
   assert.equal(resolveGitCwd(`cd "${abs('Morar Melhor/portal')}" && git commit`, base), abs('Morar Melhor/portal'));
   assert.equal(resolveGitCwd('cd sub && git push', base), pathResolve(base, 'sub')); // relativo -> resolve na base
+});
+
+test('VS-TIME-001 guard: tarefa >30min BLOQUEIA a sessao inteira (deny)', () => {
+  const sid = 'unit-tb-guard-block';
+  writeTaskFile(sid, { num: '77', tipo: 'fix', origem: 'dev', repositorios: ['back'], escopo: 'x', ts: Date.now() - 31 * 60000 });
+  const out = runTbGuard(sid, 'ls');
+  clearTask(sid);
+  assert.match(out, /VS-TIME-001/);
+  assert.match(out, /"permissionDecision":"deny"/);
+});
+
+test('VS-TIME-001 guard: dentro do tempo LIBERA (sem deny)', () => {
+  const sid = 'unit-tb-guard-ok';
+  writeTaskFile(sid, { num: '77', ts: Date.now() - 5 * 60000 });
+  const out = runTbGuard(sid, 'ls');
+  clearTask(sid);
+  assert.doesNotMatch(out, /deny/);
+});
+
+test('VS-TIME-001 unlock: dev diz "liberado" -> destrava e reinicia a janela (sem senha)', () => {
+  const sid = 'unit-tb-unlock';
+  writeTaskFile(sid, { num: '88', tipo: 'fix', origem: 'dev', repositorios: ['back'], escopo: 'x', ts: Date.now() - 45 * 60000 });
+  const out = runOnTask('liberado', sid);
+  clearTask(sid);
+  assert.match(out, /destravado/);
 });
 
 test('glob: matchAny casa padroes', () => {

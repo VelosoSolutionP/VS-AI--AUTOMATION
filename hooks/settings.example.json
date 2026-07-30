@@ -17,6 +17,12 @@
     ],
     "PreToolUse": [
       {
+        "matcher": "*",
+        "hooks": [
+          { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-timebox-guard.mjs" }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-commit.mjs" },

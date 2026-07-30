@@ -1,12 +1,14 @@
 /**
- * Time-box da tarefa: 15min ABSOLUTO. Passou -> o git-guard BLOQUEIA commit/push
- * (VS-TIME-001), chama o dev no Slack e exige a explicação (ao vivo) do porquê da
- * demora. Só o dev ou o admin libera (senha admin no comando; reinicia a janela).
- * `cfg.timeBoxMin` sobrepõe o default (15). Módulo puro (recebe `nowMs`) p/ ser testável.
+ * Time-box da tarefa: 30min ABSOLUTO ("sem mimi"). Passou -> a SESSÃO INTEIRA é
+ * bloqueada (on-timebox-guard, PreToolUse em todo tool) até o dev voltar e investigar.
+ * Chama o dev no Slack. Destrava SÓ o dev, dizendo "liberado" (ou "libera/destrava/
+ * investiguei") no chat -> reinicia a janela. SEM senha; a IA não se auto-libera. A IA
+ * para e deixa a explicação em TEXTO (não é tool). `cfg.timeBoxMin` sobrepõe (escolha
+ * explícita do admin/projeto). Módulo puro (recebe `nowMs`) p/ ser testável.
  */
-export const TIME_BOX_MIN = 15;
+export const TIME_BOX_MIN = 30;
 
-export function timeBoxLimitMin(cfg = {}) {
+export function timeBoxLimitMin(task = {}, cfg = {}) {
   return (cfg && cfg.timeBoxMin) ? cfg.timeBoxMin : TIME_BOX_MIN;
 }
 
@@ -14,7 +16,7 @@ export function timeBoxLimitMin(cfg = {}) {
  * @returns {{ limitMin:number, ageMin:number, overdue:boolean }}
  */
 export function timeBoxStatus(task, nowMs, cfg = {}) {
-  const limitMin = timeBoxLimitMin(cfg);
+  const limitMin = timeBoxLimitMin(task, cfg);
   const ageMin = (task && task.ts) ? Math.floor((nowMs - task.ts) / 60000) : 0;
   const overdue = !!(task && task.ts) && ageMin >= limitMin;
   return { limitMin, ageMin, overdue };
