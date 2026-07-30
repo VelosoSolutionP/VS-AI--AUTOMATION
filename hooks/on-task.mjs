@@ -11,7 +11,7 @@
  * - Injetar contexto leve para economizar tokens.
  */
 
-import { parseBranch, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree, isSessionOff, setTask, clearTask } from '../engine/branch-req.mjs';
+import { parseBranch, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree, isSessionOff, setTask, clearTask, getTask } from '../engine/branch-req.mjs';
 import { loadCompanyConfig, branchName as buildBranchName } from '../engine/company-config.mjs';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -112,6 +112,10 @@ if (/^\s*(n|n[ãa]o|esc|doc|s[óo] ?consulta|consulta|sair|deixa|cancela|cancela
 // frases "próxima/nova/outra tarefa" ou "deploy feito/concluído/ok".
 // =====================================================
 
+// true SÓ quando a sessão estava FREE (tarefa anterior JÁ finalizada: commit+push) e o
+// Fabiano mandou a PRÓXIMA tarefa. Nesse caso a guarda de tarefa-ativa não engata —
+// abrir nova tarefa é legítimo. Fora daqui, tarefa ativa não finalizada barra nova.
+let openingAfterFinalize = false;
 if (isFree(sid)) {
   const cur = parseBranch(prompt);
   const saidNext = /\b(pr[óo]xima tarefa|nova tarefa|outra tarefa|deploy\s+(feito|conclu[íi]do|ok|pronto|realizado))\b/i.test(prompt);
@@ -139,7 +143,9 @@ if (isFree(sid)) {
     }));
     process.exit(0);
   }
-  // tem número -> cai no muro de branch abaixo
+  // tem número -> tarefa anterior finalizada; abre a nova sem barrar no muro de tarefa-ativa
+  openingAfterFinalize = true;
+  // cai no muro de branch abaixo
 }
 
 // =====================================================
@@ -214,6 +220,28 @@ if (isDocumentationTask) {
   // engata com: começa com número, OU "tarefa"+número. Número no MEIO de frase (porta/path) NÃO.
   const numDeliberado = (!isQuestion && (iniciaNum || (temTarefa && numMatch))) ? (iniciaNum || numMatch[1]) : null;
   const emCurso = !!(pending && pending.num);
+
+  // MURO DE TAREFA ATIVA (VS-TASK-001): tarefa já CRIADA e ainda NÃO finalizada
+  // (sem commit+push -> sessão não está FREE). Só se pode abrir OUTRA tarefa depois de
+  // fechar a atual. Enquanto isso, número na conversa (ex.: "422 ao salvar", "500 no
+  // cadastro" — código de erro/qtd/id explicando o problema) NÃO reabre nem cria tarefa.
+  // openingAfterFinalize = veio do fluxo pós-push (tarefa anterior já fechada) -> libera.
+  const active = openingAfterFinalize ? null : getTask(sid);
+  if (active && active.num && !emCurso) {
+    const mesmoNum = numDeliberado && String(numDeliberado) === String(active.num);
+    if (numDeliberado && !mesmoNum) {
+      process.stdout.write(JSON.stringify({
+        decision: 'block',
+        reason:
+          `[VS-TASK-001] BLOCKED — a tarefa #${active.num} ainda NÃO foi finalizada (falta commit + push). ` +
+          `Só dá pra abrir OUTRA tarefa depois de fechar a atual: rode o gate (VERDE), commit e push da #${active.num} — aí a sessão libera pra próxima. ` +
+          `Se o "${numDeliberado}" acima é só parte da explicação do problema (código de erro, quantidade, id, porta) e NÃO uma tarefa nova, reformule sem começar a mensagem pelo número e siga trabalhando na #${active.num}.`,
+      }));
+      process.exit(0);
+    }
+    // mesmo número, ou sem número deliberado = conversa/trabalho da própria tarefa ativa -> livre
+    process.exit(0);
+  }
 
   // LIVRE: sem "tarefa <número>" e sem tarefa em curso, a IA faz o que o Fabiano pedir.
   if (!emCurso && !numDeliberado) {

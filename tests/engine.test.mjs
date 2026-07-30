@@ -1,14 +1,33 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rmSync, existsSync } from 'node:fs';
+import { rmSync, existsSync, mkdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { validateTask } from '../engine/requirements.mjs';
 import { recordTask, loadEvents, aggregate } from '../engine/metrics.mjs';
 import { hasConsent, setConsent, collectIfConsented } from '../engine/consent.mjs';
 import { verifyLicense } from '../license/license.mjs';
 import { issueLicense } from '../license/issue.mjs';
 import { globToRe, matchAny } from '../engine/core.mjs';
-import { parseBranch } from '../engine/branch-req.mjs';
+import { parseBranch, setTask, clearTask } from '../engine/branch-req.mjs';
 import { DEFAULT_CONFIG, branchName, branchRegex, checkCommitScope, patternUsesNumero } from '../engine/company-config.mjs';
+
+const __dir = dirname(fileURLToPath(import.meta.url));
+const HOOK = join(__dir, '..', 'hooks', 'on-task.mjs');
+
+// Roda o hook UserPromptSubmit como subprocesso (cwd limpo p/ não pegar .qa-gate-off do repo).
+function runOnTask(prompt, sid) {
+  const cwd = join(tmpdir(), 'qa-gate-ontask-test');
+  try { mkdirSync(cwd, { recursive: true }); } catch {}
+  const r = spawnSync('node', [HOOK], {
+    input: JSON.stringify({ prompt, session_id: sid }),
+    cwd,
+    encoding: 'utf8',
+  });
+  return r.stdout || '';
+}
 
 test('parseBranch: repositorios (lista) e alvo rotulados separados', () => {
   const r = parseBranch('36885 fix origem dev repositorios todos alvo mobile');
@@ -113,6 +132,37 @@ test('license: token assinado valida (requer chave privada local)', { skip: !exi
   const token = issueLicense({ email: 'x@y.com', plan: 'pro', days: 365 });
   assert.equal(verifyLicense(token).valid, true);
   assert.equal(verifyLicense(token.slice(0, -6) + 'AAAAAA').valid, false);
+});
+
+test('VS-TASK-001: tarefa ativa não finalizada -> número diferente NÃO abre nova tarefa (bloqueia)', () => {
+  const sid = 'unit-task-block';
+  clearTask(sid);
+  setTask(sid, { num: '100', tipo: 'fix', origem: 'dev', repositorios: ['back'], escopo: 'x' });
+  // mensagem começa com OUTRO número (explicando problema, ex.: código de erro)
+  const out = runOnTask('500 erro ao salvar no cadastro', sid);
+  clearTask(sid);
+  assert.match(out, /VS-TASK-001/);
+  assert.match(out, /"decision":"block"/);
+});
+
+test('VS-TASK-001: mesmo número da tarefa ativa NÃO bloqueia (é conversa da própria tarefa)', () => {
+  const sid = 'unit-task-same';
+  clearTask(sid);
+  setTask(sid, { num: '100', tipo: 'fix', origem: 'dev', repositorios: ['back'], escopo: 'x' });
+  const out = runOnTask('100 o erro é no campo cpf', sid);
+  clearTask(sid);
+  assert.doesNotMatch(out, /VS-TASK-001/);
+  assert.doesNotMatch(out, /"decision":"block"/);
+});
+
+test('VS-TASK-001: tarefa ativa + explicação sem número deliberado -> livre (não bloqueia)', () => {
+  const sid = 'unit-task-free';
+  clearTask(sid);
+  setTask(sid, { num: '100', tipo: 'fix', origem: 'dev', repositorios: ['back'], escopo: 'x' });
+  const out = runOnTask('o erro 422 aparece ao salvar sem tratar', sid);
+  clearTask(sid);
+  assert.doesNotMatch(out, /VS-TASK-001/);
+  assert.doesNotMatch(out, /"decision":"block"/);
 });
 
 test('glob: matchAny casa padroes', () => {
