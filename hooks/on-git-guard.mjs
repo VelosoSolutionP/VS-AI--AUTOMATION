@@ -20,6 +20,7 @@ import { loadCompanyConfig, branchName as buildBranchName, branchRegex, branchGl
 import { timeBoxStatus } from '../engine/timebox.mjs';
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
 import { isGitCommit, isGitPush } from '../engine/git-cmd.mjs';
+import { isMergeContext } from '../engine/git-merge.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
@@ -205,9 +206,11 @@ if (isCommit && !isMobile && !existsSync(join(gitCwd, '.qa-gate-green-ok'))) {
 }
 
 const PROTECTED = /^(main|master|dev|develop|hml|homolog\w*|production|prod|staging)$/i;
-if (PROTECTED.test(branch)) {
+// ENV PROMOTION: merge de ambiente (dev→hml→main) é LIBERADO — é integração, não commit
+// direto de código. Só o commit/push DIRETO (sem merge) em branch protegida é bloqueado.
+if (PROTECTED.test(branch) && !isMergeContext(cmd, gitCwd)) {
   const exemplo = buildBranchName(cfg, { tipo: 'fix', numero: '<numero>' });
-  deny(`[VS-GIT-002] BLOCKED — ${isPush ? 'push' : 'commit'} direto em "${branch}" proibido. Crie a branch da tarefa: git checkout -b ${exemplo} origin/${branch}`);
+  deny(`[VS-GIT-002] BLOCKED — ${isPush ? 'push' : 'commit'} direto em "${branch}" proibido (merge/promoção de ambiente dev→hml→main É liberado). Crie a branch da tarefa: git checkout -b ${exemplo} origin/${branch}`);
 }
 
 // MURO DE ESTADO: tarefa ativa (checklist completo) EXIGE que o commit/push seja na

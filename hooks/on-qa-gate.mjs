@@ -16,6 +16,7 @@ import { reportBlock, clearBlock, readMarkers } from '../engine/help-state.mjs';
 import { recordTask } from '../engine/metrics.mjs';
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
 import { isGitCommit } from '../engine/git-cmd.mjs';
+import { isMergeContext } from '../engine/git-merge.mjs';
 
 // Nome do projeto no recibo/audit: pai/base (desambigua backend/mobile) ou
 // config.projectName. Ex.: Egle/backend, Velvet/mobile, Morar Melhor/portal...
@@ -89,6 +90,9 @@ if (!isGitCommit(cmd)) { allow(); }
 
 // repo REAL do commit (não a pasta da sessão) — fecha o leak de projeto no gate/recibo.
 const repo = resolveGitCwd(cmd, sessionCwd);
+
+// merge / promoção de ambiente (dev→hml→main) — gate NÃO se aplica (é integração).
+if (isMergeContext(cmd, repo)) { allow('[VS-AUD-006] merge/promoção de ambiente — QA-Gate não se aplica (integração, não commit de código).'); }
 
 // ── VS-AUD-004 (regra ABSOLUTA): tocou código de produção → EXIGE teste no
 // mesmo commit. Sem teste, sem commit. Bloqueio determinístico (não é aviso).
