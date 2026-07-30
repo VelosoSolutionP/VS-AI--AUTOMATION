@@ -10,7 +10,7 @@ import { recordTask, loadEvents, aggregate } from '../engine/metrics.mjs';
 import { hasConsent, setConsent, collectIfConsented } from '../engine/consent.mjs';
 import { verifyLicense } from '../license/license.mjs';
 import { issueLicense } from '../license/issue.mjs';
-import { globToRe, matchAny } from '../engine/core.mjs';
+import { globToRe, matchAny, normalizeStartCommand } from '../engine/core.mjs';
 import { parseBranch, setTask, clearTask } from '../engine/branch-req.mjs';
 import { DEFAULT_CONFIG, branchName, branchRegex, checkCommitScope, patternUsesNumero } from '../engine/company-config.mjs';
 
@@ -163,6 +163,13 @@ test('VS-TASK-001: tarefa ativa + explicação sem número deliberado -> livre (
   clearTask(sid);
   assert.doesNotMatch(out, /VS-TASK-001/);
   assert.doesNotMatch(out, /"decision":"block"/);
+});
+
+test('gate SEMPRE webpack: normalizeStartCommand tira --turbo/--turbopack', () => {
+  assert.equal(normalizeStartCommand('next dev --turbopack'), 'next dev');
+  assert.equal(normalizeStartCommand('next dev --turbo -p 3001'), 'next dev -p 3001');
+  assert.equal(normalizeStartCommand('next dev'), 'next dev'); // sem flag -> intacto
+  assert.equal(normalizeStartCommand('php artisan serve'), 'php artisan serve');
 });
 
 test('glob: matchAny casa padroes', () => {
