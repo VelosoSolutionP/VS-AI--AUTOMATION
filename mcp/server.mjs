@@ -128,8 +128,15 @@ server.tool('qa_simulate',
 /* ---- qa_run_gate (licenciado) ---- */
 server.tool('qa_run_gate',
   'Roda o gate completo a partir do diff staged do repo (igual ao pre-commit). Backend puro pula browser.',
-  { repo: z.string(), configPath: z.string().optional(), summary: z.string().optional().describe('solucao/o que foi feito nesta tarefa — vai no comprovante WhatsApp') },
-  async ({ repo, configPath, summary }) => {
+  {
+    repo: z.string(),
+    configPath: z.string().optional(),
+    summary: z.string().optional().describe('solucao/o que foi feito (correcao unica) — vai no comprovante'),
+    backend: z.string().optional().describe('o que foi feito no BACK nesta tarefa (card separa por stack)'),
+    frontend: z.string().optional().describe('o que foi feito no FRONT nesta tarefa (card separa por stack)'),
+    mobile: z.string().optional().describe('o que foi feito no MOBILE nesta tarefa (card separa por stack)'),
+  },
+  async ({ repo, configPath, summary, backend, frontend, mobile }) => {
     requireLicense();
     const cfg = configPath || `${repo}/qa-gate.config.json`;
     const r = await runGate(repo, cfg);
@@ -151,15 +158,17 @@ server.tool('qa_run_gate',
     try {
       const project = projectName(repo);
       const task = taskFromBranch(repo);
+      // correção por stack (card separa Back/Front/Mobile) ou string única (summary)
+      const solution = (backend || frontend || mobile) ? { back: backend, front: frontend, mobile } : summary;
       if (r.status === 'green') {
-        waStatus = await notify({ project, task, kind: 'green', problem: 'gate verde', solution: summary }, repo);
+        waStatus = await notify({ project, task, kind: 'green', problem: 'gate verde', solution }, repo);
       } else if (r.status === 'red') {
         const errs = (r.results || [])
           .filter((x) => x.status === 'red')
           .flatMap((x) => x.errors || [])
           .slice(0, 3)
           .join('; ');
-        waStatus = await notify({ project, task, kind: 'red', problem: errs || 'gate vermelho', solution: summary }, repo);
+        waStatus = await notify({ project, task, kind: 'red', problem: errs || 'gate vermelho', solution }, repo);
       }
     } catch (e) { waStatus = { whatsapp: { ok: false, error: String(e) } }; }
     const lines = [`status: ${r.status}${r.reason ? ' — ' + r.reason : ''}`];

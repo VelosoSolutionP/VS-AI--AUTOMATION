@@ -20,6 +20,27 @@ export function sanitize(s) {
     .slice(0, 900);
 }
 
+/**
+ * Normaliza a `solution`: aceita STRING (correção única) ou OBJETO por stack
+ * {back|backend, front|frontend, mobile|app}. Retorna as partes presentes rotuladas,
+ * pro card ficar completo separando o que foi feito em cada camada da tarefa.
+ */
+export function solutionParts(sol) {
+  if (!sol) { return []; }
+  if (typeof sol === 'string') { return [{ label: null, text: sol }]; }
+  const pick = (ks) => { for (const k of ks) { if (sol[k]) { return sol[k]; } } return null; };
+  const map = [
+    ['Back', pick(['back', 'backend', 'be'])],
+    ['Front', pick(['front', 'frontend', 'fe'])],
+    ['Mobile', pick(['mobile', 'app', 'mob'])],
+  ];
+  return map.filter(([, v]) => v).map(([label, text]) => ({ label, text: String(text) }));
+}
+/** Achata a solution pra UMA linha (WhatsApp texto). Ex.: "Back: x. Front: y." */
+export function solutionToPlain(sol) {
+  return solutionParts(sol).map((p) => (p.label ? `${p.label}: ${p.text}` : p.text)).join('. ');
+}
+
 export function whatsappConfig(baseDir) {
   const cfg = loadCompanyConfig(baseDir);
   return cfg?.notify?.whatsapp || {};
@@ -50,17 +71,18 @@ export function formatMessage({ project, task, kind, problem, solution, dev } = 
   // sempre o que e de quem (varios projetos/devs em paralelo).
   const head = `Projeto ${p} · Tarefa ${t}`;
   const who = dev ? ` [dev: ${sanitize(dev)}]` : '';
+  const solStr = solutionToPlain(solution);
   switch (kind) {
     case 'help':
       return `[qa-gate AJUDA] ${head} - ${sanitize(problem)}. Precisa de voce?${who}`;
     case 'impediment':
-      return `[qa-gate IMPEDIMENTO] ${head} - ${sanitize(problem)}. Solucao: ${sanitize(solution || 'aguardando')}.${who}`;
+      return `[qa-gate IMPEDIMENTO] ${head} - ${sanitize(problem)}. Solucao: ${sanitize(solStr || 'aguardando')}.${who}`;
     case 'red':
-      return `[qa-gate VERMELHO] ${head} - ${sanitize(problem)}. ${solution ? 'Corrigi: ' + sanitize(solution) : 'Resolvendo ate ficar verde.'}${who}`;
+      return `[qa-gate VERMELHO] ${head} - ${sanitize(problem)}. ${solStr ? 'Corrigi: ' + sanitize(solStr) : 'Resolvendo ate ficar verde.'}${who}`;
     case 'green':
-      return `[qa-gate VERDE] ${head} - ${sanitize(problem || 'gate ok')}.${solution ? ' Correcao: ' + sanitize(solution) + '.' : ''}${who}`;
+      return `[qa-gate VERDE] ${head} - ${sanitize(problem || 'gate ok')}.${solStr ? ' Correcao: ' + sanitize(solStr) + '.' : ''}${who}`;
     case 'done':
-      return `[qa-gate TAREFA CONCLUIDA] ${head} - entregue (push feito, sem erro pendente).${solution ? ' ' + sanitize(solution) : ''}${who}`;
+      return `[qa-gate TAREFA CONCLUIDA] ${head} - entregue (push feito, sem erro pendente).${solStr ? ' ' + sanitize(solStr) : ''}${who}`;
     default:
       return `[qa-gate] ${head} - ${sanitize(problem || '')}${who}`;
   }
@@ -157,7 +179,13 @@ export function formatSlackBlocks({ project, task, kind, problem, solution, dev 
     { type: 'header', text: { type: 'plain_text', text: `${meta.emoji} ${meta.title}`, emoji: true } },
     { type: 'section', fields },
   ];
-  if (solution) { blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*Correcao aplicada:*\n${slackClean(solution)}` } }); }
+  const parts = solutionParts(solution);
+  if (parts.length) {
+    const body = parts
+      .map((pt) => (pt.label ? `*${pt.label}:* ${slackClean(pt.text)}` : slackClean(pt.text)))
+      .join('\n');
+    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*Correcao aplicada:*\n${body}` } });
+  }
   blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `qa-gate governanca${dev ? ' - ' + slackClean(dev) : ''}` }] });
   return { attachments: [{ color: meta.color, blocks }] };
 }
