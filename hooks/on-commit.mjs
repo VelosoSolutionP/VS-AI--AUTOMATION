@@ -11,6 +11,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { getTask } from '../engine/branch-req.mjs';
 import { loadCompanyConfig, checkCommitScope } from '../engine/company-config.mjs';
+import { isGitCommit } from '../engine/git-cmd.mjs';
 
 const raw = await new Promise((res) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => res(s)); });
 let cmd = '';
@@ -25,8 +26,8 @@ function deny(reason) {
   process.exit(0);
 }
 
-// só age em git commit com mensagem
-if (!/\bgit\b[\s\S]*\bcommit\b/.test(cmd)) { allow(); }
+// só age em git commit REAL (não palavra "commit" solta em echo/log/string)
+if (!isGitCommit(cmd)) { allow(); }
 const m = cmd.match(/-m\s+(["'])([\s\S]*?)\1/);
 if (!m) { allow(); } // sem -m (ex.: commit interativo) — não valida
 

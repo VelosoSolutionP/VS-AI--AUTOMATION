@@ -15,6 +15,7 @@ import { notify, projectLabel } from '../engine/notify-whatsapp.mjs';
 import { reportBlock, clearBlock, readMarkers } from '../engine/help-state.mjs';
 import { recordTask } from '../engine/metrics.mjs';
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
+import { isGitCommit } from '../engine/git-cmd.mjs';
 
 // Nome do projeto no recibo/audit: pai/base (desambigua backend/mobile) ou
 // config.projectName. Ex.: Egle/backend, Velvet/mobile, Morar Melhor/portal...
@@ -83,8 +84,8 @@ const deny = (reason) => {
   process.exit(0);
 };
 
-// só age em git commit (não amend de mensagem sem código? valida assim mesmo)
-if (!/\bgit\b[\s\S]*\bcommit\b/.test(cmd)) { allow(); }
+// só age em git commit REAL (não palavra "commit" solta em echo/log/string)
+if (!isGitCommit(cmd)) { allow(); }
 
 // repo REAL do commit (não a pasta da sessão) — fecha o leak de projeto no gate/recibo.
 const repo = resolveGitCwd(cmd, sessionCwd);

@@ -14,6 +14,7 @@ import { setFree } from '../engine/branch-req.mjs';
 import { clearBlock } from '../engine/help-state.mjs';
 import { notify, devName, projectLabel } from '../engine/notify-whatsapp.mjs';
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
+import { isGitPush } from '../engine/git-cmd.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
@@ -21,7 +22,7 @@ let sid = 'default';
 let sessionCwd = process.cwd();
 try { const j = JSON.parse(raw || '{}'); cmd = j.tool_input?.command || j.command || ''; sid = j.session_id || 'default'; sessionCwd = j.cwd || j.tool_input?.cwd || process.cwd(); } catch { cmd = raw; }
 
-if (!/\bgit\b[\s\S]*\bpush\b/.test(cmd)) { process.exit(0); }
+if (!isGitPush(cmd)) { process.exit(0); }
 
 // repo REAL do push (não a pasta da sessão) — fecha o leak de projeto no recibo/branch.
 const gitCwd = resolveGitCwd(cmd, sessionCwd);

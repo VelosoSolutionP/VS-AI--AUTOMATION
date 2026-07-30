@@ -19,6 +19,7 @@ import { loadReq, isConsult, isSessionOff, getTask } from '../engine/branch-req.
 import { loadCompanyConfig, branchName as buildBranchName, branchRegex, branchGlobsForNumber, patternUsesNumero } from '../engine/company-config.mjs';
 import { timeBoxStatus } from '../engine/timebox.mjs';
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
+import { isGitCommit, isGitPush } from '../engine/git-cmd.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
@@ -122,8 +123,8 @@ if (criaBranch) {
   }
 }
 
-const isCommit = /\bcommit\b/.test(cmd);
-const isPush = /\bpush\b/.test(cmd);
+const isCommit = isGitCommit(cmd);
+const isPush = isGitPush(cmd);
 if (!isCommit && !isPush) { allow(); }
 
 // modo CONSULTA/DOC -> sem commit/push (não abriu tarefa)

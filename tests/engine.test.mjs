@@ -13,6 +13,7 @@ import { issueLicense } from '../license/issue.mjs';
 import { globToRe, matchAny, normalizeStartCommand } from '../engine/core.mjs';
 import { timeBoxStatus, timeBoxLimitMin, TIME_BOX_MIN } from '../engine/timebox.mjs';
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
+import { isGitCommit, isGitPush } from '../engine/git-cmd.mjs';
 import { resolve as pathResolve } from 'node:path';
 import { parseBranch, setTask, clearTask, setPreflight, clearPreflight, isPreflight } from '../engine/branch-req.mjs';
 import { DEFAULT_CONFIG, branchName, branchRegex, checkCommitScope, patternUsesNumero } from '../engine/company-config.mjs';
@@ -273,6 +274,22 @@ test('VS-TIME-001 unlock: palavra diferente de "liberado" NAO destrava', () => {
   const out = runOnTask('continua ai', sid);
   clearTask(sid);
   assert.doesNotMatch(out, /destravado/);
+});
+
+test('git-cmd: invocacao REAL de commit/push (nao palavra solta) — fim do recibo fantasma', () => {
+  // reais -> TRUE
+  assert.equal(isGitCommit('git commit -m x'), true);
+  assert.equal(isGitCommit('git -c user.name=fabiano -c user.email=f@x commit -F msg.txt'), true);
+  assert.equal(isGitPush('git push -u origin fix/fabiano.veloso/40000'), true);
+  assert.equal(isGitPush('git -C C:/Veloso/Velvet/frontend push'), true);
+  assert.equal(isGitPush('cd /repo && git push'), true);
+  // FANTASMAS (palavra solta em echo/log/path/subcomando) -> FALSE
+  assert.equal(isGitCommit('git rev-parse HEAD; echo "ultimo commit real"; git log'), false);
+  assert.equal(isGitCommit('git log --grep=commit'), false);
+  assert.equal(isGitCommit('echo "pronto pra commit"'), false);
+  assert.equal(isGitCommit('git status'), false);
+  assert.equal(isGitPush('git log --oneline | grep push'), false);
+  assert.equal(isGitPush('cat .git/HEAD'), false);
 });
 
 test('glob: matchAny casa padroes', () => {
