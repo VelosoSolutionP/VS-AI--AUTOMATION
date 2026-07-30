@@ -12,7 +12,7 @@ import { verifyLicense } from '../license/license.mjs';
 import { issueLicense } from '../license/issue.mjs';
 import { globToRe, matchAny, normalizeStartCommand } from '../engine/core.mjs';
 import { timeBoxStatus, timeBoxLimitMin, TIME_BOX_MIN } from '../engine/timebox.mjs';
-import { parseBranch, setTask, clearTask } from '../engine/branch-req.mjs';
+import { parseBranch, setTask, clearTask, setPreflight, clearPreflight, isPreflight } from '../engine/branch-req.mjs';
 import { DEFAULT_CONFIG, branchName, branchRegex, checkCommitScope, patternUsesNumero } from '../engine/company-config.mjs';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
@@ -184,6 +184,31 @@ test('time-box: 15min ABSOLUTO; overdue quando idade >= limite (cfg sobrepoe)', 
   assert.equal(timeBoxStatus(t15, now).overdue, true);  // 15min -> estourou (tipo nao importa)
   assert.equal(timeBoxStatus(t15, now).ageMin, 15);
   assert.equal(timeBoxStatus({ num: '1' }, now).overdue, false); // sem ts -> nunca overdue
+});
+
+test('preflight: flag de sessao seta/limpa', () => {
+  const sid = 'unit-preflight-flag';
+  clearPreflight(sid);
+  assert.equal(isPreflight(sid), false);
+  setPreflight(sid);
+  assert.equal(isPreflight(sid), true);
+  clearPreflight(sid);
+  assert.equal(isPreflight(sid), false);
+});
+
+test('preflight: 1a tarefa da sessao injeta PREFLIGHT; flag fica setada', () => {
+  const sid = 'unit-preflight-inject';
+  clearPreflight(sid);
+  clearTask(sid);
+  // turno 1: 4 campos core -> muro pede o escopo (salva req)
+  runOnTask('100 fix dev back', sid);
+  // turno 2: escopo -> completa a tarefa e injeta o contexto (com PREFLIGHT)
+  const out = runOnTask('corrige o cadastro que nao salva ao editar', sid);
+  const setAfter = isPreflight(sid);
+  clearPreflight(sid);
+  clearTask(sid);
+  assert.match(out, /PREFLIGHT/);
+  assert.equal(setAfter, true);
 });
 
 test('glob: matchAny casa padroes', () => {

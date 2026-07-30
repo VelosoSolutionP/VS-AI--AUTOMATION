@@ -106,6 +106,21 @@ export function isFree(key) {
   } catch { return false; }
 }
 
+// PREFLIGHT por SESSÃO: na 1ª tarefa da sessão a IA valida ambiente ON (docker/app/
+// reverb) + roda um smoke do gate. Verde -> marca a sessão como liberada e NÃO repete o
+// preflight. Se algo cair depois, a IA resolve na hora (fluxo normal) — sem re-travar.
+const preflightPath = (key) => join(tmpdir(), `qa-gate-preflight-${slug(key)}.json`);
+export function setPreflight(key) { try { writeFileSync(preflightPath(key), JSON.stringify({ ts: Date.now() })); } catch {} }
+export function clearPreflight(key) { try { rmSync(preflightPath(key)); } catch {} }
+export function isPreflight(key) {
+  try {
+    if (!existsSync(preflightPath(key))) { return false; }
+    const o = JSON.parse(readFileSync(preflightPath(key), 'utf8'));
+    if (Date.now() - (o.ts || 0) > FREE_TTL) { rmSync(preflightPath(key)); return false; }
+    return true;
+  } catch { return false; }
+}
+
 // Opt-out por SESSÃO (não por pasta): desliga a governança nesta sessão do Claude,
 // mesmo trabalhando dentro de um projeto governado (bancada de conserto). Vale até
 // remover o flag. Chave = session_id.

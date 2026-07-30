@@ -11,7 +11,7 @@
  * - Injetar contexto leve para economizar tokens.
  */
 
-import { parseBranch, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree, isSessionOff, setTask, clearTask, getTask } from '../engine/branch-req.mjs';
+import { parseBranch, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree, isSessionOff, setTask, clearTask, getTask, isPreflight, setPreflight } from '../engine/branch-req.mjs';
 import { loadCompanyConfig, branchName as buildBranchName } from '../engine/company-config.mjs';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -356,6 +356,15 @@ if (isDocumentationTask) {
     linhas.join('\n') + '\n' +
     `Só DEPOIS de criar TODAS as branches, comece a trabalhar. NÃO pule esse passo, NÃO vá direto pro código.` +
     (temMobile ? `\nREGRA MOBILE: branch sai da ATUAL (acumula), commits LOCAIS, SEM push — deploy (APK) só no fim do dia a pedido do Fabiano.` : '');
+  // PREFLIGHT 1x na sessão: 1ª tarefa valida ambiente ON antes de codar. Verde -> libera
+  // a sessão (não repete). Cair algo depois: a IA resolve na hora e segue (sem re-travar).
+  if (!isPreflight(sid)) {
+    ctx += `\n⛳ PREFLIGHT (1ª tarefa desta sessão — roda UMA vez): ANTES de codar, garanta o ambiente ON e valide o gate — ` +
+      `① docker ON (sobe se off) · ② app/ambiente no ar (qa_check_app no baseUrl) · ③ reverb ON · ④ smoke do QA-Gate. ` +
+      `Tudo ON/verde → a SESSÃO fica liberada e o preflight NÃO repete. Se algo cair DEPOIS, resolve na hora e segue — NÃO re-trava por preflight. ` +
+      `(Ambiente já ON = passa rápido.)`;
+    setPreflight(sid);
+  }
   if (merged.crud) {
     ctx += `\nBUG CRUD/VALIDAÇÃO: rode o QA-Gate na rota/fluxo afetado — ele reproduz o erro real. Corrija com base no que o gate mostrar.`;
   }
