@@ -91,6 +91,10 @@ if (!isGitCommit(cmd)) { allow(); }
 // repo REAL do commit (não a pasta da sessão) — fecha o leak de projeto no gate/recibo.
 const repo = resolveGitCwd(cmd, sessionCwd);
 
+// opt-out por pasta (bancada / projeto em desenvolvimento): .qa-gate-off desliga o gate —
+// no repo real OU na sessão. Mesma regra dos outros hooks (fecha o furo do on-qa-gate).
+if (existsSync(join(repo, '.qa-gate-off')) || existsSync(join(sessionCwd, '.qa-gate-off'))) { allow(); }
+
 // MERGE (integração/promoção dev→hml/main) — gate NÃO se aplica (é junção via MR, revisada
 // pelo tech lead). Não confundir com liberar push direto em protegida: isso segue barrado.
 if (isMergeContext(cmd, repo)) { allow('[VS-AUD-006] merge/promoção de ambiente — QA-Gate não se aplica (integração via MR).'); }
