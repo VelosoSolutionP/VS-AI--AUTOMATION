@@ -330,20 +330,25 @@ if (isDocumentationTask) {
       '③ ' + (merged.origem ? '✅' : '❌') + ' ORIGEM' + (merged.origem ? ' ' + merged.origem : '') + '\n' +
       '④ ' + (hasList(merged.repositorios) ? '✅' : '❌') + ' REPOSITÓRIOS' + (hasList(merged.repositorios) ? ' ' + merged.repositorios.join('+') : '') + '\n' +
       '⑤ ' + (merged.escopo ? '✅' : '❌') + ' ESCOPO' + (merged.escopo ? ' ✓' : '');
-    const OPTS = {
-      tipo: '② TIPO → fix | feat | refactor | perf | hotfix | chore | test | docs',
-      origem: '③ ORIGEM → dev | hml | main',
-      repositorios: '④ REPOSITÓRIOS → front | back | mobile | todos   (PODE COMBINAR: "front back", "back mobile" — cria a branch em cada um. TODOS = front+back+mobile)',
-      escopo: '⑤ ESCOPO → descreva a tarefa/bug em texto livre: o que é, em qual tela/fluxo, comportamento esperado (pode citar front/back/tela à vontade — não trava)',
+    // SELETOR (chave seletora): a IA apresenta os campos que faltam via AskUserQuestion
+    // (botões), NÃO em texto. tipo/origem = single-select; repositorios = multiSelect;
+    // escopo = texto livre (não é seletor).
+    const OPCOES = {
+      tipo: 'TIPO (header "Tipo", single-select): fix, feat, perf, refactor, chore, hotfix, docs',
+      origem: 'ORIGEM (header "Origem", single-select): dev, hml, main',
+      repositorios: 'REPOSITORIOS (header "Repos", multiSelect=true): front, back, mobile, todos',
     };
-    const pedir = missing.map((k) => '• ' + OPTS[k]).join('\n');
+    const selavel = missing.filter((k) => k !== 'escopo').map((k) => '  • ' + OPCOES[k]).join('\n');
+    const temEscopo = missing.includes('escopo');
     process.stdout.write(JSON.stringify({
       decision: 'block',
-      reason: '[VS-BRANCH-001] Pra criar a tarefa (PROJETO eu já sei — você está nele). ' +
-        'REGRA ABSOLUTA: sem TODOS os campos abaixo NÃO crio branch — fica aguardando. ' +
-        'NÃO assuma nada, NÃO invente opções, NÃO peça escopo agora e IGNORE no texto o que não for o campo pedido ' +
-        '(ex.: origem só vale dev/hml/main — o resto ignora até vir válido):\n' +
-        check + '\n\nResponda SÓ o que falta (na ordem):\n' + pedir + '\n\n(ou "cancela")',
+      reason: '[VS-BRANCH-001] Faltam campos pra criar a branch (PROJETO eu já sei — você está nele).\n' +
+        'Status: ' + check.replace(/\n/g, '   ') + '\n' +
+        'APRESENTE AGORA via a ferramenta **AskUserQuestion** (SELETOR/botões — NÃO em texto, NÃO invente opção) ' +
+        'os campos-seletor que faltam, numa ÚNICA chamada (uma question por campo, nesta ordem):\n' +
+        (selavel || '  (nenhum campo-seletor pendente)') + '\n' +
+        (temEscopo ? 'E o ESCOPO peça em TEXTO livre (não é seletor): o que é, em qual tela/fluxo, comportamento esperado.\n' : '') +
+        'Quando o Fabiano selecionar, use os valores escolhidos e o fluxo segue (cria a branch). (ou "cancela")',
     }));
     process.exit(0);
   }
