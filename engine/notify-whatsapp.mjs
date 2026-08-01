@@ -67,9 +67,12 @@ export function whatsappEnabled(wa) {
 export function formatMessage({ project, task, kind, problem, solution, dev } = {}) {
   const p = sanitize(project || '?');
   const t = task ? `#${sanitize(String(task))}` : 's/n';
-  // TODO recibo comeca com PROJETO + TAREFA rotulados — pro Fabiano saber
-  // sempre o que e de quem (varios projetos/devs em paralelo).
-  const head = `Projeto ${p} · Tarefa ${t}`;
+  // Carimbo de DATA + HORA (local) no recibo — pro Fabiano saber quando saiu.
+  const _d = new Date();
+  const _2 = (n) => String(n).padStart(2, '0');
+  const when = `${_2(_d.getDate())}/${_2(_d.getMonth() + 1)}/${_d.getFullYear()} ${_2(_d.getHours())}:${_2(_d.getMinutes())}`;
+  // recibo comeca com PROJETO + TAREFA + QUANDO — pro Fabiano saber o que e de quem e quando.
+  const head = `Projeto ${p} · Tarefa ${t} · ${when}`;
   const who = dev ? ` [dev: ${sanitize(dev)}]` : '';
   const solStr = solutionToPlain(solution);
   switch (kind) {
