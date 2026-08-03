@@ -17,7 +17,12 @@ export function timeBoxLimitMin(task = {}, cfg = {}) {
  */
 export function timeBoxStatus(task, nowMs, cfg = {}) {
   const limitMin = timeBoxLimitMin(task, cfg);
-  const ageMin = (task && task.ts) ? Math.floor((nowMs - task.ts) / 60000) : 0;
-  const overdue = !!(task && task.ts) && ageMin >= limitMin;
+  // Ancora = ULTIMA atividade (lastTs), com fallback ao inicio da tarefa (ts). O
+  // time-box mede INATIVIDADE (tarefa parada/travada), NAO wall-clock desde que a
+  // tarefa abriu. Trabalho ativo (tools/mensagens resetam lastTs) nao trava mais por
+  // tempo de sessao/espera do dev — so bloqueia com `limitMin` SEM nenhuma atividade.
+  const anchor = (task && (task.lastTs || task.ts)) || 0;
+  const ageMin = anchor ? Math.floor((nowMs - anchor) / 60000) : 0;
+  const overdue = !!anchor && ageMin >= limitMin;
   return { limitMin, ageMin, overdue };
 }

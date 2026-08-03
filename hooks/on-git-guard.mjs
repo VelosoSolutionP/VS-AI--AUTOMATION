@@ -15,7 +15,7 @@
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve, isAbsolute } from 'node:path';
-import { loadReq, isConsult, isSessionOff, getTask } from '../engine/branch-req.mjs';
+import { loadReq, isConsult, isSessionOff, getTask, setTask } from '../engine/branch-req.mjs';
 import { loadCompanyConfig, branchName as buildBranchName, branchRegex, branchGlobsForNumber, patternUsesNumero } from '../engine/company-config.mjs';
 import { timeBoxStatus } from '../engine/timebox.mjs';
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
@@ -228,14 +228,29 @@ if (task && task.num) {
   const tipoBranch = task.tipo === 'test' ? 'fix' : task.tipo;
   const expected = buildBranchName(cfg, { tipo: tipoBranch, numero: task.num });
   if (branch !== expected) {
-    const repos = Array.isArray(task.repositorios) ? task.repositorios : (task.repositorios ? [task.repositorios] : []);
-    const multi = repos.length > 1;
-    const criarExpected = isMobile
-      ? `git checkout -b ${expected}  (mobile: sai da branch atual, acumula — SEM origin/)`
-      : `git fetch origin ${task.origem} && git checkout -b ${expected} origin/${task.origem}`;
-    deny(`[VS-BRANCH-006] BLOCKED — a branch da TAREFA #${task.num} não está ativa (você está em "${branch}", esperado "${expected}"). ` +
-      `Crie/entre nela ANTES de ${isPush ? 'pushar' : 'commitar'}: ${criarExpected}. ` +
-      `${multi ? `REPOSITÓRIOS=${repos.join('+')}: crie essa MESMA branch em CADA repo escolhido (mobile acumula da atual). ` : ''}Não pule a criação da branch.`);
+    // SEGUE O BAILE (regra Fabiano): se a branch ATUAL é ela mesma uma branch de
+    // tarefa VÁLIDA (bate o padrão da empresa) com número DIFERENTE, o dev trocou de
+    // tarefa entrando numa branch que JÁ existe (ex.: bug que voltou do QA). Nesse
+    // caso ADOTA o número da branch atual como tarefa ativa em vez de travar contra o
+    // ponteiro velho. Só BLOQUEIA se a branch atual NÃO for de tarefa (o agente foi
+    // pro código sem criar a branch) — que é o abuso real que este muro existe pra pegar.
+    const curNum = branchRegex(cfg).test(branch) ? (branch.match(/(\d{3,6})/) || [])[1] : null;
+    const curTipoM = (branch.match(/^([a-z]+)\//i) || [])[1];
+    const curTipo = curTipoM === 'test' ? 'fix' : (curTipoM || tipoBranch);
+    const curExpected = curNum ? buildBranchName(cfg, { tipo: curTipo, numero: curNum }) : null;
+    if (curExpected && curExpected === branch && String(curNum) !== String(task.num)) {
+      // Branch de tarefa válida e diferente → adota e segue (herda origem/repos).
+      try { setTask(sid, { ...task, num: curNum, tipo: curTipo }); } catch {}
+    } else {
+      const repos = Array.isArray(task.repositorios) ? task.repositorios : (task.repositorios ? [task.repositorios] : []);
+      const multi = repos.length > 1;
+      const criarExpected = isMobile
+        ? `git checkout -b ${expected}  (mobile: sai da branch atual, acumula — SEM origin/)`
+        : `git fetch origin ${task.origem} && git checkout -b ${expected} origin/${task.origem}`;
+      deny(`[VS-BRANCH-006] BLOCKED — a branch da TAREFA #${task.num} não está ativa (você está em "${branch}", esperado "${expected}"). ` +
+        `Crie/entre nela ANTES de ${isPush ? 'pushar' : 'commitar'}: ${criarExpected}. ` +
+        `${multi ? `REPOSITÓRIOS=${repos.join('+')}: crie essa MESMA branch em CADA repo escolhido (mobile acumula da atual). ` : ''}Não pule a criação da branch.`);
+    }
   }
 }
 
@@ -260,8 +275,8 @@ if (task && task.num && task.ts) {
       });
       if (r && r.ok && mk) { markNotified(mk.file, mk.data); }
     } catch {}
-    deny(`[VS-TIME-001] BLOCKED — a tarefa #${task.num} passou dos ${st.limitMin}min (já ${st.ageMin}min). ` +
-      `PARE agora e deixe AO VIVO no chat (sem backlog) o PORQUÊ da demora: o que faltou pra fechar, onde travou e o approach atual. ` +
+    deny(`[VS-TIME-001] BLOCKED — tarefa #${task.num} SEM ATIVIDADE há ${st.ageMin}min (teto ${st.limitMin}min de inatividade). ` +
+      `PARE agora e deixe AO VIVO no chat (sem backlog) o PORQUÊ da parada: o que faltou pra fechar, onde travou e o approach atual. ` +
       `Chamei o dev no Slack. SÓ o DEV destrava este ${isPush ? 'push' : 'commit'} dizendo "liberado" no chat (reinicia a janela). ` +
       `NÃO se auto-libere, NÃO crie flag/arquivo pra pular, NÃO invente senha.`);
   }

@@ -14,7 +14,7 @@
  */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { getTask, isSessionOff } from '../engine/branch-req.mjs';
+import { getTask, isSessionOff, touchTask } from '../engine/branch-req.mjs';
 import { loadCompanyConfig } from '../engine/company-config.mjs';
 import { timeBoxStatus } from '../engine/timebox.mjs';
 
@@ -41,7 +41,9 @@ if (!task || !task.num || !task.ts) { allow(); }
 
 const cfg = loadCompanyConfig(cwd);
 const st = timeBoxStatus(task, Date.now(), cfg);
-if (!st.overdue) { allow(); }
+// Trabalho ativo: nao estourou -> registra ATIVIDADE (reseta o relogio de inatividade)
+// e libera. Assim tool disparando o tempo todo nunca trava por wall-clock/espera.
+if (!st.overdue) { touchTask(sid); allow(); }
 
 // chama o dev no Slack/WhatsApp 1x (dedupe pelo marcador de ajuda da tarefa)
 try {
@@ -58,7 +60,7 @@ try {
   if (r && r.ok && mk) { markNotified(mk.file, mk.data); }
 } catch {}
 
-deny(`[VS-TIME-001] BLOCKED — SESSÃO TRAVADA: a tarefa #${task.num} passou dos ${st.limitMin}min (já ${st.ageMin}min). ` +
-  `PARE tudo agora. Escreva JÁ, em TEXTO (não é tool, não é bloqueado), o PORQUÊ da demora: o que faltou pra fechar, onde travou e o approach atual. ` +
+deny(`[VS-TIME-001] BLOCKED — tarefa #${task.num} SEM ATIVIDADE há ${st.ageMin}min (teto ${st.limitMin}min de inatividade). ` +
+  `PARE tudo agora. Escreva JÁ, em TEXTO (não é tool, não é bloqueado), o PORQUÊ da parada: o que faltou pra fechar, onde travou e o approach atual. ` +
   `Chamei o dev no Slack — a sessão fica BLOQUEADA (todo tool negado) até ELE voltar e destravar dizendo a palavra "liberado". ` +
   `SÓ o dev destrava, SÓ com "liberado" — NÃO se auto-libere, NÃO crie flag/arquivo pra pular, NÃO invente senha.`);

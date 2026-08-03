@@ -11,7 +11,7 @@
  * - Injetar contexto leve para economizar tokens.
  */
 
-import { parseBranch, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree, isSessionOff, setTask, clearTask, getTask, isPreflight, setPreflight } from '../engine/branch-req.mjs';
+import { parseBranch, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree, isSessionOff, setTask, clearTask, getTask, touchTask, isPreflight, setPreflight } from '../engine/branch-req.mjs';
 import { loadCompanyConfig, branchName as buildBranchName } from '../engine/company-config.mjs';
 import { timeBoxStatus } from '../engine/timebox.mjs';
 import { existsSync } from 'node:fs';
@@ -67,6 +67,11 @@ if (existsSync(join(process.cwd(), '.qa-gate-off'))) {
 if (isSessionOff(sid)) {
   process.exit(0);
 }
+
+// ATIVIDADE DO DEV: qualquer mensagem do dev = ele PRESENTE = atividade. Reseta o
+// relogio de inatividade do time-box, matando o falso-bloqueio de "esperando o dev
+// responder". O time-box so trava tarefa REALMENTE abandonada (sem dev E sem tool).
+try { touchTask(sid); } catch {}
 
 // DESTRAVA DO TIME-BOX: tarefa ativa que ESTOUROU o teto trava a sessão inteira
 // (on-timebox-guard). Só o dev destrava: a palavra de liberação reinicia a janela e o

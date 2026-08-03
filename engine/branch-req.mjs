@@ -143,6 +143,18 @@ export function getTask(key) {
     return o;
   } catch { return null; }
 }
+// Marca ATIVIDADE na tarefa (bump de lastTs) sem alterar o inicio (ts). O time-box
+// mede inatividade a partir daqui: cada tool/mensagem reseta -> trabalho ativo NAO
+// trava por tempo de sessao/espera; so trava com o teto SEM atividade nenhuma.
+export function touchTask(key) {
+  try {
+    const p = taskPath(key);
+    if (!existsSync(p)) { return; }
+    const o = JSON.parse(readFileSync(p, 'utf8'));
+    o.lastTs = Date.now();
+    writeFileSync(p, JSON.stringify(o));
+  } catch {}
+}
 
 export function loadReq(key) {
   try {
