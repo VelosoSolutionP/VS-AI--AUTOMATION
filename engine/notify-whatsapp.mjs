@@ -134,13 +134,53 @@ export async function sendWhatsApp(text, baseDir) {
   try {
     const res = await fetch(url, { method: 'GET', signal: ctrl.signal });
     const body = await res.text();
-    const ok = /queued|will receive/i.test(body);
-    return { ok, status: res.status, body: body.slice(0, 300) };
+    const ok = /queued|will receive|message sent/i.test(body);
+    // CallMeBot devolve HTTP 200 mesmo quando NAO envia (cota gratuita zerada,
+    // apikey invalida). Sem extrair o motivo do body, o gate so mostrava "HTTP 200"
+    // e o dev nao sabia que a mensagem nao saiu. Extrai a causa real.
+    let reason;
+    if (!ok) {
+      if (/messages left|need your support|subscribe/i.test(body)) {
+        reason = 'CallMeBot: cota gratuita esgotada (assine para reativar)';
+      } else if (/apikey|not valid|not registered|not activated/i.test(body)) {
+        reason = 'CallMeBot: apikey/registro invalido';
+      } else {
+        reason = `HTTP ${res.status}`;
+      }
+    }
+    return { ok, status: res.status, body: body.slice(0, 300), ...(reason ? { reason } : {}) };
   } catch (e) {
     return { ok: false, error: String(e) };
   } finally {
     clearTimeout(t);
   }
+}
+
+/**
+ * Resume o resultado do notify() numa linha de recibo pro gate, olhando TODOS os
+ * canais. Entregue se QUALQUER canal saiu; canal opcional que falhou vira nota, nao
+ * alarme falso. Antes o gate so lia o WhatsApp e gritava "recibo NAO entregue" mesmo
+ * com o Slack tendo entregue — recibo mentiroso. Funcao pura (testavel).
+ */
+export function receiptSummary(res) {
+  const chans = [
+    ['Slack', res?.slack],
+    ['WhatsApp', res?.whatsapp],
+  ];
+  const reasonOf = (c) => c.reason || c.error || `HTTP ${c.status ?? '?'}`;
+  const delivered = chans.filter(([, c]) => c && c.ok).map(([n]) => n);
+  const failed = chans
+    .filter(([, c]) => c && !c.ok && !c.skipped)
+    .map(([n, c]) => `${n}: ${reasonOf(c)}`);
+  const allSkipped = chans.every(([, c]) => !c || c.skipped);
+  if (delivered.length) {
+    const note = failed.length ? ` — nota: ${failed.join('; ')}` : '';
+    return `recibo: ENTREGUE (${delivered.join(', ')})${note}`;
+  }
+  if (allSkipped) {
+    return 'recibo: DESATIVADO (opt-out) — recibo so em .git/qa-gate-green.json';
+  }
+  return `recibo: FALHOU — ${failed.join('; ') || 'sem canal'} — ATENCAO: recibo so em .git/qa-gate-green.json`;
 }
 
 // ── Slack (GRATIS via incoming webhook) ──────────────────────────────────────

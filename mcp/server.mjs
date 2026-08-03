@@ -15,7 +15,7 @@ import { validateTask } from '../engine/requirements.mjs';
 import { loadEvents, aggregate, report } from '../engine/metrics.mjs';
 import { hasConsent } from '../engine/consent.mjs';
 import { verifyLicense, currentLicenseToken } from '../license/license.mjs';
-import { notify, projectLabel } from '../engine/notify-whatsapp.mjs';
+import { notify, projectLabel, receiptSummary } from '../engine/notify-whatsapp.mjs';
 
 const server = new McpServer({ name: 'qa-gate', version: '1.0.0' });
 
@@ -176,16 +176,9 @@ server.tool('qa_run_gate',
     const lines = [`status: ${r.status}${r.reason ? ' — ' + r.reason : ''}`];
     (r.results || []).forEach((x) => lines.push(`  ${x.status === 'green' ? '✔' : x.status === 'red' ? '✖' : '·'} ${x.name}${x.errors?.length ? ' — ' + x.errors.join('; ') : ''}`));
     // ENTREGA do recibo (fecha o ponto cego: verde no gate != recibo entregue).
-    if (waStatus) {
-      const w = waStatus.whatsapp || {};
-      if (w.skipped) {
-        lines.push('recibo WhatsApp: DESATIVADO (opt-out) — recibo só em .git/qa-gate-green.json');
-      } else if (w.ok) {
-        lines.push(`recibo WhatsApp: ENVIADO (HTTP ${w.status})`);
-      } else {
-        lines.push(`recibo WhatsApp: FALHOU (${w.error || 'HTTP ' + w.status}) — ATENCAO: gate verde mas recibo NAO entregue`);
-      }
-    }
+    // Olha TODOS os canais (Slack + WhatsApp): entregue se qualquer um saiu; canal
+    // opcional que falhou vira nota, nao alarme falso.
+    if (waStatus) { lines.push(receiptSummary(waStatus)); }
     if (r.needs?.length) {
       lines.push('FALTA pro gate rodar (a IA resolve; commit fica BLOQUEADO até o gate VERDE — não commite nem espere uma pessoa):');
       r.needs.forEach((n) => lines.push(`  → ${n.kind}${n.detail ? ': ' + n.detail : ''}${n.baseUrl ? ' (' + n.baseUrl + ')' : ''}${n.uiFiles ? ' [' + n.uiFiles.slice(0, 6).join(', ') + ']' : ''}`));
