@@ -9,9 +9,12 @@
  */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { execSync } from 'node:child_process';
 import { getTask } from '../engine/branch-req.mjs';
 import { loadCompanyConfig, checkCommitScope } from '../engine/company-config.mjs';
 import { isGitCommit, hasPowerShellHereStringAt } from '../engine/git-cmd.mjs';
+import { resolveGitCwd } from '../engine/git-cwd.mjs';
+import { evaluateUnitTestGuard } from '../engine/unit-test-guard.mjs';
 
 const raw = await new Promise((res) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => res(s)); });
 let cmd = '';
@@ -69,8 +72,21 @@ if (task && task.num) {
 if (/co-authored-by:\s*claude|generated with .*claude/i.test(m[2])) {
   deny('[VS-AUD-003] BLOCKED — commit não pode conter assinatura/atribuição de IA.');
 }
-// padrão OK -> libera, mas REFORÇA a camada extra de qualidade (regra absoluta):
-// tocou código de produção exige teste unitário válido correspondente (VS-AUD-004).
-process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', permissionDecisionReason:
-  '[VS-AUD-004] Mensagem no padrão. CAMADA EXTRA (regra absoluta): se este commit toca código de produção (back/front/mobile), confirme que existe teste unitário VÁLIDO correspondente à mudança (cobre o que mudou, não placeholder). Sem teste, sem commit — se faltar, VOCÊ (a IA) escreve antes, mesmo que não tenha sido pedido no escopo.' } }));
+// CAMADA EXTRA (regra absoluta, VS-AUD-004): tocou código de produção (back/front/mobile)
+// exige teste unitário no MESMO commit. Enforcement determinístico — analisa o diff staged
+// e BLOQUEIA (não é lembrete). Se um teste também está staged, libera; senão, nega.
+try {
+  const gitCwd = resolveGitCwd(cmd, process.cwd());
+  const staged = execSync('git diff --cached --name-only --diff-filter=ACM', { encoding: 'utf8', cwd: gitCwd })
+    .split(/\r?\n/).filter(Boolean);
+  const { blocked, missing } = evaluateUnitTestGuard(staged);
+  if (blocked) {
+    deny('[VS-AUD-004] BLOCKED — tocou código de produção sem teste unitário no commit. ' +
+      'Camada EXTRA (mesmo nível do "só commita no verde"): back (Pest/PHPUnit), front (vitest/jest) ou mobile (flutter test). ' +
+      'VOCÊ (a IA) escreve o teste que cobre a mudança (não placeholder) ANTES de commitar, mesmo sem pedido no escopo.\n' +
+      'Sem teste correspondente:\n - ' + missing.join('\n - '));
+  }
+} catch { /* sem repo/git indisponível: não trava por erro de infra */ }
+
+// padrão OK + teste presente -> libera.
 process.exit(0);
