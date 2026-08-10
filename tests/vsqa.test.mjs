@@ -7,6 +7,7 @@ import { judge, applyVerdict } from '../engine/vsqa/verdict.mjs';
 import { makeRedmine } from '../engine/vsqa/tracker/redmine.mjs';
 import { makeTracker } from '../engine/vsqa/tracker/index.mjs';
 import { runVsqa } from '../engine/vsqa/index.mjs';
+import { parseArgs } from '../engine/vsqa/cli.mjs';
 
 /* ---------------- reader ---------------- */
 
@@ -239,6 +240,23 @@ test('runVsqa verde (humanInLoop=false): cria 2 tarefas, fecha exec, aprova US',
   assert.equal(r.veredito.verde, true);
   assert.equal(t.calls.filter((c) => c[0] === 'createTask').length, 2);
   assert.ok(t.calls.some((c) => c[0] === 'approve'));
+});
+
+/* ---------------- cli ---------------- */
+
+test('parseArgs: comando posicional + flags com/sem valor', () => {
+  const a = parseArgs(['run', '42', '--config', 'x.json', '--auto', '--alvo', 'front']);
+  assert.equal(a._[0], 'run');
+  assert.equal(a._[1], '42');
+  assert.equal(a.config, 'x.json');
+  assert.equal(a.auto, true);
+  assert.equal(a.alvo, 'front');
+});
+
+test('parseArgs: flag booleana seguida de outra flag', () => {
+  const a = parseArgs(['run', '9', '--auto', '--no-tasks']);
+  assert.equal(a.auto, true);
+  assert.equal(a['no-tasks'], true);
 });
 
 test('runVsqa vermelho: devolve pro dev', async () => {

@@ -234,6 +234,11 @@ server.tool('vsqa_test_task',
     if (!cfg) { throw new Error('sem config em ' + configPath); }
     const [tgt] = targetsFor(cfg, alvo);
     if (!tgt) { throw new Error('nenhum alvo no config'); }
+    const base = tgt.tcfg.baseUrl;
+    const up = tgt.tcfg.start
+      ? await ensureUp(base, tgt.tcfg.healthPath || cfg.healthPath, tgt.tcfg)
+      : await checkApp(base, tgt.tcfg.healthPath || cfg.healthPath);
+    if (!up) { return { content: [text(`✖ app fora do ar em ${base} — suba o ambiente e rode de novo`)], isError: true }; }
     const r = await runVsqa(issueId, {
       tracker,
       target: tgt.tcfg,

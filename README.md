@@ -21,6 +21,44 @@ Por [DevPoint Innovation](https://devpointinnovation.com.br/) — Consultoria em
 
 ---
 
+## VSqa — automação do setor QA
+
+**O QA-Gate mata o bug no commit. O VSqa testa a US inteira como um QA faria.** Sob demanda: o dev avisa quando sobe a tarefa pra dev, e o VSqa faz o resto.
+
+Fluxo (sem gatilho automático/cron):
+
+1. **Lê a US** no tracker (Redmine; Azure/Jira no roadmap, mesmo contrato) e extrai os critérios de aceite.
+2. **Gera o cenário** — 1 passo por critério — e cria a **TAREFA de Cenário** no tracker.
+3. **Executa no browser real** (mesmo motor do QA-Gate), como um QA usando o sistema, e cria a **TAREFA de Execução** com o resultado passo a passo.
+4. **Dá o veredito**: 🟢 verde fecha a tarefa · 🔴 vermelho devolve pro dev com o passo que quebrou + print + log.
+
+**Guardrails**: API oficial do tracker (sem scraping), token do próprio usuário, comentários marcados como automação (sem se passar por humano), e `humanInLoop` (padrão ligado) só comenta/sugere até um humano confirmar o fechamento.
+
+### Uso (CLI)
+
+```bash
+# 1) lê a US e gera o cenário-rascunho (você mapeia path/seletores de cada passo)
+vsqa scenario 4321
+
+# 2) executa o cenário no browser e dá o veredito
+vsqa run 4321 --config qa-gate.config.json
+vsqa run 4321 --auto        # fecha/devolve sozinho (humanInLoop off)
+```
+
+Também disponível via MCP: `vsqa_scenario` (livre, preview) e `vsqa_test_task` (orquestra tudo).
+
+Config (em `qa-gate.company.json`):
+
+```json
+{ "integrations": { "redmine": {
+  "enabled": true, "baseUrl": "https://redmine.suaempresa.com",
+  "apiKey": "SEU_TOKEN", "projectId": 12,
+  "statusMap": { "approved": 3, "rejected": 5, "closed": 6 }
+}}}
+```
+
+---
+
 ## Por que usar — plugin + MCP
 
 **IA sozinha entrega ilusão. Orquestrada, entrega resultado.** O QA-Gate é a ponta visível de uma orquestração de IA aplicada ao seu processo de desenvolvimento.
