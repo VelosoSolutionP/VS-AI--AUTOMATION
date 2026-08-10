@@ -51,6 +51,9 @@ export const DEFAULT_CONFIG = {
   integrations: {
     promptAudit: { enabled: false, hashOnly: true, retentionDays: 30 },
     dashboard: { enabled: false },
+    // VSqa — tracker pra ler US e criar/fechar tarefas. Redmine PRIMEIRO (implementado).
+    // statusMap = ids de status do Redmine (approved/rejected/closed).
+    redmine: { enabled: false, baseUrl: 'xxx', apiKey: 'xxx', projectId: 'xxx', trackerId: null, statusMap: { approved: null, rejected: null, closed: null } },
     jira: { enabled: false, baseUrl: 'xxx', token: 'xxx' },
     azureDevops: { enabled: false, org: 'xxx', token: 'xxx' },
   },

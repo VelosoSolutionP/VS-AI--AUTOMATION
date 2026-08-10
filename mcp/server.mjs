@@ -12,6 +12,11 @@ import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 import { checkApp, ensureUp, simulateFlows, runGate, loadConfig, targetsFor } from '../engine/core.mjs';
 import { validateTask } from '../engine/requirements.mjs';
+import { loadCompanyConfig } from '../engine/company-config.mjs';
+import { makeTracker } from '../engine/vsqa/tracker/index.mjs';
+import { normalizeIssue } from '../engine/vsqa/reader.mjs';
+import { buildScenario, validateScenario } from '../engine/vsqa/scenario.mjs';
+import { runVsqa } from '../engine/vsqa/index.mjs';
 import { loadEvents, aggregate, report } from '../engine/metrics.mjs';
 import { hasConsent } from '../engine/consent.mjs';
 import { verifyLicense, currentLicenseToken } from '../license/license.mjs';
@@ -187,6 +192,72 @@ server.tool('qa_run_gate',
     const firstRed = (r.results || []).find((x) => x.status === 'red' && x.screenshot);
     if (firstRed) { const img = imageOf(firstRed.screenshot); if (img) { content.push(img); } }
     return { content, isError: r.status === 'red' || r.status === 'error' || r.status === 'blocked' };
+  });
+
+/* ---- vsqa_scenario (livre) — lê a US e devolve o cenário-rascunho ---- */
+server.tool('vsqa_scenario',
+  'VSqa: lê a US no tracker (Redmine) e devolve o CENÁRIO-rascunho (1 passo por critério de aceite) + o que falta mapear (path/seletores). Não executa nada. Livre.',
+  { issueId: z.union([z.string(), z.number()]), repo: z.string().describe('repo p/ resolver o qa-gate.company.json') },
+  async ({ issueId, repo }) => {
+    const company = loadCompanyConfig(repo);
+    const tracker = makeTracker(company);
+    const raw = await tracker.getIssue(issueId);
+    const us = normalizeIssue(raw);
+    const scenario = buildScenario(us);
+    const check = validateScenario(scenario);
+    const out = {
+      us: { id: us.id, titulo: us.titulo, modulo: us.modulo, criterios: us.criterios },
+      scenario,
+      ready: check.ready,
+      missing: check.missing,
+    };
+    return { content: [text(JSON.stringify(out, null, 2))] };
+  });
+
+/* ---- vsqa_test_task (licenciado) — orquestra US->cenário->execução->veredito ---- */
+server.tool('vsqa_test_task',
+  'VSqa: testa a US inteira como um QA. Lê a US no tracker, cria TAREFA de Cenário e de Execução, roda o cenário no browser real e dá o veredito: VERDE fecha / VERMELHO devolve pro dev. Passe `scenario` (JSON mapeado com path/seletores) obtido do vsqa_scenario; sem ele volta o rascunho p/ completar. humanInLoop=true (default) só comenta; false fecha/devolve sozinho.',
+  {
+    issueId: z.union([z.string(), z.number()]),
+    repo: z.string(),
+    configPath: z.string().describe('qa-gate.config.json do projeto (alvo do browser)'),
+    alvo: z.enum(['front', 'mobile']).optional(),
+    scenario: z.any().optional().describe('cenário já mapeado (do vsqa_scenario, com path/seletores preenchidos)'),
+    humanInLoop: z.boolean().optional(),
+    createTasks: z.boolean().optional(),
+  },
+  async ({ issueId, repo, configPath, alvo, scenario, humanInLoop, createTasks }) => {
+    requireLicense();
+    const company = loadCompanyConfig(repo);
+    const tracker = makeTracker(company);
+    const cfg = loadConfig(configPath);
+    if (!cfg) { throw new Error('sem config em ' + configPath); }
+    const [tgt] = targetsFor(cfg, alvo);
+    if (!tgt) { throw new Error('nenhum alvo no config'); }
+    const r = await runVsqa(issueId, {
+      tracker,
+      target: tgt.tcfg,
+      repo,
+      scenario,
+      humanInLoop: humanInLoop !== false,
+      createTasks: createTasks !== false,
+    });
+    if (r.stage === 'scenario-draft') {
+      return { content: [text('CENÁRIO INCOMPLETO — complete e rechame com opts.scenario:\n' + JSON.stringify({ scenario: r.scenario, missing: r.missing }, null, 2))], isError: true };
+    }
+    const lines = [
+      `US #${issueId} — ${r.veredito.verde ? '✅ VERDE' : r.veredito.bloqueado ? '⚠ BLOQUEADO' : '❌ VERMELHO'}`,
+      r.veredito.resumo,
+      r.scenarioTask ? `Cenário: ${r.scenarioTask.url || r.scenarioTask.id}` : '',
+      r.execTask ? `Execução: ${r.execTask.url || r.execTask.id}` : '',
+      `Ações: ${(r.actions || []).join('; ')}`,
+    ];
+    const content = [text(lines.filter(Boolean).join('\n'))];
+    (r.report.steps || []).filter((s) => s.status === 'red' && s.screenshot).forEach((s) => {
+      const img = imageOf(s.screenshot);
+      if (img) { content.push(img); }
+    });
+    return { content, isError: !r.veredito.verde };
   });
 
 const transport = new StdioServerTransport();
