@@ -8,8 +8,11 @@
  */
 import { TRIAL_DAYS } from './catalog.mjs';
 
-// Chave genérica de 7 dias (assinada no backend). Env tem prioridade; senão o literal abaixo.
-const GENERIC_TRIAL = process.env.VS_TRIAL_KEY || '';
+// Chave genérica embutida (assinada Ed25519 no backend). Plano "trial" com exp LONGO de
+// propósito: o verify sempre passa; o CORTE de 7 dias é feito pela trava por data de
+// instalação ([[trial-lock]]). Env VS_TRIAL_KEY tem prioridade (permite rotacionar sem build).
+const GENERIC_TRIAL = process.env.VS_TRIAL_KEY
+  || 'eyJlbWFpbCI6InRyaWFsQHZlbG9zb3NvbHV0aW9uLm9ubGluZSIsInBsYW4iOiJ0cmlhbCIsInNlYXRzIjoxLCJpYXQiOjE3ODY0NTIyMDM5MjcsImV4cCI6MjEwMTgxMjIwMzkyNywiaWQiOiJkSEpwWVd4QWRtVnNiM052In0.091ioRwD_s5eRAW8BqtO4pHDYP63Uvx8xpUHR8xrhAd5MCKIGcbhpx-97TlqmaWbXcsrzkxVgE4mm6XQRbAoAQ';
 
 export async function issueTrial({ email, plan = 'trial' } = {}) {
   // 1. assina fresco se a chave privada estiver disponível

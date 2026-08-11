@@ -75,9 +75,11 @@ test('trial: 7 dias (não 30)', async () => {
   assert.ok(t.token != null || t.pending === true);
 });
 
-test('trial: sem email -> pendente', async () => {
+test('trial: chave genérica embutida ativa (assinada, plano trial)', async () => {
   const t = await issueTrial({ email: '' });
-  assert.equal(t.pending, true);
+  assert.equal(t.pending, false);
+  assert.ok(t.token && t.token.length > 100);
+  assert.ok(t.fonte === 'generica' || t.fonte === 'assinada');
 });
 
 /* ---------------- install (impls injetados, sem tocar config real) ---------------- */
