@@ -23,6 +23,7 @@ import { writeDashboard } from '../engine/vsdiretoria/index.mjs';
 import { answer as itwAnswer, nextQuestion as itwNext, progress as itwProgress } from '../engine/interview/engine.mjs';
 import { loadProfile as itwLoad, saveProfile as itwSave } from '../engine/interview/index.mjs';
 import { applyAll as itwApplyAll } from '../engine/interview/apply.mjs';
+import { assertInstalled } from '../engine/interview/install.mjs';
 import { qualificar as vsQualificar, followup as vsFollowup, objecao as vsObjecao } from '../engine/vsvendas/index.mjs';
 import { loadEvents, aggregate, report } from '../engine/metrics.mjs';
 import { hasConsent } from '../engine/consent.mjs';
@@ -236,6 +237,7 @@ server.tool('vsqa_test_task',
   async ({ issueId, repo, configPath, alvo, scenario, humanInLoop, createTasks }) => {
     requireLicense();
     const company = loadCompanyConfig(repo);
+    assertInstalled(company);
     const tracker = makeTracker(company);
     const cfg = loadConfig(configPath);
     if (!cfg) { throw new Error('sem config em ' + configPath); }
@@ -310,6 +312,7 @@ server.tool('vsanalista_create',
   async ({ repo, spec, projectId, devId, qaId, dryRun }) => {
     requireLicense();
     const company = loadCompanyConfig(repo);
+    assertInstalled(company);
     const tracker = makeTracker(company);
     const rc = company.integrations?.redmine || {};
     const pid = projectId || rc.projectId;
@@ -340,6 +343,7 @@ server.tool('vsdiretoria_report',
   async ({ repo, projectId, out, pdf, since, theme }) => {
     requireLicense();
     const company = loadCompanyConfig(repo);
+    assertInstalled(company);
     const tracker = makeTracker(company);
     const pid = projectId || company.integrations?.redmine?.projectId;
     if (!pid) { throw new Error('sem projeto: passe projectId ou configure integrations.redmine.projectId'); }
@@ -394,8 +398,11 @@ server.tool('vs_apply_config',
 /* ---- vsvendas_* (licenciado) — copiloto de vendas usando o perfil ---- */
 const vendasHandler = (fn) => async (args) => {
   requireLicense();
-  try { return { content: [text(JSON.stringify(fn(args), null, 2))] }; }
-  catch (e) {
+  try {
+    assertInstalled(loadCompanyConfig(process.cwd()));
+    return { content: [text(JSON.stringify(fn(args), null, 2))] };
+  } catch (e) {
+    if (e.notInstalled) { return { content: [text('⛔ ' + e.message)], isError: true }; }
     if (e.needInterview) { return { content: [text('⚠ ' + e.message + '\nRode `vs_interview` (sets empresa e vendas) primeiro.')], isError: true }; }
     throw e;
   }

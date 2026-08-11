@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { getSet, sensitiveIds } from '../engine/interview/schema.mjs';
 import { createState, answer, nextQuestion, isComplete } from '../engine/interview/engine.mjs';
 import { applyProfiles } from '../engine/interview/apply.mjs';
+import { requiredMissing, isInstalled, assertInstalled } from '../engine/interview/install.mjs';
 
 test('sets novos existem: dev, analista, qa', () => {
   assert.ok(getSet('dev').find((q) => q.id === 'commit_escopo'));
@@ -59,4 +60,41 @@ test('applyProfiles: analista -> integrations.redmine; qa -> integrations.qa', (
 test('applyProfiles: azure não mexe em redmine (roadmap)', () => {
   const { company } = applyProfiles({}, { analista: { tracker_tipo: 'Azure', tracker_url: 'x', tracker_apikey: 'k', tracker_projeto: 1 } });
   assert.equal(company.integrations.redmine, undefined);
+});
+
+/* ---------------- gate de instalação (analista + qa obrigatórios) ---------------- */
+
+const instalado = {
+  integrations: {
+    redmine: { enabled: true, baseUrl: 'https://r', apiKey: 'K', projectId: 66 },
+    qa: { sistema: 'Redmine', apiKey: 'QK' },
+  },
+};
+
+test('requiredMissing: vazio quando analista + qa completos', () => {
+  assert.deepEqual(requiredMissing(instalado), []);
+  assert.equal(isInstalled(instalado), true);
+});
+
+test('requiredMissing: aponta o que falta (nada configurado)', () => {
+  const m = requiredMissing({});
+  assert.ok(m.some((x) => /analista: URL/.test(x)));
+  assert.ok(m.some((x) => /analista: chave/.test(x)));
+  assert.ok(m.some((x) => /analista: projeto/.test(x)));
+  assert.ok(m.some((x) => /qa: sistema/.test(x)));
+  assert.ok(m.some((x) => /qa: chave/.test(x)));
+});
+
+test('requiredMissing: placeholder "xxx" conta como faltando', () => {
+  const m = requiredMissing({ integrations: { redmine: { enabled: true, baseUrl: 'xxx', apiKey: 'xxx', projectId: 'xxx' }, qa: { sistema: 'x', apiKey: 'x' } } });
+  assert.ok(m.length >= 3);
+});
+
+test('assertInstalled: lança notInstalled quando falta qa', () => {
+  const semQa = { integrations: { redmine: instalado.integrations.redmine } };
+  assert.throws(() => assertInstalled(semQa), (e) => e.notInstalled === true && /qa:/.test(e.message));
+});
+
+test('assertInstalled: passa quando instalado', () => {
+  assert.equal(assertInstalled(instalado), true);
 });

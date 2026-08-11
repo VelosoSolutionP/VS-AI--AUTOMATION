@@ -11,6 +11,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { loadProfile } from './index.mjs';
+import { assertInstalled } from './install.mjs';
 
 /** Puro: aplica os perfis sobre um company-config e devolve o novo objeto + o que mudou. */
 export function applyProfiles(company, { dev, analista, qa } = {}) {
@@ -68,6 +69,8 @@ export function applyAll() {
     analista: loadProfile('analista'),
     qa: loadProfile('qa'),
   });
+  // GATE: sem acessos obrigatórios de analista + qa, NÃO grava nada (sem default silencioso).
+  assertInstalled(company);
   mkdirSync(dirname(p), { recursive: true });
   writeFileSync(p, JSON.stringify(company, null, 2));
   return { path: p, changed };

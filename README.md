@@ -119,6 +119,8 @@ vsvendas interview dev          # (ou empresa|vendas|analista|qa) — interativo
 
 Também via MCP `vs_interview` (conversacional, resumível). Ao fim, **`vs_apply_config`** grava tudo no `company.json` da instalação (dev → branch/commit/doc; analista → tracker; qa → doc de testes). Chaves de API ficam locais (`~/.qa-gate`), fora do git. Schema-driven: nova pergunta = editar `engine/interview/schema.mjs`.
 
+**Instalação obrigatória (sem default silencioso):** os acessos de **analista** (tracker + chave + projeto) e **QA** (sistema + chave) são **obrigatórios**. Sem esses dados, `vs_apply_config` **não grava nada** e os módulos **não operam** — a suite se recusa a rodar com padrão default. É de propósito: ela adota o padrão real da empresa ou não roda.
+
 ## VSvendas — copiloto de vendas
 
 Usa o perfil da entrevista pra ajudar o time comercial — sem depender de CRM (opera de texto colado):
