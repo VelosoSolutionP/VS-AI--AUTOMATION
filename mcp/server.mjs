@@ -29,12 +29,15 @@ import { loadEvents, aggregate, report } from '../engine/metrics.mjs';
 import { hasConsent } from '../engine/consent.mjs';
 import { verifyLicense, currentLicenseToken } from '../license/license.mjs';
 import { notify, projectLabel, receiptSummary } from '../engine/notify-whatsapp.mjs';
+import { assertNotExpired } from '../engine/trial-lock.mjs';
 
 const server = new McpServer({ name: 'qa-gate', version: '1.0.0' });
 
 function requireLicense() {
   const res = verifyLicense(currentLicenseToken());
   if (!res.valid) { throw new Error('QA-Gate licença inválida: ' + res.reason); }
+  // Teste de 7 dias: trava por data de instalação / trava forte do cron (plano trial só).
+  assertNotExpired(res.license?.plan);
   return res.license;
 }
 const text = (t) => ({ type: 'text', text: t });

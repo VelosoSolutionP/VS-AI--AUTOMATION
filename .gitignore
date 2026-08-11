@@ -12,3 +12,7 @@ license/.keys/
 
 # artefato de distribuicao (gerado por build-protected.mjs)
 dist/
+
+# trial guard (anti-tamper, local)
+.vsguard
+installer/.url

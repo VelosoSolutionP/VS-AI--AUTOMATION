@@ -12,6 +12,8 @@ import { serverEntry, installIntoTool } from './mcp-config.mjs';
 import { requiredSetsFor, precisaApplyConfig, buildAndValidate } from './onboarding.mjs';
 import { saveProfile } from '../engine/interview/index.mjs';
 import { applyAll } from '../engine/interview/apply.mjs';
+import { markInstalled } from '../engine/trial-lock.mjs';
+import { scheduleTrialLock } from './schedule-lock.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const SERVER_PATH = join(dirname(HERE), 'mcp', 'server.mjs');
@@ -37,8 +39,13 @@ export async function runInstall(dados) {
     catch (e) { return { ok: false, erros: [e.message], sets }; }
   }
 
-  const trial = await issueTrial({ email: dados.email });
+  const contato = dados.whatsapp || dados.email || null;
+  const trial = await issueTrial({ email: contato || 'trial@velososolution.online' });
   const serverPath = dados.serverPath || SERVER_PATH;
+
+  // 3. Trava do teste: marca a instalação + agenda o cron/tarefa que trava em 7 dias
+  (dados.markImpl || markInstalled)({ days: trial.days, plan: 'trial' });
+  const trava = (dados.scheduleImpl || scheduleTrialLock)({ days: trial.days });
 
   const detectImpl = dados.detectImpl || detect;
   const installImpl = dados.installImpl || installIntoTool;
@@ -53,10 +60,11 @@ export async function runInstall(dados) {
 
   return {
     ok: true,
-    email: dados.email,
+    contato,
     empresa: dados.empresa || null,
     escolhidos: sel.escolhidos,
     trial,
+    trava,
     serverPath,
     configurados,
     semFerramenta: configurados.length === 0,

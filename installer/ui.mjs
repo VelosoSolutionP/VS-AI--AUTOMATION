@@ -3,7 +3,7 @@
  * Produtos com CHAVE (toggle switch), entrevista em ACCORDION que só abre o que o
  * produto marcado exige, chips no lugar de checkbox, paleta violeta→magenta.
  */
-import { PRODUTOS, TRIAL_DAYS } from './catalog.mjs';
+import { PRODUTOS, TRIAL_DAYS, whatsappLink } from './catalog.mjs';
 import { SETS } from '../engine/interview/schema.mjs';
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -56,6 +56,8 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent);
 .chip:hover{border-color:var(--accent)}
 .chip.on{background:linear-gradient(90deg,var(--accent),var(--accent2));border-color:transparent;color:#fff;font-weight:600}
 .train{background:linear-gradient(90deg,rgba(16,185,129,.16),rgba(139,92,246,.08));border:1px solid rgba(16,185,129,.35)}.train h2{color:var(--ok)}
+.wa{display:inline-flex;align-items:center;gap:8px;margin-top:10px;background:#25d366;color:#062e18;font-weight:800;padding:11px 18px;border-radius:10px;text-decoration:none}
+.wa:hover{filter:brightness(1.05)}
 .stub{border-style:dashed}
 .btn{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(90deg,var(--accent),var(--accent2));color:#fff;border:none;padding:15px 22px;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;width:100%;justify-content:center;box-shadow:0 12px 30px rgba(139,92,246,.32)}
 .btn:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
@@ -115,7 +117,7 @@ export function renderInstaller() {
     <div class="card"><h2>1 · Seus dados</h2>
       <div class="row"><div><label class="fl">Nome</label><input type="text" name="nome" required></div>
       <div><label class="fl">Empresa</label><input type="text" name="empresa"></div></div>
-      <label class="fl">E-mail (recebe a chave do teste)</label><input type="email" name="email" required></div>
+      <label class="fl">WhatsApp (recebe a chave do teste)</label><input type="tel" name="whatsapp" placeholder="(31) 97512-7978" required></div>
 
     <div class="card"><h2>2 · Ative os produtos</h2>
       <p class="muted">Ligue a chave do que quer instalar — só aí os dados daquele produto abrem abaixo.</p>
@@ -129,7 +131,8 @@ export function renderInstaller() {
       <p class="muted">Stub — Stripe entra aqui. No teste de ${TRIAL_DAYS} dias você não paga nada agora.</p></div>
 
     <div class="card train"><h2>🎓 Treinamento grátis</h2>
-      <p>Todo cliente tem <b>treinamento gratuito</b>. <b>Recomendamos fortemente</b> fazer antes de começar — fala com a gente pra agendar.</p></div>
+      <p>Todo cliente tem <b>treinamento gratuito</b>. <b>Recomendamos fortemente</b> fazer antes de começar.</p>
+      <a class="wa" href="${whatsappLink('Quero agendar o treinamento gratis do VelosoSolution')}" target="_blank" rel="noopener">💬 Falar no WhatsApp e agendar</a></div>
 
     <button class="btn" id="go" type="submit">Instalar na minha máquina →</button>
     <div class="muted" style="margin-top:8px">Detectamos sua IDE / IA (Claude Code, Cursor, Windsurf…) e instalamos o MCP no lugar certo.</div>
@@ -193,12 +196,12 @@ f.addEventListener('submit',async(e)=>{e.preventDefault();
   let si=0;stage.textContent=stages[0];animateTo(85,2600);const rot=setInterval(()=>{si=(si+1)%stages.length;stage.textContent=stages[si];},700);
   try{
     const resp=await fetch('/install',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({nome:fd.get('nome'),empresa:fd.get('empresa'),email:fd.get('email'),produtos,respostas})});
+      body:JSON.stringify({nome:fd.get('nome'),empresa:fd.get('empresa'),whatsapp:fd.get('whatsapp'),produtos,respostas})});
     const d=await resp.json();clearInterval(rot);
     if(!d.ok){animateTo(0,300);setTimeout(()=>{ov.classList.remove('show');r.className='result show';r.textContent='⚠ '+(d.erros||['falha']).join('\\n');},400);return;}
     stage.textContent='concluído';animateTo(100,500);
     let out='✅ Instalado!\\n\\nProdutos: '+d.escolhidos.join(', ')+'\\n';
-    out+=d.trial.token?('Chave de teste ('+d.trial.days+' dias):\\n'+d.trial.token+'\\n'):('Teste de '+d.trial.days+' dias: '+d.trial.reason+' (chave vai no seu e-mail).\\n');
+    out+=d.trial.token?('Chave de teste ('+d.trial.days+' dias):\\n'+d.trial.token+'\\n'):('Teste de '+d.trial.days+' dias: '+d.trial.reason+' (mandamos a chave no seu WhatsApp).\\n');
     out+='\\n'+(d.semFerramenta?'Nenhuma IDE/IA detectada — te mando o passo manual.':'MCP instalado em:\\n'+d.configurados.map(c=>' • '+c.tool+(c.erro?' (erro)':' → '+c.path)).join('\\n'));
     out+='\\n\\n🎓 '+d.treinamento.mensagem;
     setTimeout(()=>{ov.classList.remove('show');r.className='result show';r.textContent=out;go.textContent='Concluído ✓';go.disabled=true;},700);

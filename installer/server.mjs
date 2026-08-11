@@ -23,7 +23,7 @@ export function createInstallerServer() {
       }
       if (req.method === 'POST' && req.url === '/install') {
         const dados = JSON.parse(await body(req) || '{}');
-        const out = await runInstall({ email: dados.email, empresa: dados.empresa, produtos: dados.produtos, respostas: dados.respostas });
+        const out = await runInstall({ whatsapp: dados.whatsapp, email: dados.email, empresa: dados.empresa, produtos: dados.produtos, respostas: dados.respostas });
         res.writeHead(out.ok ? 200 : 400, { 'Content-Type': 'application/json; charset=utf-8' });
         return res.end(JSON.stringify(out));
       }

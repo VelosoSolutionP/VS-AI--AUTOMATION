@@ -3,6 +3,8 @@
  * `available` instala; `coming_soon` aparece marcado como "em breve".
  */
 export const TRIAL_DAYS = 7;
+export const WHATSAPP = '5531975127978'; // contato/chave do teste vão pro WhatsApp (email desativado)
+export const whatsappLink = (msg) => `https://wa.me/${WHATSAPP}${msg ? `?text=${encodeURIComponent(msg)}` : ''}`;
 
 export const PRODUTOS = [
   { id: 'gate', nome: 'VSolution — Gate', linha: 'dev', status: 'available', desc: 'Barra bug de UI no commit (Chrome real): injeta o bug, exige msg amigável + console limpo.' },

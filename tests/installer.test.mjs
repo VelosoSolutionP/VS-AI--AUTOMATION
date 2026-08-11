@@ -118,12 +118,14 @@ test('runInstall: instala nos alvos detectados (vendas, injetado)', async () => 
   const r = await runInstall({
     email: 'a@b.com', empresa: 'ACME', produtos: ['vsvendas'], respostas: respVendas,
     saveImpl: (set) => salvos.push(set),
+    markImpl: () => ({}), scheduleImpl: () => ({ scheduled: true, tool: 'test' }),
     detectImpl: () => [{ tool: 'Claude Code', configPath: '/fake/.claude.json' }],
     installImpl: (path) => { escritos.push(path); return { path, servidor: SERVER_NAME }; },
   });
   assert.equal(r.ok, true);
   assert.deepEqual(r.escolhidos, ['vsvendas']);
   assert.equal(r.trial.days, 7);
+  assert.equal(r.trava.scheduled, true);
   assert.ok(salvos.includes('empresa') && salvos.includes('vendas'));
   assert.equal(r.configurados[0].tool, 'Claude Code');
   assert.equal(r.treinamento.gratis, true);
@@ -131,6 +133,6 @@ test('runInstall: instala nos alvos detectados (vendas, injetado)', async () => 
 });
 
 test('runInstall: sem ferramenta detectada -> semFerramenta', async () => {
-  const r = await runInstall({ email: 'a@b.com', produtos: ['vsvendas'], respostas: respVendas, saveImpl: noop, detectImpl: () => [] });
+  const r = await runInstall({ email: 'a@b.com', produtos: ['vsvendas'], respostas: respVendas, saveImpl: noop, markImpl: () => ({}), scheduleImpl: () => ({}), detectImpl: () => [] });
   assert.equal(r.semFerramenta, true);
 });
