@@ -17,6 +17,8 @@ import { makeTracker } from '../engine/vsqa/tracker/index.mjs';
 import { normalizeIssue } from '../engine/vsqa/reader.mjs';
 import { buildScenario, validateScenario } from '../engine/vsqa/scenario.mjs';
 import { runVsqa } from '../engine/vsqa/index.mjs';
+import { createEpic } from '../engine/vsanalista/index.mjs';
+import { TRACKERS, CUSTOM_FIELDS, HU_TASKS } from '../engine/vsanalista/template.mjs';
 import { loadEvents, aggregate, report } from '../engine/metrics.mjs';
 import { hasConsent } from '../engine/consent.mjs';
 import { verifyLicense, currentLicenseToken } from '../license/license.mjs';
@@ -263,6 +265,60 @@ server.tool('vsqa_test_task',
       if (img) { content.push(img); }
     });
     return { content, isError: !r.veredito.verde };
+  });
+
+/* ---- vsanalista_template (livre) — template + membros p/ o modelo preencher ---- */
+server.tool('vsanalista_template',
+  'VSanalista: devolve o TEMPLATE real de Épico/HU do RURAP (trackers, campos custom, as 3 Tarefas Técnicas por HU) + os MEMBROS do projeto com papéis, p/ escolher dev/QA. Livre. Use antes de vsanalista_create pra montar a spec no padrão certo.',
+  { repo: z.string(), projectId: z.number().optional() },
+  async ({ repo, projectId }) => {
+    const company = loadCompanyConfig(repo);
+    const tracker = makeTracker(company);
+    const pid = projectId || company.integrations?.redmine?.projectId;
+    let membros = [];
+    try { membros = await tracker.getMembers(pid); } catch (e) { membros = [{ erro: String(e.message) }]; }
+    const skeleton = {
+      titulo: '<título do épico>',
+      hus: [{
+        modulo: '<Ex.: Planejamento>', titulo: 'Deve <comportamento>',
+        como: 'Usuário', solicito: '<o que>', para: '<benefício>',
+        preCondicoes: [], posCondicoes: [], fluxos: [], regras: [],
+        criteriosTeste: ['<critério verificável 1>'], integra: false, pontos: '',
+        devId: '<id do dev>', qaId: '<id do QA>',
+      }],
+    };
+    const out = { trackers: TRACKERS, customFields: CUSTOM_FIELDS, tarefasPorHU: HU_TASKS, projectId: pid, membros, skeletonSpec: skeleton };
+    return { content: [text(JSON.stringify(out, null, 2))] };
+  });
+
+/* ---- vsanalista_create (licenciado) — cria Épico + HUs + Tarefas no padrão RURAP ---- */
+server.tool('vsanalista_create',
+  'VSanalista: cria no Redmine o Épico + HUs + as 3 Tarefas Técnicas por HU (Codificar->dev, Especificar Testes/Execução dos testes->QA), no padrão real dos analistas. dryRun=true (default) só mostra o que criaria; dryRun=false escreve de verdade. devId/qaId = dev e QA do projeto (obrigatórios).',
+  {
+    repo: z.string(),
+    spec: z.any().describe('{ titulo, hus:[{modulo,titulo,como,solicito,para,criteriosTeste,...}] }'),
+    projectId: z.number().optional(),
+    devId: z.number().optional(),
+    qaId: z.number().optional(),
+    dryRun: z.boolean().optional(),
+  },
+  async ({ repo, spec, projectId, devId, qaId, dryRun }) => {
+    requireLicense();
+    const company = loadCompanyConfig(repo);
+    const tracker = makeTracker(company);
+    const rc = company.integrations?.redmine || {};
+    const pid = projectId || rc.projectId;
+    const dev = devId != null ? devId : rc.analista?.devId;
+    const qa = qaId != null ? qaId : rc.analista?.qaId;
+    const r = await createEpic(spec, { tracker, projectId: pid, devId: dev, qaId: qa, dryRun: dryRun !== false });
+    if (r.stage === 'invalid') { return { content: [text('SPEC inválida:\n' + r.errors.map((e) => '  - ' + e).join('\n'))], isError: true }; }
+    if (r.stage === 'preview') { return { content: [text('PREVIEW (dryRun) — nada criado. Rode com dryRun:false p/ criar:\n' + JSON.stringify(r.preview, null, 2))] }; }
+    const lines = [`✔ Épico criado: ${r.epic.url}`];
+    r.hus.forEach((h) => {
+      lines.push(`  HU ${h.url} — ${h.subject}`);
+      h.tarefas.forEach((t) => lines.push(`    · ${t.name} (${t.role}) ${t.url}`));
+    });
+    return { content: [text(lines.join('\n'))] };
   });
 
 const transport = new StdioServerTransport();

@@ -5,12 +5,28 @@
  */
 
 const CRIT_HEADERS = /crit[eé]rios?\s+de\s+aceit(?:e|a[cç][aã]o)|acceptance\s+criteria|defini[cç][aã]o\s+de\s+pronto/i;
+
+const ENTITIES = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", ccedil: 'ç', atilde: 'ã', aacute: 'á', eacute: 'é', iacute: 'í', oacute: 'ó', uacute: 'ú', acirc: 'â', ecirc: 'ê', ocirc: 'ô', agrave: 'à', otilde: 'õ', ntilde: 'ñ' };
+
+/** Descrição do Redmine costuma vir em HTML. Converte <li>/<p>/<br> em linhas de texto. */
+export function htmlToText(input) {
+  let s = String(input || '');
+  if (!/<[a-z/][^>]*>/i.test(s)) { return s; } // já é texto puro
+  s = s.replace(/<\s*li[^>]*>/gi, '\n- ')
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<\/\s*(p|div|tr|h[1-6]|li)\s*>/gi, '\n')
+    .replace(/<[^>]+>/g, '');
+  s = s.replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
+    .replace(/&([a-z]+);/gi, (m, name) => ENTITIES[name.toLowerCase()] ?? m);
+  return s.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+}
 const BULLET = /^\s*(?:[-*+•]|\d+[.)]|\[[ xX]\])\s+(?:\[[ xX]\]\s+)?(.*\S)/;
 const NEXT_HEADER = /^\s*#{1,6}\s+\S|^\s*\*\*[^*]+\*\*\s*:?\s*$/;
 
 /** Extrai linhas de critério do texto. Prioriza a seção "Critérios de aceite". */
 export function extractCriterios(text) {
-  const linhas = String(text || '').split(/\r?\n/);
+  const linhas = htmlToText(text).split(/\r?\n/);
   const idx = linhas.findIndex((l) => CRIT_HEADERS.test(l));
   const scan = (arr) => arr
     .map((l) => { const m = l.match(BULLET); return m ? m[1].trim() : null; })

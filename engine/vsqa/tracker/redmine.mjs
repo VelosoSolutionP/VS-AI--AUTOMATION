@@ -66,28 +66,62 @@ export function makeRedmine(cfg, opts = {}) {
     },
 
     /**
-     * Cria subtarefa (cenário/execução) filha da US. Retorna { id, url }.
-     * A subtarefa herda o PROJETO da US pai (subtarefa não pode cruzar projeto no
-     * Redmine); cai no cfg.projectId só quando não há pai.
+     * Create genérico — usado pelo VSanalista (épico/HU/tarefa técnica com
+     * tracker, assignee e campos custom) e pelo createTask do VSqa.
+     * @param {object} f
+     * @param {number} [f.projectId]
+     * @param {number} [f.trackerId]
+     * @param {string} f.subject
+     * @param {string} [f.description]
+     * @param {number} [f.parentId]
+     * @param {number} [f.assignedToId]
+     * @param {number} [f.statusId]
+     * @param {Array<{id:number,value:any}>} [f.customFields]
+     * @param {boolean} [f.inheritParentProject]  usa o projeto do pai (subtarefa não cruza projeto)
+     * @param {boolean} [f.tagAutomation]         anexa a marca "gerado por VSqa/VSanalista"
      */
-    async createTask({ subject, description, parentId }) {
-      let projectId = cfg.projectId;
-      if (parentId) {
+    async createIssue(f) {
+      let projectId = f.projectId != null ? f.projectId : cfg.projectId;
+      if (f.inheritParentProject && f.parentId) {
         try {
-          const parent = await api('GET', `/issues/${parentId}.json`);
+          const parent = await api('GET', `/issues/${f.parentId}.json`);
           if (parent.issue?.project?.id) { projectId = parent.issue.project.id; }
-        } catch { /* mantém cfg.projectId */ }
+        } catch { /* mantém projectId */ }
       }
-      const issue = {
-        project_id: projectId,
-        subject,
-        description: `${description || ''}\n\n${AUTOMATION_TAG}`.trim(),
-      };
-      if (cfg.trackerId) { issue.tracker_id = cfg.trackerId; }
-      if (parentId) { issue.parent_issue_id = parentId; }
+      const issue = { project_id: projectId, subject: f.subject };
+      const desc = f.description || '';
+      issue.description = f.tagAutomation ? `${desc}\n\n${AUTOMATION_TAG}`.trim() : desc;
+      if (f.trackerId != null) { issue.tracker_id = f.trackerId; }
+      if (f.parentId != null) { issue.parent_issue_id = f.parentId; }
+      if (f.assignedToId != null) { issue.assigned_to_id = f.assignedToId; }
+      if (f.statusId != null) { issue.status_id = f.statusId; }
+      if (f.customFields?.length) { issue.custom_fields = f.customFields.map((c) => ({ id: c.id, value: c.value })); }
       const data = await api('POST', '/issues.json', { issue });
       const id = data.issue?.id;
       return { id, url: `${base}/issues/${id}` };
+    },
+
+    /** Membros do projeto com seus papéis (p/ sugerir dev/QA). */
+    async getMembers(projectId) {
+      const data = await api('GET', `/projects/${projectId}/memberships.json?limit=100`);
+      return (data.memberships || []).map((m) => ({
+        id: (m.user || m.group || {}).id,
+        name: (m.user || m.group || {}).name,
+        roles: (m.roles || []).map((r) => r.name),
+      }));
+    },
+
+    /**
+     * Cria subtarefa (cenário/execução) filha da US. Retorna { id, url }.
+     * Herda o PROJETO da US pai (subtarefa não cruza projeto); cai no cfg.projectId sem pai.
+     */
+    async createTask({ subject, description, parentId }) {
+      return this.createIssue({
+        subject, description, parentId,
+        trackerId: cfg.trackerId != null ? cfg.trackerId : undefined,
+        inheritParentProject: true,
+        tagAutomation: true,
+      });
     },
 
     /** Comentário público na tarefa (sempre marcado como automação). */

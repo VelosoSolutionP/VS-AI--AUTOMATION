@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extractCriterios, extractModulo, normalizeIssue } from '../engine/vsqa/reader.mjs';
+import { extractCriterios, extractModulo, normalizeIssue, htmlToText } from '../engine/vsqa/reader.mjs';
 import { buildScenario, inferMode, validateScenario, scenarioToFlows, renderScenarioMarkdown } from '../engine/vsqa/scenario.mjs';
 import { executeScenario, renderReportMarkdown } from '../engine/vsqa/executor.mjs';
 import { judge, applyVerdict } from '../engine/vsqa/verdict.mjs';
@@ -25,6 +25,19 @@ test('extractCriterios: pega a seção "Critérios de aceite"', () => {
   ].join('\n');
   const crit = extractCriterios(desc);
   assert.deepEqual(crit, ['Deve listar os produtores', 'Deve validar CPF duplicado', 'Deve exibir mensagem amigável']);
+});
+
+test('htmlToText: <li> viram bullets, entidades decodificadas', () => {
+  const t = htmlToText('<ol><li>Deve exibir bot&atilde;o</li><li>N&atilde;o permitir vazio</li></ol>');
+  assert.match(t, /- Deve exibir botão/);
+  assert.match(t, /- Não permitir vazio/);
+});
+
+test('extractCriterios: HU em HTML — pega a seção do critério de aceitação do teste', () => {
+  const html = '<li><b>Critério de Aceitação do Teste de Software:</b><ol><li>Bot&atilde;o deve aparecer</li><li>Bloquear duplicado</li></ol></li>';
+  const crit = extractCriterios(html);
+  assert.ok(crit.includes('Botão deve aparecer'));
+  assert.ok(crit.includes('Bloquear duplicado'));
 });
 
 test('extractCriterios: fallback pega bullets soltos', () => {

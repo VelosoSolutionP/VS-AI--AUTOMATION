@@ -59,6 +59,29 @@ Config (em `qa-gate.company.json`):
 
 ---
 
+## VSanalista — automação do analista de requisitos
+
+**Monta o Épico e as Histórias de Usuário no mesmo padrão dos analistas** — e já cria a estrutura de tarefas que o dev e o QA consomem.
+
+A partir de uma spec (título do épico + lista de HUs), o VSanalista cria no tracker:
+
+- o **Épico** (lista numerada das HUs);
+- cada **História de Usuário** no template completo (Como/Solicito/Para → Como Implementar: pré/pós-condição, fluxos, regras, atributos → Critério de Aceitação do Teste);
+- por HU, as **3 Tarefas Técnicas**: `Codificar` (→ dev), `Especificar Testes` e `Execução dos testes` (→ QA).
+
+O **Critério de Aceitação do Teste** que ele escreve é exatamente o que o **VSqa** lê depois pra gerar o cenário e executar — os dois módulos se encaixam ponta a ponta.
+
+**A única coisa que ele precisa de você**: quem é o **dev** e o **QA** do projeto (os assignees). O resto (trackers, campos, template) ele já sabe.
+
+```
+vsanalista_template   # MCP: devolve o template + membros do projeto (papéis) p/ escolher dev/QA
+vsanalista_create     # MCP: cria Épico+HUs+Tarefas. dryRun=true (default) só mostra; dryRun=false escreve.
+```
+
+Guardrail: `dryRun` ligado por padrão — mostra o que criaria antes de tocar no tracker de produção.
+
+---
+
 ## Por que usar — plugin + MCP
 
 **IA sozinha entrega ilusão. Orquestrada, entrega resultado.** O QA-Gate é a ponta visível de uma orquestração de IA aplicada ao seu processo de desenvolvimento.
