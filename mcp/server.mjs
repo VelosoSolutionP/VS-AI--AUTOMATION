@@ -22,6 +22,7 @@ import { TRACKERS, CUSTOM_FIELDS, HU_TASKS } from '../engine/vsanalista/template
 import { writeDashboard } from '../engine/vsdiretoria/index.mjs';
 import { answer as itwAnswer, nextQuestion as itwNext, progress as itwProgress } from '../engine/interview/engine.mjs';
 import { loadProfile as itwLoad, saveProfile as itwSave } from '../engine/interview/index.mjs';
+import { applyAll as itwApplyAll } from '../engine/interview/apply.mjs';
 import { qualificar as vsQualificar, followup as vsFollowup, objecao as vsObjecao } from '../engine/vsvendas/index.mjs';
 import { loadEvents, aggregate, report } from '../engine/metrics.mjs';
 import { hasConsent } from '../engine/consent.mjs';
@@ -357,9 +358,9 @@ server.tool('vsdiretoria_report',
 
 /* ---- vs_interview (livre) — onboarding conversacional, resumível ---- */
 server.tool('vs_interview',
-  'Entrevista de onboarding da suite: captura o padrão da empresa (o que vende, funil, ICP, tom, objeções) que os módulos leem — nada de adivinhar. Chame sem id/value pra ver a próxima pergunta; com id+value pra responder. Estado persiste (resumível). Sets: empresa, vendas.',
+  'Entrevista de onboarding da suite: captura o padrão da empresa/time que os módulos leem — nada de adivinhar. Chame sem id/value pra ver a próxima pergunta; com id+value pra responder. Estado persiste (resumível). Sets: empresa, vendas, dev (branch/commit/doc), analista (tracker+chave+projeto), qa (sistema+chave+exemplo).',
   {
-    set: z.enum(['empresa', 'vendas']),
+    set: z.enum(['empresa', 'vendas', 'dev', 'analista', 'qa']),
     id: z.string().optional().describe('id da pergunta sendo respondida'),
     value: z.any().optional().describe('resposta (string, número, ou lista separada por linha/;)'),
   },
@@ -379,6 +380,15 @@ server.tool('vs_interview',
       completa: prog.completa,
     };
     return { content: [text(JSON.stringify(out, null, 2))], isError: !!erro };
+  });
+
+/* ---- vs_apply_config (livre) — aplica os perfis no company.json (instalação) ---- */
+server.tool('vs_apply_config',
+  'Aplica as respostas da entrevista no company-config da instalação: dev -> branch/commit/doc; analista -> integrations.redmine (URL/chave/projeto); qa -> integrations.qa. Rode após vs_interview dos sets dev/analista/qa.',
+  {},
+  async () => {
+    const r = itwApplyAll();
+    return { content: [text(`✔ config aplicada em ${r.path}\nAtualizado: ${r.changed.join(', ') || 'nada (sem perfis dev/analista/qa)'}`)] };
   });
 
 /* ---- vsvendas_* (licenciado) — copiloto de vendas usando o perfil ---- */

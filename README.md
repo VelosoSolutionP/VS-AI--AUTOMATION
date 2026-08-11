@@ -105,12 +105,19 @@ O PDF é impresso num Chrome real (Playwright, o mesmo motor do gate) — sem se
 
 Nada de adivinhar padrão. Antes de operar, a suite faz uma **entrevista** que captura o contexto da sua empresa (o que vende, funil, ICP, tom de voz, objeções) e salva um **perfil** que os módulos leem. Multi-empresa: cada cliente responde a sua.
 
+Sets de entrevista (por papel):
+
+- **empresa** — nome, o que vende, proposta de valor, ICP, tom
+- **vendas** — funil, canais, sinais de lead quente/frio, objeções
+- **dev** — padrão de branch, tipos, padrão/escopo de commit, assinatura, política de testes e o **modelo de documentação** (você cola/aponta, a suite adota)
+- **analista** — tracker + URL + **chave de API** + projeto onde as sprints/HUs são criadas (na instalação)
+- **qa** — sistema onde gera a doc de testes + **chave de API** + um exemplo, pra suite conectar, ler e **adotar o padrão do QA**
+
 ```
-vsvendas interview empresa      # nome, o que vende, proposta de valor, ICP, tom
-vsvendas interview vendas       # funil, canais, sinais de lead quente/frio, objeções
+vsvendas interview dev          # (ou empresa|vendas|analista|qa) — interativo ou --answers f.json
 ```
 
-Também via MCP `vs_interview` (conversacional, resumível — pergunta a pergunta). Schema-driven: adicionar pergunta = editar `engine/interview/schema.mjs`.
+Também via MCP `vs_interview` (conversacional, resumível). Ao fim, **`vs_apply_config`** grava tudo no `company.json` da instalação (dev → branch/commit/doc; analista → tracker; qa → doc de testes). Chaves de API ficam locais (`~/.qa-gate`), fora do git. Schema-driven: nova pergunta = editar `engine/interview/schema.mjs`.
 
 ## VSvendas — copiloto de vendas
 
