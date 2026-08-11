@@ -101,6 +101,35 @@ O PDF é impresso num Chrome real (Playwright, o mesmo motor do gate) — sem se
 
 ---
 
+## Entrevista de onboarding — a suite aprende sua empresa
+
+Nada de adivinhar padrão. Antes de operar, a suite faz uma **entrevista** que captura o contexto da sua empresa (o que vende, funil, ICP, tom de voz, objeções) e salva um **perfil** que os módulos leem. Multi-empresa: cada cliente responde a sua.
+
+```
+vsvendas interview empresa      # nome, o que vende, proposta de valor, ICP, tom
+vsvendas interview vendas       # funil, canais, sinais de lead quente/frio, objeções
+```
+
+Também via MCP `vs_interview` (conversacional, resumível — pergunta a pergunta). Schema-driven: adicionar pergunta = editar `engine/interview/schema.mjs`.
+
+## VSvendas — copiloto de vendas
+
+Usa o perfil da entrevista pra ajudar o time comercial — sem depender de CRM (opera de texto colado):
+
+- **Qualifica o lead**: score + faixa (quente/morno/frio) + motivos + próximo passo, com base nos sinais que **a sua empresa** definiu.
+- **Redige o follow-up**: mensagem no seu tom e no momento certo do funil.
+- **Contorna objeção**: responde "tá caro", "vou pensar", etc. — com a sua resposta se você cadastrou, senão biblioteca genérica.
+
+```
+vsvendas qualify "lead: squad de 15 devs, bug em produção, quer demo"
+vsvendas followup --nome Carla --etapa "Proposta enviada" --dor "bug chegando no cliente"
+vsvendas objection "tá caro"
+```
+
+MCP: `vsvendas_qualify`, `vsvendas_followup`, `vsvendas_objection`. O baseline é determinístico e transparente; o modelo pode refinar a redação por cima.
+
+---
+
 ## Por que usar — plugin + MCP
 
 **IA sozinha entrega ilusão. Orquestrada, entrega resultado.** O QA-Gate é a ponta visível de uma orquestração de IA aplicada ao seu processo de desenvolvimento.

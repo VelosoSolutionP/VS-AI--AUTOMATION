@@ -20,6 +20,9 @@ import { runVsqa } from '../engine/vsqa/index.mjs';
 import { createEpic } from '../engine/vsanalista/index.mjs';
 import { TRACKERS, CUSTOM_FIELDS, HU_TASKS } from '../engine/vsanalista/template.mjs';
 import { writeDashboard } from '../engine/vsdiretoria/index.mjs';
+import { answer as itwAnswer, nextQuestion as itwNext, progress as itwProgress } from '../engine/interview/engine.mjs';
+import { loadProfile as itwLoad, saveProfile as itwSave } from '../engine/interview/index.mjs';
+import { qualificar as vsQualificar, followup as vsFollowup, objecao as vsObjecao } from '../engine/vsvendas/index.mjs';
 import { loadEvents, aggregate, report } from '../engine/metrics.mjs';
 import { hasConsent } from '../engine/consent.mjs';
 import { verifyLicense, currentLicenseToken } from '../license/license.mjs';
@@ -351,6 +354,57 @@ server.tool('vsdiretoria_report',
     ];
     return { content: [text(lines.join('\n'))] };
   });
+
+/* ---- vs_interview (livre) — onboarding conversacional, resumível ---- */
+server.tool('vs_interview',
+  'Entrevista de onboarding da suite: captura o padrão da empresa (o que vende, funil, ICP, tom, objeções) que os módulos leem — nada de adivinhar. Chame sem id/value pra ver a próxima pergunta; com id+value pra responder. Estado persiste (resumível). Sets: empresa, vendas.',
+  {
+    set: z.enum(['empresa', 'vendas']),
+    id: z.string().optional().describe('id da pergunta sendo respondida'),
+    value: z.any().optional().describe('resposta (string, número, ou lista separada por linha/;)'),
+  },
+  async ({ set, id, value }) => {
+    let state = { setId: set, answers: itwLoad(set) };
+    let erro = null;
+    if (id != null) {
+      const r = itwAnswer(state, id, value);
+      if (!r.ok) { erro = r.error; }
+      else { state = r.state; itwSave(set, state.answers); }
+    }
+    const prog = itwProgress(state);
+    const nx = itwNext(state);
+    const out = {
+      set, progresso: prog, erro,
+      proxima: nx ? { id: nx.id, secao: nx.secao, pergunta: nx.pergunta, tipo: nx.tipo, opcoes: nx.opcoes || null, obrigatoria: !!nx.required, ajuda: nx.help || null } : null,
+      completa: prog.completa,
+    };
+    return { content: [text(JSON.stringify(out, null, 2))], isError: !!erro };
+  });
+
+/* ---- vsvendas_* (licenciado) — copiloto de vendas usando o perfil ---- */
+const vendasHandler = (fn) => async (args) => {
+  requireLicense();
+  try { return { content: [text(JSON.stringify(fn(args), null, 2))] }; }
+  catch (e) {
+    if (e.needInterview) { return { content: [text('⚠ ' + e.message + '\nRode `vs_interview` (sets empresa e vendas) primeiro.')], isError: true }; }
+    throw e;
+  }
+};
+
+server.tool('vsvendas_qualify',
+  'VSvendas: qualifica um lead usando o perfil da empresa (entrevista). Retorna score, faixa (quente/morno/frio), motivos e próximo passo.',
+  { lead: z.string().describe('mensagem/descrição do lead') },
+  vendasHandler(({ lead }) => vsQualificar(lead)));
+
+server.tool('vsvendas_followup',
+  'VSvendas: redige o follow-up no tom da empresa e no momento do funil.',
+  { nome: z.string().optional(), etapa: z.string().optional().describe('etapa do funil'), dor: z.string().optional() },
+  vendasHandler((ctx) => vsFollowup(ctx)));
+
+server.tool('vsvendas_objection',
+  'VSvendas: responde a objeção do cliente (usa as respostas da empresa; senão biblioteca genérica).',
+  { fala: z.string().describe('a objeção dita pelo cliente') },
+  vendasHandler(({ fala }) => vsObjecao(fala)));
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
