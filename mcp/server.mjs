@@ -396,13 +396,13 @@ server.tool('vs_apply_config',
   });
 
 /* ---- vsvendas_* (licenciado) — copiloto de vendas usando o perfil ---- */
+// Vendas + Marketing é uma linha própria: NÃO exige QA/analista (gate do fluxo dev),
+// só o perfil empresa+vendas (needInterview cobre isso).
 const vendasHandler = (fn) => async (args) => {
   requireLicense();
   try {
-    assertInstalled(loadCompanyConfig(process.cwd()));
     return { content: [text(JSON.stringify(fn(args), null, 2))] };
   } catch (e) {
-    if (e.notInstalled) { return { content: [text('⛔ ' + e.message)], isError: true }; }
     if (e.needInterview) { return { content: [text('⚠ ' + e.message + '\nRode `vs_interview` (sets empresa e vendas) primeiro.')], isError: true }; }
     throw e;
   }

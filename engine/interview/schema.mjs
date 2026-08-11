@@ -47,7 +47,7 @@ export const SETS = {
     { id: 'qa_padrao', secao: 'QA', pergunta: 'Se quiser, descreva o padrão da doc de teste', tipo: 'longtext', required: false },
   ],
 
-  // Vendas — alimenta o VSvendas.
+  // Vendas + Marketing — alimenta o VSvendas (qualificação, follow-up, objeção e ANÚNCIOS).
   vendas: [
     { id: 'funil', secao: 'Vendas', pergunta: 'Quais as etapas do funil, em ordem?', tipo: 'list', required: true, help: 'Ex.: Novo lead; Qualificado; Proposta enviada; Negociação; Fechado' },
     { id: 'canais', secao: 'Vendas', pergunta: 'Canais de contato usados?', tipo: 'multichoice', opcoes: ['WhatsApp', 'E-mail', 'Ligação', 'Instagram', 'Presencial'], required: true },
@@ -55,6 +55,10 @@ export const SETS = {
     { id: 'sinais_frio', secao: 'Vendas', pergunta: 'O que indica um lead FRIO / desqualificado?', tipo: 'list', required: false, help: 'Ex.: sem orçamento; só curiosidade; fora do perfil' },
     { id: 'objecoes', secao: 'Vendas', pergunta: 'Objeções mais comuns? (uma por linha; se quiser, "objeção => resposta")', tipo: 'list', required: false, help: 'Ex.: tá caro => mostro ROI; vou pensar => marco retorno com data' },
     { id: 'follow_prazo', secao: 'Vendas', pergunta: 'Após enviar proposta, em quantos dias fazer follow-up?', tipo: 'number', required: false },
+    // Marketing / anúncios
+    { id: 'plataformas_anuncio', secao: 'Marketing', pergunta: 'Em quais plataformas você anuncia?', tipo: 'multichoice', opcoes: ['Instagram', 'Facebook Marketplace', 'Mercado Livre', 'OLX', 'WhatsApp', 'Google', 'TikTok'], required: true, help: 'A suite gera o anúncio pronto pra cada uma' },
+    { id: 'fotos_pasta', secao: 'Marketing', pergunta: 'Pasta padrão com as fotos dos produtos?', tipo: 'text', required: false, help: 'Ex.: C:\\vendas\\fotos — de onde eu listo os produtos' },
+    { id: 'estilo_anuncio', secao: 'Marketing', pergunta: 'Estilo do anúncio?', tipo: 'choice', opcoes: ['Curto e direto', 'Detalhado', 'Emojis e informal', 'Sóbrio'], required: false },
   ],
 };
 

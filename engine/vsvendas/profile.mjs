@@ -28,6 +28,11 @@ export function mapProfile(empresa = {}, vendas = {}) {
     sinaisFrio: vendas.sinais_frio || [],
     objecoes: parseObjecoes(vendas.objecoes),
     followPrazoDias: vendas.follow_prazo ?? 3,
+    marketing: {
+      plataformas: vendas.plataformas_anuncio || [],
+      fotosPasta: vendas.fotos_pasta || null,
+      estilo: vendas.estilo_anuncio || null,
+    },
   };
 }
 

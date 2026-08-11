@@ -43,10 +43,23 @@ export function listarProdutos(dir) {
   return listProducts(dir);
 }
 
-/** Gera os anúncios de um produto (exige perfil — usa tom/proposta da empresa). */
+/** Gera os anúncios de um produto (exige perfil — usa tom/proposta e, por padrão,
+ *  as plataformas que a empresa cadastrou na entrevista de marketing). */
 export function anunciar(produto, plataformas, profile = getProfile()) {
   ensure(profile);
-  return buildAds(produto, profile, plataformas);
+  const alvos = (plataformas && plataformas.length) ? plataformas : (profile.marketing?.plataformas || []);
+  return buildAds(produto, profile, alvos.map(mapPlataforma));
+}
+
+/** Nome amigável da plataforma (entrevista) -> chave do formatter. */
+function mapPlataforma(p) {
+  const s = String(p).toLowerCase();
+  if (s.includes('marketplace') || s.includes('facebook')) { return 'marketplace'; }
+  if (s.includes('mercado')) { return 'mercadolivre'; }
+  if (s.includes('insta')) { return 'instagram'; }
+  if (s.includes('whats')) { return 'whatsapp'; }
+  if (s.includes('olx')) { return 'olx'; }
+  return s;
 }
 
 export { mapProfile, profileReady };

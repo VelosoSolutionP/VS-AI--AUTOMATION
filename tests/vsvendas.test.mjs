@@ -6,7 +6,7 @@ import { mapProfile, profileReady } from '../engine/vsvendas/profile.mjs';
 import { qualifyLead } from '../engine/vsvendas/qualify.mjs';
 import { draftFollowup } from '../engine/vsvendas/followup.mjs';
 import { handleObjection } from '../engine/vsvendas/objection.mjs';
-import { qualificar, followup, objecao } from '../engine/vsvendas/index.mjs';
+import { qualificar, followup, objecao, anunciar } from '../engine/vsvendas/index.mjs';
 import { listProducts, buildAds, PLATAFORMAS } from '../engine/vsvendas/ads.mjs';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -46,12 +46,14 @@ test('answer: rejeita choice inválida com erro', () => {
 /* ---------------- profile ---------------- */
 
 const empresa = { empresa_nome: 'MSB', vende: 'software de gestão rural', proposta_valor: 'reduz retrabalho', icp: 'secretaria de agricultura gestor', ticket: 5000, tom: 'Direto' };
-const vendas = { funil: ['Novo lead', 'Qualificado', 'Proposta enviada', 'Negociação', 'Fechado'], canais: ['WhatsApp', 'E-mail'], sinais_quente: ['pediu preço', 'tem prazo'], sinais_frio: ['sem verba'], objecoes: ['tá caro => mostro o ROI', 'vou pensar'], follow_prazo: 2 };
+const vendas = { funil: ['Novo lead', 'Qualificado', 'Proposta enviada', 'Negociação', 'Fechado'], canais: ['WhatsApp', 'E-mail'], sinais_quente: ['pediu preço', 'tem prazo'], sinais_frio: ['sem verba'], objecoes: ['tá caro => mostro o ROI', 'vou pensar'], follow_prazo: 2, plataformas_anuncio: ['Instagram', 'Mercado Livre'], fotos_pasta: 'C:/vendas/fotos', estilo_anuncio: 'Curto e direto' };
 
 test('mapProfile + profileReady', () => {
   const p = mapProfile(empresa, vendas);
   assert.equal(p.empresa.nome, 'MSB');
   assert.equal(p.funil.length, 5);
+  assert.deepEqual(p.marketing.plataformas, ['Instagram', 'Mercado Livre']);
+  assert.equal(p.marketing.fotosPasta, 'C:/vendas/fotos');
   assert.equal(p.objecoes[0].objecao, 'tá caro');
   assert.equal(p.objecoes[0].resposta, 'mostro o ROI');
   assert.equal(p.objecoes[1].resposta, null);
@@ -151,4 +153,11 @@ test('buildAds: plataformas vazio = todas', () => {
   const p = mapProfile(empresa, vendas);
   const r = buildAds({ produto: 'X', preco: 10 }, p, []);
   assert.equal(r.anuncios.length, Object.keys(PLATAFORMAS).length);
+});
+
+test('anunciar: sem plataformas usa as da entrevista (marketing)', () => {
+  const p = mapProfile(empresa, vendas);
+  const r = anunciar({ produto: 'Sofá', preco: 999 }, null, p);
+  const plats = r.anuncios.map((a) => a.plataforma).sort();
+  assert.deepEqual(plats, ['Instagram', 'Mercado Livre']); // veio do perfil, mapeado
 });
