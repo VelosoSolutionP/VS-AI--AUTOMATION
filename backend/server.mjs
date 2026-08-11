@@ -26,6 +26,7 @@ const CHECKOUT_URL = process.env.CHECKOUT_URL || ''; // Stripe Payment Link (opc
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID || '';
 const PUBLIC_URL = process.env.PUBLIC_URL || 'https://api.velososolution.online';
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || ''; // emissão admin on-demand (/issue)
 
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://velososolution.online';
 function cors(res) {
@@ -126,8 +127,29 @@ const server = createServer(async (req, res) => {
     } catch (e) { return json(res, 502, { error: 'checkout: ' + e.message }); }
   }
 
+  // ADMIN: emite chave de QUALQUER plano on-demand (protegido por ADMIN_TOKEN).
+  // Ex.: curl -H "authorization: Bearer $ADMIN_TOKEN" -d '{"contato":"5531...","plan":"grande"}' .../issue
+  if (req.method === 'POST' && req.url === '/issue') {
+    cors(res);
+    if (!ADMIN_TOKEN) { return json(res, 403, { error: 'emissão admin desativada (defina ADMIN_TOKEN)' }); }
+    const auth = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
+    const raw = (await readBody(req)).toString('utf8');
+    let data; try { data = JSON.parse(raw); } catch { data = {}; }
+    if (auth !== ADMIN_TOKEN && data.token !== ADMIN_TOKEN) { return json(res, 401, { error: 'token admin inválido' }); }
+    const plan = String(data.plan || 'pro').toLowerCase();
+    const name = String(data.name || '').trim().slice(0, 80);
+    const phone = String(data.whatsapp || data.phone || '').replace(/\D/g, '').slice(0, 20);
+    const contato = phone || String(data.email || data.contato || '').trim().slice(0, 120);
+    if (!contato) { return json(res, 400, { error: 'informe contato (whatsapp/email)' }); }
+    const days = data.days != null ? Number(data.days) : (planToDays[plan] ?? 365);
+    const token = issueLicense({ email: contato, plan, days });
+    let entrega = null;
+    if (phone.length >= 10 && data.entregar !== false) { try { entrega = await deliverLicense({ email: contato, phone, name, token, plan }); } catch {} }
+    return json(res, 200, { token, plan, days, entregue: !!(entrega && entrega.ok) });
+  }
+
   // preflight do trial (instalador)
-  if (req.method === 'OPTIONS' && req.url === '/trial') { cors(res); res.writeHead(204); return res.end(); }
+  if (req.method === 'OPTIONS' && (req.url === '/trial' || req.url === '/issue')) { cors(res); res.writeHead(204); return res.end(); }
 
   // cadastro do TESTE -> emite chave trial POR CLIENTE (exp longo; o corte de 7 dias é
   // feito pela trava por data de instalação no cliente). Entrega best-effort no WhatsApp.
