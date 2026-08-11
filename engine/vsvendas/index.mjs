@@ -7,6 +7,7 @@ import { mapProfile, profileReady } from './profile.mjs';
 import { qualifyLead } from './qualify.mjs';
 import { draftFollowup } from './followup.mjs';
 import { handleObjection } from './objection.mjs';
+import { listProducts, buildAds } from './ads.mjs';
 
 /** Monta o perfil a partir dos perfis salvos pela entrevista. */
 export function getProfile() {
@@ -35,6 +36,17 @@ export function followup(ctx, profile = getProfile()) {
 export function objecao(fala, profile = getProfile()) {
   ensure(profile);
   return handleObjection(fala, profile);
+}
+
+/** Lista os produtos de uma pasta de fotos (não exige perfil). */
+export function listarProdutos(dir) {
+  return listProducts(dir);
+}
+
+/** Gera os anúncios de um produto (exige perfil — usa tom/proposta da empresa). */
+export function anunciar(produto, plataformas, profile = getProfile()) {
+  ensure(profile);
+  return buildAds(produto, profile, plataformas);
 }
 
 export { mapProfile, profileReady };

@@ -13,7 +13,7 @@ import { createInterface } from 'node:readline';
 import { parseArgs } from '../vsqa/cli.mjs';
 import { createState, answer, nextQuestion, progress } from '../interview/engine.mjs';
 import { saveProfile, loadProfile } from '../interview/index.mjs';
-import { qualificar, followup, objecao } from './index.mjs';
+import { qualificar, followup, objecao, listarProdutos, anunciar } from './index.mjs';
 
 const ask = (rl, q) => new Promise((res) => rl.question(q, res));
 
@@ -49,6 +49,33 @@ async function interview(setId, args) {
 
 function out(obj) { console.log(JSON.stringify(obj, null, 2)); }
 
+async function ads(dir, args) {
+  const produtos = listarProdutos(dir);
+  if (!produtos.length) { console.log('nenhuma imagem de produto em ' + dir); return; }
+  const plataformas = args.plataformas ? String(args.plataformas).split(',') : [];
+  const precos = args.precos ? JSON.parse(readFileSync(args.precos, 'utf8')) : null;
+  console.log(`\n${produtos.length} produto(s) em ${dir}:`);
+  produtos.forEach((p) => console.log(`  - ${p.produto} (${p.imagens.length} foto[s])`));
+
+  const rl = precos ? null : createInterface({ input: process.stdin, output: process.stdout });
+  const results = [];
+  for (const p of produtos) {
+    let preco; let descricao;
+    if (precos) {
+      const rec = precos[p.produto] || precos[p.produto.toLowerCase()] || {};
+      preco = rec.preco; descricao = rec.descricao;
+    } else {
+      const raw = (await ask(rl, `\n${p.produto} — preço (R$)? `)).trim();
+      preco = parseFloat(raw.replace(',', '.').replace(/[^\d.]/g, ''));
+      descricao = (await ask(rl, 'texto/descrição (enter pula)? ')).trim() || undefined;
+    }
+    if (!Number.isFinite(preco)) { console.log(`  ⚠ ${p.produto}: sem preço, pulei`); continue; }
+    results.push(anunciar({ produto: p.produto, preco, descricao, imagens: p.imagens }, plataformas));
+  }
+  if (rl) { rl.close(); }
+  out(results);
+}
+
 export async function main(argv = process.argv.slice(2)) {
   const args = parseArgs(argv);
   const cmd = args._[0];
@@ -57,7 +84,8 @@ export async function main(argv = process.argv.slice(2)) {
     if (cmd === 'qualify') { return out(qualificar(args._.slice(1).join(' '))); }
     if (cmd === 'followup') { return out(followup({ nome: args.nome, etapa: args.etapa, dor: args.dor })); }
     if (cmd === 'objection') { return out(objecao(args._.slice(1).join(' '))); }
-    console.log('VSvendas — comandos: interview <empresa|vendas> [--answers f.json] | qualify "<lead>" | followup --nome --etapa --dor | objection "<fala>"');
+    if (cmd === 'ads') { return await ads(args._[1] || '.', args); }
+    console.log('VSvendas — comandos: interview <set> [--answers f.json] | qualify "<lead>" | followup --nome --etapa --dor | objection "<fala>" | ads <pasta> [--plataformas a,b] [--precos f.json]');
   } catch (e) {
     console.error('✖ ' + (e?.message || e));
     process.exit(1);

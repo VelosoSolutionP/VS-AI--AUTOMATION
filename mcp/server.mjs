@@ -24,7 +24,7 @@ import { answer as itwAnswer, nextQuestion as itwNext, progress as itwProgress }
 import { loadProfile as itwLoad, saveProfile as itwSave } from '../engine/interview/index.mjs';
 import { applyAll as itwApplyAll } from '../engine/interview/apply.mjs';
 import { assertInstalled } from '../engine/interview/install.mjs';
-import { qualificar as vsQualificar, followup as vsFollowup, objecao as vsObjecao } from '../engine/vsvendas/index.mjs';
+import { qualificar as vsQualificar, followup as vsFollowup, objecao as vsObjecao, listarProdutos as vsListar, anunciar as vsAnunciar } from '../engine/vsvendas/index.mjs';
 import { loadEvents, aggregate, report } from '../engine/metrics.mjs';
 import { hasConsent } from '../engine/consent.mjs';
 import { verifyLicense, currentLicenseToken } from '../license/license.mjs';
@@ -422,6 +422,22 @@ server.tool('vsvendas_objection',
   'VSvendas: responde a objeção do cliente (usa as respostas da empresa; senão biblioteca genérica).',
   { fala: z.string().describe('a objeção dita pelo cliente') },
   vendasHandler(({ fala }) => vsObjecao(fala)));
+
+server.tool('vsvendas_ads_list',
+  'VSvendas: lista os produtos a partir da PASTA de fotos (agrupa variantes). Diz o que falta (preço/texto). Postar automático nas plataformas é roadmap; aqui gera o anúncio pronto pra postar.',
+  { dir: z.string().describe('pasta com as imagens dos produtos') },
+  vendasHandler(({ dir }) => vsListar(dir)));
+
+server.tool('vsvendas_ads_build',
+  'VSvendas: gera o anúncio pronto de UM produto por plataforma (Instagram, Marketplace, Mercado Livre, OLX, WhatsApp), no tom da empresa. Passe preço e, se quiser, descrição.',
+  {
+    produto: z.string(),
+    preco: z.number(),
+    descricao: z.string().optional(),
+    imagens: z.array(z.string()).optional(),
+    plataformas: z.array(z.string()).optional().describe('vazio = todas'),
+  },
+  vendasHandler(({ produto, preco, descricao, imagens, plataformas }) => vsAnunciar({ produto, preco, descricao, imagens }, plataformas)));
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

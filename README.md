@@ -137,6 +137,17 @@ vsvendas objection "tá caro"
 
 MCP: `vsvendas_qualify`, `vsvendas_followup`, `vsvendas_objection`. O baseline é determinístico e transparente; o modelo pode refinar a redação por cima.
 
+### Anúncios a partir da pasta de fotos
+
+O vendedor aponta a **pasta com as fotos dos produtos** → a suite lista os produtos (agrupa variantes), pergunta **preço/texto** e gera o **anúncio pronto por plataforma** (Instagram, Facebook Marketplace, Mercado Livre, OLX, WhatsApp), no tom da empresa, respeitando os limites de cada uma.
+
+```
+vsvendas ads ./fotos --plataformas instagram,marketplace          # pergunta preço por produto
+vsvendas ads ./fotos --precos precos.json                          # preços de um arquivo
+```
+
+MCP: `vsvendas_ads_list` (lista a pasta) e `vsvendas_ads_build` (gera o anúncio). **Postar automático** nas plataformas é **roadmap** — cada uma exige API + conta business + credencial do cliente (adapter por plataforma, capturado na entrevista); por ora a suite entrega o anúncio pronto e o vendedor posta.
+
 ---
 
 ## Por que usar — plugin + MCP

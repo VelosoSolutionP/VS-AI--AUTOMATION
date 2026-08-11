@@ -7,6 +7,10 @@ import { qualifyLead } from '../engine/vsvendas/qualify.mjs';
 import { draftFollowup } from '../engine/vsvendas/followup.mjs';
 import { handleObjection } from '../engine/vsvendas/objection.mjs';
 import { qualificar, followup, objecao } from '../engine/vsvendas/index.mjs';
+import { listProducts, buildAds, PLATAFORMAS } from '../engine/vsvendas/ads.mjs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 /* ---------------- interview engine ---------------- */
 
@@ -113,4 +117,38 @@ test('index: qualificar/followup/objecao com perfil pronto', () => {
 test('index: sem perfil -> erro needInterview', () => {
   const vazio = mapProfile({}, {});
   assert.throws(() => qualificar('x', vazio), (e) => e.needInterview === true);
+});
+
+/* ---------------- anúncios ---------------- */
+
+test('listProducts: agrupa variantes por nome base', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'vsads-'));
+  for (const f of ['sofa-1.jpg', 'sofa-2.jpg', 'mesa.png', 'nota.txt']) { writeFileSync(join(dir, f), 'x'); }
+  const ps = listProducts(dir);
+  const nomes = ps.map((p) => p.produto).sort();
+  assert.deepEqual(nomes, ['Mesa', 'Sofa']);
+  const sofa = ps.find((p) => p.produto === 'Sofa');
+  assert.equal(sofa.imagens.length, 2); // agrupou sofa-1 + sofa-2
+});
+
+test('buildAds: gera por plataforma no tom da empresa; sem preço avisa', () => {
+  const p = mapProfile(empresa, vendas);
+  const semPreco = buildAds({ produto: 'Sofá', imagens: ['a.jpg'] }, p, ['instagram']);
+  assert.equal(semPreco.faltando, 'preço');
+
+  const r = buildAds({ produto: 'Sofá 3 lugares', preco: 1299.9, descricao: 'seminovo', imagens: ['a.jpg'] }, p, ['instagram', 'mercadolivre', 'whatsapp']);
+  assert.equal(r.anuncios.length, 3);
+  const ig = r.anuncios.find((a) => a.plataforma === 'Instagram');
+  assert.match(ig.texto, /Sofá 3 lugares/);
+  assert.match(ig.texto, /R\$ 1\.299,90/);
+  assert.match(ig.texto, /#/); // hashtags
+  const ml = r.anuncios.find((a) => a.plataforma === 'Mercado Livre');
+  assert.ok(ml.titulo.length <= 60); // limite ML
+  assert.deepEqual(ig.imagens, ['a.jpg']);
+});
+
+test('buildAds: plataformas vazio = todas', () => {
+  const p = mapProfile(empresa, vendas);
+  const r = buildAds({ produto: 'X', preco: 10 }, p, []);
+  assert.equal(r.anuncios.length, Object.keys(PLATAFORMAS).length);
 });
