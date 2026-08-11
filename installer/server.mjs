@@ -35,10 +35,19 @@ export function createInstallerServer() {
   });
 }
 
-/** Sobe o servidor. Retorna { server, url }. */
-export function start(port = 4599) {
+/** Sobe o servidor. Se a porta estiver ocupada, tenta as próximas. Retorna { server, url }. */
+export function start(port = 4599, tentativas = 12) {
   const server = createInstallerServer();
-  return new Promise((resolve) => {
-    server.listen(port, '127.0.0.1', () => resolve({ server, url: `http://127.0.0.1:${port}` }));
+  return new Promise((resolve, reject) => {
+    let p = port;
+    const tryListen = () => {
+      server.removeAllListeners('error');
+      server.once('error', (e) => {
+        if (e.code === 'EADDRINUSE' && p < port + tentativas) { p += 1; tryListen(); }
+        else { reject(e); }
+      });
+      server.listen(p, '127.0.0.1', () => resolve({ server, url: `http://127.0.0.1:${p}` }));
+    };
+    tryListen();
   });
 }
