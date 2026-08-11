@@ -120,6 +120,7 @@ test('runInstall: instala nos alvos detectados (vendas, injetado)', async () => 
   const r = await runInstall({
     email: 'a@b.com', empresa: 'ACME', produtos: ['vsvendas'], respostas: respVendas,
     saveImpl: (set) => salvos.push(set),
+    trialImpl: async () => ({ token: 'tk', days: 7, fonte: 'test' }),
     markImpl: () => ({}), scheduleImpl: () => ({ scheduled: true, tool: 'test' }),
     detectImpl: () => [{ tool: 'Claude Code', configPath: '/fake/.claude.json' }],
     installImpl: (path) => { escritos.push(path); return { path, servidor: SERVER_NAME }; },
@@ -135,6 +136,6 @@ test('runInstall: instala nos alvos detectados (vendas, injetado)', async () => 
 });
 
 test('runInstall: sem ferramenta detectada -> semFerramenta', async () => {
-  const r = await runInstall({ email: 'a@b.com', produtos: ['vsvendas'], respostas: respVendas, saveImpl: noop, markImpl: () => ({}), scheduleImpl: () => ({}), detectImpl: () => [] });
+  const r = await runInstall({ email: 'a@b.com', produtos: ['vsvendas'], respostas: respVendas, saveImpl: noop, trialImpl: async () => ({ token: 'tk', days: 7 }), markImpl: () => ({}), scheduleImpl: () => ({}), detectImpl: () => [] });
   assert.equal(r.semFerramenta, true);
 });

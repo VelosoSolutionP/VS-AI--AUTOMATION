@@ -126,6 +126,25 @@ const server = createServer(async (req, res) => {
     } catch (e) { return json(res, 502, { error: 'checkout: ' + e.message }); }
   }
 
+  // preflight do trial (instalador)
+  if (req.method === 'OPTIONS' && req.url === '/trial') { cors(res); res.writeHead(204); return res.end(); }
+
+  // cadastro do TESTE -> emite chave trial POR CLIENTE (exp longo; o corte de 7 dias é
+  // feito pela trava por data de instalação no cliente). Entrega best-effort no WhatsApp.
+  if (req.method === 'POST' && req.url === '/trial') {
+    cors(res);
+    const raw = (await readBody(req)).toString('utf8');
+    let data; try { data = JSON.parse(raw); } catch { data = {}; }
+    const name = String(data.name || '').trim().slice(0, 80);
+    const phone = String(data.whatsapp || data.phone || data.contato || '').replace(/\D/g, '').slice(0, 20);
+    const contato = phone || String(data.email || data.contato || '').trim().slice(0, 120);
+    if (!contato) { return json(res, 400, { error: 'Informe WhatsApp ou e-mail.' }); }
+    const token = issueLicense({ email: contato, plan: 'trial', days: 3650 });
+    let entrega = null;
+    if (phone.length >= 10) { try { entrega = await deliverLicense({ email: contato, phone, name, token, plan: 'trial' }); } catch {} }
+    return json(res, 200, { token, plan: 'trial', entregue: !!(entrega && entrega.ok) });
+  }
+
   if (req.method === 'POST' && req.url === '/webhook') {
     const raw = (await readBody(req)).toString('utf8');
     const ok = await verifyStripeSig(raw, req.headers['stripe-signature'] || '', WEBHOOK_SECRET);

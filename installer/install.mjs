@@ -40,7 +40,7 @@ export async function runInstall(dados) {
   }
 
   const contato = dados.whatsapp || dados.email || null;
-  const trial = await issueTrial({ email: contato || 'trial@velososolution.online' });
+  const trial = await (dados.trialImpl || issueTrial)({ email: contato || 'trial@velososolution.online', name: dados.nome });
   const serverPath = dados.serverPath || SERVER_PATH;
 
   // 3. Trava do teste: marca a instalação + agenda o cron/tarefa que trava em 7 dias
