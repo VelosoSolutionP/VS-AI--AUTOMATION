@@ -25,7 +25,8 @@
     "qa-gate-mcp": "./mcp/server.mjs",
     "vsqa": "./engine/vsqa/cli.mjs",
     "vsdiretoria": "./engine/vsdiretoria/cli.mjs",
-    "vsvendas": "./engine/vsvendas/cli.mjs"
+    "vsvendas": "./engine/vsvendas/cli.mjs",
+    "vs-install": "./installer/cli.mjs"
   },
   "engines": {
     "node": ">=18"

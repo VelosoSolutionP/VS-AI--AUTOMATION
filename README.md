@@ -101,6 +101,22 @@ O PDF é impresso num Chrome real (Playwright, o mesmo motor do gate) — sem se
 
 ---
 
+## Instalador premium
+
+Instalação num clique, com tela bonita no navegador:
+
+```
+vs-install          # abre a tela premium em localhost
+```
+
+O cliente faz o **cadastro**, escolhe os **produtos** (picker com módulos disponíveis + os "em breve"), e clica em instalar. O instalador:
+
+- emite uma **chave de teste de 7 dias**;
+- **detecta a IDE / ferramenta de IA** (Claude Code, Cursor, Windsurf, Cline) e escreve o MCP no config certo — merge não-destrutivo;
+- deixa claro o **treinamento grátis** (recomendado antes de começar).
+
+Pagamento fica como **stub** (Stripe entra aqui). A chave de 7 dias não cobra nada agora.
+
 ## Entrevista de onboarding — a suite aprende sua empresa
 
 Nada de adivinhar padrão. Antes de operar, a suite faz uma **entrevista** que captura o contexto da sua empresa (o que vende, funil, ICP, tom de voz, objeções) e salva um **perfil** que os módulos leem. Multi-empresa: cada cliente responde a sua.
