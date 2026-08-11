@@ -1,0 +1,197 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Instalar VelosoSolution</title><style>
+:root{--bg:#0c0a14;--card:#171426;--fg:#efe9fb;--muted:#a99fc4;--line:#2a2440;--accent:#8b5cf6;--accent2:#ec4899;--ok:#10b981;--warn:#f59e0b;}
+@media (prefers-color-scheme:light){:root{--bg:#f5f2fb;--card:#fff;--fg:#1a1330;--muted:#6b6486;--line:#e9e3f5;}}
+:root[data-theme=light]{--bg:#f5f2fb;--card:#fff;--fg:#1a1330;--muted:#6b6486;--line:#e9e3f5;}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(1100px 560px at 15% -10%,rgba(139,92,246,.22),transparent),radial-gradient(900px 500px at 95% 0%,rgba(236,72,153,.14),transparent),var(--bg);color:var(--fg);font:15px/1.55 -apple-system,Segoe UI,Roboto,Inter,sans-serif;min-height:100vh}
+.wrap{max-width:920px;margin:0 auto;padding:36px 20px 60px}
+.brand{font-size:26px;font-weight:850;letter-spacing:-.02em}.brand b{background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--muted);margin-top:4px}
+.hero{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:22px}
+.badge{background:linear-gradient(90deg,var(--accent),var(--accent2));color:#fff;font-weight:700;font-size:12px;padding:6px 12px;border-radius:999px;white-space:nowrap;box-shadow:0 6px 18px rgba(236,72,153,.3)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 22px;margin-bottom:16px;box-shadow:0 12px 34px rgba(0,0,0,.22)}
+.card h2{margin:0 0 4px;font-size:15px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+label.fl{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+input[type=text],input[type=email],input[type=number],textarea,select{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--fg);font-size:14px;font-family:inherit}
+textarea{min-height:60px;resize:vertical}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(139,92,246,.18)}
+.req{color:var(--accent2)}
+/* produto + CHAVE */
+.prod{display:flex;gap:14px;align-items:center;justify-content:space-between;padding:14px 16px;border:1px solid var(--line);border-radius:14px;margin-top:10px;transition:.15s}
+.prod:hover{border-color:var(--accent)}
+.prod.on{border-color:var(--accent);background:linear-gradient(90deg,rgba(139,92,246,.10),transparent)}
+.prod.soon{opacity:.5}
+.prod .n{font-weight:700}.prod .d{color:var(--muted);font-size:13px;margin-top:2px}
+.tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:8px}
+.tag.dev{background:rgba(139,92,246,.2);color:var(--accent)}.tag.vendas{background:rgba(236,72,153,.16);color:var(--accent2)}.tag.soon{background:rgba(245,158,11,.16);color:var(--warn)}.tag.suporte{background:rgba(169,159,196,.18);color:var(--muted)}
+.switch{position:relative;width:48px;height:27px;flex:none}
+.switch input{opacity:0;width:0;height:0}
+.slider{position:absolute;inset:0;background:var(--line);border-radius:999px;cursor:pointer;transition:.2s}
+.slider:before{content:'';position:absolute;height:21px;width:21px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.switch input:checked+.slider{background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.switch input:checked+.slider:before{transform:translateX(21px)}
+.switch input:disabled+.slider{opacity:.4;cursor:not-allowed}
+/* accordion entrevista */
+.acc{border:1px solid var(--line);border-radius:12px;margin-top:10px;overflow:hidden;display:none}
+.acc.show{display:block}
+.acc-head{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;cursor:pointer;font-weight:700;color:var(--accent)}
+.acc-head .chev{transition:.2s;color:var(--muted)}
+.acc.open .acc-head .chev{transform:rotate(180deg)}
+.acc-body{max-height:0;overflow:hidden;transition:max-height .3s ease;padding:0 15px}
+.acc.open .acc-body{max-height:2000px;padding:0 15px 14px}
+.hint{color:var(--muted);font-size:12px;margin-top:3px}
+/* chips (multichoice) */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}
+.chip{border:1px solid var(--line);background:transparent;color:var(--fg);padding:7px 13px;border-radius:999px;font-size:13px;cursor:pointer;transition:.15s;font-family:inherit}
+.chip:hover{border-color:var(--accent)}
+.chip.on{background:linear-gradient(90deg,var(--accent),var(--accent2));border-color:transparent;color:#fff;font-weight:600}
+.train{background:linear-gradient(90deg,rgba(16,185,129,.16),rgba(139,92,246,.08));border:1px solid rgba(16,185,129,.35)}.train h2{color:var(--ok)}
+.stub{border-style:dashed}
+.btn{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(90deg,var(--accent),var(--accent2));color:#fff;border:none;padding:15px 22px;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;width:100%;justify-content:center;box-shadow:0 12px 30px rgba(139,92,246,.32)}
+.btn:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+.muted{color:var(--muted);font-size:13px}
+.result{white-space:pre-wrap;background:rgba(0,0,0,.22);border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:12px;font:13px/1.5 ui-monospace,Menlo,Consolas,monospace;display:none}.result.show{display:block}
+.overlay{position:fixed;inset:0;background:rgba(9,6,18,.88);backdrop-filter:blur(5px);display:none;align-items:center;justify-content:center;flex-direction:column;z-index:9}.overlay.show{display:flex}
+.ring{transform:rotate(-90deg)}.ring .track{stroke:var(--line)}.ring .bar{stroke:url(#g);stroke-linecap:round;transition:stroke-dashoffset .35s ease}
+.pct{font-size:34px;font-weight:850;position:absolute}.stage{color:var(--muted);margin-top:10px}
+.foot{color:var(--muted);font-size:12px;text-align:center;margin-top:18px}
+</style></head><body>
+<div class="wrap">
+  <div class="hero"><div><div class="brand">Veloso<b>Solution</b></div><div class="sub">Instalador — automação com IA pro seu time</div></div>
+    <span class="badge">Teste grátis · 7 dias</span></div>
+
+  <form id="f">
+    <div class="card"><h2>1 · Seus dados</h2>
+      <div class="row"><div><label class="fl">Nome</label><input type="text" name="nome" required></div>
+      <div><label class="fl">Empresa</label><input type="text" name="empresa"></div></div>
+      <label class="fl">E-mail (recebe a chave do teste)</label><input type="email" name="email" required></div>
+
+    <div class="card"><h2>2 · Ative os produtos</h2>
+      <p class="muted">Ligue a chave do que quer instalar — só aí os dados daquele produto abrem abaixo.</p>
+      <div class="prod ">
+      <div><span class="n">VSolution — Gate<span class="tag dev">dev</span></span>
+        <div class="d">Barra bug de UI no commit (Chrome real): injeta o bug, exige msg amigável + console limpo.</div></div>
+      <label class="switch"><input type="checkbox" class="prodchk" value="gate" ><span class="slider"></span></label>
+    </div><div class="prod ">
+      <div><span class="n">VSqa<span class="tag dev">dev</span></span>
+        <div class="d">Testa a US como um QA: gera cenário, roda no browser e dá o veredito (verde fecha / vermelho devolve).</div></div>
+      <label class="switch"><input type="checkbox" class="prodchk" value="vsqa" ><span class="slider"></span></label>
+    </div><div class="prod ">
+      <div><span class="n">VSanalista<span class="tag dev">dev</span></span>
+        <div class="d">Cria Épico + Histórias de Usuário + tarefas técnicas no padrão do time.</div></div>
+      <label class="switch"><input type="checkbox" class="prodchk" value="vsanalista" ><span class="slider"></span></label>
+    </div><div class="prod ">
+      <div><span class="n">VSdiretoria<span class="tag dev">dev</span></span>
+        <div class="d">Painel executivo (BI): produtividade, qualidade, governança — com exportação em PDF.</div></div>
+      <label class="switch"><input type="checkbox" class="prodchk" value="vsdiretoria" ><span class="slider"></span></label>
+    </div><div class="prod ">
+      <div><span class="n">VSvendas<span class="tag vendas">vendas</span></span>
+        <div class="d">Vendas + Marketing: qualifica leads, redige follow-up, contorna objeção e gera anúncios das fotos.</div></div>
+      <label class="switch"><input type="checkbox" class="prodchk" value="vsvendas" ><span class="slider"></span></label>
+    </div><div class="prod soon">
+      <div><span class="n">VSsuporte<span class="tag soon">em breve</span></span>
+        <div class="d">Automação do atendimento/suporte — em breve.</div></div>
+      <label class="switch"><input type="checkbox" class="prodchk" value="vssuporte" disabled><span class="slider"></span></label>
+    </div></div>
+
+    <div class="card"><h2>3 · Configuração</h2>
+      <p class="muted" id="cfghint">Ligue um produto acima pra abrir os campos.</p>
+      <div class="acc" data-setgrp="empresa">
+    <div class="acc-head" data-acctoggle><span>Empresa</span><span class="chev">▾</span></div>
+    <div class="acc-body"><label class="fl">Qual o nome da empresa? <span class="req">*</span></label><input type="text" data-id="empresa_nome" data-set="empresa" data-tipo="text" data-req="1"><label class="fl">O que a empresa vende? (produto/serviço em 1-2 frases) <span class="req">*</span></label><textarea data-id="vende" data-set="empresa" data-tipo="longtext" data-req="1" placeholder=""></textarea><label class="fl">Principal proposta de valor — por que compram de você? <span class="req">*</span></label><textarea data-id="proposta_valor" data-set="empresa" data-tipo="longtext" data-req="1" placeholder=""></textarea><label class="fl">Quem é o cliente ideal? (segmento, porte, cargo do decisor) <span class="req">*</span></label><textarea data-id="icp" data-set="empresa" data-tipo="longtext" data-req="1" placeholder=""></textarea><label class="fl">Ticket médio aproximado (R$)? </label><input type="number" step="any" data-id="ticket" data-set="empresa" data-tipo="number" ><label class="fl">Tom de voz nas mensagens? <span class="req">*</span></label><select data-id="tom" data-set="empresa" data-tipo="choice" data-req="1"><option value="">Selecione…</option><option>Formal</option><option>Consultivo</option><option>Amigável</option><option>Direto</option></select></div>
+  </div><div class="acc" data-setgrp="dev">
+    <div class="acc-head" data-acctoggle><span>Dev · branch / commit / doc</span><span class="chev">▾</span></div>
+    <div class="acc-body"><label class="fl">Padrão do nome de branch? <span class="req">*</span></label><input type="text" data-id="branch_pattern" data-set="dev" data-tipo="text" data-req="1"><div class="hint">Ex.: &lt;tipo&gt;/&lt;autor&gt;/&lt;numero&gt; -&gt; fix/fabiano.veloso/1234</div><label class="fl">Tipos aceitos (branch/commit)? <span class="req">*</span></label><textarea data-id="branch_tipos" data-set="dev" data-tipo="list" data-req="1" placeholder="um por linha"></textarea><div class="hint">Ex.: fix; feat; refactor; chore; test; docs; perf</div><label class="fl">Padrão da mensagem de commit? <span class="req">*</span></label><input type="text" data-id="commit_pattern" data-set="dev" data-tipo="text" data-req="1"><div class="hint">Ex.: &lt;tipo&gt;(&lt;escopo&gt;): &lt;descrição&gt;</div><label class="fl">O escopo do commit é o quê? <span class="req">*</span></label><select data-id="commit_escopo" data-set="dev" data-tipo="choice" data-req="1"><option value="">Selecione…</option><option>numero</option><option>modulo</option><option>any</option></select><div class="hint">número da tarefa, módulo, ou livre</div><label class="fl">Assinatura do autor (Nome &lt;email&gt;)? </label><input type="text" data-id="commit_autor" data-set="dev" data-tipo="text" ><label class="fl">Quando rodar os testes? </label><select data-id="testes_politica" data-set="dev" data-tipo="choice" ><option value="">Selecione…</option><option>sempre</option><option>quando_pedir</option><option>nunca</option></select><label class="fl">Cole o MODELO de documentação do time (ou caminho do arquivo) — eu leio e adoto </label><textarea data-id="doc_modelo" data-set="dev" data-tipo="longtext"  placeholder=""></textarea></div>
+  </div><div class="acc" data-setgrp="analista">
+    <div class="acc-head" data-acctoggle><span>Analista · acesso ao tracker</span><span class="chev">▾</span></div>
+    <div class="acc-body"><label class="fl">Qual tracker a análise usa? <span class="req">*</span></label><select data-id="tracker_tipo" data-set="analista" data-tipo="choice" data-req="1"><option value="">Selecione…</option><option>Redmine</option><option>Azure</option><option>Jira</option></select><label class="fl">URL do tracker? <span class="req">*</span></label><input type="text" data-id="tracker_url" data-set="analista" data-tipo="text" data-req="1"><div class="hint">Ex.: https://redmine.suaempresa.com</div><label class="fl">Chave de API (pra suite conectar)? <span class="req">*</span></label><input type="text" data-id="tracker_apikey" data-set="analista" data-tipo="text" data-req="1"><div class="hint">Redmine: Minha conta &gt; Chave de acesso à API</div><label class="fl">ID do projeto onde as sprints/HUs são criadas? <span class="req">*</span></label><input type="number" step="any" data-id="tracker_projeto" data-set="analista" data-tipo="number" data-req="1"><label class="fl">Como as sprints são organizadas? </label><input type="text" data-id="sprint_local" data-set="analista" data-tipo="text" ><div class="hint">Ex.: subprojeto por sprint; versão; tag</div></div>
+  </div><div class="acc" data-setgrp="qa">
+    <div class="acc-head" data-acctoggle><span>QA · acesso à doc de testes</span><span class="chev">▾</span></div>
+    <div class="acc-body"><label class="fl">Onde o QA gera/registra a documentação de testes? <span class="req">*</span></label><input type="text" data-id="qa_sistema" data-set="qa" data-tipo="text" data-req="1"><div class="hint">Ex.: Redmine (Especificar/Execução de testes); TestRail; planilha</div><label class="fl">Chave de API pra suite conectar e ler o padrão? </label><input type="text" data-id="qa_apikey" data-set="qa" data-tipo="text" ><label class="fl">Link/ID de um exemplo de doc de teste do QA (pra eu ler e adotar)? </label><input type="text" data-id="qa_exemplo" data-set="qa" data-tipo="text" ><label class="fl">Se quiser, descreva o padrão da doc de teste </label><textarea data-id="qa_padrao" data-set="qa" data-tipo="longtext"  placeholder=""></textarea></div>
+  </div><div class="acc" data-setgrp="vendas">
+    <div class="acc-head" data-acctoggle><span>Vendas + Marketing</span><span class="chev">▾</span></div>
+    <div class="acc-body"><label class="fl">Quais as etapas do funil, em ordem? <span class="req">*</span></label><textarea data-id="funil" data-set="vendas" data-tipo="list" data-req="1" placeholder="um por linha"></textarea><div class="hint">Ex.: Novo lead; Qualificado; Proposta enviada; Negociação; Fechado</div><label class="fl">Canais de contato usados? <span class="req">*</span></label><div class="chips" data-id="canais" data-set="vendas" data-tipo="multichoice" data-req="1"><button type="button" class="chip" data-val="WhatsApp">WhatsApp</button><button type="button" class="chip" data-val="E-mail">E-mail</button><button type="button" class="chip" data-val="Ligação">Ligação</button><button type="button" class="chip" data-val="Instagram">Instagram</button><button type="button" class="chip" data-val="Presencial">Presencial</button></div><label class="fl">O que indica um lead QUENTE? (sinais de compra) </label><textarea data-id="sinais_quente" data-set="vendas" data-tipo="list"  placeholder="um por linha"></textarea><div class="hint">Ex.: pediu preço; tem urgência; é o decisor; comparou concorrente</div><label class="fl">O que indica um lead FRIO / desqualificado? </label><textarea data-id="sinais_frio" data-set="vendas" data-tipo="list"  placeholder="um por linha"></textarea><div class="hint">Ex.: sem orçamento; só curiosidade; fora do perfil</div><label class="fl">Objeções mais comuns? (uma por linha; se quiser, "objeção =&gt; resposta") </label><textarea data-id="objecoes" data-set="vendas" data-tipo="list"  placeholder="um por linha"></textarea><div class="hint">Ex.: tá caro =&gt; mostro ROI; vou pensar =&gt; marco retorno com data</div><label class="fl">Após enviar proposta, em quantos dias fazer follow-up? </label><input type="number" step="any" data-id="follow_prazo" data-set="vendas" data-tipo="number" ><label class="fl">Em quais plataformas você anuncia? <span class="req">*</span></label><div class="chips" data-id="plataformas_anuncio" data-set="vendas" data-tipo="multichoice" data-req="1"><button type="button" class="chip" data-val="Instagram">Instagram</button><button type="button" class="chip" data-val="Facebook Marketplace">Facebook Marketplace</button><button type="button" class="chip" data-val="Mercado Livre">Mercado Livre</button><button type="button" class="chip" data-val="OLX">OLX</button><button type="button" class="chip" data-val="WhatsApp">WhatsApp</button><button type="button" class="chip" data-val="Google">Google</button><button type="button" class="chip" data-val="TikTok">TikTok</button></div><div class="hint">A suite gera o anúncio pronto pra cada uma</div><label class="fl">Pasta padrão com as fotos dos produtos? </label><input type="text" data-id="fotos_pasta" data-set="vendas" data-tipo="text" ><div class="hint">Ex.: C:\vendas\fotos — de onde eu listo os produtos</div><label class="fl">Estilo do anúncio? </label><select data-id="estilo_anuncio" data-set="vendas" data-tipo="choice" ><option value="">Selecione…</option><option>Curto e direto</option><option>Detalhado</option><option>Emojis e informal</option><option>Sóbrio</option></select></div>
+  </div></div>
+
+    <div class="card stub"><h2>4 · Pagamento</h2>
+      <p class="muted">Stub — Stripe entra aqui. No teste de 7 dias você não paga nada agora.</p></div>
+
+    <div class="card train"><h2>🎓 Treinamento grátis</h2>
+      <p>Todo cliente tem <b>treinamento gratuito</b>. <b>Recomendamos fortemente</b> fazer antes de começar — fala com a gente pra agendar.</p></div>
+
+    <button class="btn" id="go" type="submit">Instalar na minha máquina →</button>
+    <div class="muted" style="margin-top:8px">Detectamos sua IDE / IA (Claude Code, Cursor, Windsurf…) e instalamos o MCP no lugar certo.</div>
+    <div class="result" id="r"></div>
+  </form>
+  <div class="foot">VelosoSolution · a suite adota o padrão da sua empresa — nada de default, nada de banco.</div>
+</div>
+
+<div class="overlay" id="ov">
+  <svg width="180" height="180" viewBox="0 0 180 180" class="ring">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#ec4899"/></linearGradient></defs>
+    <circle class="track" cx="90" cy="90" r="78" fill="none" stroke-width="12"/>
+    <circle class="bar" id="bar" cx="90" cy="90" r="78" fill="none" stroke-width="12" stroke-dasharray="490" stroke-dashoffset="490"/>
+  </svg>
+  <div class="pct" id="pct">0%</div><div class="stage" id="stage">preparando…</div>
+</div>
+
+<script>
+const SETS={"empresa":[{"id":"empresa_nome","secao":"Empresa","pergunta":"Qual o nome da empresa?","tipo":"text","required":true},{"id":"vende","secao":"Empresa","pergunta":"O que a empresa vende? (produto/serviço em 1-2 frases)","tipo":"longtext","required":true},{"id":"proposta_valor","secao":"Empresa","pergunta":"Principal proposta de valor — por que compram de você?","tipo":"longtext","required":true},{"id":"icp","secao":"Empresa","pergunta":"Quem é o cliente ideal? (segmento, porte, cargo do decisor)","tipo":"longtext","required":true},{"id":"ticket","secao":"Empresa","pergunta":"Ticket médio aproximado (R$)?","tipo":"number","required":false},{"id":"tom","secao":"Empresa","pergunta":"Tom de voz nas mensagens?","tipo":"choice","opcoes":["Formal","Consultivo","Amigável","Direto"],"required":true}],"dev":[{"id":"branch_pattern","secao":"Dev","pergunta":"Padrão do nome de branch?","tipo":"text","required":true,"help":"Ex.: <tipo>/<autor>/<numero> -> fix/fabiano.veloso/1234"},{"id":"branch_tipos","secao":"Dev","pergunta":"Tipos aceitos (branch/commit)?","tipo":"list","required":true,"help":"Ex.: fix; feat; refactor; chore; test; docs; perf"},{"id":"commit_pattern","secao":"Dev","pergunta":"Padrão da mensagem de commit?","tipo":"text","required":true,"help":"Ex.: <tipo>(<escopo>): <descrição>"},{"id":"commit_escopo","secao":"Dev","pergunta":"O escopo do commit é o quê?","tipo":"choice","opcoes":["numero","modulo","any"],"required":true,"help":"número da tarefa, módulo, ou livre"},{"id":"commit_autor","secao":"Dev","pergunta":"Assinatura do autor (Nome <email>)?","tipo":"text","required":false},{"id":"testes_politica","secao":"Dev","pergunta":"Quando rodar os testes?","tipo":"choice","opcoes":["sempre","quando_pedir","nunca"],"required":false},{"id":"doc_modelo","secao":"Dev","pergunta":"Cole o MODELO de documentação do time (ou caminho do arquivo) — eu leio e adoto","tipo":"longtext","required":false}],"analista":[{"id":"tracker_tipo","secao":"Analista","pergunta":"Qual tracker a análise usa?","tipo":"choice","opcoes":["Redmine","Azure","Jira"],"required":true},{"id":"tracker_url","secao":"Analista","pergunta":"URL do tracker?","tipo":"text","required":true,"help":"Ex.: https://redmine.suaempresa.com"},{"id":"tracker_apikey","secao":"Analista","pergunta":"Chave de API (pra suite conectar)?","tipo":"text","required":true,"sensitive":true,"help":"Redmine: Minha conta > Chave de acesso à API"},{"id":"tracker_projeto","secao":"Analista","pergunta":"ID do projeto onde as sprints/HUs são criadas?","tipo":"number","required":true},{"id":"sprint_local","secao":"Analista","pergunta":"Como as sprints são organizadas?","tipo":"text","required":false,"help":"Ex.: subprojeto por sprint; versão; tag"}],"qa":[{"id":"qa_sistema","secao":"QA","pergunta":"Onde o QA gera/registra a documentação de testes?","tipo":"text","required":true,"help":"Ex.: Redmine (Especificar/Execução de testes); TestRail; planilha"},{"id":"qa_apikey","secao":"QA","pergunta":"Chave de API pra suite conectar e ler o padrão?","tipo":"text","required":false,"sensitive":true},{"id":"qa_exemplo","secao":"QA","pergunta":"Link/ID de um exemplo de doc de teste do QA (pra eu ler e adotar)?","tipo":"text","required":false},{"id":"qa_padrao","secao":"QA","pergunta":"Se quiser, descreva o padrão da doc de teste","tipo":"longtext","required":false}],"vendas":[{"id":"funil","secao":"Vendas","pergunta":"Quais as etapas do funil, em ordem?","tipo":"list","required":true,"help":"Ex.: Novo lead; Qualificado; Proposta enviada; Negociação; Fechado"},{"id":"canais","secao":"Vendas","pergunta":"Canais de contato usados?","tipo":"multichoice","opcoes":["WhatsApp","E-mail","Ligação","Instagram","Presencial"],"required":true},{"id":"sinais_quente","secao":"Vendas","pergunta":"O que indica um lead QUENTE? (sinais de compra)","tipo":"list","required":false,"help":"Ex.: pediu preço; tem urgência; é o decisor; comparou concorrente"},{"id":"sinais_frio","secao":"Vendas","pergunta":"O que indica um lead FRIO / desqualificado?","tipo":"list","required":false,"help":"Ex.: sem orçamento; só curiosidade; fora do perfil"},{"id":"objecoes","secao":"Vendas","pergunta":"Objeções mais comuns? (uma por linha; se quiser, \"objeção => resposta\")","tipo":"list","required":false,"help":"Ex.: tá caro => mostro ROI; vou pensar => marco retorno com data"},{"id":"follow_prazo","secao":"Vendas","pergunta":"Após enviar proposta, em quantos dias fazer follow-up?","tipo":"number","required":false},{"id":"plataformas_anuncio","secao":"Marketing","pergunta":"Em quais plataformas você anuncia?","tipo":"multichoice","opcoes":["Instagram","Facebook Marketplace","Mercado Livre","OLX","WhatsApp","Google","TikTok"],"required":true,"help":"A suite gera o anúncio pronto pra cada uma"},{"id":"fotos_pasta","secao":"Marketing","pergunta":"Pasta padrão com as fotos dos produtos?","tipo":"text","required":false,"help":"Ex.: C:\\vendas\\fotos — de onde eu listo os produtos"},{"id":"estilo_anuncio","secao":"Marketing","pergunta":"Estilo do anúncio?","tipo":"choice","opcoes":["Curto e direto","Detalhado","Emojis e informal","Sóbrio"],"required":false}]};
+const DEV_FLOW=['gate','vsqa','vsanalista','vsdiretoria'];
+const f=document.getElementById('f'),r=document.getElementById('r'),go=document.getElementById('go');
+const ov=document.getElementById('ov'),bar=document.getElementById('bar'),pct=document.getElementById('pct'),stage=document.getElementById('stage');const C=490;
+
+function activeSets(){const ids=[...f.querySelectorAll('.prodchk:checked')].map(x=>x.value);const s=new Set();
+  if(ids.some(i=>DEV_FLOW.includes(i))){['empresa','dev','analista','qa'].forEach(x=>s.add(x));}
+  if(ids.includes('vsvendas')){s.add('empresa');s.add('vendas');}return s;}
+function refresh(){const s=activeSets();let any=false;
+  document.querySelectorAll('.prodchk').forEach(c=>c.closest('.prod').classList.toggle('on',c.checked));
+  document.querySelectorAll('[data-setgrp]').forEach(g=>{const on=s.has(g.dataset.setgrp);
+    g.classList.toggle('show',on);if(on){g.classList.add('open');any=true;}else{g.classList.remove('open');}});
+  document.getElementById('cfghint').style.display=any?'none':'block';}
+f.querySelectorAll('.prodchk').forEach(c=>c.addEventListener('change',refresh));refresh();
+
+// accordion abre/fecha ao clicar no cabeçalho
+document.querySelectorAll('[data-acctoggle]').forEach(h=>h.addEventListener('click',()=>h.closest('.acc').classList.toggle('open')));
+// chips
+document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>c.classList.toggle('on')));
+
+function collect(){const s=activeSets();const respostas={};let faltou=null;
+  document.querySelectorAll('[data-setgrp]').forEach(g=>{const set=g.dataset.setgrp;if(!s.has(set))return;respostas[set]={};
+    g.querySelectorAll('[data-id]').forEach(el=>{const id=el.dataset.id,tipo=el.dataset.tipo;let v,empty;
+      if(tipo==='multichoice'){v=[...el.querySelectorAll('.chip.on')].map(x=>x.dataset.val);empty=v.length===0;}
+      else{v=(el.value||'').trim();empty=v==='';}
+      if(!empty)respostas[set][id]=v;
+      if(el.dataset.req&&empty&&!faltou){const lbl=el.parentElement.querySelector('label.fl');faltou=set+': '+(lbl?lbl.textContent.replace('*','').trim():id);
+        // abre o accordion do campo que faltou
+        g.classList.add('open');}});});
+  return {respostas,faltou};}
+
+function setPct(p){bar.setAttribute('stroke-dashoffset',C-(C*p/100));pct.textContent=Math.round(p)+'%';}
+let timer=null;
+function animateTo(target,ms){clearInterval(timer);const start=parseFloat(pct.textContent)||0;const t0=Date.now();
+  timer=setInterval(()=>{const k=Math.min(1,(Date.now()-t0)/ms);setPct(start+(target-start)*k);if(k>=1)clearInterval(timer);},40);}
+
+f.addEventListener('submit',async(e)=>{e.preventDefault();
+  if(![...f.querySelectorAll('.prodchk:checked')].length){r.className='result show';r.textContent='⚠ Ligue ao menos um produto.';return;}
+  const {respostas,faltou}=collect();
+  if(faltou){r.className='result show';r.textContent='⚠ Preencha os obrigatórios — '+faltou;return;}
+  const fd=new FormData(f);const produtos=[...f.querySelectorAll('.prodchk:checked')].map(x=>x.value);
+  ov.classList.add('show');setPct(0);const stages=['validando dados','emitindo chave de 7 dias','detectando sua IDE','instalando o MCP'];
+  let si=0;stage.textContent=stages[0];animateTo(85,2600);const rot=setInterval(()=>{si=(si+1)%stages.length;stage.textContent=stages[si];},700);
+  try{
+    const resp=await fetch('/install',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({nome:fd.get('nome'),empresa:fd.get('empresa'),email:fd.get('email'),produtos,respostas})});
+    const d=await resp.json();clearInterval(rot);
+    if(!d.ok){animateTo(0,300);setTimeout(()=>{ov.classList.remove('show');r.className='result show';r.textContent='⚠ '+(d.erros||['falha']).join('\n');},400);return;}
+    stage.textContent='concluído';animateTo(100,500);
+    let out='✅ Instalado!\n\nProdutos: '+d.escolhidos.join(', ')+'\n';
+    out+=d.trial.token?('Chave de teste ('+d.trial.days+' dias):\n'+d.trial.token+'\n'):('Teste de '+d.trial.days+' dias: '+d.trial.reason+' (chave vai no seu e-mail).\n');
+    out+='\n'+(d.semFerramenta?'Nenhuma IDE/IA detectada — te mando o passo manual.':'MCP instalado em:\n'+d.configurados.map(c=>' • '+c.tool+(c.erro?' (erro)':' → '+c.path)).join('\n'));
+    out+='\n\n🎓 '+d.treinamento.mensagem;
+    setTimeout(()=>{ov.classList.remove('show');r.className='result show';r.textContent=out;go.textContent='Concluído ✓';go.disabled=true;},700);
+  }catch(err){clearInterval(rot);ov.classList.remove('show');r.className='result show';r.textContent='✖ '+err.message;}
+});
+</script>
+</body></html>
