@@ -65,10 +65,21 @@ export function makeRedmine(cfg, opts = {}) {
       };
     },
 
-    /** Cria subtarefa (cenário/execução) filha da US. Retorna { id, url }. */
+    /**
+     * Cria subtarefa (cenário/execução) filha da US. Retorna { id, url }.
+     * A subtarefa herda o PROJETO da US pai (subtarefa não pode cruzar projeto no
+     * Redmine); cai no cfg.projectId só quando não há pai.
+     */
     async createTask({ subject, description, parentId }) {
+      let projectId = cfg.projectId;
+      if (parentId) {
+        try {
+          const parent = await api('GET', `/issues/${parentId}.json`);
+          if (parent.issue?.project?.id) { projectId = parent.issue.project.id; }
+        } catch { /* mantém cfg.projectId */ }
+      }
       const issue = {
-        project_id: cfg.projectId,
+        project_id: projectId,
         subject,
         description: `${description || ''}\n\n${AUTOMATION_TAG}`.trim(),
       };
