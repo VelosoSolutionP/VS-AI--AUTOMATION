@@ -9,13 +9,16 @@
 
 /** IDs fixos do RURAP (projeto 66). */
 export const TRACKERS = { epico: 37, hu: 38, tarefaTecnica: 40, defeito: 39, melhoriaHu: 43 };
-export const CUSTOM_FIELDS = { tarefaPlanejada: 7, pontosMsb: 17, categoriaTamanho: 20 };
+export const CUSTOM_FIELDS = { tarefaPlanejada: 7, pontosMsb: 17, categoriaTamanho: 20, categoriaTarefaTecnica: 22 };
 
-/** As 3 filhas que toda HU recebe (nome exato + a quem vai). */
+/**
+ * As 3 filhas que toda HU recebe: nome exato, a quem vai (dev/qa) e a categoria da
+ * Tarefa Técnica (CF 22, obrigatória): Codificar=Desenvolvimento; testes=Testes.
+ */
 export const HU_TASKS = [
-  { name: 'Codificar História do Usuário', role: 'dev' },
-  { name: 'Especificar Testes', role: 'qa' },
-  { name: 'Execução dos testes', role: 'qa' },
+  { name: 'Codificar História do Usuário', role: 'dev', categoria: 'Desenvolvimento' },
+  { name: 'Especificar Testes', role: 'qa', categoria: 'Testes' },
+  { name: 'Execução dos testes', role: 'qa', categoria: 'Testes' },
 ];
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

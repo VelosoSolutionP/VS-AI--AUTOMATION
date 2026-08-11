@@ -118,6 +118,13 @@ test('createEpic real: cria épico + HU + 3 tarefas com assignees corretos', asy
   assert.equal(codificar.assignedToId, 156);   // dev
   assert.equal(especificar.assignedToId, 115); // QA
   assert.equal(execucao.assignedToId, 115);    // QA
+  // campos obrigatórios da Tarefa Técnica em projeto de sprint
+  const cat = (c) => c.customFields.find((x) => x.id === CUSTOM_FIELDS.categoriaTarefaTecnica)?.value;
+  assert.equal(cat(codificar), 'Desenvolvimento');
+  assert.equal(cat(especificar), 'Testes');
+  assert.equal(cat(execucao), 'Testes');
+  assert.ok(tarefas.every((c) => c.customFields.some((x) => x.id === CUSTOM_FIELDS.tarefaPlanejada)));
+  assert.ok([epico, hu, ...tarefas].every((c) => c.estimatedHours != null)); // sprint exige estimated_hours
 });
 
 test('createEpic real: devId/qaId por HU sobrepõem o default', async () => {

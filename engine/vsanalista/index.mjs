@@ -29,12 +29,18 @@ export async function createEpic(rawSpec, opts = {}) {
 
   if (!tracker?.createIssue) { throw new Error('VSanalista: tracker sem createIssue'); }
 
+  // Tempo estimado: projetos de sprint do RURAP exigem estimated_hours preenchido.
+  const horaEpico = opts.epicHours != null ? opts.epicHours : 1;
+  const horaHuDefault = opts.huHoursDefault != null ? opts.huHoursDefault : 1;
+  const horaTarefa = opts.taskHoursDefault != null ? opts.taskHoursDefault : 1;
+
   // 1. Épico
   const epic = await tracker.createIssue({
     projectId,
     trackerId: TRACKERS.epico,
     subject: spec.titulo,
     description: renderEpicDescription(spec.hus),
+    estimatedHours: horaEpico,
     customFields: [{ id: CUSTOM_FIELDS.tarefaPlanejada, value: '1' }],
     tagAutomation: true,
   });
@@ -54,6 +60,7 @@ export async function createEpic(rawSpec, opts = {}) {
       subject: huSubject(h),
       description: renderHUDescription(h),
       assignedToId: dev,
+      estimatedHours: h.horas != null ? h.horas : horaHuDefault,
       customFields: cf,
       tagAutomation: true,
     });
@@ -65,6 +72,11 @@ export async function createEpic(rawSpec, opts = {}) {
         parentId: hu.id,
         subject: t.name,
         assignedToId: t.role === 'dev' ? dev : qa,
+        estimatedHours: horaTarefa,
+        customFields: [
+          { id: CUSTOM_FIELDS.tarefaPlanejada, value: '1' },
+          { id: CUSTOM_FIELDS.categoriaTarefaTecnica, value: t.categoria },
+        ],
         inheritParentProject: true,
         tagAutomation: true,
       });

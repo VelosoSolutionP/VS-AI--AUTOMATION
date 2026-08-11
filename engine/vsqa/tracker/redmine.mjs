@@ -95,10 +95,17 @@ export function makeRedmine(cfg, opts = {}) {
       if (f.parentId != null) { issue.parent_issue_id = f.parentId; }
       if (f.assignedToId != null) { issue.assigned_to_id = f.assignedToId; }
       if (f.statusId != null) { issue.status_id = f.statusId; }
+      if (f.estimatedHours != null) { issue.estimated_hours = f.estimatedHours; }
       if (f.customFields?.length) { issue.custom_fields = f.customFields.map((c) => ({ id: c.id, value: c.value })); }
       const data = await api('POST', '/issues.json', { issue });
       const id = data.issue?.id;
       return { id, url: `${base}/issues/${id}` };
+    },
+
+    /** Apaga uma issue (exige permissão "Excluir" no Redmine). */
+    async deleteIssue(id) {
+      await api('DELETE', `/issues/${id}.json`);
+      return true;
     },
 
     /** Membros do projeto com seus papéis (p/ sugerir dev/QA). */

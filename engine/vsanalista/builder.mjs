@@ -18,6 +18,7 @@ export function normalizeEpicSpec(spec) {
     criteriosTeste: h.criteriosTeste || [],
     criteriosSprint: h.criteriosSprint || [],
     pontos: h.pontos != null ? String(h.pontos) : '',
+    horas: h.horas != null ? h.horas : null,
     devId: h.devId != null ? h.devId : null,
     qaId: h.qaId != null ? h.qaId : null,
   }));
