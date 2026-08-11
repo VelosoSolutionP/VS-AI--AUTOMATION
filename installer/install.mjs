@@ -9,16 +9,33 @@ import { validarSelecao } from './catalog.mjs';
 import { issueTrial } from './trial.mjs';
 import { detect } from './detect.mjs';
 import { serverEntry, installIntoTool } from './mcp-config.mjs';
+import { requiredSetsFor, precisaApplyConfig, buildAndValidate } from './onboarding.mjs';
+import { saveProfile } from '../engine/interview/index.mjs';
+import { applyAll } from '../engine/interview/apply.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const SERVER_PATH = join(dirname(HERE), 'mcp', 'server.mjs');
 
 /**
- * @param {{email:string, empresa?:string, produtos:string[], detectImpl?:Function, installImpl?:Function}} dados
+ * @param {{email:string, empresa?:string, produtos:string[], respostas?:object,
+ *   detectImpl?:Function, installImpl?:Function, saveImpl?:Function, applyImpl?:Function}} dados
  */
 export async function runInstall(dados) {
   const sel = validarSelecao(dados.produtos);
   if (!sel.ok) { return { ok: false, erros: sel.erros }; }
+
+  // 1. Entrevista inline: valida as respostas dos sets obrigatórios pros produtos escolhidos
+  const sets = requiredSetsFor(sel.escolhidos);
+  const { perfis, erros } = buildAndValidate(sets, dados.respostas || {});
+  if (erros.length) { return { ok: false, erros, sets }; }
+
+  // 2. Persiste os perfis e aplica no company.json quando for fluxo dev (analista+qa)
+  const saveImpl = dados.saveImpl || saveProfile;
+  for (const [setId, answers] of Object.entries(perfis)) { saveImpl(setId, answers); }
+  if (precisaApplyConfig(sel.escolhidos)) {
+    try { (dados.applyImpl || applyAll)(); }
+    catch (e) { return { ok: false, erros: [e.message], sets }; }
+  }
 
   const trial = await issueTrial({ email: dados.email });
   const serverPath = dados.serverPath || SERVER_PATH;

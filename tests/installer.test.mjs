@@ -8,6 +8,13 @@ import { detectFromHome } from '../installer/detect.mjs';
 import { serverEntry, mergeServer, installIntoTool, SERVER_NAME } from '../installer/mcp-config.mjs';
 import { issueTrial } from '../installer/trial.mjs';
 import { runInstall } from '../installer/install.mjs';
+import { requiredSetsFor, precisaApplyConfig, buildAndValidate } from '../installer/onboarding.mjs';
+
+const noop = () => {};
+const respVendas = {
+  empresa: { empresa_nome: 'ACME', vende: 'produtos', proposta_valor: 'melhor preço', icp: 'lojista gestor', tom: 'Direto' },
+  vendas: { funil: 'Novo\nFechado', canais: ['WhatsApp'], plataformas_anuncio: ['Instagram'] },
+};
 
 /* ---------------- catalog ---------------- */
 
@@ -75,28 +82,55 @@ test('trial: sem email -> pendente', async () => {
 
 /* ---------------- install (impls injetados, sem tocar config real) ---------------- */
 
+/* ---------------- onboarding (entrevista inline) ---------------- */
+
+test('requiredSetsFor: dev-flow puxa empresa+dev+analista+qa; vendas puxa empresa+vendas', () => {
+  assert.deepEqual(requiredSetsFor(['vsqa']).sort(), ['analista', 'dev', 'empresa', 'qa']);
+  assert.deepEqual(requiredSetsFor(['vsvendas']).sort(), ['empresa', 'vendas']);
+  assert.equal(precisaApplyConfig(['vsvendas']), false);
+  assert.equal(precisaApplyConfig(['vsdiretoria']), true);
+});
+
+test('buildAndValidate: aponta obrigatórias faltando; ok quando completo', () => {
+  const faltou = buildAndValidate(['empresa'], { empresa: { empresa_nome: 'X' } });
+  assert.ok(faltou.erros.length > 0);
+  const ok = buildAndValidate(['empresa', 'vendas'], respVendas);
+  assert.equal(ok.erros.length, 0);
+  assert.deepEqual(ok.perfis.vendas.funil, ['Novo', 'Fechado']); // list coagida
+});
+
+/* ---------------- install ---------------- */
+
 test('runInstall: seleção inválida não instala', async () => {
   const r = await runInstall({ email: 'a@b.com', produtos: ['vssuporte'] });
   assert.equal(r.ok, false);
 });
 
-test('runInstall: instala nos alvos detectados (injetado)', async () => {
+test('runInstall: entrevista incompleta bloqueia', async () => {
+  const r = await runInstall({ email: 'a@b.com', produtos: ['vsvendas'], respostas: {}, saveImpl: noop });
+  assert.equal(r.ok, false);
+  assert.ok(r.erros.some((e) => /empresa|vendas/.test(e)));
+});
+
+test('runInstall: instala nos alvos detectados (vendas, injetado)', async () => {
+  const salvos = [];
   const escritos = [];
   const r = await runInstall({
-    email: 'a@b.com', empresa: 'ACME', produtos: ['vsqa', 'vsvendas'],
+    email: 'a@b.com', empresa: 'ACME', produtos: ['vsvendas'], respostas: respVendas,
+    saveImpl: (set) => salvos.push(set),
     detectImpl: () => [{ tool: 'Claude Code', configPath: '/fake/.claude.json' }],
     installImpl: (path) => { escritos.push(path); return { path, servidor: SERVER_NAME }; },
   });
   assert.equal(r.ok, true);
-  assert.deepEqual(r.escolhidos, ['vsqa', 'vsvendas']);
+  assert.deepEqual(r.escolhidos, ['vsvendas']);
   assert.equal(r.trial.days, 7);
-  assert.equal(r.configurados.length, 1);
+  assert.ok(salvos.includes('empresa') && salvos.includes('vendas'));
   assert.equal(r.configurados[0].tool, 'Claude Code');
   assert.equal(r.treinamento.gratis, true);
   assert.equal(escritos[0], '/fake/.claude.json');
 });
 
 test('runInstall: sem ferramenta detectada -> semFerramenta', async () => {
-  const r = await runInstall({ email: 'a@b.com', produtos: ['vsqa'], detectImpl: () => [] });
+  const r = await runInstall({ email: 'a@b.com', produtos: ['vsvendas'], respostas: respVendas, saveImpl: noop, detectImpl: () => [] });
   assert.equal(r.semFerramenta, true);
 });
