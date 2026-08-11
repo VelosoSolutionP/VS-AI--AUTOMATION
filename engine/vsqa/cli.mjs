@@ -128,8 +128,8 @@ export async function main(argv = process.argv.slice(2)) {
   console.log('VSqa — automação de QA (VelosoSolution)\n\nComandos:\n  vsqa scenario <issueId>   lê a US e gera o cenário-rascunho\n  vsqa run <issueId>        executa o cenário no browser e dá o veredito\n\nFlags: --repo --config --alvo --scenario --auto --no-tasks');
 }
 
-// só executa quando chamado como binário (não no import de teste)
-const invokedDirectly = process.argv[1] && process.argv[1].endsWith('cli.mjs');
-if (invokedDirectly) {
+// só executa quando ESTE arquivo é o binário chamado (não em import de teste nem
+// quando outro cli.mjs — ex.: vsdiretoria — importa parseArgs daqui)
+if (/vsqa[\\/]cli\.mjs$/.test(process.argv[1] || '')) {
   main().catch((e) => die('✖ ' + (e?.message || e)));
 }

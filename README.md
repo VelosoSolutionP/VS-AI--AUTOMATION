@@ -82,6 +82,25 @@ Guardrail: `dryRun` ligado por padrão — mostra o que criaria antes de tocar n
 
 ---
 
+## VSdiretoria — painel executivo (BI)
+
+**O que a diretoria quer ver depois de todo o fluxo** — produtividade, qualidade e governança num painel só, com gráficos modernos e exportação em PDF.
+
+Puxa os dados reais do tracker e monta um dashboard self-contained (HTML dark/light, SVG inline — sem lib externa) com:
+
+- **Produtividade**: entregues × em aberto, taxa de entrega, entregas por mês, por responsável, horas apontadas por pessoa, pontos (velocity).
+- **Qualidade**: defeitos e defeitos por história, não conformidades, composição do trabalho.
+- **Governança/Auditoria**: aderência ao fluxo VelosoSolution (HUs com as 3 tarefas, com "Especificar Testes", com "Execução de testes") + automação (issues criadas pela suite, gates verdes).
+
+```
+vsdiretoria --project 66 --pdf            # CLI: gera HTML + PDF
+vsdiretoria_report                        # MCP: mesmo painel, retorna caminho + resumo
+```
+
+O PDF é impresso num Chrome real (Playwright, o mesmo motor do gate) — sem serviço externo.
+
+---
+
 ## Por que usar — plugin + MCP
 
 **IA sozinha entrega ilusão. Orquestrada, entrega resultado.** O QA-Gate é a ponta visível de uma orquestração de IA aplicada ao seu processo de desenvolvimento.

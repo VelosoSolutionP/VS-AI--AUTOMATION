@@ -19,6 +19,7 @@ import { buildScenario, validateScenario } from '../engine/vsqa/scenario.mjs';
 import { runVsqa } from '../engine/vsqa/index.mjs';
 import { createEpic } from '../engine/vsanalista/index.mjs';
 import { TRACKERS, CUSTOM_FIELDS, HU_TASKS } from '../engine/vsanalista/template.mjs';
+import { writeDashboard } from '../engine/vsdiretoria/index.mjs';
 import { loadEvents, aggregate, report } from '../engine/metrics.mjs';
 import { hasConsent } from '../engine/consent.mjs';
 import { verifyLicense, currentLicenseToken } from '../license/license.mjs';
@@ -318,6 +319,36 @@ server.tool('vsanalista_create',
       lines.push(`  HU ${h.url} — ${h.subject}`);
       h.tarefas.forEach((t) => lines.push(`    · ${t.name} (${t.role}) ${t.url}`));
     });
+    return { content: [text(lines.join('\n'))] };
+  });
+
+/* ---- vsdiretoria_report (licenciado) — painel executivo BI + PDF ---- */
+server.tool('vsdiretoria_report',
+  'VSdiretoria: gera o PAINEL DA DIRETORIA (BI) do projeto — produtividade, qualidade (defeitos/NC), governança (aderência ao fluxo) e pessoas — em HTML moderno (dark/light) e opcionalmente PDF. Dados reais do Redmine.',
+  {
+    repo: z.string(),
+    projectId: z.number().optional(),
+    out: z.string().optional().describe('caminho do HTML de saída'),
+    pdf: z.boolean().optional().describe('também exporta PDF (Playwright)'),
+    since: z.string().optional().describe('YYYY-MM-DD'),
+    theme: z.enum(['light', 'dark']).optional(),
+  },
+  async ({ repo, projectId, out, pdf, since, theme }) => {
+    requireLicense();
+    const company = loadCompanyConfig(repo);
+    const tracker = makeTracker(company);
+    const pid = projectId || company.integrations?.redmine?.projectId;
+    if (!pid) { throw new Error('sem projeto: passe projectId ou configure integrations.redmine.projectId'); }
+    const r = await writeDashboard({
+      tracker, projectId: pid, since: since || null,
+      out: out || 'painel-diretoria.html', pdf: !!pdf, theme: theme || 'light',
+    });
+    const t = r.kpis.tiles;
+    const lines = [
+      `✔ Painel gerado: ${r.htmlPath}${r.pdfPath ? ' | PDF: ' + r.pdfPath : ''}`,
+      `entregues ${t.entregues} (${t.taxaEntrega}%) · abertas ${t.emAberto} · defeitos ${t.defeitos} (${t.defeitosPorHU}/HU) · NC ${t.naoConformidades}`,
+      `aderência ao fluxo ${r.kpis.aderencia.comTree}% (amostra ${r.kpis.aderencia.amostra} HUs)`,
+    ];
     return { content: [text(lines.join('\n'))] };
   });
 

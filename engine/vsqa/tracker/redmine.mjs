@@ -102,6 +102,42 @@ export function makeRedmine(cfg, opts = {}) {
       return { id, url: `${base}/issues/${id}` };
     },
 
+    /** Contagem exata via total_count (barato: limit=1). qs = query string do Redmine. */
+    async countIssues(qs) {
+      const data = await api('GET', `/issues.json?${qs}&limit=1`);
+      return data.total_count || 0;
+    },
+
+    /** Lista issues paginando (limit=100) até `max`. Retorna array cru. */
+    async listIssues(qs, { max = 300 } = {}) {
+      const out = [];
+      for (let offset = 0; offset < max; offset += 100) {
+        const data = await api('GET', `/issues.json?${qs}&limit=100&offset=${offset}`);
+        const arr = data.issues || [];
+        out.push(...arr);
+        if (arr.length < 100 || out.length >= (data.total_count || 0)) { break; }
+      }
+      return out.slice(0, max);
+    },
+
+    /** Lançamentos de horas (time entries), paginando até `max`. */
+    async listTimeEntries(qs, { max = 300 } = {}) {
+      const out = [];
+      for (let offset = 0; offset < max; offset += 100) {
+        const data = await api('GET', `/time_entries.json?${qs}&limit=100&offset=${offset}`);
+        const arr = data.time_entries || [];
+        out.push(...arr);
+        if (arr.length < 100) { break; }
+      }
+      return out.slice(0, max);
+    },
+
+    /** Busca textual (search.json) — retorna total_count. Best-effort. */
+    async search(q) {
+      const data = await api('GET', `/search.json?q=${encodeURIComponent(q)}&issues=1&limit=1`);
+      return data.total_count || 0;
+    },
+
     /** Apaga uma issue (exige permissão "Excluir" no Redmine). */
     async deleteIssue(id) {
       await api('DELETE', `/issues/${id}.json`);

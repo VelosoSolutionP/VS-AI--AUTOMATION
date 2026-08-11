@@ -23,7 +23,8 @@
   "bin": {
     "qa-gate": "./qa-gate.mjs",
     "qa-gate-mcp": "./mcp/server.mjs",
-    "vsqa": "./engine/vsqa/cli.mjs"
+    "vsqa": "./engine/vsqa/cli.mjs",
+    "vsdiretoria": "./engine/vsdiretoria/cli.mjs"
   },
   "engines": {
     "node": ">=18"
