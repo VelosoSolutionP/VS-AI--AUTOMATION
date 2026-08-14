@@ -28,6 +28,15 @@ const TB_GUARD = join(__dir, '..', 'hooks', 'on-timebox-guard.mjs');
 function runOnTask(prompt, sid) {
   const cwd = join(tmpdir(), 'qa-gate-ontask-test');
   try { mkdirSync(cwd, { recursive: true }); } catch {}
+  // Empresa CONFIGURADA (o que a entrevista grava). Sem isso o hook bloqueia a tarefa
+  // por padrão de branch ausente — que é o comportamento correto, coberto à parte.
+  try {
+    writeFileSync(join(cwd, 'qa-gate.company.json'), JSON.stringify({
+      autor: 'nome.sobrenome',
+      branchPattern: '<tipo>/<autor>/<numero>',
+      tipos: ['fix', 'feat'],
+    }));
+  } catch {}
   const r = spawnSync('node', [HOOK], {
     input: JSON.stringify({ prompt, session_id: sid }),
     cwd,
@@ -88,12 +97,21 @@ test('parseBranch: origem so aceita dev/hml/main-like; lixo nao vira origem', ()
   assert.equal(r.alvo, 'front');
 });
 
-test('company-config: DEFAULT = padrão Fabiano (autor + escopo número)', () => {
-  assert.equal(DEFAULT_CONFIG.autor, 'fabiano.veloso');
-  assert.equal(branchName(DEFAULT_CONFIG, { tipo: 'feat', numero: '36846' }), 'feat/fabiano.veloso/36846');
+test('company-config: DEFAULT não embute autor (vem da entrevista) + escopo número', () => {
+  assert.equal(DEFAULT_CONFIG.autor, null);
+  // com o autor da empresa, o pattern expande normalmente
+  const cfg = { ...DEFAULT_CONFIG, autor: 'nome.sobrenome' };
+  assert.equal(branchName(cfg, { tipo: 'feat', numero: '36846' }), 'feat/nome.sobrenome/36846');
   assert.equal(checkCommitScope(DEFAULT_CONFIG, '36846', '36846').ok, true);
   assert.equal(checkCommitScope(DEFAULT_CONFIG, 'consent', '36846').ok, false); // módulo barra
   assert.equal(patternUsesNumero(DEFAULT_CONFIG), true);
+});
+
+test('company-config: pattern usa <autor> sem autor configurado -> FALHA ALTO', () => {
+  assert.throws(
+    () => branchName(DEFAULT_CONFIG, { tipo: 'feat', numero: '36846' }),
+    /autor não está configurado/,
+  );
 });
 
 test('company-config: empresa com escopo por MÓDULO', () => {
@@ -240,6 +258,30 @@ test('preflight: 1a tarefa da sessao injeta PREFLIGHT; flag fica setada', () => 
   clearTask(sid);
   assert.match(out, /PREFLIGHT/);
   assert.equal(setAfter, true);
+});
+
+test('governança: empresa SEM autor configurado bloqueia a tarefa (não inventa default)', () => {
+  const sid = 'unit-sem-autor';
+  clearPreflight(sid);
+  clearTask(sid);
+  // company.json com pattern que usa <autor>, mas sem o autor respondido na entrevista
+  const cfgFile = join(tmpdir(), 'qa-gate-sem-autor.company.json');
+  writeFileSync(cfgFile, JSON.stringify({ branchPattern: '<tipo>/<autor>/<numero>', tipos: ['fix'] }));
+  const cwd = join(tmpdir(), 'qa-gate-ontask-noautor');
+  try { mkdirSync(cwd, { recursive: true }); } catch {}
+  const run = (prompt) => spawnSync('node', [HOOK], {
+    input: JSON.stringify({ prompt, session_id: sid }),
+    cwd,
+    encoding: 'utf8',
+    env: { ...process.env, QA_GATE_COMPANY_CONFIG: cfgFile },
+  }).stdout || '';
+  run('100 fix dev back');
+  const out = run('corrige o cadastro que nao salva ao editar');
+  clearPreflight(sid);
+  clearTask(sid);
+  assert.match(out, /TAREFA BLOQUEADA/);
+  assert.match(out, /autor não está configurado/);
+  assert.doesNotMatch(out, /fix\/\/100/); // nunca monta branch quebrada
 });
 
 test('resolveGitCwd: repo real do comando (cd/-C); leak de projeto fechado', () => {

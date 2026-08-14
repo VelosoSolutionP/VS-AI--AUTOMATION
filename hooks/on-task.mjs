@@ -370,7 +370,23 @@ if (isDocumentationTask) {
   } catch {}
   const repos = merged.repositorios; // lista canônica [front?, back?, mobile?]
   const cfg = loadCompanyConfig(process.cwd());
-  const branchName = buildBranchName(cfg, { tipo: merged.tipo, numero: merged.num });
+  let branchName;
+  try {
+    branchName = buildBranchName(cfg, { tipo: merged.tipo, numero: merged.num });
+  } catch (e) {
+    // Padrão de branch incompleto (ex.: usa <autor> e a empresa não respondeu quem é).
+    // Falha ALTO e explica — nunca inventa um autor default nem monta "fix//1234".
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'UserPromptSubmit',
+        additionalContext:
+          '[governança] TAREFA BLOQUEADA — o padrão de branch da empresa não está configurado. '
+          + e.message
+          + ' Enquanto isso não for respondido, não crie branch nem comece a tarefa.',
+      },
+    }));
+    process.exit(0);
+  }
   const cmdOrigin = `git fetch origin ${merged.origem} && git checkout -b ${branchName} origin/${merged.origem}`;
   const cmdAcc = `git checkout -b ${branchName}`; // mobile: sai da branch ATUAL (acumula), SEM origin/
   const escopoLinha = `ESCOPO: ${merged.escopo}`;

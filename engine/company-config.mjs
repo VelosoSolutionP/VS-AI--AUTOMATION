@@ -16,7 +16,10 @@ import { join, dirname, parse } from 'node:path';
 import { homedir } from 'node:os';
 
 export const DEFAULT_CONFIG = {
-  autor: 'fabiano.veloso',
+  // Sem autor embutido: o segmento <autor> da branch é de CADA EMPRESA e vem da
+  // entrevista (set "dev" -> branch_autor). Default com nome de pessoa aqui fazia
+  // toda instalação nascer com o autor de outro cliente, silenciosamente.
+  autor: null,
   // Nome amigavel do projeto nos recibos/auditoria (override). Se null, usa
   // pai/base da pasta (ex.: Egle/backend). Ex.: "Morar Melhor", "Egle Mobile".
   projectName: null,
@@ -128,7 +131,16 @@ export function patternUsesNumero(cfg) {
 
 // Monta o nome da branch a partir do pattern configurado.
 export function branchName(cfg, { tipo, numero, slug } = {}) {
-  return String(cfg.branchPattern || DEFAULT_CONFIG.branchPattern)
+  const pattern = String(cfg.branchPattern || DEFAULT_CONFIG.branchPattern);
+  // Autor não configurado + pattern que usa <autor> => branch sairia "fix//1234".
+  // Falha alto em vez de gerar nome quebrado (ou herdar autor de outro cliente).
+  if (/<autor>/.test(pattern) && cfg.autor == null) {
+    throw new Error(
+      'company-config: o padrão de branch usa <autor>, mas o autor não está configurado. '
+      + 'Rode a entrevista (vs_interview set "dev" -> branch_autor) e depois vs_apply_config.',
+    );
+  }
+  return pattern
     .replace(/<tipo>/g, tipo || '')
     .replace(/<autor>/g, cfg.autor || '')
     .replace(/<numero>/g, numero != null ? String(numero) : '')

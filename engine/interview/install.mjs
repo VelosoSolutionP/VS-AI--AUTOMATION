@@ -6,9 +6,17 @@
 
 const vazio = (v) => v == null || v === '' || v === 'xxx';
 
-/** Lista o que falta pra suite estar instalada (acessos analista + qa). */
+/** Lista o que falta pra suite estar instalada (padrão dev + acessos analista + qa). */
 export function requiredMissing(company) {
   const miss = [];
+
+  // Padrão de branch/commit: é de CADA EMPRESA, tem que vir da entrevista.
+  if (vazio(company?.branchPattern)) { miss.push('dev: padrão do nome de branch (vs_interview set "dev" -> branch_pattern)'); }
+  if (!Array.isArray(company?.tipos) || !company.tipos.length) { miss.push('dev: tipos aceitos de branch/commit (branch_tipos)'); }
+  if (/<autor>/.test(String(company?.branchPattern || '')) && company?.autor == null) {
+    miss.push('dev: segmento de autor da branch (branch_autor) — o padrão usa <autor>');
+  }
+
   const r = (company?.integrations?.redmine) || {};
   if (!r.enabled || vazio(r.baseUrl)) { miss.push('analista: URL do tracker (vs_interview set "analista" -> tracker_url)'); }
   if (vazio(r.apiKey)) { miss.push('analista: chave de API do tracker (tracker_apikey)'); }
@@ -29,9 +37,9 @@ export function assertInstalled(company) {
   const missing = requiredMissing(company);
   if (missing.length) {
     const e = new Error(
-      'Suite NÃO instalada — faltam os acessos OBRIGATÓRIOS de analista e QA:\n- '
+      'Suite NÃO instalada — faltam itens OBRIGATÓRIOS (padrão dev + acessos de analista e QA):\n- '
       + missing.join('\n- ')
-      + '\n\nRode a entrevista (vs_interview: analista e qa) e depois vs_apply_config. '
+      + '\n\nRode a entrevista (vs_interview: dev, analista e qa) e depois vs_apply_config. '
       + 'Sem esses dados a suite não roda com padrão default.',
     );
     e.notInstalled = true;

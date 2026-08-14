@@ -32,13 +32,13 @@ test('analista: completa com URL+chave+projeto', () => {
 
 test('applyProfiles: dev -> branch/commit/doc', () => {
   const { company, changed } = applyProfiles({}, {
-    dev: { branch_pattern: '<tipo>/<autor>/<numero>', branch_tipos: ['fix', 'feat'], commit_escopo: 'numero', commit_autor: 'Fabiano Veloso <f@x.com>', doc_modelo: 'MODELO X', testes_politica: 'quando_pedir' },
+    dev: { branch_pattern: '<tipo>/<autor>/<numero>', branch_autor: 'nome.sobrenome', branch_tipos: ['fix', 'feat'], commit_escopo: 'numero', commit_autor: 'Fabiano Veloso <f@x.com>', doc_modelo: 'MODELO X', testes_politica: 'quando_pedir' },
   });
   assert.equal(company.branchPattern, '<tipo>/<autor>/<numero>');
   assert.deepEqual(company.tipos, ['fix', 'feat']);
   assert.equal(company.commitScope, 'numero');
   assert.equal(company.commitAutor, 'Fabiano Veloso <f@x.com>'); // assinatura git, não o token de branch
-  assert.equal(company.autor, undefined); // não sobrescreve o token <autor>
+  assert.equal(company.autor, 'nome.sobrenome'); // token <autor> da branch, vindo da entrevista
   assert.equal(company.doc.modelo, 'MODELO X');
   assert.ok(changed.includes('branchPattern'));
 });
@@ -62,9 +62,12 @@ test('applyProfiles: azure não mexe em redmine (roadmap)', () => {
   assert.equal(company.integrations.redmine, undefined);
 });
 
-/* ---------------- gate de instalação (analista + qa obrigatórios) ---------------- */
+/* ---------------- gate de instalação (padrão dev + analista + qa obrigatórios) ---------------- */
 
 const instalado = {
+  branchPattern: '<tipo>/<autor>/<numero>',
+  autor: 'nome.sobrenome',
+  tipos: ['fix', 'feat'],
   integrations: {
     redmine: { enabled: true, baseUrl: 'https://r', apiKey: 'K', projectId: 66 },
     qa: { sistema: 'Redmine', apiKey: 'QK' },
@@ -78,6 +81,8 @@ test('requiredMissing: vazio quando analista + qa completos', () => {
 
 test('requiredMissing: aponta o que falta (nada configurado)', () => {
   const m = requiredMissing({});
+  assert.ok(m.some((x) => /dev: padrão do nome de branch/.test(x)));
+  assert.ok(m.some((x) => /dev: tipos aceitos/.test(x)));
   assert.ok(m.some((x) => /analista: URL/.test(x)));
   assert.ok(m.some((x) => /analista: chave/.test(x)));
   assert.ok(m.some((x) => /analista: projeto/.test(x)));
@@ -97,4 +102,19 @@ test('assertInstalled: lança notInstalled quando falta qa', () => {
 
 test('assertInstalled: passa quando instalado', () => {
   assert.equal(assertInstalled(instalado), true);
+});
+
+test('requiredMissing: pattern usa <autor> mas autor não veio da entrevista', () => {
+  const semAutor = { ...instalado, autor: undefined };
+  assert.ok(requiredMissing(semAutor).some((x) => /dev: segmento de autor/.test(x)));
+});
+
+test('requiredMissing: pattern sem <autor> não exige o segmento (ex.: Jira)', () => {
+  const jira = { ...instalado, branchPattern: '<tipo>/<numero>', autor: undefined };
+  assert.deepEqual(requiredMissing(jira), []);
+});
+
+test('applyProfiles: branch_autor "-" grava autor vazio (padrão sem segmento de autor)', () => {
+  const { company } = applyProfiles({}, { dev: { branch_pattern: '<tipo>/<numero>', branch_autor: '-' } });
+  assert.equal(company.autor, '');
 });

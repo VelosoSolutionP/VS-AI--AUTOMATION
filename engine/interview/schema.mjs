@@ -21,7 +21,8 @@ export const SETS = {
 
   // Dev — padrão de branch/commit/doc. Alimenta a governança (branch/commit) + doc.
   dev: [
-    { id: 'branch_pattern', secao: 'Dev', pergunta: 'Padrão do nome de branch?', tipo: 'text', required: true, help: 'Ex.: <tipo>/<autor>/<numero> -> fix/fabiano.veloso/1234' },
+    { id: 'branch_pattern', secao: 'Dev', pergunta: 'Padrão do nome de branch?', tipo: 'text', required: true, help: 'Ex.: <tipo>/<autor>/<numero> -> fix/nome.sobrenome/1234' },
+    { id: 'branch_autor', secao: 'Dev', pergunta: 'Qual o segmento de AUTOR no nome da branch?', tipo: 'text', required: true, help: 'O que entra no token <autor>. Ex.: nome.sobrenome. Se o padrão não usa <autor>, responda "-".' },
     { id: 'branch_tipos', secao: 'Dev', pergunta: 'Tipos aceitos (branch/commit)?', tipo: 'list', required: true, help: 'Ex.: fix; feat; refactor; chore; test; docs; perf' },
     { id: 'commit_pattern', secao: 'Dev', pergunta: 'Padrão da mensagem de commit?', tipo: 'text', required: true, help: 'Ex.: <tipo>(<escopo>): <descrição>' },
     { id: 'commit_escopo', secao: 'Dev', pergunta: 'O escopo do commit é o quê?', tipo: 'choice', opcoes: ['numero', 'modulo', 'any'], required: true, help: 'número da tarefa, módulo, ou livre' },

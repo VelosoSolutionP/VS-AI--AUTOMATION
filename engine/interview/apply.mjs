@@ -21,6 +21,8 @@ export function applyProfiles(company, { dev, analista, qa } = {}) {
 
   if (dev && Object.keys(dev).length) {
     if (dev.branch_pattern) { c.branchPattern = dev.branch_pattern; changed.push('branchPattern'); }
+    // token <autor> da branch — vem da entrevista; sem isso o pattern não expande (cada empresa é de um jeito)
+    if (dev.branch_autor) { c.autor = dev.branch_autor === '-' ? '' : dev.branch_autor; changed.push('autor'); }
     if (dev.branch_tipos?.length) { c.tipos = dev.branch_tipos; changed.push('tipos'); }
     if (dev.commit_pattern) { c.commitPattern = dev.commit_pattern; changed.push('commitPattern'); }
     if (dev.commit_escopo) { c.commitScope = dev.commit_escopo; changed.push('commitScope'); }
