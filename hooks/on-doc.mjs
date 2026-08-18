@@ -48,9 +48,13 @@ try {
 
 // MURO: todo push (tarefa entregue) dispara o COMPROVANTE DE TAREFA CONCLUIDA no
 // WhatsApp — prova pro tech lead/gestor, a IA nao pula (hook determinístico).
+// Numero da tarefa sai da BRANCH (padrao <tipo>/<autor>/<numero>). Serve pro recibo
+// e, principalmente, pra ordem de documentacao: doc sem numero nao fecha tarefa no
+// Redmine, e quem le nao sabe do que se trata.
+const task = (branch.match(/(\d{3,})/) || [])[1] || null;
+
 try {
   const proj = projectLabel(gitCwd);
-  const task = (branch.match(/(\d{3,})/) || [])[1] || null;
   await notify({ project: proj, task, kind: 'done', dev: devName() });
 } catch {}
 
@@ -60,6 +64,10 @@ process.stdout.write(JSON.stringify({
     additionalContext:
       `[VS-DOC-001] Push feito${branch ? ' na branch ' + branch : ''}. DOCUMENTAÇÃO Redmine é OBRIGATÓRIA agora (fechamento atômico) — ` +
       'gere no template (Backend/Frontend conforme o que tocou). NÃO inicie outra tarefa antes de documentar. ' +
+      (task
+        ? `NÚMERO DA TAREFA: #${task} — é OBRIGATÓRIO no cabeçalho de cada seção, exatamente como "### Backend (#${task})" e/ou "### Frontend (#${task})". Doc sem número não fecha tarefa no Redmine. Se o back e o front têm números DIFERENTES, use o de cada um e me pergunte o que faltar.`
+        : 'A BRANCH NÃO TEM NÚMERO de tarefa. NÃO invente e NÃO escreva "s/n": PERGUNTE o número antes de gerar a doc.') + ' ' +
+      'Em "Testes Implementados" declare o RESULTADO REAL: quantos rodaram, quantos passaram, quantos falharam e o nome de cada falha. Se algo ficou quebrado, diga que ficou — doc que só mostra o que passou esconde erro e o revisor descobre em produção. ' +
       'Se a tarefa teve IMPEDIMENTO (algo que dependeu de pessoas ou de uma regra de negócio e que você não resolveu sozinho — ex.: o QA-Gate não fechou em verde), registre-o na doc endereçado ao TECH LEAD ou GESTOR pra que resolvam. ' +
       'Ao concluir a doc, limpe a pendência: rm .git/qa-gate-pending-doc',
   },
