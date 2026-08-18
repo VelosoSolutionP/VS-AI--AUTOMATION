@@ -26,7 +26,8 @@
     "vsqa": "./engine/vsqa/cli.mjs",
     "vsdiretoria": "./engine/vsdiretoria/cli.mjs",
     "vsvendas": "./engine/vsvendas/cli.mjs",
-    "vs-install": "./installer/cli.mjs"
+    "vs-install": "./installer/cli.mjs",
+    "vsinfluence": "./engine/vsinfluence/cli.mjs"
   },
   "engines": {
     "node": ">=18"
