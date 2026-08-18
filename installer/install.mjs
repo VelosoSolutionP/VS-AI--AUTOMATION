@@ -9,6 +9,7 @@ import { validarSelecao } from './catalog.mjs';
 import { issueTrial } from './trial.mjs';
 import { detect } from './detect.mjs';
 import { serverEntry, installIntoTool } from './mcp-config.mjs';
+import { installHooksInto } from './hooks-config.mjs';
 import { requiredSetsFor, precisaApplyConfig, buildAndValidate } from './onboarding.mjs';
 import { saveProfile } from '../engine/interview/index.mjs';
 import { applyAll } from '../engine/interview/apply.mjs';
@@ -17,6 +18,7 @@ import { scheduleTrialLock } from './schedule-lock.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const SERVER_PATH = join(dirname(HERE), 'mcp', 'server.mjs');
+export const HOOKS_DIR = join(dirname(HERE), 'hooks');
 
 /**
  * @param {{email:string, empresa?:string, produtos:string[], respostas?:object,
@@ -49,6 +51,8 @@ export async function runInstall(dados) {
 
   const detectImpl = dados.detectImpl || detect;
   const installImpl = dados.installImpl || installIntoTool;
+  const hooksImpl = dados.hooksImpl || installHooksInto;
+  const hooksDir = dados.hooksDir || HOOKS_DIR;
   const alvos = detectImpl();
   const entry = serverEntry(serverPath, trial.token);
 
@@ -56,6 +60,14 @@ export async function runInstall(dados) {
   for (const a of alvos) {
     try { configurados.push({ tool: a.tool, ...installImpl(a.configPath, entry) }); }
     catch (e) { configurados.push({ tool: a.tool, erro: String(e.message) }); }
+  }
+
+  // Hooks: o MCP entrega as tools, mas quem conduz o fluxo da tarefa (número -> tipo ->
+  // origem -> repos) é o hook. Só ferramentas com `settingsPath` aceitam esse contrato.
+  const hooksInstalados = [];
+  for (const a of alvos.filter((x) => x.settingsPath)) {
+    try { hooksInstalados.push({ tool: a.tool, ...hooksImpl(a.settingsPath, hooksDir) }); }
+    catch (e) { hooksInstalados.push({ tool: a.tool, erro: String(e.message) }); }
   }
 
   return {
@@ -66,7 +78,11 @@ export async function runInstall(dados) {
     trial,
     trava,
     serverPath,
+    hooksDir,
     configurados,
+    hooksInstalados,
+    // Hook é o que conduz o fluxo da tarefa; sem ele a suite responde tool, mas não governa.
+    semHooks: hooksInstalados.filter((h) => !h.erro).length === 0,
     semFerramenta: configurados.length === 0,
     treinamento: {
       gratis: true,

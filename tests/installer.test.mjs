@@ -9,6 +9,7 @@ import { serverEntry, mergeServer, installIntoTool, SERVER_NAME } from '../insta
 import { issueTrial } from '../installer/trial.mjs';
 import { runInstall } from '../installer/install.mjs';
 import { requiredSetsFor, precisaApplyConfig, buildAndValidate } from '../installer/onboarding.mjs';
+import { buildHooks, mergeHooks, installHooksInto } from '../installer/hooks-config.mjs';
 
 const noop = () => {};
 const respVendas = {
@@ -63,6 +64,62 @@ test('installIntoTool: cria/mescla o arquivo de config', () => {
   const saved = JSON.parse(readFileSync(cfg, 'utf8'));
   assert.ok(saved.mcpServers.existente);
   assert.equal(saved.mcpServers[SERVER_NAME].args[0], '/s.mjs');
+});
+
+/* ---------------- hooks-config ---------------- */
+
+test('buildHooks: cobre os eventos do fluxo e usa caminho absoluto da instalação', () => {
+  const h = buildHooks('/opt/vsia/hooks');
+  assert.deepEqual(Object.keys(h).sort(), ['PostToolUse', 'PreToolUse', 'SessionStart', 'UserPromptSubmit']);
+  // o hook que conduz o fluxo da tarefa (número -> tipo -> origem -> repos)
+  assert.equal(h.UserPromptSubmit[0].hooks[0].command, 'node /opt/vsia/hooks/on-task.mjs');
+  assert.ok(!('matcher' in h.UserPromptSubmit[0]));
+  const bash = h.PreToolUse.find((e) => e.matcher === 'Bash');
+  assert.deepEqual(bash.hooks.map((x) => x.command), [
+    'node /opt/vsia/hooks/on-commit.mjs',
+    'node /opt/vsia/hooks/on-git-guard.mjs',
+    'node /opt/vsia/hooks/on-qa-gate.mjs',
+  ]);
+});
+
+test('mergeHooks: preserva hooks do cliente e não duplica ao reinstalar', () => {
+  const doCliente = { matcher: 'Bash', hooks: [{ type: 'command', command: 'node /meu/proprio.mjs' }] };
+  const base = { theme: 'dark', hooks: { PreToolUse: [doCliente] } };
+
+  const um = mergeHooks(base, '/opt/vsia/hooks');
+  assert.equal(um.theme, 'dark'); // não mexe no resto do settings
+  assert.ok(um.hooks.PreToolUse.some((e) => e.hooks[0].command === 'node /meu/proprio.mjs'));
+
+  const dois = mergeHooks(um, '/opt/vsia/hooks'); // reinstalar
+  assert.deepEqual(dois.hooks.PreToolUse.length, um.hooks.PreToolUse.length);
+  assert.deepEqual(dois, um);
+});
+
+test('mergeHooks: trocar a pasta da suite não deixa hook órfão', () => {
+  const antigo = mergeHooks({}, '/velho/hooks');
+  const novo = mergeHooks(antigo, '/novo/hooks');
+  const cmds = JSON.stringify(novo.hooks);
+  assert.ok(!cmds.includes('/velho/hooks'));
+  assert.ok(cmds.includes('/novo/hooks'));
+});
+
+test('installHooksInto: cria/mescla o settings da ferramenta', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'vshooks-'));
+  const cfg = join(dir, 'settings.json');
+  writeFileSync(cfg, JSON.stringify({ theme: 'dark' }));
+  const r = installHooksInto(cfg, '/opt/vsia/hooks');
+  const saved = JSON.parse(readFileSync(cfg, 'utf8'));
+  assert.equal(saved.theme, 'dark');
+  assert.equal(saved.hooks.UserPromptSubmit[0].hooks[0].command, 'node /opt/vsia/hooks/on-task.mjs');
+  assert.ok(r.eventos.includes('UserPromptSubmit'));
+});
+
+test('detectFromHome: Claude Code expõe settingsPath (hooks); os outros não', () => {
+  const found = detectFromHome('/home/x', (p) => p.includes('.claude') || p.includes('.cursor'));
+  const cc = found.find((f) => f.tool === 'Claude Code');
+  assert.ok(cc.settingsPath.includes('.claude/settings.json'));
+  assert.notEqual(cc.settingsPath, cc.configPath); // hooks e MCP vivem em arquivos diferentes
+  assert.equal(found.find((f) => f.tool === 'Cursor').settingsPath, null);
 });
 
 /* ---------------- trial ---------------- */
