@@ -62,7 +62,7 @@ test('applyProfiles: azure não mexe em redmine (roadmap)', () => {
   assert.equal(company.integrations.redmine, undefined);
 });
 
-/* ---------------- gate de instalação (padrão dev + analista + qa obrigatórios) ---------------- */
+/* ---------------- gate de instalação (dev sempre; analista/qa só se o módulo estiver ligado) ---------------- */
 
 const instalado = {
   branchPattern: '<tipo>/<autor>/<numero>',
@@ -79,10 +79,17 @@ test('requiredMissing: vazio quando analista + qa completos', () => {
   assert.equal(isInstalled(instalado), true);
 });
 
-test('requiredMissing: aponta o que falta (nada configurado)', () => {
+test('requiredMissing: nada configurado cobra dev, mas não módulo desligado', () => {
   const m = requiredMissing({});
   assert.ok(m.some((x) => /dev: padrão do nome de branch/.test(x)));
   assert.ok(m.some((x) => /dev: tipos aceitos/.test(x)));
+  // módulo desligado não é cobrado — quem instala só o Gate não usa tracker nem QA
+  assert.ok(!m.some((x) => /^analista:/.test(x)));
+  assert.ok(!m.some((x) => /^qa:/.test(x)));
+});
+
+test('requiredMissing: módulo LIGADO e sem credencial é cobrado', () => {
+  const m = requiredMissing({ integrations: { redmine: { enabled: true }, qa: { enabled: true } } });
   assert.ok(m.some((x) => /analista: URL/.test(x)));
   assert.ok(m.some((x) => /analista: chave/.test(x)));
   assert.ok(m.some((x) => /analista: projeto/.test(x)));
@@ -95,8 +102,8 @@ test('requiredMissing: placeholder "xxx" conta como faltando', () => {
   assert.ok(m.length >= 3);
 });
 
-test('assertInstalled: lança notInstalled quando falta qa', () => {
-  const semQa = { integrations: { redmine: instalado.integrations.redmine } };
+test('assertInstalled: lança notInstalled quando o módulo qa está ligado e falta credencial', () => {
+  const semQa = { ...instalado, integrations: { redmine: instalado.integrations.redmine, qa: { enabled: true } } };
   assert.throws(() => assertInstalled(semQa), (e) => e.notInstalled === true && /qa:/.test(e.message));
 });
 

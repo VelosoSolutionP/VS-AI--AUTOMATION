@@ -10,7 +10,7 @@ import { issueTrial } from './trial.mjs';
 import { detect } from './detect.mjs';
 import { serverEntry, installIntoTool } from './mcp-config.mjs';
 import { installHooksInto } from './hooks-config.mjs';
-import { requiredSetsFor, precisaApplyConfig, buildAndValidate } from './onboarding.mjs';
+import { requiredSetsFor, precisaApplyConfig, buildAndValidate, modulosAtivos } from './onboarding.mjs';
 import { saveProfile } from '../engine/interview/index.mjs';
 import { applyAll } from '../engine/interview/apply.mjs';
 import { markInstalled } from '../engine/trial-lock.mjs';
@@ -37,7 +37,7 @@ export async function runInstall(dados) {
   const saveImpl = dados.saveImpl || saveProfile;
   for (const [setId, answers] of Object.entries(perfis)) { saveImpl(setId, answers); }
   if (precisaApplyConfig(sel.escolhidos)) {
-    try { (dados.applyImpl || applyAll)(); }
+    try { (dados.applyImpl || applyAll)(modulosAtivos(sel.escolhidos)); }
     catch (e) { return { ok: false, erros: [e.message], sets }; }
   }
 

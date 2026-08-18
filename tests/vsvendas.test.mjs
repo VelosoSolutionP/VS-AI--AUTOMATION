@@ -38,7 +38,7 @@ test('nextQuestion: obrigatórias primeiro; completa quando todas required respo
 });
 
 test('answer: rejeita choice inválida com erro', () => {
-  const r = answer(createState('empresa'), 'tom', 'ZZ');
+  const r = answer(createState('vendas'), 'tom', 'ZZ');
   assert.equal(r.ok, false);
   assert.match(r.error, /escolha uma/);
 });

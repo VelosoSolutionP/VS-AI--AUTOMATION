@@ -14,7 +14,7 @@ import { loadProfile } from './index.mjs';
 import { assertInstalled } from './install.mjs';
 
 /** Puro: aplica os perfis sobre um company-config e devolve o novo objeto + o que mudou. */
-export function applyProfiles(company, { dev, analista, qa } = {}) {
+export function applyProfiles(company, { dev, analista, qa, modulos } = {}) {
   const c = JSON.parse(JSON.stringify(company || {}));
   c.integrations = c.integrations || {};
   const changed = [];
@@ -54,6 +54,16 @@ export function applyProfiles(company, { dev, analista, qa } = {}) {
     changed.push('integrations.qa');
   }
 
+  // Booleano do modulo, derivado da SELECAO de produtos. Sempre grava a chave (true ou
+  // false) em vez de deixar ausente: o gate de instalacao le `enabled` pra decidir se
+  // cobra as credenciais, e ausente seria indistinguivel de "nao configurado ainda".
+  // Faz spread do que ja existe — desligar um modulo NAO apaga credencial ja gravada.
+  if (modulos) {
+    c.integrations.redmine = { ...(c.integrations.redmine || {}), enabled: !!modulos.analista };
+    c.integrations.qa = { ...(c.integrations.qa || {}), enabled: !!modulos.qa };
+    changed.push('integrations.redmine.enabled', 'integrations.qa.enabled');
+  }
+
   return { company: c, changed };
 }
 
@@ -61,8 +71,12 @@ function companyPath() {
   return join(homedir(), '.qa-gate', 'company.json');
 }
 
-/** Lê os perfis salvos + o company.json atual, aplica e grava. Retorna { path, changed }. */
-export function applyAll() {
+/**
+ * Lê os perfis salvos + o company.json atual, aplica e grava.
+ * @param {{analista:boolean, qa:boolean}} [modulos] estado dos módulos vindo da seleção
+ * @returns {{path:string, changed:string[]}}
+ */
+export function applyAll(modulos) {
   const p = companyPath();
   let current = {};
   try { current = JSON.parse(readFileSync(p, 'utf8')); } catch { current = {}; }
@@ -70,6 +84,7 @@ export function applyAll() {
     dev: loadProfile('dev'),
     analista: loadProfile('analista'),
     qa: loadProfile('qa'),
+    modulos,
   });
   // GATE: sem acessos obrigatórios de analista + qa, NÃO grava nada (sem default silencioso).
   assertInstalled(company);

@@ -8,13 +8,24 @@ import { detectFromHome } from '../installer/detect.mjs';
 import { serverEntry, mergeServer, installIntoTool, SERVER_NAME } from '../installer/mcp-config.mjs';
 import { issueTrial } from '../installer/trial.mjs';
 import { runInstall } from '../installer/install.mjs';
-import { requiredSetsFor, precisaApplyConfig, buildAndValidate } from '../installer/onboarding.mjs';
+import { requiredSetsFor, precisaApplyConfig, buildAndValidate, modulosAtivos } from '../installer/onboarding.mjs';
+import { applyProfiles } from '../engine/interview/apply.mjs';
+import { requiredMissing } from '../engine/interview/install.mjs';
 import { buildHooks, mergeHooks, installHooksInto } from '../installer/hooks-config.mjs';
 
 const noop = () => {};
 const respVendas = {
-  empresa: { empresa_nome: 'ACME', vende: 'produtos', proposta_valor: 'melhor preço', icp: 'lojista gestor', tom: 'Direto' },
-  vendas: { funil: 'Novo\nFechado', canais: ['WhatsApp'], plataformas_anuncio: ['Instagram'] },
+  empresa: { empresa_nome: 'ACME' },
+  vendas: {
+    vende: 'produtos', proposta_valor: 'melhor preço', icp: 'lojista gestor', tom: 'Direto',
+    funil: 'Novo\nFechado', canais: ['WhatsApp'], plataformas_anuncio: ['Instagram'],
+  },
+};
+
+/** Respostas mínimas do set dev — o único sempre obrigatório. */
+const respDev = {
+  branch_pattern: '<tipo>/<autor>/<numero>', branch_autor: 'nome.sobrenome',
+  branch_tipos: ['fix', 'feat'], commit_pattern: '<tipo>(<escopo>): <desc>', commit_escopo: 'numero',
 };
 
 /* ---------------- catalog ---------------- */
@@ -143,15 +154,46 @@ test('trial: chave genérica embutida ativa (assinada, plano trial)', async () =
 
 /* ---------------- onboarding (entrevista inline) ---------------- */
 
-test('requiredSetsFor: dev-flow puxa empresa+dev+analista+qa; vendas puxa empresa+vendas', () => {
-  assert.deepEqual(requiredSetsFor(['vsqa']).sort(), ['analista', 'dev', 'empresa', 'qa']);
+test('requiredSetsFor: cada produto puxa só os sets que consome', () => {
+  assert.deepEqual(requiredSetsFor(['gate']).sort(), ['dev']);
+  assert.deepEqual(requiredSetsFor(['vsqa']).sort(), ['dev', 'qa']);
+  assert.deepEqual(requiredSetsFor(['vsanalista']).sort(), ['analista', 'dev']);
   assert.deepEqual(requiredSetsFor(['vsvendas']).sort(), ['empresa', 'vendas']);
   assert.equal(precisaApplyConfig(['vsvendas']), false);
   assert.equal(precisaApplyConfig(['vsdiretoria']), true);
 });
 
+test('requiredSetsFor: só o Gate não pergunta tracker nem sistema de QA', () => {
+  const sets = requiredSetsFor(['gate']);
+  assert.ok(!sets.includes('analista'));
+  assert.ok(!sets.includes('qa'));
+  assert.ok(!sets.includes('empresa'));
+});
+
+test('modulosAtivos: devolve todas as chaves, false pro que não foi escolhido', () => {
+  assert.deepEqual(modulosAtivos(['gate']), { analista: false, qa: false });
+  assert.deepEqual(modulosAtivos(['gate', 'vsqa']), { analista: false, qa: true });
+  assert.deepEqual(modulosAtivos(['vsdiretoria']), { analista: true, qa: false });
+  assert.deepEqual(modulosAtivos([]), { analista: false, qa: false });
+});
+
+test('applyProfiles: grava enabled do módulo sem apagar credencial já existente', () => {
+  const base = { integrations: { redmine: { enabled: true, baseUrl: 'https://r', apiKey: 'k', projectId: 7 } } };
+  const { company } = applyProfiles(base, { dev: respDev, modulos: { analista: false, qa: false } });
+  assert.equal(company.integrations.redmine.enabled, false);
+  assert.equal(company.integrations.redmine.apiKey, 'k'); // credencial preservada
+  assert.equal(company.integrations.qa.enabled, false);
+});
+
+test('requiredMissing: módulo desligado não cobra credencial; ligado cobra', () => {
+  const so = (sel) => applyProfiles({}, { dev: respDev, modulos: modulosAtivos(sel) }).company;
+  assert.deepEqual(requiredMissing(so(['gate'])), []); // Gate puro instala
+  assert.ok(requiredMissing(so(['gate', 'vsqa'])).some((m) => m.startsWith('qa:')));
+  assert.ok(requiredMissing(so(['gate', 'vsanalista'])).some((m) => m.startsWith('analista:')));
+});
+
 test('buildAndValidate: aponta obrigatórias faltando; ok quando completo', () => {
-  const faltou = buildAndValidate(['empresa'], { empresa: { empresa_nome: 'X' } });
+  const faltou = buildAndValidate(['vendas'], { vendas: { funil: 'Novo' } });
   assert.ok(faltou.erros.length > 0);
   const ok = buildAndValidate(['empresa', 'vendas'], respVendas);
   assert.equal(ok.erros.length, 0);
