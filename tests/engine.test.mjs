@@ -367,10 +367,18 @@ test('VS-AUD-005 on-commit: BLOQUEIA commit com @ vazado (here-string @...@)', (
   assert.match(out, /"permissionDecision":"deny"/);
 });
 
-test('on-commit: LIBERA commit no padrao correto (aspas normais)', () => {
-  const out = runOnCommit('git commit -m "fix(35575): trata dado sensivel na edicao"');
+test('on-commit: LIBERA commit no padrao correto (titulo + corpo detalhado)', () => {
+  // VS-AUD-006: o padrao e titulo curto + descricao detalhada. Titulo sozinho passou a
+  // ser bloqueado, entao o caso "libera" precisa do corpo — ver tests/commit-guard.test.mjs.
+  const out = runOnCommit('git commit -m "fix(35575): trata dado sensivel na edicao" -m "Mascara CPF e telefone no formulario de edicao do produtor."');
   assert.doesNotMatch(out, /VS-AUD-005/);
   assert.doesNotMatch(out, /"permissionDecision":"deny"/);
+});
+
+test('VS-AUD-006 on-commit: BLOQUEIA titulo no padrao mas sem descricao detalhada', () => {
+  const out = runOnCommit('git commit -m "fix(35575): trata dado sensivel na edicao"');
+  assert.match(out, /VS-AUD-006/);
+  assert.match(out, /"permissionDecision":"deny"/);
 });
 
 test('promocao: branch merge-hml reconhecida (isenta de numero); tarefa normal NAO', () => {

@@ -71,15 +71,24 @@ if (isSessionOff(sid)) {
 // ATIVIDADE DO DEV: qualquer mensagem do dev = ele PRESENTE = atividade. Reseta o
 // relogio de inatividade do time-box, matando o falso-bloqueio de "esperando o dev
 // responder". O time-box so trava tarefa REALMENTE abandonada (sem dev E sem tool).
+// ATENCAO A ORDEM: o status do time-box e medido ANTES do touch. touchTask() move o
+// lastTs pra agora, e a destrava abaixo ancora justamente no lastTs — medir depois
+// dava ageMin=0, overdue=false SEMPRE, e a palavra do dev nunca destravava nada.
+let _t0 = null; let _st0 = null;
+try {
+  _t0 = getTask(sid);
+  if (_t0 && _t0.num && _t0.ts) { _st0 = timeBoxStatus(_t0, Date.now(), loadCompanyConfig(process.cwd())); }
+} catch {}
+
 try { touchTask(sid); } catch {}
 
 // DESTRAVA DO TIME-BOX: tarefa ativa que ESTOUROU o teto trava a sessão inteira
 // (on-timebox-guard). Só o dev destrava: a palavra de liberação reinicia a janela e o
 // guard volta a liberar. Só age quando a tarefa realmente estourou (evita falso positivo).
 {
-  let t = null; try { t = getTask(sid); } catch {}
-  if (t && t.num && t.ts) {
-    const st0 = timeBoxStatus(t, Date.now(), loadCompanyConfig(process.cwd()));
+  const t = _t0;
+  if (t && t.num && t.ts && _st0) {
+    const st0 = _st0;
     const libera = /^\s*(liberad[oa]|libera)\b/i.test(prompt);
     if (st0.overdue && libera) {
       setTask(sid, { ...t, ts: Date.now() });

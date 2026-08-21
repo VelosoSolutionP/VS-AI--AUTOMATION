@@ -26,6 +26,10 @@ export const DEFAULT_CONFIG = {
   branchPattern: '<tipo>/<autor>/<numero>',
   commitScope: 'numero',        // 'numero' | 'modulo' | 'any'
   commitScopeRegex: null,       // opcional: string de regex; se setado, sobrepõe commitScope
+  // Padrao Fabiano: titulo curto + DESCRICAO DETALHADA no corpo. Titulo sozinho nao
+  // documenta a tarefa e o revisor fica sem contexto no MR. false relaxa a exigencia.
+  requireCommitBody: true,
+  commitBodyMinChars: 20,
   tipos: ['fix', 'feat', 'feature', 'perf', 'refactor', 'hotfix', 'chore', 'test', 'docs', 'build', 'ci', 'style', 'revert'],
   doc: { template: 'redmine', required: true },
   push: { setUpstream: true },
