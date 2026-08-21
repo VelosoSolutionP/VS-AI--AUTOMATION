@@ -8,24 +8,49 @@
  *   rm .git/qa-gate-pending-doc
  */
 import { execSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { join, isAbsolute } from 'node:path';
 import { setFree } from '../engine/branch-req.mjs';
 import { clearBlock } from '../engine/help-state.mjs';
 import { notify, devName, projectLabel } from '../engine/notify-whatsapp.mjs';
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
 import { isGitPush } from '../engine/git-cmd.mjs';
+import { pushFoiAceito } from '../engine/push-outcome.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
 let sid = 'default';
 let sessionCwd = process.cwd();
-try { const j = JSON.parse(raw || '{}'); cmd = j.tool_input?.command || j.command || ''; sid = j.session_id || 'default'; sessionCwd = j.cwd || j.tool_input?.cwd || process.cwd(); } catch { cmd = raw; }
+let payload = {};
+try { payload = JSON.parse(raw || '{}'); cmd = payload.tool_input?.command || payload.command || ''; sid = payload.session_id || 'default'; sessionCwd = payload.cwd || payload.tool_input?.cwd || process.cwd(); } catch { cmd = raw; }
 
 if (!isGitPush(cmd)) { process.exit(0); }
 
 // repo REAL do push (não a pasta da sessão) — fecha o leak de projeto no recibo/branch.
 const gitCwd = resolveGitCwd(cmd, sessionCwd);
+
+// OPT-OUT (bancada / projeto em exploracao): .qa-gate-off desliga a governanca.
+// Era o unico hook sem essa saida — num repo com governanca off o push ainda
+// abria pendencia de documentacao e mandava recibo de entrega.
+if (existsSync(join(gitCwd, '.qa-gate-off')) || existsSync(join(sessionCwd, '.qa-gate-off'))) { process.exit(0); }
+
+// PostToolUse roda com sucesso OU com falha. Push recusado (403, branch protegida,
+// rejected, sem rede) NÃO é entrega: marcar pendência de doc travaria a próxima
+// tarefa por causa de algo que não aconteceu, e o recibo avisaria o tech lead de
+// uma entrega inexistente. Só segue quando o push foi de fato aceito.
+const entrega = pushFoiAceito(cmd, payload, gitCwd);
+if (!entrega.ok) {
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: 'PostToolUse',
+      additionalContext:
+        `[VS-DOC-000] O push NÃO foi concluído (${entrega.motivo}). Nenhuma pendência de ` +
+        'documentação foi aberta e nenhum recibo de entrega foi enviado. Resolva a causa e ' +
+        'refaça o push — não relate a tarefa como entregue.',
+    },
+  }));
+  process.exit(0);
+}
 
 // push feito -> janela LIVRE: perguntas/confirmações liberadas até a próxima tarefa.
 setFree(sid);
