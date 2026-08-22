@@ -49,6 +49,10 @@ function runOnTask(prompt, sid) {
 function runTbGuard(sid, toolCommand) {
   const cwd = join(tmpdir(), 'qa-gate-tbguard-test');
   try { mkdirSync(cwd, { recursive: true }); } catch {}
+  // Config PRÓPRIA no cwd (findUp acha antes do ~/.qa-gate/company.json): sem isso o
+  // teste herdava o timeBoxMin da máquina de quem roda — com 90 configurado, uma
+  // tarefa de 31min não bloqueava e a suíte quebrava sem nada de errado no código.
+  try { writeFileSync(join(cwd, 'qa-gate.company.json'), JSON.stringify({ timeBoxMin: 30 })); } catch {}
   const r = spawnSync('node', [TB_GUARD], {
     input: JSON.stringify({ session_id: sid, cwd, tool_input: { command: toolCommand || 'ls' } }),
     cwd,

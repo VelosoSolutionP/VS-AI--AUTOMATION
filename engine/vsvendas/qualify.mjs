@@ -4,7 +4,10 @@
  * O MCP pode refinar a redação/nuance depois; aqui já sai um baseline defensável.
  */
 
-const norm = (s) => String(s || '').toLowerCase();
+// NFD + strip de diacritico: o sinal cadastrado ("reclamou de bug em producao") e o
+// texto do lead ("subiu bug pra produção") quase nunca acentuam igual. Comparando com
+// acento, sinal legitimo da empresa nao casava e o lead quente era rebaixado a morno.
+const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const QUENTE_GEN = ['preço', 'preco', 'orçamento', 'orcamento', 'proposta', 'contratar', 'fechar', 'urgente', 'urgência', 'quando pod', 'quanto custa', 'assinar', 'comprar', 'demo'];
 const FRIO_GEN = ['só olhando', 'so olhando', 'sem verba', 'sem orçamento', 'caro', 'depois', 'talvez', 'curiosidade', 'pesquisando', 'futuro'];
 const STOP = new Set(['de', 'da', 'do', 'em', 'com', 'que', 'uma', 'uns', 'por', 'pra', 'para', 'tem', 'ter', 'seu', 'sua', 'os', 'as', 'no', 'na', 'um', 'ao']);
@@ -12,7 +15,16 @@ const STOP = new Set(['de', 'da', 'do', 'em', 'com', 'que', 'uma', 'uns', 'por',
 /** Match por SUBSTRING (termos genéricos de 1 palavra). */
 function hits(texto, termos) {
   const t = norm(texto);
-  return (termos || []).filter((k) => k && t.includes(norm(k)));
+  // dedup: com a normalizacao de acento, 'preço' e 'preco' viram o MESMO termo e o
+  // motivo saia duplicado na tela ("intenção de compra: preço, preco").
+  const vistos = new Set();
+  return (termos || []).filter((k) => {
+    if (!k || !t.includes(norm(k))) { return false; }
+    const chave = norm(k);
+    if (vistos.has(chave)) { return false; }
+    vistos.add(chave);
+    return true;
+  });
 }
 
 /** Match por SOBREPOSIÇÃO de palavras-chave (frases que a empresa definiu — o lead
