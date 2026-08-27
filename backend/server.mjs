@@ -86,7 +86,7 @@ const server = createServer(async (req, res) => {
 
   if (req.method === 'GET' && req.url.split('?')[0] === '/obrigado') {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-    return res.end('<meta charset=utf-8><body style="font-family:system-ui;background:#0b1220;color:#f2f4f7;text-align:center;padding:80px 20px"><h1>Pagamento confirmado ✅</h1><p style="color:#cfd6e4">Sua licença QA-Gate está a caminho do seu WhatsApp. Qualquer coisa: velososolution.online</p></body>');
+    return res.end('<meta charset=utf-8><body style="font-family:system-ui;background:#0c0a14;color:#f3eefc;text-align:center;padding:80px 20px"><h1>Pagamento confirmado ✅</h1><p style="color:#b6adcd">Sua licença QA-Gate está a caminho do seu WhatsApp. Qualquer coisa: velososolution.online</p></body>');
   }
 
   // preflight CORS do checkout (form vindo do site)

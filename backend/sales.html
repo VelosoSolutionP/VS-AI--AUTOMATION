@@ -3,86 +3,292 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Veloso Solution — consultoria em IA aplicada. O QA-Gate simula cada fluxo em browser real antes do commit: menos custo, menos tempo, menos retrabalho.">
+<meta name="theme-color" content="#0c0a14">
 <title>QA-Gate — IA aplicada que reduz custo, tempo e retrabalho | Veloso Solution</title>
 <style>
-  :root{--bg:#0b1220;--surface:#111827;--surface2:#1a2233;--border:#253048;--text:#f2f4f7;--muted:#cfd6e4;--subtle:#98a2b3;--brand:#4aa8ff;--accent:#32d583;--danger:#f97066;--gold:#fdb022;--radius:14px}
-  *{box-sizing:border-box}html,body{margin:0;padding:0}
-  body{background:radial-gradient(1000px 500px at 90% -5%,rgba(74,168,255,.15),transparent 60%),var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.6;font-size:16px}
-  .wrap{max-width:1040px;margin:0 auto;padding:32px 20px 64px}
-  .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-  .logo{font-weight:800;letter-spacing:-.01em}.logo .s{display:block;font-size:11px;color:var(--subtle);text-transform:uppercase;letter-spacing:.5px}
-  .hero{margin-top:44px}
-  .badge{display:inline-block;padding:5px 14px;background:rgba(74,168,255,.12);border:1px solid rgba(74,168,255,.3);border-radius:999px;font-size:12.5px;color:var(--brand);font-weight:700;text-transform:uppercase;letter-spacing:.4px}
-  h1{font-size:clamp(30px,5vw,50px);line-height:1.08;margin:16px 0 12px;letter-spacing:-.025em}
-  .lead{font-size:19px;color:var(--muted);max-width:760px}
-  .author{margin-top:16px;font-size:14px;color:var(--subtle)}.author b{color:var(--text)}
-  .cta{display:inline-flex;align-items:center;gap:10px;background:var(--accent);color:#04231a;padding:16px 34px;border-radius:12px;font-weight:800;font-size:17px;text-decoration:none;border:0;cursor:pointer}
-  .cta:hover{transform:translateY(-1px)}.cta.ghost{background:transparent;color:var(--brand);border:1px solid var(--border)}
-  .row{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
-  .note{font-size:13px;color:var(--subtle);margin-top:12px}
-  section{margin-top:60px}h2{font-size:27px;letter-spacing:-.015em;margin:0 0 6px}.sub{color:var(--subtle);margin:0 0 22px;max-width:720px}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:760px){.grid{grid-template-columns:1fr}}
-  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}@media(max-width:860px){.grid3{grid-template-columns:1fr}}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px}
-  .card h3{margin:0 0 8px;font-size:17px}
-  .card.bad{border-left:3px solid var(--danger)}.card.good{border-left:3px solid var(--accent)}
-  ul{margin:8px 0 0;padding-left:20px;color:var(--muted)}li{margin-bottom:7px}
-  .kv{display:flex;gap:10px;align-items:flex-start}.kv .i{color:var(--accent);font-weight:800}
-  .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}@media(max-width:760px){.steps{grid-template-columns:1fr 1fr}}
-  .step{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
-  .step .n{color:var(--subtle);font-weight:800;font-size:12px}.step .t{font-weight:700;margin-top:4px}.step .d{font-size:12.5px;color:var(--subtle);margin-top:2px}
-  .plan{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:26px;display:flex;flex-direction:column}
-  .plan.feat{border:1px solid var(--brand);box-shadow:0 0 0 1px rgba(74,168,255,.3)}
-  .plan .t{font-size:14px;color:var(--subtle);text-transform:uppercase;letter-spacing:.5px;font-weight:700}
-  .plan .v{font-size:34px;font-weight:800;letter-spacing:-.02em;margin:8px 0 2px}
-  .plan .per{font-size:13px;color:var(--subtle)}
-  .plan ul{font-size:14px}.plan .pick{margin-top:auto}
-  .pick button{width:100%;margin-top:16px}
-  code{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:2px 7px;font-size:13px}
-  input,select{width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:15px}
-  label{font-size:13px;color:var(--subtle);display:block}
-  .foot{margin-top:64px;padding-top:24px;border-top:1px solid var(--border);color:var(--subtle);font-size:13px;text-align:center}
-  a{color:var(--brand)}
-  .warn{background:rgba(253,176,34,.08);border:1px solid rgba(253,176,34,.3);border-radius:12px;padding:16px 18px;font-size:14px;color:var(--muted)}
+  :root{
+    --bg:#0c0a14;
+    --surface:#151122; --surface2:#1d1730; --line:#2a2440; --line2:#3a3358;
+    --text:#f3eefc; --muted:#b6adcd; --subtle:#8c84a6;
+    --accent:#8b5cf6; --accent2:#ec4899; --accent3:#a78bfa;
+    --ok:#10b981; --warn:#f59e0b; --danger:#fb7185;
+    --r:16px; --r-lg:22px;
+    --shadow:0 18px 50px -18px rgba(0,0,0,.75);
+    --glow:0 14px 40px -12px rgba(139,92,246,.5);
+    --grad:linear-gradient(100deg,var(--accent),var(--accent2));
+    --max:1140px;
+  }
+  @media (prefers-color-scheme:light){
+    :root:not([data-theme=dark]){
+      --bg:#f7f4fd;
+      --surface:#ffffff; --surface2:#f4f0fc; --line:#e7e0f6; --line2:#d8cfee;
+      --text:#191033; --muted:#5b5378; --subtle:#7d7696;
+      --shadow:0 18px 46px -22px rgba(60,30,120,.28);
+      --glow:0 14px 36px -14px rgba(139,92,246,.45);
+    }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--text);font-size:16px;line-height:1.65;
+    font-family:"Inter","Segoe UI Variable Text",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;overflow-x:hidden;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+    background:
+      radial-gradient(900px 520px at 12% -8%,rgba(139,92,246,.26),transparent 62%),
+      radial-gradient(760px 460px at 92% 4%,rgba(236,72,153,.16),transparent 60%),
+      radial-gradient(700px 500px at 60% 100%,rgba(167,139,250,.10),transparent 65%);
+  }
+  a{color:var(--accent3);text-decoration:none}
+  a:hover{color:var(--accent2)}
+  h1,h2,h3{letter-spacing:-.028em;line-height:1.12;margin:0}
+  ul{margin:10px 0 0;padding-left:0;list-style:none}
+  .wrap{max-width:var(--max);margin:0 auto;padding:0 22px}
+
+  /* ---------- header ---------- */
+  header{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px) saturate(160%);
+    background:color-mix(in srgb,var(--bg) 78%,transparent);border-bottom:1px solid transparent;transition:border-color .25s}
+  header.stuck{border-bottom-color:var(--line)}
+  .nav{display:flex;align-items:center;gap:26px;height:70px}
+  .logo{font-weight:800;font-size:19px;letter-spacing:-.03em;line-height:1.15;color:var(--text)}
+  .logo em{font-style:normal;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .logo span{display:block;font-size:10.5px;font-weight:600;color:var(--subtle);text-transform:uppercase;letter-spacing:.14em}
+  .nav nav{margin-left:auto;display:flex;gap:24px}
+  .nav nav a{font-size:14.5px;font-weight:500;color:var(--muted)}
+  .nav nav a:hover{color:var(--text)}
+  @media(max-width:900px){.nav nav{display:none}}
+
+  /* ---------- buttons ---------- */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;font-weight:700;font-size:15.5px;
+    padding:14px 26px;border-radius:12px;border:1px solid transparent;cursor:pointer;text-decoration:none;
+    transition:transform .18s ease,box-shadow .18s ease,background .18s;font-family:inherit;white-space:nowrap}
+  .btn.primary{background:var(--grad);color:#fff;box-shadow:var(--glow)}
+  .btn.primary:hover{transform:translateY(-2px);box-shadow:0 20px 46px -12px rgba(236,72,153,.55);color:#fff}
+  .btn.ghost{background:var(--surface);border-color:var(--line2);color:var(--text)}
+  .btn.ghost:hover{border-color:var(--accent);transform:translateY(-2px);color:var(--text)}
+  .btn.sm{padding:10px 18px;font-size:14px;border-radius:10px}
+  .btn.block{width:100%}
+
+  /* ---------- hero ---------- */
+  .hero{padding:84px 0 20px;display:grid;grid-template-columns:1.08fr .92fr;gap:52px;align-items:center}
+  @media(max-width:980px){.hero{grid-template-columns:1fr;gap:36px;padding-top:52px}}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 14px 6px 8px;border-radius:999px;
+    background:color-mix(in srgb,var(--accent) 14%,transparent);border:1px solid color-mix(in srgb,var(--accent) 38%,transparent);
+    font-size:12.5px;font-weight:700;color:var(--accent3);letter-spacing:.03em}
+  .pill i{width:20px;height:20px;border-radius:50%;background:var(--grad);display:grid;place-items:center;font-style:normal;font-size:11px;color:#fff}
+  h1{font-size:clamp(34px,5.4vw,58px);margin:20px 0 16px;font-weight:800}
+  h1 em{font-style:normal;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lead{font-size:18.5px;color:var(--muted);max-width:640px;margin:0}
+  .lead b{color:var(--text);font-weight:650}
+  .author{margin:20px 0 0;font-size:14px;color:var(--subtle)}
+  .author b{color:var(--text)}
+  .row{display:flex;gap:12px;flex-wrap:wrap;margin-top:30px}
+  .stats{display:grid;grid-template-columns:repeat(3,auto);gap:34px;margin-top:40px;padding-top:30px;border-top:1px solid var(--line)}
+  .stats .n{font-size:26px;font-weight:800;letter-spacing:-.03em;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .stats .l{font-size:12.5px;color:var(--subtle);line-height:1.45;margin-top:2px}
+  @media(max-width:520px){.stats{grid-template-columns:1fr 1fr;gap:22px}}
+
+  /* terminal do hero */
+  .term{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow);overflow:hidden}
+  .term .bar{display:flex;align-items:center;gap:7px;padding:13px 16px;border-bottom:1px solid var(--line);background:var(--surface2)}
+  .term .bar i{width:10px;height:10px;border-radius:50%;background:var(--line2)}
+  .term .bar i:first-child{background:var(--accent2)}
+  .term .bar i:nth-child(2){background:var(--warn)}
+  .term .bar i:nth-child(3){background:var(--ok)}
+  .term .bar span{margin-left:8px;font-size:12px;color:var(--subtle);font-weight:600}
+  .term pre{margin:0;padding:20px 18px;font-size:12.9px;line-height:1.95;overflow-x:auto;
+    font-family:ui-monospace,SFMono-Regular,"Cascadia Code",Menlo,Consolas,monospace;color:var(--muted)}
+  .term pre b{color:var(--accent3);font-weight:600}
+  .term .g{color:var(--ok);font-weight:700}
+  .term .r{color:var(--danger);font-weight:700}
+  .term .y{color:var(--warn)}
+  .term .dim{color:var(--subtle)}
+
+  /* ---------- seções ---------- */
+  section{padding:76px 0 0}
+  .eyebrow{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--accent3);margin-bottom:12px}
+  h2{font-size:clamp(25px,3.4vw,34px);font-weight:800}
+  .sub{color:var(--muted);margin:12px 0 0;max-width:730px;font-size:16.5px}
+  .sub b{color:var(--text);font-weight:650}
+  .grid{display:grid;gap:16px;margin-top:32px}
+  .g2{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:940px){.g3,.g4{grid-template-columns:1fr 1fr}}
+  @media(max-width:700px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:24px;
+    transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease}
+  .card:hover{transform:translateY(-3px);border-color:var(--line2);box-shadow:var(--shadow)}
+  .card h3{font-size:17px;margin-bottom:8px}
+  .card p{margin:0;color:var(--muted);font-size:14.5px}
+  .card li{position:relative;padding-left:22px;margin-bottom:9px;color:var(--muted);font-size:14.6px}
+  .card li::before{content:"";position:absolute;left:2px;top:.62em;width:7px;height:7px;border-radius:2px;background:var(--grad)}
+  .card li b{color:var(--text);font-weight:650}
+  .ico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:19px;margin-bottom:14px;
+    background:color-mix(in srgb,var(--accent) 16%,transparent);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);color:var(--accent3)}
+  .card.good{border-top:2px solid var(--ok)}
+  .card.good li::before{background:var(--ok)}
+  .card.bad{border-top:2px solid var(--danger)}
+  .card.bad li::before{background:var(--danger)}
+  .tagline{display:inline-block;font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+    padding:4px 10px;border-radius:6px;margin-bottom:12px}
+  .tagline.ok{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+  .tagline.no{background:color-mix(in srgb,var(--danger) 16%,transparent);color:var(--danger)}
+
+  /* passos */
+  .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:34px;position:relative}
+  .steps::before{content:"";position:absolute;top:34px;left:6%;right:6%;height:2px;
+    background:linear-gradient(90deg,transparent,var(--accent),var(--accent2),transparent);opacity:.45}
+  @media(max-width:820px){.steps{grid-template-columns:1fr 1fr}.steps::before{display:none}}
+  @media(max-width:460px){.steps{grid-template-columns:1fr}}
+  .step{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:22px 18px;text-align:center;position:relative}
+  .step .n{width:36px;height:36px;margin:0 auto 12px;border-radius:50%;display:grid;place-items:center;
+    background:var(--grad);color:#fff;font-weight:800;font-size:13.5px;box-shadow:var(--glow)}
+  .step .t{font-weight:700;font-size:15.5px}
+  .step .d{font-size:13px;color:var(--subtle);margin-top:4px;line-height:1.5}
+
+  /* painéis de destaque */
+  .panel{margin-top:22px;border-radius:var(--r-lg);padding:30px;border:1px solid color-mix(in srgb,var(--accent) 34%,transparent);
+    background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 13%,var(--surface)),color-mix(in srgb,var(--accent2) 9%,var(--surface)))}
+  .panel h3{font-size:20px;margin-bottom:10px}
+  .panel p{color:var(--muted);margin:0 0 12px;font-size:15.5px}
+  .panel p b,.panel h3 b{color:var(--text)}
+  .warn{margin-top:30px;border-radius:var(--r);padding:24px 26px;border:1px solid color-mix(in srgb,var(--warn) 34%,transparent);
+    background:color-mix(in srgb,var(--warn) 8%,var(--surface))}
+  .warn ul{margin:0}
+  .warn li{position:relative;padding-left:24px;margin-bottom:11px;color:var(--muted);font-size:15px}
+  .warn li::before{content:"!";position:absolute;left:0;top:0;font-weight:800;color:var(--warn);font-size:13px}
+  .warn li b{color:var(--text);font-weight:650}
+  .note{font-size:13.5px;color:var(--subtle);margin-top:16px;max-width:820px}
+  .note b{color:var(--muted)}
+
+  /* planos */
+  .plan{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:28px;display:flex;flex-direction:column;
+    transition:transform .22s ease,border-color .22s}
+  .plan:hover{transform:translateY(-4px);border-color:var(--line2)}
+  .plan .t{font-size:12.5px;font-weight:800;text-transform:uppercase;letter-spacing:.13em;color:var(--subtle)}
+  .plan .v{font-size:38px;font-weight:800;letter-spacing:-.035em;margin:12px 0 4px}
+  .plan .per{font-size:13px;color:var(--subtle);line-height:1.55;min-height:42px}
+  .plan ul{margin:20px 0 0;padding-top:20px;border-top:1px solid var(--line)}
+  .plan li{position:relative;padding-left:24px;margin-bottom:10px;font-size:14.4px;color:var(--muted)}
+  .plan li::before{content:"\2713";position:absolute;left:0;top:0;color:var(--ok);font-weight:800;font-size:13px}
+  .plan .pick{margin-top:auto;padding-top:24px}
+  .plan.feat{background:
+      linear-gradient(var(--surface),var(--surface)) padding-box,
+      var(--grad) border-box;
+    border:1.5px solid transparent;box-shadow:var(--glow);position:relative;transform:translateY(-6px)}
+  .plan.feat:hover{transform:translateY(-10px)}
+  @media(max-width:700px){.plan.feat,.plan.feat:hover{transform:none}}
+  .plan.feat .v{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .ribbon{position:absolute;top:-13px;left:28px;background:var(--grad);color:#fff;font-size:11px;font-weight:800;
+    letter-spacing:.1em;text-transform:uppercase;padding:5px 12px;border-radius:999px}
+
+  /* formulário */
+  .formgrid{display:grid;grid-template-columns:1.05fr .95fr;gap:22px;margin-top:32px;align-items:start}
+  @media(max-width:820px){.formgrid{grid-template-columns:1fr}}
+  form{display:flex;flex-direction:column;gap:15px}
+  label{display:block;font-size:12.5px;font-weight:700;color:var(--subtle);text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px}
+  input,select{width:100%;padding:13px 15px;border-radius:11px;border:1px solid var(--line2);background:var(--surface2);
+    color:var(--text);font-size:15px;font-family:inherit;transition:border-color .18s,box-shadow .18s}
+  input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+  input::placeholder{color:var(--subtle)}
+  code{background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-size:13px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--accent3)}
+
+  /* rodapé */
+  footer{margin-top:88px;padding:34px 0 44px;border-top:1px solid var(--line);color:var(--subtle);font-size:13.5px}
+  .foot{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;align-items:center}
+  .foot b{color:var(--muted)}
+
+  /* reveal */
+  .rv{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s cubic-bezier(.2,.7,.3,1)}
+  .rv.in{opacity:1;transform:none}
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    .rv{opacity:1;transform:none;transition:none}
+    .btn:hover,.card:hover,.plan:hover{transform:none}
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="top">
-    <div class="logo">Veloso Solution<span class="s">Consultoria em IA Aplicada</span></div>
-    <a href="https://velososolution.online" style="text-decoration:none;color:var(--subtle);font-size:14px">velososolution.online</a>
+
+<header id="hdr">
+  <div class="wrap nav">
+    <div class="logo">Veloso <em>Solution</em><span>Consultoria em IA aplicada</span></div>
+    <nav>
+      <a href="#entrega">Entrega</a>
+      <a href="#produto">Produto</a>
+      <a href="#como">Como funciona</a>
+      <a href="#trial">Trial 30 dias</a>
+      <a href="#planos">Planos</a>
+    </nav>
+    <a class="btn primary sm" href="https://wa.me/5531975127978">Falar no WhatsApp</a>
   </div>
+</header>
+
+<main class="wrap">
 
   <!-- HERO -->
   <div class="hero">
-    <span class="badge">QA-Gate para Claude Code</span>
-    <h1>Use IA aplicada do jeito certo — reduza custo, tempo e retrabalho.</h1>
-    <p class="lead">A Veloso Solution entrega um produto que <b>reduz gastos</b>, <b>encurta o tempo das tarefas</b>, <b>aumenta a produtividade</b> e <b>automatiza o processo</b> de desenvolvimento. O QA-Gate simula cada fluxo em <b>browser real</b> antes do commit, injeta o bug de propósito e só libera no verde — o que o teste unitário deixa passar (hidratação errada, lib quebrada, erro que não aparece no modal) morre aqui.</p>
-    <p class="author">Criado por <b>Fabiano Veloso</b> — Engenheiro de IA Aplicada.</p>
-    <div class="row">
-      <a class="cta" href="#planos">Ver planos →</a>
-      <a class="cta ghost" href="#trial">Testar grátis (trial)</a>
+    <div>
+      <span class="pill"><i>&#9656;</i> QA-Gate para Claude Code</span>
+      <h1>Use IA aplicada do jeito certo — reduza <em>custo, tempo e retrabalho</em>.</h1>
+      <p class="lead">A Veloso Solution entrega um produto que <b>reduz gastos</b>, <b>encurta o tempo das tarefas</b>, <b>aumenta a produtividade</b> e <b>automatiza o processo</b> de desenvolvimento. O QA-Gate simula cada fluxo em <b>browser real</b> antes do commit, injeta o bug de propósito e só libera no verde — o que o teste unitário deixa passar (hidratação errada, lib quebrada, erro que não aparece no modal) morre aqui.</p>
+      <p class="author">Criado por <b>Fabiano Veloso</b> — Engenheiro de IA Aplicada.</p>
+      <div class="row">
+        <a class="btn primary" href="#planos">Ver planos →</a>
+        <a class="btn ghost" href="#trial">Testar grátis (trial)</a>
+      </div>
+      <div class="stats">
+        <div><div class="n">20–70%</div><div class="l">ganho em tempo, custo<br>e retrabalho</div></div>
+        <div><div class="n">30 dias</div><div class="l">grátis, instalado<br>por especialista</div></div>
+        <div><div class="n">12+ anos</div><div class="l">de mercado,<br>empresa sólida</div></div>
+      </div>
+    </div>
+
+    <div class="term rv">
+      <div class="bar"><i></i><i></i><i></i><span>qa-gate · pre-commit</span></div>
+<pre><span class="dim">$</span> <b>/qa-gate</b>
+<span class="dim">→</span> abrindo fluxo <span class="y">cadastro-cliente</span> em Chrome real
+<span class="dim">→</span> injetando bug: submit com campo vazio
+  <span class="g">&#10003;</span> mensagem amigável no DOM
+  <span class="g">&#10003;</span> console SEVERE = 0
+  <span class="g">&#10003;</span> screenshot anexado
+
+<span class="dim">→</span> fluxo <span class="y">checkout</span>
+  <span class="r">&#10007;</span> erro só no console, sem retorno na tela
+  <span class="r">&#10007;</span> hidratação divergente em /pagamento
+
+<span class="r">COMMIT BLOQUEADO</span> <span class="dim">— 2 fluxos no vermelho</span>
+<span class="dim">só verde commita.</span></pre>
     </div>
   </div>
 
   <!-- ENTREGA -->
-  <section>
-    <h2>O que a Veloso Solution entrega</h2>
+  <section id="entrega" class="rv">
+    <div class="eyebrow">O que entregamos</div>
+    <h2>Resultado mensurável, não promessa</h2>
     <p class="sub">Não é "mais uma IA". É orquestração de IA aplicada ao seu processo, com governança e resultado mensurável. Equipes que seguem o processo têm alcançado <b>melhorias expressivas — de 20% a 70%</b> em tempo, custo e retrabalho, <b>dependendo da forma de uso da ferramenta</b>. Não prometemos um número fixo: o resultado real de cada cliente é medido e comprovado na <b>auditoria ao fim dos 30 dias</b>.</p>
-    <div class="grid">
-      <div class="card"><div class="kv"><span class="i">↓</span><div><b>Redução de gastos</b><br><span style="color:var(--muted);font-size:14px">Menos horas por tarefa, menos retrabalho de QA, menos bug em produção.</span></div></div></div>
-      <div class="card"><div class="kv"><span class="i">⏱</span><div><b>Menos tempo por tarefa</b><br><span style="color:var(--muted);font-size:14px">Da descrição ao commit validado em minutos, não horas.</span></div></div></div>
-      <div class="card"><div class="kv"><span class="i">↑</span><div><b>Mais produtividade</b><br><span style="color:var(--muted);font-size:14px">Squad entrega mais, com padrão único e qualidade auditável.</span></div></div></div>
-      <div class="card"><div class="kv"><span class="i">⚙</span><div><b>Automação do processo</b><br><span style="color:var(--muted);font-size:14px">Simulação, validação e bloqueio no commit — sem depender de disciplina manual.</span></div></div></div>
+    <div class="grid g4">
+      <div class="card"><div class="ico">↓</div><h3>Redução de gastos</h3><p>Menos horas por tarefa, menos retrabalho de QA, menos bug em produção.</p></div>
+      <div class="card"><div class="ico">⏱</div><h3>Menos tempo por tarefa</h3><p>Da descrição ao commit validado em minutos, não horas.</p></div>
+      <div class="card"><div class="ico">↑</div><h3>Mais produtividade</h3><p>Squad entrega mais, com padrão único e qualidade auditável.</p></div>
+      <div class="card"><div class="ico">⚙</div><h3>Automação do processo</h3><p>Simulação, validação e bloqueio no commit — sem depender de disciplina manual.</p></div>
     </div>
   </section>
 
   <!-- PLUGIN -->
-  <section>
-    <h2>O Plugin</h2>
-    <p class="sub">Instala no Claude Code e orquestra o fluxo de trabalho do dev de ponta a ponta.</p>
-    <div class="grid">
+  <section id="produto" class="rv">
+    <div class="eyebrow">O plugin</div>
+    <h2>Instala no Claude Code e orquestra o fluxo do dev</h2>
+    <p class="sub">De ponta a ponta: padrão de commit, documentação, gate de qualidade e controle de token.</p>
+    <div class="grid g2">
       <div class="card good">
+        <span class="tagline ok">Com o plugin</span>
         <h3>Benefícios do plugin</h3>
         <ul>
           <li>Padroniza commit, branch e documentação automaticamente</li>
@@ -92,7 +298,8 @@
         </ul>
       </div>
       <div class="card bad">
-        <h3>Sem o plugin</h3>
+        <span class="tagline no">Sem o plugin</span>
+        <h3>O custo de não ter</h3>
         <ul>
           <li>Cada dev usa a IA do seu jeito — código sem padrão</li>
           <li>Bug de UI passa pro QA e volta dias depois</li>
@@ -104,11 +311,13 @@
   </section>
 
   <!-- MCP -->
-  <section>
-    <h2>O MCP (motor de simulação)</h2>
+  <section class="rv">
+    <div class="eyebrow">O motor</div>
+    <h2>O MCP — simulação em navegador real</h2>
     <p class="sub">O servidor MCP dirige um navegador real e devolve o resultado estruturado — com screenshot — direto pro seu agente.</p>
-    <div class="grid">
+    <div class="grid g2">
       <div class="card">
+        <div class="ico">◉</div>
         <h3>O que o MCP faz</h3>
         <ul>
           <li>Sobe o fluxo em <b>Chrome real</b>, injeta o bug e valida o retorno</li>
@@ -118,6 +327,7 @@
         </ul>
       </div>
       <div class="card">
+        <div class="ico">⌘</div>
         <h3>Onde roda</h3>
         <ul>
           <li>Feito para o <b>Claude Code</b> — governança e fluxo ponta a ponta</li>
@@ -130,7 +340,8 @@
   </section>
 
   <!-- COMO FUNCIONA -->
-  <section>
+  <section id="como" class="rv">
+    <div class="eyebrow">Fluxo do gate</div>
     <h2>Como funciona</h2>
     <div class="steps">
       <div class="step"><div class="n">01</div><div class="t">Abre o fluxo</div><div class="d">login + form/modal tocado</div></div>
@@ -140,11 +351,12 @@
     </div>
   </section>
 
-  <!-- TRIAL / DOWNLOAD -->
-  <section id="trial">
+  <!-- TRIAL -->
+  <section id="trial" class="rv">
+    <div class="eyebrow">Trial</div>
     <h2>30 dias grátis — instalado e configurado por especialista</h2>
     <p class="sub">Você não testa sozinho no escuro. <b>Nós instalamos e configuramos</b> a ferramenta no seu ambiente (login/SSO, stack, usuário de QA, fluxos) e acompanhamos — sem essa configuração o gate não roda de verdade e você <b>não vê resultado</b>.</p>
-    <div class="grid">
+    <div class="grid g3">
       <div class="card good">
         <h3>Instalação e configuração por especialista</h3>
         <ul>
@@ -170,59 +382,62 @@
         </ul>
       </div>
     </div>
-    <div class="card" style="margin-top:16px;border-color:var(--pri, #4aa8ff)">
-      <h3>Como começar — fale comigo primeiro (obrigatório)</h3>
-      <p style="margin:0 0 10px">O trial <b>só funciona configurado para o seu ambiente</b> — por isso a instalação é feita por especialista. <b>Mesmo para testar</b>, entre em contato antes para eu configurar; sem isso, não há resultado real.</p>
-      <p style="margin:0 0 6px"><b>Só atendo pelo WhatsApp:</b></p>
-      <a class="cta" href="https://wa.me/5531975127978">WhatsApp: (31) 97512-7978 →</a>
+    <div class="panel">
+      <h3>Como começar — <b>fale comigo primeiro</b> (obrigatório)</h3>
+      <p>O trial <b>só funciona configurado para o seu ambiente</b> — por isso a instalação é feita por especialista. <b>Mesmo para testar</b>, entre em contato antes para eu configurar; sem isso, não há resultado real.</p>
+      <p style="margin-bottom:18px"><b>Só atendo pelo WhatsApp:</b></p>
+      <a class="btn primary" href="https://wa.me/5531975127978">WhatsApp: (31) 97512-7978 →</a>
     </div>
   </section>
 
   <!-- PLANOS -->
-  <section id="planos">
-    <h2>Planos — licença por empresa</h2>
+  <section id="planos" class="rv">
+    <div class="eyebrow">Planos</div>
+    <h2>Licença por empresa — chave eterna</h2>
     <p class="sub">Chave <b>eterna</b> (pagamento único) com <b>atualizações incluídas</b>. A licença é <b>por empresa</b> e pode ser compartilhada com todos os funcionários — por isso o valor varia conforme o porte.</p>
-    <div class="grid3">
+    <div class="grid g3">
       <div class="plan">
         <div class="t">Pequena empresa</div>
         <div class="v">R$ 5.000</div>
-        <div class="per">até 20 funcionários • pagamento único • chave eterna + atualizações</div>
+        <div class="per">até 20 funcionários • pagamento único<br>chave eterna + atualizações</div>
         <ul>
           <li>Licença compartilhável com a equipe (até 20)</li>
           <li>Plugin + MCP completos</li>
           <li>30 dias de suporte grátis</li>
         </ul>
-        <div class="pick"><button class="cta" data-plan="pequena">Contratar →</button></div>
+        <div class="pick"><button class="btn ghost block" data-plan="pequena">Contratar →</button></div>
       </div>
       <div class="plan feat">
+        <span class="ribbon">Mais escolhido</span>
         <div class="t">Médio porte</div>
         <div class="v">R$ 25.000</div>
-        <div class="per">até 100 funcionários • pagamento único • chave eterna + atualizações</div>
+        <div class="per">até 100 funcionários • pagamento único<br>chave eterna + atualizações</div>
         <ul>
           <li>Tudo da Pequena, até 100 funcionários</li>
           <li>Prioridade no suporte pós-30 dias</li>
         </ul>
-        <div class="pick"><button class="cta" data-plan="medio">Contratar →</button></div>
+        <div class="pick"><button class="btn primary block" data-plan="medio">Contratar →</button></div>
       </div>
       <div class="plan">
         <div class="t">Grande porte</div>
         <div class="v">R$ 50.000</div>
-        <div class="per">acima de 100 funcionários • pagamento único • chave eterna + atualizações</div>
+        <div class="per">acima de 100 funcionários • pagamento único<br>chave eterna + atualizações</div>
         <ul>
           <li>Licença corporativa ampla (100+)</li>
           <li>Atendimento dedicado</li>
         </ul>
-        <div class="pick"><button class="cta" data-plan="grande">Contratar →</button></div>
+        <div class="pick"><button class="btn ghost block" data-plan="grande">Contratar →</button></div>
       </div>
     </div>
     <p class="note">Licença <b>por empresa</b>. Cada <b>filial</b> é uma licença separada e paga o valor do seu porte. Instalação, configuração e auditoria são serviços à parte. Suporte gratuito nos primeiros 30 dias; após, contratado separadamente.</p>
   </section>
 
   <!-- GARANTIA -->
-  <section>
+  <section class="rv">
+    <div class="eyebrow">Garantia</div>
     <h2>Garantia auditada</h2>
     <div class="warn">
-      <ul style="margin:0">
+      <ul>
         <li>Não prometemos um número fixo. A expectativa é alinhada na <b>consultoria de onboarding</b> e o resultado é medido na <b>auditoria dos 30 dias</b>.</li>
         <li>A <b>auditoria</b> verifica se o cliente seguiu o processo <b>à risca</b>.</li>
         <li>Seguiu o processo e a auditoria <b>não comprovou o ganho esperado</b> → tratamos caso a caso (ajuste ou reembolso), com base no relatório.</li>
@@ -234,42 +449,55 @@
   </section>
 
   <!-- CADASTRO -->
-  <section id="comprar">
-    <h2>Contratar</h2>
-    <p class="sub">Cadastro simples: nome + WhatsApp. Após o pagamento confirmado, a chave chega no seu WhatsApp.</p>
-    <div class="card" style="max-width:480px">
-      <form id="cadastro" style="display:flex;flex-direction:column;gap:12px">
-        <div><label>Plano</label>
-          <select name="plan" id="plan">
-            <option value="pequena">Pequena — até 20 func. — R$ 5.000</option>
-            <option value="medio">Médio — até 100 func. — R$ 25.000</option>
-            <option value="grande">Grande — 100+ func. — R$ 50.000</option>
-          </select>
+  <section id="comprar" class="rv">
+    <div class="eyebrow">Contratar</div>
+    <h2>Cadastro simples: nome + WhatsApp</h2>
+    <p class="sub">Após o pagamento confirmado, a chave chega no seu WhatsApp.</p>
+    <div class="formgrid">
+      <div class="card">
+        <form id="cadastro">
+          <div>
+            <label for="plan">Plano</label>
+            <select name="plan" id="plan">
+              <option value="pequena">Pequena — até 20 func. — R$ 5.000</option>
+              <option value="medio">Médio — até 100 func. — R$ 25.000</option>
+              <option value="grande">Grande — 100+ func. — R$ 50.000</option>
+            </select>
+          </div>
+          <div><label for="f-name">Seu nome</label><input id="f-name" name="name" required placeholder="Nome completo"></div>
+          <div><label for="f-phone">WhatsApp (com DDD)</label><input id="f-phone" name="phone" required inputmode="numeric" placeholder="Ex: 5531999998888"></div>
+          <button type="submit" class="btn primary block">Ir para o pagamento →</button>
+          <div id="msg" style="font-size:13.5px;color:var(--danger);min-height:19px"></div>
+        </form>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <h3>Termos de cobrança</h3>
+          <ul>
+            <li>Cobrança processada via <b>Stripe</b> (seguro, sem armazenar cartão conosco).</li>
+            <li>Licença <b>por empresa</b>, compartilhável entre funcionários.</li>
+            <li><b>Inadimplência acima de 1 dia</b> → <b>bloqueio automático</b> da licença.</li>
+            <li>Validação de licença offline — seu código nunca é enviado a terceiros.</li>
+          </ul>
         </div>
-        <div><label>Seu nome</label><input name="name" required placeholder="Nome completo"></div>
-        <div><label>WhatsApp (com DDD)</label><input name="phone" required inputmode="numeric" placeholder="Ex: 5531999998888"></div>
-        <button type="submit" class="cta" style="justify-content:center">Ir para o pagamento →</button>
-        <div id="msg" style="font-size:13px;color:var(--danger);min-height:18px"></div>
-      </form>
+        <div class="card">
+          <h3>Prefere falar antes?</h3>
+          <p style="margin-bottom:16px">Para trial e instalação, o contato é obrigatório — e é por onde eu configuro o gate no seu ambiente.</p>
+          <a class="btn ghost block" href="https://wa.me/5531975127978">WhatsApp: (31) 97512-7978 →</a>
+        </div>
+      </div>
     </div>
   </section>
 
-  <!-- TERMOS -->
-  <section>
-    <h2>Termos de cobrança</h2>
-    <ul style="color:var(--muted)">
-      <li>Cobrança processada via <b>Stripe</b> (seguro, sem armazenar cartão conosco).</li>
-      <li>Licença <b>por empresa</b>, compartilhável entre funcionários.</li>
-      <li><b>Inadimplência acima de 1 dia</b> → <b>bloqueio automático</b> da licença.</li>
-      <li>Validação de licença offline — seu código nunca é enviado a terceiros.</li>
-    </ul>
-  </section>
+</main>
 
-  <div class="foot">
-    <b>Veloso Solution</b> — Consultoria em IA Aplicada • Empresa sólida, <b>mais de 12 anos de mercado</b> • Criado por Fabiano Veloso, Engenheiro de IA Aplicada<br>
-    <a href="https://velososolution.online">velososolution.online</a>
+<footer>
+  <div class="wrap foot">
+    <div><b>Veloso Solution</b> — Consultoria em IA Aplicada • <b>mais de 12 anos de mercado</b><br>Criado por Fabiano Veloso, Engenheiro de IA Aplicada</div>
+    <div><a href="https://velososolution.online">velososolution.online</a></div>
   </div>
-</div>
+</footer>
+
 <script>
   var f=document.getElementById('cadastro'), msg=document.getElementById('msg'), planSel=document.getElementById('plan');
   document.querySelectorAll('button[data-plan]').forEach(function(b){
@@ -288,6 +516,20 @@
     }catch(err){ msg.textContent='Falha de conexão. Tente de novo.'; }
     btn.disabled=false; btn.textContent='Ir para o pagamento →';
   });
+
+  // borda do header ao rolar
+  var hdr=document.getElementById('hdr');
+  addEventListener('scroll',function(){ hdr.classList.toggle('stuck', scrollY>8); },{passive:true});
+
+  // reveal ao rolar
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){
+      es.forEach(function(en){ if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target); } });
+    },{rootMargin:'0px 0px -8% 0px',threshold:.06});
+    document.querySelectorAll('.rv').forEach(function(el){ io.observe(el); });
+  } else {
+    document.querySelectorAll('.rv').forEach(function(el){ el.classList.add('in'); });
+  }
 </script>
 </body>
 </html>
