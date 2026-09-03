@@ -527,6 +527,43 @@ test('resposta de checklist (rotulada ou so valores) CONTINUA alimentando o camp
   assert.match(abriu, /REPOSIT[ÓO]RIOS=BACK/);
 });
 
+test('VS-SESSION-001: "liberado" desarma a sessao; "religa" arma de volta', () => {
+  const sid = 'unit-sessao-off';
+  const offFlag = join(tmpdir(), `qa-gate-off-session-${sid}.flag`);
+  try { rmSync(offFlag, { force: true }); } catch {}
+  clearPreflight(sid);
+  clearTask(sid);
+
+  // armada: numero abre checklist (bloqueia pedindo campos)
+  assert.match(runOnTask('7001', sid), /VS-BRANCH-001/);
+
+  // desarma
+  const off = runOnTask('liberado', sid);
+  assert.match(off, /DESARMADA nesta sess/);
+  assert.equal(existsSync(offFlag), true);
+
+  // desarmada: nem numero acorda a governanca
+  assert.equal(runOnTask('7002', sid).trim(), '');
+  // e o guard de commit tambem respeita (nao bloqueia commit fora do padrao)
+  assert.doesNotMatch(
+    spawnSync('node', [ONCOMMIT], {
+      input: JSON.stringify({ tool_input: { command: 'git commit -m "qualquer coisa"' }, session_id: sid }),
+      cwd: join(tmpdir(), 'qa-gate-oncommit-test'), encoding: 'utf8',
+    }).stdout || '',
+    /deny/,
+  );
+
+  // religa
+  const on = runOnTask('religa', sid);
+  assert.match(on, /RELIGADA nesta sess/);
+  assert.equal(existsSync(offFlag), false);
+  assert.match(runOnTask('7003', sid), /VS-BRANCH-001/); // muro de volta
+
+  clearPreflight(sid);
+  clearTask(sid);
+  try { rmSync(offFlag, { force: true }); } catch {}
+});
+
 test('glob: matchAny casa padroes', () => {
   assert.ok(globToRe('**/*.blade.php').test('resources/views/x/y.blade.php'));
   assert.ok(matchAny('app/Http/Livewire/Foo.php', ['app/Http/Livewire/**']));

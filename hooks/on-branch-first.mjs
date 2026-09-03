@@ -16,14 +16,17 @@
 import { execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join, dirname, isAbsolute } from 'node:path';
+import { isSessionOff } from '../engine/branch-req.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let inp = {};
 let sessionCwd = process.cwd();
+let sid = 'default';
 try {
   const j = JSON.parse(raw || '{}');
   inp = j.tool_input || {};
   sessionCwd = j.cwd || inp.cwd || process.cwd();
+  sid = j.session_id || 'default';
 } catch {}
 
 const allow = () => process.exit(0);
@@ -34,6 +37,8 @@ function deny(reason) {
 
 // opt-out (bancada): libera se a sessão tiver .qa-gate-off
 if (existsSync(join(sessionCwd, '.qa-gate-off'))) { allow(); }
+// opt-out por SESSÃO (VS-SESSION-001): o dev desarmou esta sessão dizendo "liberado".
+if (isSessionOff(sid)) { allow(); }
 
 const filePath = inp.file_path || inp.path || inp.relative_path || '';
 if (!filePath) { allow(); }

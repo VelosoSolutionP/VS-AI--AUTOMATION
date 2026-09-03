@@ -10,7 +10,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
-import { getTask } from '../engine/branch-req.mjs';
+import { getTask, isSessionOff } from '../engine/branch-req.mjs';
 import { loadCompanyConfig, checkCommitScope } from '../engine/company-config.mjs';
 import { isGitCommit, hasPowerShellHereStringAt } from '../engine/git-cmd.mjs';
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
@@ -24,6 +24,8 @@ try { const j = JSON.parse(raw || '{}'); cmd = j.tool_input?.command || j.comman
 const allow = () => process.exit(0);
 // opt-out por pasta (bancada de conserto): .qa-gate-off desliga
 if (existsSync(join(process.cwd(), '.qa-gate-off'))) { process.exit(0); }
+// opt-out por SESSÃO (VS-SESSION-001): o dev desarmou esta sessão dizendo "liberado".
+if (isSessionOff(sid)) { process.exit(0); }
 function deny(reason) {
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }));
   process.exit(0);

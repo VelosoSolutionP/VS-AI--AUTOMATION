@@ -16,6 +16,7 @@ import { reportBlock, clearBlock, readMarkers } from '../engine/help-state.mjs';
 import { recordTask } from '../engine/metrics.mjs';
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
 import { isGitCommit } from '../engine/git-cmd.mjs';
+import { isSessionOff } from '../engine/branch-req.mjs';
 import { isMergeContext } from '../engine/git-merge.mjs';
 
 // Nome do projeto no recibo/audit: pai/base (desambigua backend/mobile) ou
@@ -74,7 +75,8 @@ function logDelivered(repo, c) {
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let cmd = '';
 let sessionCwd = process.cwd();
-try { const j = JSON.parse(raw || '{}'); cmd = j.tool_input?.command || j.command || ''; sessionCwd = j.cwd || j.tool_input?.cwd || process.cwd(); } catch { cmd = raw; }
+let sid = 'default';
+try { const j = JSON.parse(raw || '{}'); cmd = j.tool_input?.command || j.command || ''; sessionCwd = j.cwd || j.tool_input?.cwd || process.cwd(); sid = j.session_id || 'default'; } catch { cmd = raw; }
 
 const allow = (msg) => {
   if (msg) { process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', permissionDecisionReason: msg } })); }
@@ -94,6 +96,8 @@ const repo = resolveGitCwd(cmd, sessionCwd);
 // opt-out por pasta (bancada / projeto em desenvolvimento): .qa-gate-off desliga o gate —
 // no repo real OU na sessão. Mesma regra dos outros hooks (fecha o furo do on-qa-gate).
 if (existsSync(join(repo, '.qa-gate-off')) || existsSync(join(sessionCwd, '.qa-gate-off'))) { allow(); }
+// opt-out por SESSÃO (VS-SESSION-001): o dev desarmou esta sessão dizendo "liberado".
+if (isSessionOff(sid)) { allow(); }
 
 // MERGE (integração/promoção dev→hml/main) — gate NÃO se aplica (é junção via MR, revisada
 // pelo tech lead). Não confundir com liberar push direto em protegida: isso segue barrado.

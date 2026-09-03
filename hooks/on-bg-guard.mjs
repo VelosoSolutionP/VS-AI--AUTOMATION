@@ -12,20 +12,25 @@
  */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { isSessionOff } from '../engine/branch-req.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
 let inp = {};
 let sessionCwd = process.cwd();
+let sid = 'default';
 try {
   const j = JSON.parse(raw || '{}');
   inp = j.tool_input || {};
   sessionCwd = j.cwd || inp.cwd || process.cwd();
+  sid = j.session_id || 'default';
 } catch {}
 
 const allow = () => process.exit(0);
 
 // opt-out (bancada): libera background se o cwd/sessão tiver .qa-gate-off
 if (existsSync(join(sessionCwd, '.qa-gate-off'))) { allow(); }
+// opt-out por SESSÃO (VS-SESSION-001): o dev desarmou esta sessão dizendo "liberado".
+if (isSessionOff(sid)) { allow(); }
 
 if (inp.run_in_background === true) {
   process.stdout.write(JSON.stringify({

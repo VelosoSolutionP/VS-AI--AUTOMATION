@@ -11,7 +11,7 @@
  * - Injetar contexto leve para economizar tokens.
  */
 
-import { parseBranch, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree, isSessionOff, setTask, clearTask, getTask, touchTask, isPreflight, setPreflight } from '../engine/branch-req.mjs';
+import { parseBranch, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree, isSessionOff, setSessionOff, clearSessionOff, setTask, clearTask, getTask, touchTask, isPreflight, setPreflight } from '../engine/branch-req.mjs';
 import { loadCompanyConfig, branchName as buildBranchName } from '../engine/company-config.mjs';
 import { timeBoxStatus } from '../engine/timebox.mjs';
 import { existsSync } from 'node:fs';
@@ -61,6 +61,50 @@ if (/^\s*<\/?(task-notification|system-reminder|command-name|command-message|com
 // (usado na bancada de conserto do próprio produto)
 if (existsSync(join(process.cwd(), '.qa-gate-off'))) {
   process.exit(0);
+}
+
+// CHAVE DA BANCADA (VS-SESSION-001) — o dev destrava ESTA sessão pela palavra.
+// Existia `setSessionOff` no engine, mas NENHUM hook chamava: não havia como desligar
+// sem editar settings.json. Quando a governança barra por bug DELA (numeração errada,
+// campo inventado, muro que não devia bater), o dev perde o dia. Agora: "liberado"
+// desarma nesta sessão — só nela, morre com ela — e "religa" arma de volta.
+// Escopo de sessão: os outros terminais/projetos seguem governados.
+{
+  const pedeOff = /^\s*(liberad[oa]|libera|bancada|desliga\s+(a\s+)?governan[çc]a|governan[çc]a\s+off|modo\s+conserto)\s*[.!]?\s*$/i.test(prompt);
+  const pedeOn = /^\s*(religa\w*(\s+(a\s+)?governan[çc]a)?|governan[çc]a\s+on|fecha\s+(a\s+)?bancada|trava\s+de\s+volta)\s*[.!]?\s*$/i.test(prompt);
+  if (pedeOn) {
+    clearSessionOff(sid);
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'UserPromptSubmit',
+        additionalContext: '[governança] RELIGADA nesta sessão. Muros de tarefa/branch/commit/gate valendo de novo. Pra abrir tarefa: número → tipo → origem → repositórios → escopo.',
+      },
+    }));
+    process.exit(0);
+  }
+  if (pedeOff) {
+    // Exceção: tarefa ativa que ESTOUROU o time-box -> "liberado" mantém o sentido antigo
+    // (reinicia a janela, logo abaixo), não desliga a governança inteira.
+    let overdue = false;
+    try {
+      const t = getTask(sid);
+      if (t && t.num && t.ts) { overdue = !!timeBoxStatus(t, Date.now(), loadCompanyConfig(process.cwd())).overdue; }
+    } catch {}
+    if (!overdue) {
+      setSessionOff(sid);
+      process.stdout.write(JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: 'UserPromptSubmit',
+          additionalContext:
+            '[governança] DESARMADA nesta sessão (bancada). Sem muro de tarefa, branch, commit, gate ou doc AQUI — ' +
+            'as outras sessões/projetos seguem governados. Trabalhe direto no que o Fabiano pedir. ' +
+            'Sem governança, VOCÊ responde pelo básico: branch certa antes de editar, commit no padrão, teste do que mexeu. ' +
+            'Religar: "religa".',
+        },
+      }));
+      process.exit(0);
+    }
+  }
 }
 
 // opt-out por SESSÃO: bancada trabalha dentro de projeto governado sem acordar a governança

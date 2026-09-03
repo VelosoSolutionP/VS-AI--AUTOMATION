@@ -10,7 +10,7 @@
 import { execSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join, isAbsolute } from 'node:path';
-import { setFree } from '../engine/branch-req.mjs';
+import { setFree, isSessionOff } from '../engine/branch-req.mjs';
 import { clearBlock } from '../engine/help-state.mjs';
 import { notify, devName, projectLabel } from '../engine/notify-whatsapp.mjs';
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
@@ -23,6 +23,8 @@ let sessionCwd = process.cwd();
 try { const j = JSON.parse(raw || '{}'); cmd = j.tool_input?.command || j.command || ''; sid = j.session_id || 'default'; sessionCwd = j.cwd || j.tool_input?.cwd || process.cwd(); } catch { cmd = raw; }
 
 if (!isGitPush(cmd)) { process.exit(0); }
+// opt-out por SESSÃO (VS-SESSION-001): sessão desarmada não cobra doc nem cria pendência.
+if (isSessionOff(sid)) { process.exit(0); }
 
 // repo REAL do push (não a pasta da sessão) — fecha o leak de projeto no recibo/branch.
 const gitCwd = resolveGitCwd(cmd, sessionCwd);
