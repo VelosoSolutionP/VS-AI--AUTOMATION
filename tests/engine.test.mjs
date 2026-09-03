@@ -491,6 +491,42 @@ test('VS-BRANCH-009: o hook CRIA a branch nos repos escolhidos (back+front)', ()
   assert.equal(hf, 'fix/nome.sobrenome/12345');
 });
 
+test('campo NAO sai de palavra solta em frase de conversa (caso #5578)', () => {
+  const sid = 'unit-campo-frase';
+  clearPreflight(sid);
+  clearTask(sid);
+  const t1 = runOnTask('5578', sid); // numero deliberado, resto falta
+  // frases de conversa: "tudo" NAO pode virar repositorios, "main" NAO pode virar origem
+  const t2 = runOnTask('criar branch na coleta de dados vc ja fez tudo so falta subir', sid);
+  const t3 = runOnTask('ta foda preciso seguir com minhas tarefas na main de novo', sid);
+  clearPreflight(sid);
+  clearTask(sid);
+  assert.match(t1, /VS-BRANCH-001/);
+  // nenhuma das frases fecha o checklist: continua pedindo, sem inventar campo
+  for (const out of [t2, t3]) {
+    assert.doesNotMatch(out, /TAREFA #5578 \(/); // nao abriu tarefa
+    assert.doesNotMatch(out, /FRONT\+BACK\+MOBILE/); // nao inventou repositorios
+  }
+  // e a IA passa a SABER que a tarefa esta pendente (fim do "me passa o numero" em loop)
+  assert.match(t3, /PENDENTE de abertura[\s\S]*n[úu]mero 5578/i);
+});
+
+test('resposta de checklist (rotulada ou so valores) CONTINUA alimentando o campo', () => {
+  const sid = 'unit-campo-resposta';
+  clearPreflight(sid);
+  clearTask(sid);
+  runOnTask('5578', sid);
+  runOnTask('fix', sid);                    // so valor
+  runOnTask('origem dev', sid);             // rotulada
+  const t = runOnTask('repositorios: back', sid);
+  const abriu = runOnTask('nao salva o cadastro ao editar o registro', sid);
+  clearPreflight(sid);
+  clearTask(sid);
+  assert.match(t, /③ ✅ ORIGEM dev/);       // aceitou os campos respondidos
+  assert.match(abriu, /TAREFA #5578 \(fix\)/);
+  assert.match(abriu, /REPOSIT[ÓO]RIOS=BACK/);
+});
+
 test('glob: matchAny casa padroes', () => {
   assert.ok(globToRe('**/*.blade.php').test('resources/views/x/y.blade.php'));
   assert.ok(matchAny('app/Http/Livewire/Foo.php', ['app/Http/Livewire/**']));

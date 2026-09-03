@@ -266,7 +266,18 @@ if (isDocumentationTask) {
       }));
       process.exit(0);
     }
-    // mesmo número, ou sem número deliberado = conversa/trabalho da própria tarefa ativa -> livre
+    // mesmo número, ou sem número deliberado = conversa/trabalho da própria tarefa ativa.
+    // LIVRE, mas dizendo à IA QUAL tarefa está ativa: sem isso ela pede o número que o
+    // Fabiano já deu (o turno com o número foi BLOQUEADO e nunca chegou nela).
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'UserPromptSubmit',
+        additionalContext:
+          `[governança] TAREFA ATIVA #${active.num}${active.tipo ? ` (${active.tipo})` : ''}` +
+          `${hasList(active.repositorios) ? ` · REPOSITÓRIOS=${active.repositorios.join('+').toUpperCase()}` : ''}. ` +
+          `NÃO peça o número da tarefa de novo — é esta. Siga trabalhando nela.`,
+      },
+    }));
     process.exit(0);
   }
 
@@ -275,14 +286,60 @@ if (isDocumentationTask) {
     process.exit(0);
   }
 
+  // O que sobra da mensagem depois de tirar os VALORES dos campos. Vazio = a mensagem é
+  // só resposta de checklist ("fix", "dev", "front back", "5578"). Sobrou texto = é frase
+  // de conversa ("vc ja fez tudo", "só falta subir") — e frase de conversa NÃO alimenta
+  // campo nenhum. Usado nos dois sentidos: libera campo, barra escopo.
+  const semCampos = prompt
+    .replace(/#?\b\d{1,6}\b/g, ' ')
+    .replace(/\b(fix|bug|feat|feature|refactor|refact|perf|hotfix|chore|test|docs?)\b/gi, ' ')
+    .replace(/\b(dev|develop|hml|homolog\w*|main|master|prod|produ[çc][ãa]o|staging)\b/gi, ' ')
+    .replace(/\b(front|frontend|back|backend|mobile|app|todos|tudo|all|web|api)\b/gi, ' ')
+    .replace(/\b(origem|reposit[óo]rios?|tipo|n[úu]mero|numero|escopo|alvo|e)\b/gi, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+
+  // ANTI-BUG (campo inventado a partir de palavra solta): a tarefa #5578 abriu com
+  // origem=main e repositorios=front+back+mobile porque "tudo" apareceu num "vc ja fez
+  // tudo" e "main" numa frase qualquer. O requisito do dev virava o que o hook deduziu.
+  // Agora só alimenta campo a mensagem que REALMENTE responde o checklist:
+  //   • rotulada ("origem dev", "repositorios: back", "tipo fix"), OU
+  //   • só valores (nada sobra além deles), OU
+  //   • a mensagem que ABRE a tarefa (começa pelo número — aí vem tudo junto de propósito).
+  const temRotulo = /\b(tipo|origem|reposit[óo]rios?|alvo)\s*[:\-]?\s+\S/i.test(prompt);
+  const ehRespostaDeCampo = temRotulo || semCampos.length < 3 || !!(numDeliberado && !emCurso);
+  const campo = ehRespostaDeCampo ? cur : { tipo: null, origem: null, repositorios: null, alvo: null, target: null, crud: cur.crud };
+
   // TAREFA EM CURSO: só cobra os campos que faltam quando o turno REALMENTE traz dado
   // de branch (tipo/origem/alvo) ou é uma resposta curta. Se o Fabiano só conversa/
   // pergunta no meio da tarefa, NÃO fica nagando — deixa livre e mantém o pendente.
-  const trouxeCampo = !!(cur.tipo || cur.origem || cur.repositorios || cur.alvo || cur.target) || !!numDeliberado;
+  const trouxeCampo = !!numDeliberado || !!(campo.tipo || campo.origem || campo.repositorios || campo.alvo || campo.target);
   const respostaCurta = prompt.trim().length <= 25;
   // Conversa longa no meio da tarefa = não naga. MAS se estamos esperando o escopo
   // (coreReadyBefore), a mensagem descritiva longa É o escopo — deixa passar pra captura.
   if (emCurso && !numDeliberado && !trouxeCampo && !respostaCurta && !coreReadyBefore) {
+    // LIVRE, mas a IA precisa SABER que já tem tarefa pendente e o que dela já veio —
+    // senão pede de novo o número/os campos que o Fabiano já mandou em turno bloqueado.
+    const jaTem = [
+      `número ${pending.num}`,
+      pending.tipo ? `tipo ${pending.tipo}` : null,
+      pending.origem ? `origem ${pending.origem}` : null,
+      hasList(pending.repositorios) ? `repositórios ${pending.repositorios.join('+')}` : null,
+    ].filter(Boolean).join(', ');
+    const falta = [
+      pending.tipo ? null : 'tipo',
+      pending.origem ? null : 'origem',
+      hasList(pending.repositorios) ? null : 'repositórios',
+      pending.escopo ? null : 'escopo',
+    ].filter(Boolean);
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'UserPromptSubmit',
+        additionalContext:
+          `[governança] TAREFA #${pending.num} PENDENTE de abertura. JÁ RECEBIDO do Fabiano: ${jaTem}. ` +
+          `FALTA: ${falta.join(' → ')}. NÃO peça o que já está acima (o número principalmente) — pergunte SÓ o que falta, na ordem.`,
+      },
+    }));
     process.exit(0);
   }
 
@@ -299,32 +356,22 @@ if (isDocumentationTask) {
 
   const merged = {
     num: numDeliberado || pending?.num || null,
-    tipo: cur.tipo || pending?.tipo || null,
-    origem: cur.origem || pending?.origem || null,
-    repositorios: hasList(cur.repositorios) ? cur.repositorios : (pending?.repositorios || null),
+    tipo: campo.tipo || pending?.tipo || null,
+    origem: campo.origem || pending?.origem || null,
+    repositorios: hasList(campo.repositorios) ? campo.repositorios : (pending?.repositorios || null),
     escopo: pending?.escopo || null,
-    crud: cur.crud || pending?.crud || false,
+    crud: campo.crud || pending?.crud || false,
   };
   // Lista solta (sem rótulo) preenche repositorios quando ainda falta.
-  if (!hasList(merged.repositorios) && hasList(cur.target)) { merged.repositorios = cur.target; }
+  if (!hasList(merged.repositorios) && hasList(campo.target)) { merged.repositorios = campo.target; }
   // ⑤ ESCOPO = descrição da tarefa (TEXTO LIVRE). Assim que os 4 campos core já
   // estavam preenchidos (em turnos ANTERIORES), a PRÓXIMA mensagem é o escopo INTEIRO —
   // NÃO parseia palavra (front/back/tela não trava mais). A IA usa pra saber a tela/fluxo
   // onde corrigir/implementar.
   const cancelou = /^\s*(cancela|cancelar|esquece|aborta)\b/i.test(prompt);
   // Só captura escopo de mensagem DESCRITIVA — nunca de pergunta ou pushback/meta
-  // (senão conversa vira escopo e fecha tarefa fantasma, como o bug do #100).
-  // ANTI-BUG (número virando escopo): mensagem que é SÓ o número da tarefa — ou só os
-  // campos do checklist repetidos ("fix dev back") — NÃO é descrição. Antes virava escopo
-  // e a tarefa abria com escopo="39311", perdendo a numeração. Descarta e segue pedindo.
-  const semCampos = prompt
-    .replace(/#?\b\d{1,6}\b/g, ' ')
-    .replace(/\b(fix|bug|feat|feature|refactor|refact|perf|hotfix|chore|test|docs?)\b/gi, ' ')
-    .replace(/\b(dev|develop|hml|homolog\w*|main|master|prod|produ[çc][ãa]o|staging)\b/gi, ' ')
-    .replace(/\b(front|frontend|back|backend|mobile|app|todos|tudo|all|web|api)\b/gi, ' ')
-    .replace(/\b(origem|reposit[óo]rios?|tipo|n[úu]mero|numero|escopo)\b/gi, ' ')
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .trim();
+  // (senão conversa vira escopo e fecha tarefa fantasma, como o bug do #100), nem de
+  // mensagem que é só número/campo (a tarefa abria com escopo="39311").
   if (!merged.escopo && coreReadyBefore && !cancelou && !isMeta && !isQuestion && semCampos.length >= 3) {
     merged.escopo = prompt.trim();
   }
