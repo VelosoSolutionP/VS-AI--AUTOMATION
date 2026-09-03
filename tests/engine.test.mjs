@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { rmSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
+import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateTask } from '../engine/requirements.mjs';
 import { recordTask, loadEvents, aggregate } from '../engine/metrics.mjs';
@@ -13,12 +13,13 @@ import { issueLicense } from '../license/issue.mjs';
 import { globToRe, matchAny, normalizeStartCommand } from '../engine/core.mjs';
 import { timeBoxStatus, timeBoxLimitMin, TIME_BOX_MIN } from '../engine/timebox.mjs';
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
-import { isGitCommit, isGitPush, hasPowerShellHereStringAt } from '../engine/git-cmd.mjs';
+import { isGitCommit, isGitPush, hasPowerShellHereStringAt, createsBranch } from '../engine/git-cmd.mjs';
 import { projectLabel } from '../engine/notify-whatsapp.mjs';
 import { isMergeContext, isPromotionBranch } from '../engine/git-merge.mjs';
 import { resolve as pathResolve } from 'node:path';
 import { parseBranch, setTask, clearTask, setPreflight, clearPreflight, isPreflight } from '../engine/branch-req.mjs';
 import { DEFAULT_CONFIG, branchName, branchRegex, checkCommitScope, patternUsesNumero } from '../engine/company-config.mjs';
+import { discoverRepos, resolveTargets } from '../engine/branch-create.mjs';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const HOOK = join(__dir, '..', 'hooks', 'on-task.mjs');
@@ -391,6 +392,103 @@ test('on-commit: LIBERA merge commit da promocao (Merge branch ...)', () => {
   const out = runOnCommit("git commit -m \"Merge branch 'dev' into fix/fabiano.veloso/merge-hml\"");
   assert.doesNotMatch(out, /"permissionDecision":"deny"/);
   assert.doesNotMatch(out, /VS-AUD-003/);
+});
+
+test('createsBranch: LISTAGEM nao e criacao (fim do falso VS-BRANCH-002)', () => {
+  // criam de fato
+  assert.equal(createsBranch('git checkout -b fix/nome.sobrenome/123 origin/dev'), true);
+  assert.equal(createsBranch('git switch -c fix/nome.sobrenome/123'), true);
+  assert.equal(createsBranch('git branch fix/nome.sobrenome/123 origin/dev'), true);
+  // consulta/faxina: NAO criam -> o guard nao pode exigir origin/<origem>
+  assert.equal(createsBranch('git branch'), false);
+  assert.equal(createsBranch('git branch -a'), false);
+  assert.equal(createsBranch('git branch --show-current'), false);
+  assert.equal(createsBranch("git branch --format='%(refname:short)' refs/heads"), false);
+  assert.equal(createsBranch("git branch --list 'fix/*36481*'"), false); // checagem "bug voltou"
+  assert.equal(createsBranch('git branch -d fix/nome.sobrenome/123'), false);
+  assert.equal(createsBranch('git -C /repo branch -r'), false);
+  assert.equal(createsBranch('git status -sb'), false);
+});
+
+test('escopo: mensagem que e SO o numero (ou so os campos) NAO vira escopo', () => {
+  const sid = 'unit-escopo-numero';
+  clearPreflight(sid);
+  clearTask(sid);
+  const t1 = runOnTask('39311 feat hml front back', sid); // 4 campos core -> pede escopo
+  const t2 = runOnTask('39311', sid);                     // repetiu o numero: NAO e escopo
+  const t3 = runOnTask('nao carrega o painel de OS ao filtrar por status', sid); // escopo real
+  clearPreflight(sid);
+  clearTask(sid);
+  assert.match(t1, /VS-BRANCH-001/);
+  assert.match(t2, /VS-BRANCH-001/);          // continua pedindo
+  assert.doesNotMatch(t2, /PASSO 1 OBRIGAT/); // e NAO abre tarefa com escopo="39311"
+  assert.match(t3, /PASSO 1 OBRIGAT/);        // descricao de verdade abre normalmente
+  assert.match(t3, /TAREFA #39311/);
+});
+
+test('discoverRepos: classifica camadas; monolito entra 1x (1 branch, nao 2)', () => {
+  const base = join(tmpdir(), 'qa-gate-disc-' + process.pid);
+  try { rmSync(base, { recursive: true, force: true }); } catch {}
+  for (const d of ['ProjA/backend/.git', 'ProjA/frontend/.git', 'ProjA/mobile/.git', 'ProjB/sigater/.git']) {
+    mkdirSync(join(base, d), { recursive: true });
+  }
+  const a = discoverRepos(join(base, 'ProjA'));
+  assert.equal(basename(a.map.back), 'backend');
+  assert.equal(basename(a.map.front), 'frontend');
+  assert.equal(basename(a.map.mobile), 'mobile');
+  assert.equal(resolveTargets(['front', 'back', 'mobile'], a).length, 3);
+  // cwd DENTRO de um repo tem que achar o projeto (sobe 1 nivel)
+  const dentro = discoverRepos(join(base, 'ProjA', 'backend'));
+  assert.equal(basename(dentro.map.back), 'backend');
+  // monolito (front e back no mesmo repo): "front back" = UM alvo
+  const b = discoverRepos(join(base, 'ProjB'));
+  assert.equal(basename(b.unico), 'sigater');
+  assert.equal(resolveTargets(['front', 'back'], b).length, 1);
+  try { rmSync(base, { recursive: true, force: true }); } catch {}
+});
+
+test('VS-BRANCH-009: o hook CRIA a branch nos repos escolhidos (back+front)', () => {
+  const base = join(tmpdir(), 'qa-gate-bc-' + process.pid);
+  try { rmSync(base, { recursive: true, force: true }); } catch {}
+  const g = (args, cwd) => {
+    const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
+    if (r.status !== 0) { throw new Error('git ' + args.join(' ') + ' -> ' + (r.stderr || r.stdout)); }
+    return (r.stdout || '').trim();
+  };
+  const remoto = join(base, 'remoto.git');
+  const seed = join(base, 'seed');
+  const proj = join(base, 'ProjetoX');
+  mkdirSync(remoto, { recursive: true });
+  mkdirSync(seed, { recursive: true });
+  mkdirSync(proj, { recursive: true });
+  g(['init', '--bare', '-b', 'dev', '.'], remoto);
+  g(['init', '-b', 'dev', '.'], seed);
+  writeFileSync(join(seed, 'a.txt'), 'x');
+  g(['add', 'a.txt'], seed);
+  g(['-c', 'user.email=t@t.t', '-c', 'user.name=t', 'commit', '-m', 'seed'], seed);
+  g(['remote', 'add', 'origin', remoto], seed);
+  g(['push', '-u', 'origin', 'dev'], seed);
+  g(['clone', remoto, 'backend'], proj);
+  g(['clone', remoto, 'frontend'], proj);
+  writeFileSync(join(proj, 'qa-gate.company.json'), JSON.stringify({
+    autor: 'nome.sobrenome', branchPattern: '<tipo>/<autor>/<numero>', tipos: ['fix', 'feat'],
+  }));
+  const sid = 'unit-bc-' + process.pid;
+  clearPreflight(sid);
+  clearTask(sid);
+  const run = (prompt) => spawnSync('node', [HOOK], {
+    input: JSON.stringify({ prompt, session_id: sid }), cwd: proj, encoding: 'utf8',
+  }).stdout || '';
+  run('12345 fix origem dev repositorios: front back'); // 4 campos core -> pede escopo
+  const out = run('nao lista os registros ao filtrar por status'); // escopo -> abre e CRIA
+  const hb = g(['rev-parse', '--abbrev-ref', 'HEAD'], join(proj, 'backend'));
+  const hf = g(['rev-parse', '--abbrev-ref', 'HEAD'], join(proj, 'frontend'));
+  clearPreflight(sid);
+  clearTask(sid);
+  try { rmSync(base, { recursive: true, force: true }); } catch {}
+  assert.match(out, /CRIADA/);
+  assert.equal(hb, 'fix/nome.sobrenome/12345'); // branch existe DE VERDADE, nao instrucao
+  assert.equal(hf, 'fix/nome.sobrenome/12345');
 });
 
 test('glob: matchAny casa padroes', () => {

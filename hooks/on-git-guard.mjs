@@ -19,7 +19,7 @@ import { loadReq, isConsult, isSessionOff, getTask, setTask } from '../engine/br
 import { loadCompanyConfig, branchName as buildBranchName, branchRegex, branchGlobsForNumber, patternUsesNumero } from '../engine/company-config.mjs';
 import { timeBoxStatus } from '../engine/timebox.mjs';
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
-import { isGitCommit, isGitPush } from '../engine/git-cmd.mjs';
+import { isGitCommit, isGitPush, createsBranch } from '../engine/git-cmd.mjs';
 import { isPromotionBranch, isMergeContext } from '../engine/git-merge.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
@@ -68,7 +68,7 @@ if (renomeiaBranch && !admOverride) {
 }
 
 // criação de branch: exige base de ORIGEM explícita (origin/<x>)
-const criaBranch = /\bgit\s+checkout\s+-b\b/.test(cmd) || /\bgit\s+switch\s+-c\b/.test(cmd) || /\bgit\s+branch\s+\S/.test(cmd);
+const criaBranch = createsBranch(cmd);
 // MOBILE acumula: a branch da tarefa DEVE sair da branch ATUAL (carrega o trabalho
 // anterior). Usar origin/<x> RESETA e perde o acúmulo -> bloqueia.
 if (criaBranch && isMobile && /\borigin\/\w/.test(cmd)) {
@@ -82,9 +82,9 @@ if (criaBranch && !isMobile) {
     const PROT = /^(main|master|dev|develop|hml|homolog\w*|production|prod|staging)$/i;
     if (!PROT.test(cur)) {
       const unpushed = parseInt((execSync('git rev-list --count HEAD --not --remotes', { encoding: 'utf8', cwd: gitCwd }).trim() || '0'), 10);
-      const dirty = execSync('git status --porcelain', { encoding: 'utf8', cwd: gitCwd }).split(/\r?\n/).filter(Boolean).length;
+      const dirty = execSync('git status --porcelain --untracked-files=no', { encoding: 'utf8', cwd: gitCwd }).split(/\r?\n/).filter(Boolean).length;
       if (unpushed > 0 || dirty > 0) {
-        deny(`[VS-BRANCH-004] BLOCKED — a branch atual "${cur}" tem trabalho fora do ambiente (${unpushed} commit(s) não enviado(s), ${dirty} arquivo(s) não commitado(s)). Antes de criar nova branch: commite os arquivos da tarefa + git push -u origin ${cur}. (mobile é isento; back/front obrigatório)`);
+        deny(`[VS-BRANCH-004] BLOCKED — a branch atual "${cur}" tem trabalho fora do ambiente (${unpushed} commit(s) não enviado(s), ${dirty} arquivo(s) rastreado(s) não commitado(s)). Antes de criar nova branch: commite os arquivos da tarefa + git push -u origin ${cur}. (mobile é isento; back/front obrigatório)`);
       }
     }
   } catch {}

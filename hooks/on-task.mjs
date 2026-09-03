@@ -314,7 +314,18 @@ if (isDocumentationTask) {
   const cancelou = /^\s*(cancela|cancelar|esquece|aborta)\b/i.test(prompt);
   // Só captura escopo de mensagem DESCRITIVA — nunca de pergunta ou pushback/meta
   // (senão conversa vira escopo e fecha tarefa fantasma, como o bug do #100).
-  if (!merged.escopo && coreReadyBefore && !cancelou && !isMeta && !isQuestion && prompt.trim().length >= 3) {
+  // ANTI-BUG (número virando escopo): mensagem que é SÓ o número da tarefa — ou só os
+  // campos do checklist repetidos ("fix dev back") — NÃO é descrição. Antes virava escopo
+  // e a tarefa abria com escopo="39311", perdendo a numeração. Descarta e segue pedindo.
+  const semCampos = prompt
+    .replace(/#?\b\d{1,6}\b/g, ' ')
+    .replace(/\b(fix|bug|feat|feature|refactor|refact|perf|hotfix|chore|test|docs?)\b/gi, ' ')
+    .replace(/\b(dev|develop|hml|homolog\w*|main|master|prod|produ[çc][ãa]o|staging)\b/gi, ' ')
+    .replace(/\b(front|frontend|back|backend|mobile|app|todos|tudo|all|web|api)\b/gi, ' ')
+    .replace(/\b(origem|reposit[óo]rios?|tipo|n[úu]mero|numero|escopo)\b/gi, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+  if (!merged.escopo && coreReadyBefore && !cancelou && !isMeta && !isQuestion && semCampos.length >= 3) {
     merged.escopo = prompt.trim();
   }
 
@@ -391,13 +402,45 @@ if (isDocumentationTask) {
   const cmdAcc = `git checkout -b ${branchName}`; // mobile: sai da branch ATUAL (acumula), SEM origin/
   const escopoLinha = `ESCOPO: ${merged.escopo}`;
   const temMobile = repos.includes('mobile');
-  const linhas = repos.map((r) => r === 'mobile'
-    ? `• MOBILE → \`${cmdAcc}\` — sai da branch ATUAL (ACUMULA o trabalho anterior; NÃO usa origin/, senão zera o acúmulo). Commits LOCAIS, SEM push até o Fabiano pedir deploy.`
-    : `• ${r.toUpperCase()} → \`${cmdOrigin}\` — a partir de origin/${merged.origem}. Commit + push só no gate VERDE.`);
+
+  // VS-BRANCH-009 — a governança CRIA a branch aqui, agora. Pedir pra IA criar não
+  // funcionava: ela pulava o passo, o dev trabalhava na branch ANTIGA e o problema só
+  // aparecia no commit. Fechou o checklist -> branch criada em cada repo escolhido.
+  let feitas = [];
+  try {
+    const { discoverRepos, resolveTargets, createBranches } = await import('../engine/branch-create.mjs');
+    const disc = discoverRepos(process.cwd(), cfg);
+    const targets = resolveTargets(repos, disc);
+    if (targets.some((t) => t.path)) {
+      feitas = createBranches({ targets, branchName, origem: merged.origem, cfg });
+    }
+  } catch {}
+
+  let linhas;
+  let cabeca;
+  if (feitas.length) {
+    const rot = (f) => (f.nome ? `${f.camada.toUpperCase()} (${f.nome})` : f.camada.toUpperCase());
+    linhas = feitas.map((f) => {
+      if (f.status === 'criada') { return `• ${rot(f)} → ✅ branch \`${f.branch}\` CRIADA a partir de ${f.base}. Trabalhe NELA.`; }
+      if (f.status === 'ja-nela') { return `• ${rot(f)} → ✅ já estava na \`${f.branch}\`. Trabalhe NELA.`; }
+      if (f.status === 'existente') { return `• ${rot(f)} → ⚠️ BUG #${merged.num} VOLTOU: a branch \`${f.branch}\` JÁ existia — fiz checkout nela (saí da ${f.de}), NÃO criei nova. A correção anterior não segurou: investigue a regressão.`; }
+      if (f.status === 'pendente') { return `• ${rot(f)} → ❌ NÃO criei: a branch atual \`${f.branch}\` tem trabalho aberto (${f.naoEnviados} commit(s) não enviado(s), ${f.sujos} arquivo(s) rastreado(s) sujo(s)). Feche a anterior (commit + push) e crie a branch ANTES de editar este repo.`; }
+      if (f.status === 'sem-repo') { return `• ${f.camada.toUpperCase()} → ❌ repo não encontrado no projeto. Crie a branch manualmente: \`${f.camada === 'mobile' ? cmdAcc : cmdOrigin}\`.`; }
+      return `• ${rot(f)} → ❌ ERRO ao criar: ${f.erro}. Resolva e crie manualmente antes de editar: \`${f.camada === 'mobile' ? cmdAcc : cmdOrigin}\`.`;
+    });
+    const okCount = feitas.filter((f) => f.status === 'criada' || f.status === 'ja-nela' || f.status === 'existente').length;
+    cabeca = `🌿 BRANCHES DA TAREFA — a governança já criou (${okCount}/${feitas.length} prontos). NÃO recrie, NÃO faça checkout em outra:`;
+  } else {
+    // Layout de repos não reconhecido: cai no modo antigo (a IA cria) em vez de travar.
+    linhas = repos.map((r) => r === 'mobile'
+      ? `• MOBILE → \`${cmdAcc}\` — sai da branch ATUAL (ACUMULA o trabalho anterior; NÃO usa origin/, senão zera o acúmulo). Commits LOCAIS, SEM push até o Fabiano pedir deploy.`
+      : `• ${r.toUpperCase()} → \`${cmdOrigin}\` — a partir de origin/${merged.origem}. Commit + push só no gate VERDE.`);
+    cabeca = `⚠️ PASSO 1 OBRIGATÓRIO — não localizei os repos do projeto, então crie a branch \`${branchName}\` você, ANTES de editar QUALQUER arquivo:`;
+  }
+
   let ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · REPOSITÓRIOS=${repos.join('+').toUpperCase()}.\n${escopoLinha}\n` +
-    `⚠️ PASSO 1 OBRIGATÓRIO — ANTES de editar/corrigir QUALQUER arquivo, crie a branch \`${branchName}\` em CADA repo escolhido:\n` +
-    linhas.join('\n') + '\n' +
-    `Só DEPOIS de criar TODAS as branches, comece a trabalhar. NÃO pule esse passo, NÃO vá direto pro código.` +
+    cabeca + '\n' + linhas.join('\n') + '\n' +
+    `Repo marcado com ❌ = NÃO edite arquivo dele até a branch existir.` +
     (temMobile ? `\nREGRA MOBILE: branch sai da ATUAL (acumula), commits LOCAIS, SEM push — deploy (APK) só no fim do dia a pedido do Fabiano.` : '');
   // PREFLIGHT 1x na sessão: 1ª tarefa valida ambiente ON antes de codar. Verde -> libera
   // a sessão (não repete). Cair algo depois: a IA resolve na hora e segue (sem re-travar).
@@ -412,7 +455,10 @@ if (isDocumentationTask) {
     ctx += `\nBUG CRUD/VALIDAÇÃO: rode o QA-Gate na rota/fluxo afetado — ele reproduz o erro real. Corrija com base no que o gate mostrar.`;
   }
   // BUG VOLTOU: branch do número já pode existir.
-  ctx += `\n⚠️ Antes de criar: se JÁ existir branch com o número #${merged.num} (local/remota) = BUG VOLTOU → NÃO crie nova, faça \`git checkout\` na existente e investigue a regressão (a correção anterior não segurou).`;
+  // "bug voltou" já foi checado repo a repo na criação; só avisa quando a IA vai criar.
+  if (!feitas.length) {
+    ctx += `\n⚠️ Antes de criar: se JÁ existir branch com o número #${merged.num} (local/remota) = BUG VOLTOU → NÃO crie nova, faça \`git checkout\` na existente e investigue a regressão (a correção anterior não segurou).`;
+  }
   // PADRÃO DE COMMIT conforme a config da empresa (default = número da tarefa).
   const commitEx = (cfg.commitScope === 'modulo')
     ? `${merged.tipo}(<modulo>): <descrição breve>`
@@ -421,7 +467,7 @@ if (isDocumentationTask) {
     (cfg.commitScope === 'numero' ? ` — escopo é o NÚMERO da tarefa; módulo/contexto vai NA descrição.` : '') +
     ` Sem assinatura de IA.`;
   // FLUXO ABSOLUTO — na ordem, sem pular:
-  ctx += `\nFLUXO (na ordem): ① CRIA a(s) branch(es) → ② trabalha → ③ roda o QA-Gate → ④ VERDE: commit + push das branches (mobile acumula local) → ⑤ documenta (Redmine). ` +
+  ctx += `\nFLUXO (na ordem): ① ${feitas.length ? 'branch(es) JÁ criada(s) acima' : 'CRIA a(s) branch(es)'} → ② trabalha → ③ roda o QA-Gate → ④ VERDE: commit + push das branches (mobile acumula local) → ⑤ documenta (Redmine). ` +
     `Gate faltando/erro = RESPONSABILIDADE SUA: vê o que é, arruma e roda até VERDE (se vira, não peça pro Fabiano subir ambiente). Só prossegue no verde.`;
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: ctx },
