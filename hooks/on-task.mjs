@@ -17,6 +17,24 @@ import { timeBoxStatus } from '../engine/timebox.mjs';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
+/**
+ * Tira do texto os VALORES dos campos do checklist (número, tipo, origem, repositórios) e
+ * devolve o que sobra. Vazio = a mensagem é só resposta de checklist ("fix", "dev",
+ * "front back", "5578", "100 fix dev back"). Sobrou texto = é prosa do dev.
+ * Usado nos três lugares onde o hook precisa dessa distinção: liberar campo, barrar
+ * escopo e separar número de tarefa de código de erro.
+ */
+function semValoresDeCampo(txt) {
+  return String(txt || '')
+    .replace(/#?\b\d{1,6}\b/g, ' ')
+    .replace(/\b(fix|bug|feat|feature|refactor|refact|perf|hotfix|chore|test|docs?)\b/gi, ' ')
+    .replace(/\b(dev|develop|hml|homolog\w*|main|master|prod|produ[çc][ãa]o|staging)\b/gi, ' ')
+    .replace(/\b(front|frontend|back|backend|mobile|app|todos|tudo|all|web|api)\b/gi, ' ')
+    .replace(/\b(origem|reposit[óo]rios?|tipo|n[úu]mero|numero|escopo|alvo|e)\b/gi, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+}
+
 // =====================================================
 // Lê o prompt recebido do Claude Code
 // =====================================================
@@ -281,7 +299,16 @@ if (isDocumentationTask) {
   // NÃO conta — só aparece acompanhado de outras palavras sem "tarefa". Até isso, LIVRE.
   const temTarefa = /\btarefas?\b|\btask\b/i.test(prompt);
   // mensagem que COMEÇA com número (ex.: "36744", "36744 feat dev todos", "36744 novo modal") = tarefa.
-  const iniciaNum = (prompt.match(/^\s*#?(\d{3,6})\b/) || [])[1] || null;
+  const iniciaNumCru = (prompt.match(/^\s*#?(\d{3,6})\b/) || [])[1] || null;
+  // CÓDIGO HTTP NÃO É NÚMERO DE TAREFA (VS-TASK-002): "500 no cadastro", "404 na rota",
+  // "422 ao salvar" abriam tarefa #500/#404/#422 e criavam branch vazia. Aconteceu de
+  // verdade no Egle: feat/fabiano.veloso/100 e feat/fabiano.veloso/500, zero commits em
+  // cada, e o backend ficou sentado numa delas. Regra: 3 dígitos na faixa de status HTTP
+  // (100–599) SEGUIDO DE PROSA é sintoma, não tarefa. Abrir tarefa com esse número exige
+  // ser deliberado — "tarefa 500 ..." ou só os campos ("500 fix dev back").
+  const ehStatusHttp = (n) => /^\d{3}$/.test(String(n || '')) && Number(n) >= 100 && Number(n) <= 599;
+  const restoEhProsa = semValoresDeCampo(prompt.replace(/^\s*#?\d{3,6}\b/, '')).length >= 3;
+  const iniciaNum = (iniciaNumCru && ehStatusHttp(iniciaNumCru) && !temTarefa && restoEhProsa) ? null : iniciaNumCru;
   const limpo = prompt
     .replace(/https?:\/\/\S+/gi, ' ')    // URLs
     .replace(/:\d+/g, ' ')                // :porta
@@ -334,14 +361,7 @@ if (isDocumentationTask) {
   // só resposta de checklist ("fix", "dev", "front back", "5578"). Sobrou texto = é frase
   // de conversa ("vc ja fez tudo", "só falta subir") — e frase de conversa NÃO alimenta
   // campo nenhum. Usado nos dois sentidos: libera campo, barra escopo.
-  const semCampos = prompt
-    .replace(/#?\b\d{1,6}\b/g, ' ')
-    .replace(/\b(fix|bug|feat|feature|refactor|refact|perf|hotfix|chore|test|docs?)\b/gi, ' ')
-    .replace(/\b(dev|develop|hml|homolog\w*|main|master|prod|produ[çc][ãa]o|staging)\b/gi, ' ')
-    .replace(/\b(front|frontend|back|backend|mobile|app|todos|tudo|all|web|api)\b/gi, ' ')
-    .replace(/\b(origem|reposit[óo]rios?|tipo|n[úu]mero|numero|escopo|alvo|e)\b/gi, ' ')
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .trim();
+  const semCampos = semValoresDeCampo(prompt);
 
   // ANTI-BUG (campo inventado a partir de palavra solta): a tarefa #5578 abriu com
   // origem=main e repositorios=front+back+mobile porque "tudo" apareceu num "vc ja fez

@@ -188,8 +188,9 @@ test('VS-TASK-001: tarefa ativa não finalizada -> número diferente NÃO abre n
   const sid = 'unit-task-block';
   clearTask(sid);
   setTask(sid, { num: '100', tipo: 'fix', origem: 'dev', repositorios: ['back'], escopo: 'x' });
-  // mensagem começa com OUTRO número (explicando problema, ex.: código de erro)
-  const out = runOnTask('500 erro ao salvar no cadastro', sid);
+  // mensagem começa com OUTRO número de tarefa (5 dígitos = número real, não status HTTP:
+  // "500 erro ao salvar" hoje é sintoma e não abre tarefa nenhuma — ver VS-TASK-002)
+  const out = runOnTask('37500 erro ao salvar no cadastro', sid);
   clearTask(sid);
   assert.match(out, /VS-TASK-001/);
   assert.match(out, /"decision":"block"/);
@@ -562,6 +563,36 @@ test('VS-SESSION-001: "liberado" desarma a sessao; "religa" arma de volta', () =
   clearPreflight(sid);
   clearTask(sid);
   try { rmSync(offFlag, { force: true }); } catch {}
+});
+
+test('VS-TASK-002: codigo HTTP nao abre tarefa (fim da branch fantasma /100 e /500)', () => {
+  const casos = ['500 no cadastro nao salva', '404 na rota de login', '422 ao salvar o formulario', '100 continue no upload'];
+  for (const [i, prompt] of casos.entries()) {
+    const sid = 'unit-http-' + i;
+    clearPreflight(sid);
+    clearTask(sid);
+    const out = runOnTask(prompt, sid);
+    clearPreflight(sid);
+    clearTask(sid);
+    assert.equal(out.trim(), '', 'nao devia abrir checklist para: ' + prompt);
+  }
+  // com "tarefa" explicito, o dev manda de propósito -> continua abrindo
+  const sid = 'unit-http-explicito';
+  clearPreflight(sid);
+  clearTask(sid);
+  const comTarefa = runOnTask('tarefa 500 corrige o cadastro', sid);
+  clearPreflight(sid);
+  clearTask(sid);
+  assert.match(comTarefa, /VS-BRANCH-001/);
+  assert.match(comTarefa, /NÚMERO 500/);
+  // e numero real de tarefa (4-6 digitos) segue engatando sozinho
+  const sid2 = 'unit-http-real';
+  clearPreflight(sid2);
+  clearTask(sid2);
+  const real = runOnTask('39547', sid2);
+  clearPreflight(sid2);
+  clearTask(sid2);
+  assert.match(real, /NÚMERO 39547/);
 });
 
 test('glob: matchAny casa padroes', () => {
