@@ -11,7 +11,7 @@
  * - Injetar contexto leve para economizar tokens.
  */
 
-import { parseBranch, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree, isSessionOff, setSessionOff, clearSessionOff, setTask, clearTask, getTask, touchTask, isPreflight, setPreflight } from '../engine/branch-req.mjs';
+import { parseBranch, extrairNumeroTarefa, resolverNumero, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree, isSessionOff, setSessionOff, clearSessionOff, setTask, clearTask, getTask, touchTask, isPreflight, setPreflight } from '../engine/branch-req.mjs';
 import { loadCompanyConfig, branchName as buildBranchName } from '../engine/company-config.mjs';
 import { timeBoxStatus } from '../engine/timebox.mjs';
 import { existsSync } from 'node:fs';
@@ -309,14 +309,15 @@ if (isDocumentationTask) {
   const ehStatusHttp = (n) => /^\d{3}$/.test(String(n || '')) && Number(n) >= 100 && Number(n) <= 599;
   const restoEhProsa = semValoresDeCampo(prompt.replace(/^\s*#?\d{3,6}\b/, '')).length >= 3;
   const iniciaNum = (iniciaNumCru && ehStatusHttp(iniciaNumCru) && !temTarefa && restoEhProsa) ? null : iniciaNumCru;
-  const limpo = prompt
-    .replace(/https?:\/\/\S+/gi, ' ')    // URLs
-    .replace(/:\d+/g, ' ')                // :porta
-    .replace(/\/\S+/g, ' ')               // /paths
-    .replace(/\b[0-9a-f]{7,}\b/gi, ' ');  // hashes
-  const numMatch = limpo.match(/#?\b(\d{3,6})\b/);
-  // engata com: começa com número, OU "tarefa"+número. Número no MEIO de frase (porta/path) NÃO.
-  const numDeliberado = (!isQuestion && (iniciaNum || (temTarefa && numMatch))) ? (iniciaNum || numMatch[1]) : null;
+  // NÚMERO MARCADO (VS-BRANCH-010): "#39701", "tarefa 39701", "chamado 39701" — o
+  // marcador tem que estar COLADO no número. Antes bastava a palavra "tarefa" aparecer
+  // em qualquer ponto do texto + o primeiro número de 3-6 dígitos: no report de QA isso
+  // capturava o "100" de "Navegação 100%" e a data "04/09/2026", nunca o número real.
+  // O guard de status HTTP NÃO se aplica aqui: "tarefa 500" é justamente a forma
+  // deliberada que o comentário acima já previa. O marcador é a prova da intenção.
+  const { marcado: numMarcado } = extrairNumeroTarefa(prompt);
+  // engata com: começa com número, OU número MARCADO no texto.
+  const numDeliberado = (!isQuestion && (iniciaNum || numMarcado)) ? (iniciaNum || numMarcado) : null;
   const emCurso = !!(pending && pending.num);
 
   // MURO DE TAREFA ATIVA (VS-TASK-001): tarefa já CRIADA e ainda NÃO finalizada
@@ -419,7 +420,11 @@ if (isDocumentationTask) {
   }
 
   const merged = {
-    num: numDeliberado || pending?.num || null,
+    // VS-BRANCH-010: o checklist JÁ aberto manda. Era `numDeliberado || pending?.num`,
+    // e assim colar o report de QA como ESCOPO trocava a tarefa aberta pelo número que
+    // aparecesse no texto — abria #39702 e criava a branch da #100. Trocar de número no
+    // meio do checklist se faz com "cancela".
+    num: resolverNumero(pending, numDeliberado),
     tipo: campo.tipo || pending?.tipo || null,
     origem: campo.origem || pending?.origem || null,
     repositorios: hasList(campo.repositorios) ? campo.repositorios : (pending?.repositorios || null),

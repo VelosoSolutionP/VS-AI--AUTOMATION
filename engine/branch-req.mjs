@@ -9,6 +9,12 @@ import { tmpdir } from 'node:os';
 
 const TIPOS = { fix: 'fix', bug: 'fix', feat: 'feat', feature: 'feat', refactor: 'refactor', refact: 'refactor', perf: 'perf', hotfix: 'hotfix', chore: 'chore', test: 'test', doc: 'docs', docs: 'docs' };
 const TTL = 15 * 60 * 1000;
+// TTL do CHECKLIST em aberto (VS-BRANCH-010). Era o mesmo 15min do consult/preflight, e
+// isso derrubava tarefa viva: enquanto a IA coleta dados (grep, build, suíte de teste)
+// passam-se minutos sem mensagem do dev, o pendente expirava e o muro recomeçava pedindo
+// o número que o dev JÁ tinha mandado. Agora conta INATIVIDADE — loadReq renova o ts a
+// cada leitura — com teto de janela de trabalho.
+const TTL_REQ = 4 * 60 * 60 * 1000;
 
 // Mapeia uma palavra p/ camada/repo canônica única: todos | front | back | mobile.
 // (mantido p/ o campo `alvo`, que continua sendo valor único.)
@@ -38,9 +44,58 @@ function canonTargets(word) {
   return out.length ? out : null;
 }
 
+// Ruído numérico que NUNCA é número de tarefa. Sai ANTES de procurar o número, porque
+// report de QA é feito disso: "Navegação 100% por clique real", "medido em 04/09/2026",
+// "HU-05", "RN-102", "a área sai como 10.00 e 6.50", ULID do cadastro. Sem esta limpeza
+// o primeiro número de 3-6 dígitos do texto virava o número da tarefa — foi assim que
+// nasceu a branch fantasma fix/fabiano.veloso/100, com zero commits (VS-BRANCH-010).
+export function limparRuidoNumerico(txt) {
+  return String(txt || '')
+    .replace(/https?:\/\/\S+/gi, ' ')                        // URLs
+    .replace(/\b[\w.+-]+@[\w.-]+\b/g, ' ')                   // e-mails
+    .replace(/\/\S+/g, ' ')                                  // /paths
+    .replace(/:\d+/g, ' ')                                   // :porta e hh:mm
+    .replace(/\b\d{1,4}[\/.-]\d{1,2}[\/.-]\d{2,4}\b/g, ' ')  // datas
+    .replace(/\b\d+\s*%/g, ' ')                              // percentuais ("100%")
+    .replace(/\b\d+[.,]\d+\b/g, ' ')                         // decimais (10.00 / 6,50)
+    .replace(/\b[a-z]{1,4}[-_]?\d{1,6}\b/gi, ' ')            // HU-05, RN-102, P04, v1, CT001
+    .replace(/\b[0-9a-z]*\d[0-9a-z]*\b/gi, (m) => (/^\d+$/.test(m) ? m : ' ')) // ULID e afins
+    .replace(/\b[0-9a-f]{7,}\b/gi, ' ');                     // hashes
+}
+
+/**
+ * Número da tarefa no texto. Devolve { inicio, marcado }:
+ *  - inicio  = a mensagem COMEÇA com o número ("39701 fix dev back").
+ *  - marcado = veio explicitamente rotulado: "#39701", "tarefa 39701", "chamado 39701".
+ * Antes bastava a palavra "tarefa" existir em QUALQUER lugar do texto + qualquer número:
+ * o report de QA fechava a conta com o primeiro número que aparecesse. Agora o marcador
+ * tem que estar COLADO no número.
+ */
+export function extrairNumeroTarefa(prompt) {
+  const p = String(prompt || '');
+  const inicio = (p.match(/^\s*#?(\d{3,6})\b/) || [])[1] || null;
+  const limpo = limparRuidoNumerico(p);
+  const m = limpo.match(/(?:#\s*|\b(?:tarefas?|task|chamado|issue|ticket)\s*[:#-]?\s*)(\d{3,6})\b/i);
+  return { inicio, marcado: m ? m[1] : null };
+}
+
+/**
+ * Precedência do número entre turnos (VS-BRANCH-010). O checklist JÁ validado manda:
+ * um número achado no turno de agora NÃO sobrescreve o que o dev abriu antes. Era o
+ * contrário (`numDeliberado || pending.num`), e por isso colar o report de QA como
+ * ESCOPO trocava a tarefa #39702 pela #100 e criava a branch errada — com o escopo
+ * certo dentro. Trocar de número no meio do checklist se faz com "cancela".
+ */
+export function resolverNumero(pending, numDoTurno) {
+  return (pending && pending.num) || numDoTurno || null;
+}
+
 export function parseBranch(prompt) {
   const p = prompt || '';
-  const num = (p.match(/#?(\d{3,6})\b/) || [])[1] || null;
+  // num usa a MESMA regra do muro (marcado ou abrindo a mensagem). Antes era uma regex
+  // solta e as duas discordavam: esta dizia "2026" (a data) e a do muro dizia "100".
+  const achado = extrairNumeroTarefa(p);
+  const num = achado.inicio || achado.marcado || null;
   const tipoM = (p.match(/\b(fix|bug|feat|feature|refactor|refact|perf|hotfix|chore|test|docs?)\b/i) || [])[1];
   const origM = (p.match(/\b(dev|develop|hml|homolog\w*|main|master|prod|produ[çc][ãa]o|staging)\b/i) || [])[1];
 
@@ -161,7 +216,10 @@ export function loadReq(key) {
     const p = reqPath(key);
     if (!existsSync(p)) { return null; }
     const o = JSON.parse(readFileSync(p, 'utf8'));
-    if (Date.now() - (o.ts || 0) > TTL) { rmSync(p); return null; }
+    if (Date.now() - (o.ts || 0) > TTL_REQ) { rmSync(p); return null; }
+    // TTL DESLIZANTE: cada leitura renova a janela. O que expira é INATIVIDADE do dev,
+    // não o tempo que a tarefa leva — coleta de dados longa não pode apagar o número.
+    try { writeFileSync(p, JSON.stringify({ ...o, ts: Date.now() })); } catch {}
     return o;
   } catch { return null; }
 }
