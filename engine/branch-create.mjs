@@ -189,7 +189,15 @@ export function createBranches({ targets, branchName, origem, cfg = {}, budgetMs
         let sujos = 0;
         try { naoEnviados = parseInt(git(['rev-list', '--count', 'HEAD', '--not', '--remotes'], t.path) || '0', 10); } catch {}
         try { sujos = git(['status', '--porcelain', '--untracked-files=no'], t.path).split(/\r?\n/).filter(Boolean).length; } catch {}
-        if (naoEnviados > 0 || sujos > 0) {
+        // MOBILE ACUMULA POR DESIGN (ver cabeçalho e o checkout logo abaixo): commit não
+        // enviado na branch atual é o estado NORMAL dele, não "tarefa anterior aberta".
+        // Cobrar push aqui fazia o guard recusar TODA tarefa da segunda em diante — e o
+        // trabalho caía na branch da tarefa anterior. No Egle isso deixou 7 tarefas sem
+        // branch própria (36138, 38772, 38776, 38780, 38784, 38788, 38792), com os commits
+        // dentro de feat/fabiano.veloso/39511. Para mobile vale só a ÁRVORE SUJA, que é o
+        // risco de verdade: trabalho não commitado se perde no checkout. (VS-BRANCH-011)
+        const bloqueia = ehMobile ? sujos > 0 : (naoEnviados > 0 || sujos > 0);
+        if (bloqueia) {
           return { ...t, status: 'pendente', branch: atual, naoEnviados, sujos };
         }
       }
