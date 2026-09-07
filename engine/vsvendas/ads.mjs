@@ -30,41 +30,13 @@ export function listProducts(dir) {
 /* ---- plataformas: cada uma formata do seu jeito (limites, hashtags, CTA) ---- */
 
 const brl = (v) => (v == null ? '' : `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
-const hashtags = (produto, vende) => [...new Set(
-  [produto, ...String(vende || '').split(/\s+/).slice(0, 4)]
-    // NFD antes de limpar: sem isso o acento era APAGADO junto com a pontuacao e a
-    // hashtag saia escrita errada em publico ("governança" -> "#governana").
-    .map((w) => '#' + String(w).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/gi, '').toLowerCase())
-    .filter((h) => h.length > 2),
-)].slice(0, 6).join(' ');
-const hashtagsCurtas = (produto, vende) => hashtags(produto, vende).split(' ').slice(0, 2).join(' ');
+const hashtags = (produto, vende) => [produto, ...String(vende || '').split(/\s+/).slice(0, 3)]
+  .map((w) => '#' + String(w).replace(/[^a-z0-9]/gi, '').toLowerCase()).filter((h) => h.length > 2).slice(0, 6).join(' ');
 const corta = (s, n) => (s.length <= n ? s : s.slice(0, n - 1).trim() + '…');
 
 const CTA = { Formal: 'Entre em contato para mais informações.', Consultivo: 'Me chama que te ajudo a escolher.', Amigável: 'Chama no direct! 😄', Direto: 'Chama agora.' };
 
 export const PLATAFORMAS = {
-  /**
-   * Feed do Facebook (post organico) — regras diferentes do Marketplace:
-   * o "ver mais" corta por volta de 125 caracteres, entao a PRIMEIRA linha tem que
-   * segurar sozinha; hashtag rende pouco (2 no maximo, nao 6 como no Instagram);
-   * e preco nao e obrigatorio, porque post de feed vende ideia, nao classificado.
-   */
-  facebook: (p, prof) => {
-    const gancho = corta(p.gancho || `${p.produto}: ${prof.empresa.propostaValor || ''}`.trim(), 120);
-    const corpo = [
-      p.descricao || prof.empresa.propostaValor,
-      p.prova,
-      p.preco != null && `${brl(p.preco)}`,
-      (CTA[prof.empresa.tom] || CTA.Consultivo),
-      p.link,
-    ].filter(Boolean).join('\n\n');
-    return {
-      plataforma: 'Facebook (feed)',
-      // join('\n\n') em vez de separador '' no array: filter(Boolean) descartava a
-      // string vazia e os blocos saiam colados, sem respiro nenhum no post.
-      texto: [gancho, corpo, hashtagsCurtas(p.produto, prof.empresa.vende)].filter(Boolean).join('\n\n'),
-    };
-  },
   instagram: (p, prof) => ({
     plataforma: 'Instagram',
     texto: [`${p.produto} ✨`, p.descricao || prof.empresa.propostaValor, brl(p.preco) && `💰 ${brl(p.preco)}`, (CTA[prof.empresa.tom] || CTA.Consultivo), hashtags(p.produto, prof.empresa.vende)].filter(Boolean).join('\n'),
@@ -93,27 +65,16 @@ export const PLATAFORMAS = {
   }),
 };
 
-/**
- * Plataformas de classificado exigem preço; feed/direct (facebook, instagram, whatsapp)
- * não. Antes um post de feed sem preço era recusado junto com o resto — e post de feed
- * quase nunca leva preço.
- */
-export const PRECO_OBRIGATORIO = new Set(['marketplace', 'mercadolivre', 'olx']);
-
 /** Gera os anúncios de UM produto pras plataformas escolhidas. */
 export function buildAds(produto, profile, plataformas) {
   const alvos = (plataformas && plataformas.length ? plataformas : Object.keys(PLATAFORMAS))
     .map((k) => String(k).toLowerCase()).filter((k) => PLATAFORMAS[k]);
-  const semPreco = produto.preco == null;
-  const bloqueadas = semPreco ? alvos.filter((k) => PRECO_OBRIGATORIO.has(k)) : [];
-  const geraveis = alvos.filter((k) => !bloqueadas.includes(k));
-  if (!geraveis.length) {
+  if (produto.preco == null) {
     return { produto: produto.produto, faltando: 'preço', anuncios: [] };
   }
   return {
     produto: produto.produto,
     imagens: produto.imagens || [],
-    ...(bloqueadas.length ? { faltando: `preço (para ${bloqueadas.join(', ')})` } : {}),
-    anuncios: geraveis.map((k) => ({ ...PLATAFORMAS[k](produto, profile), imagens: produto.imagens || [] })),
+    anuncios: alvos.map((k) => ({ ...PLATAFORMAS[k](produto, profile), imagens: produto.imagens || [] })),
   };
 }

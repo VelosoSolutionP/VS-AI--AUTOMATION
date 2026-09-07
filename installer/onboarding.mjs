@@ -7,50 +7,12 @@ import { createState, answer } from '../engine/interview/engine.mjs';
 
 const DEV_FLOW = ['gate', 'vsqa', 'vsanalista', 'vsdiretoria'];
 
-/**
- * Cada produto declara SO os sets que ele consome. Antes qualquer produto da linha
- * dev puxava empresa+dev+analista+qa: quem instalava so o Gate respondia tracker do
- * Redmine e sistema de QA que nunca seriam usados. Pergunta que nao vira configuracao
- * e atrito puro na instalacao.
- * @type {Object<string,string[]>}
- */
-export const SETS_POR_PRODUTO = {
-  gate: ['dev'],
-  vsqa: ['dev', 'qa'],
-  vsanalista: ['dev', 'analista'],
-  vsdiretoria: ['dev', 'analista'],
-  vsvendas: ['empresa', 'vendas'],
-  vsinfluence: ['influence'],
-};
-
-/**
- * Modulos que cada produto liga. O que nao for escolhido entra `false` na config,
- * em vez de ausente — assim o guard le o booleano e nao cobra o modulo.
- * @type {Object<string,string[]>}
- */
-export const MODULOS_POR_PRODUTO = {
-  vsqa: ['qa'],
-  vsanalista: ['analista'],
-  vsdiretoria: ['analista'],
-};
-
 /** Quais sets de entrevista os produtos escolhidos exigem. */
 export function requiredSetsFor(ids) {
   const sets = new Set();
-  for (const id of ids || []) {
-    for (const s of SETS_POR_PRODUTO[id] || []) { sets.add(s); }
-  }
+  if ((ids || []).some((i) => DEV_FLOW.includes(i))) { ['empresa', 'dev', 'analista', 'qa'].forEach((s) => sets.add(s)); }
+  if ((ids || []).includes('vsvendas')) { sets.add('empresa'); sets.add('vendas'); }
   return [...sets];
-}
-
-/**
- * Estado de cada modulo opcional a partir da selecao. Sempre devolve todas as
- * chaves — o que nao foi escolhido vem `false`, nunca ausente.
- * @returns {{analista:boolean, qa:boolean}}
- */
-export function modulosAtivos(ids) {
-  const ativos = new Set((ids || []).flatMap((id) => MODULOS_POR_PRODUTO[id] || []));
-  return { analista: ativos.has('analista'), qa: ativos.has('qa') };
 }
 
 /** Precisa aplicar no company.json (fluxo dev com analista+qa)? */

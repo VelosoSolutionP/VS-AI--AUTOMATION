@@ -12,6 +12,11 @@ export const SETS = {
   // Base da empresa — serve a todos os módulos.
   empresa: [
     { id: 'empresa_nome', secao: 'Empresa', pergunta: 'Qual o nome da empresa?', tipo: 'text', required: true },
+    { id: 'vende', secao: 'Empresa', pergunta: 'O que a empresa vende? (produto/serviço em 1-2 frases)', tipo: 'longtext', required: true },
+    { id: 'proposta_valor', secao: 'Empresa', pergunta: 'Principal proposta de valor — por que compram de você?', tipo: 'longtext', required: true },
+    { id: 'icp', secao: 'Empresa', pergunta: 'Quem é o cliente ideal? (segmento, porte, cargo do decisor)', tipo: 'longtext', required: true },
+    { id: 'ticket', secao: 'Empresa', pergunta: 'Ticket médio aproximado (R$)?', tipo: 'number', required: false },
+    { id: 'tom', secao: 'Empresa', pergunta: 'Tom de voz nas mensagens?', tipo: 'choice', opcoes: ['Formal', 'Consultivo', 'Amigável', 'Direto'], required: true },
   ],
 
   // Dev — padrão de branch/commit/doc. Alimenta a governança (branch/commit) + doc.
@@ -44,20 +49,7 @@ export const SETS = {
   ],
 
   // Vendas + Marketing — alimenta o VSvendas (qualificação, follow-up, objeção e ANÚNCIOS).
-  influence: [
-    { id: 'redes_publica', secao: 'Criador', pergunta: 'Em quais redes você publica?', tipo: 'multichoice', opcoes: ['youtube', 'instagram', 'tiktok', 'kwai', 'facebook'], required: true },
-    { id: 'videos_pasta', secao: 'Criador', pergunta: 'Pasta de onde saem os vídeos?', tipo: 'text', required: true, help: 'Ex.: /home/voce/videos — o cron olha aqui pra saber se tem vídeo novo' },
-    { id: 'horarios_publicacao', secao: 'Criador', pergunta: 'Horários de publicação?', tipo: 'list', required: true, help: 'Um por linha, formato HH:MM. Ex.: 09:00; 18:00' },
-    { id: 'varredura_min', secao: 'Criador', pergunta: 'De quantos em quantos minutos o cron confere a pasta?', tipo: 'number', required: false, help: 'Padrão 15. Horário perdido com a máquina desligada é recuperado na varredura seguinte.' },
-    { id: 'metricas_apikey', secao: 'Criador', pergunta: 'Chave de API pra ler views/likes (se já tiver)?', tipo: 'text', required: false, sensitive: true },
-  ],
-
   vendas: [
-    { id: 'vende', secao: 'Empresa', pergunta: 'O que a empresa vende? (produto/serviço em 1-2 frases)', tipo: 'longtext', required: true },
-    { id: 'proposta_valor', secao: 'Empresa', pergunta: 'Principal proposta de valor — por que compram de você?', tipo: 'longtext', required: true },
-    { id: 'icp', secao: 'Empresa', pergunta: 'Quem é o cliente ideal? (segmento, porte, cargo do decisor)', tipo: 'longtext', required: true },
-    { id: 'ticket', secao: 'Empresa', pergunta: 'Ticket médio aproximado (R$)?', tipo: 'number', required: false },
-    { id: 'tom', secao: 'Empresa', pergunta: 'Tom de voz nas mensagens?', tipo: 'choice', opcoes: ['Formal', 'Consultivo', 'Amigável', 'Direto'], required: true },
     { id: 'funil', secao: 'Vendas', pergunta: 'Quais as etapas do funil, em ordem?', tipo: 'list', required: true, help: 'Ex.: Novo lead; Qualificado; Proposta enviada; Negociação; Fechado' },
     { id: 'canais', secao: 'Vendas', pergunta: 'Canais de contato usados?', tipo: 'multichoice', opcoes: ['WhatsApp', 'E-mail', 'Ligação', 'Instagram', 'Presencial'], required: true },
     { id: 'sinais_quente', secao: 'Vendas', pergunta: 'O que indica um lead QUENTE? (sinais de compra)', tipo: 'list', required: false, help: 'Ex.: pediu preço; tem urgência; é o decisor; comparou concorrente' },

@@ -1,91 +1,60 @@
 {
-  "_nota": "REFERENCIA APENAS — nao copie e cole. Rode `vs-install`: o instalador grava estes hooks no settings da ferramenta detectada, com o caminho absoluto DESTA instalacao, em merge idempotente que preserva seus proprios hooks. Colar a mao com caminho de outra maquina deixa a suite muda: as tools respondem, mas nada governa.",
-  "_gerado_por": "installer/hooks-config.mjs (HOOKS_SPEC) — fonte unica da verdade do wiring",
+  "_nota": "Cole em .claude/settings.json do projeto (ou ~/.claude/settings.json). Ajuste o caminho absoluto da engine. Testar em sessao real do Claude Code.",
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
-          {
-            "type": "command",
-            "command": "node <CAMINHO-DA-INSTALACAO>/hooks/on-session.mjs"
-          }
+          { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-session.mjs" }
         ]
       }
     ],
     "UserPromptSubmit": [
       {
         "hooks": [
-          {
-            "type": "command",
-            "command": "node <CAMINHO-DA-INSTALACAO>/hooks/on-task.mjs"
-          }
+          { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-task.mjs" }
         ]
       }
     ],
     "PreToolUse": [
       {
+        "matcher": "*",
         "hooks": [
-          {
-            "type": "command",
-            "command": "node <CAMINHO-DA-INSTALACAO>/hooks/on-timebox-guard.mjs"
-          }
-        ],
-        "matcher": "*"
+          { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-timebox-guard.mjs" }
+        ]
       },
       {
+        "matcher": "Bash",
         "hooks": [
-          {
-            "type": "command",
-            "command": "node <CAMINHO-DA-INSTALACAO>/hooks/on-commit.mjs"
-          },
-          {
-            "type": "command",
-            "command": "node <CAMINHO-DA-INSTALACAO>/hooks/on-git-guard.mjs"
-          },
-          {
-            "type": "command",
-            "command": "node <CAMINHO-DA-INSTALACAO>/hooks/on-qa-gate.mjs"
-          }
-        ],
-        "matcher": "Bash"
+          { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-commit.mjs" },
+          { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-git-guard.mjs" },
+          { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-qa-gate.mjs" }
+        ]
       },
       {
+        "matcher": "Task|Agent|Dispatch|dispatch_agent",
         "hooks": [
-          {
-            "type": "command",
-            "command": "node <CAMINHO-DA-INSTALACAO>/hooks/on-agent-guard.mjs"
-          }
-        ],
-        "matcher": "Task|Agent|Dispatch|dispatch_agent"
+          { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-agent-guard.mjs" }
+        ]
       },
       {
+        "matcher": "Bash|PowerShell",
         "hooks": [
-          {
-            "type": "command",
-            "command": "node <CAMINHO-DA-INSTALACAO>/hooks/on-bg-guard.mjs"
-          }
-        ],
-        "matcher": "Bash|PowerShell"
+          { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-bg-guard.mjs" }
+        ]
       },
       {
+        "matcher": "Edit|Write|MultiEdit",
         "hooks": [
-          {
-            "type": "command",
-            "command": "node <CAMINHO-DA-INSTALACAO>/hooks/on-branch-first.mjs"
-          }
-        ],
-        "matcher": "Edit|Write|MultiEdit"
+          { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-branch-first.mjs" }
+        ]
       }
     ],
     "PostToolUse": [
       {
+        "matcher": "Bash|PowerShell",
         "hooks": [
-          {
-            "type": "command",
-            "command": "node <CAMINHO-DA-INSTALACAO>/hooks/on-doc.mjs"
-          }
-        ],
-        "matcher": "Bash|PowerShell"
+          { "type": "command", "command": "node C:/Veloso/ProjetosMsb/qa-gate/hooks/on-doc.mjs" }
+        ]
       }
     ]
   }

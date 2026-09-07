@@ -13,20 +13,14 @@ const parseObjecoes = (arr) => (arr || []).map((linha) => {
  * @param {object} vendas   respostas do set "vendas"
  */
 export function mapProfile(empresa = {}, vendas = {}) {
-  // vende/proposta_valor/icp/ticket/tom sao perguntados na SECAO "Empresa", mas o
-  // schema grava tudo isso no SET "vendas" — secao e so rotulo de tela. Ler do set
-  // "empresa" deixava o perfil eternamente incompleto: quem respondia a entrevista
-  // inteira, certinho, continuava recebendo "VSvendas sem perfil" em qualify,
-  // followup, objection e ads. Le do set certo, com fallback pro set antigo.
-  const campo = (k) => (vendas[k] !== undefined && vendas[k] !== null && vendas[k] !== '' ? vendas[k] : empresa[k]);
   return {
     empresa: {
-      nome: empresa.empresa_nome || vendas.empresa_nome || '',
-      vende: campo('vende') || '',
-      propostaValor: campo('proposta_valor') || '',
-      icp: campo('icp') || '',
-      ticket: campo('ticket') ?? null,
-      tom: campo('tom') || 'Consultivo',
+      nome: empresa.empresa_nome || '',
+      vende: empresa.vende || '',
+      propostaValor: empresa.proposta_valor || '',
+      icp: empresa.icp || '',
+      ticket: empresa.ticket ?? null,
+      tom: empresa.tom || 'Consultivo',
     },
     funil: vendas.funil || [],
     canais: vendas.canais || [],
@@ -45,7 +39,7 @@ export function mapProfile(empresa = {}, vendas = {}) {
 /** Diz se dá pra operar (precisa de empresa + funil no mínimo). */
 export function profileReady(profile) {
   const faltando = [];
-  if (!profile.empresa?.vende) { faltando.push('o que a empresa vende (entrevista set "vendas")'); }
+  if (!profile.empresa?.vende) { faltando.push('o que a empresa vende (entrevista set "empresa")'); }
   if (!profile.funil?.length) { faltando.push('etapas do funil (entrevista set "vendas")'); }
   return { ready: faltando.length === 0, faltando };
 }

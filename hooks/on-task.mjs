@@ -11,11 +11,29 @@
  * - Injetar contexto leve para economizar tokens.
  */
 
-import { parseBranch, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree, isSessionOff, setTask, clearTask, getTask, touchTask, isPreflight, setPreflight } from '../engine/branch-req.mjs';
-import { loadCompanyConfig, branchName as buildBranchName } from '../engine/company-config.mjs';
+import { parseBranch, extrairNumeroTarefa, resolverNumero, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree, isSessionOff, setSessionOff, clearSessionOff, setTask, clearTask, getTask, touchTask, isPreflight, setPreflight } from '../engine/branch-req.mjs';
+import { loadCompanyConfig, branchName as buildBranchName, requerCorpoCommit } from '../engine/company-config.mjs';
 import { timeBoxStatus } from '../engine/timebox.mjs';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+
+/**
+ * Tira do texto os VALORES dos campos do checklist (número, tipo, origem, repositórios) e
+ * devolve o que sobra. Vazio = a mensagem é só resposta de checklist ("fix", "dev",
+ * "front back", "5578", "100 fix dev back"). Sobrou texto = é prosa do dev.
+ * Usado nos três lugares onde o hook precisa dessa distinção: liberar campo, barrar
+ * escopo e separar número de tarefa de código de erro.
+ */
+function semValoresDeCampo(txt) {
+  return String(txt || '')
+    .replace(/#?\b\d{1,6}\b/g, ' ')
+    .replace(/\b(fix|bug|feat|feature|refactor|refact|perf|hotfix|chore|test|docs?)\b/gi, ' ')
+    .replace(/\b(dev|develop|hml|homolog\w*|main|master|prod|produ[çc][ãa]o|staging)\b/gi, ' ')
+    .replace(/\b(front|frontend|back|backend|mobile|app|todos|tudo|all|web|api)\b/gi, ' ')
+    .replace(/\b(origem|reposit[óo]rios?|tipo|n[úu]mero|numero|escopo|alvo|e)\b/gi, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+}
 
 // =====================================================
 // Lê o prompt recebido do Claude Code
@@ -63,6 +81,50 @@ if (existsSync(join(process.cwd(), '.qa-gate-off'))) {
   process.exit(0);
 }
 
+// CHAVE DA BANCADA (VS-SESSION-001) — o dev destrava ESTA sessão pela palavra.
+// Existia `setSessionOff` no engine, mas NENHUM hook chamava: não havia como desligar
+// sem editar settings.json. Quando a governança barra por bug DELA (numeração errada,
+// campo inventado, muro que não devia bater), o dev perde o dia. Agora: "liberado"
+// desarma nesta sessão — só nela, morre com ela — e "religa" arma de volta.
+// Escopo de sessão: os outros terminais/projetos seguem governados.
+{
+  const pedeOff = /^\s*(liberad[oa]|libera|bancada|desliga\s+(a\s+)?governan[çc]a|governan[çc]a\s+off|modo\s+conserto)\s*[.!]?\s*$/i.test(prompt);
+  const pedeOn = /^\s*(religa\w*(\s+(a\s+)?governan[çc]a)?|governan[çc]a\s+on|fecha\s+(a\s+)?bancada|trava\s+de\s+volta)\s*[.!]?\s*$/i.test(prompt);
+  if (pedeOn) {
+    clearSessionOff(sid);
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'UserPromptSubmit',
+        additionalContext: '[governança] RELIGADA nesta sessão. Muros de tarefa/branch/commit/gate valendo de novo. Pra abrir tarefa: número → tipo → origem → repositórios → escopo.',
+      },
+    }));
+    process.exit(0);
+  }
+  if (pedeOff) {
+    // Exceção: tarefa ativa que ESTOUROU o time-box -> "liberado" mantém o sentido antigo
+    // (reinicia a janela, logo abaixo), não desliga a governança inteira.
+    let overdue = false;
+    try {
+      const t = getTask(sid);
+      if (t && t.num && t.ts) { overdue = !!timeBoxStatus(t, Date.now(), loadCompanyConfig(process.cwd())).overdue; }
+    } catch {}
+    if (!overdue) {
+      setSessionOff(sid);
+      process.stdout.write(JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: 'UserPromptSubmit',
+          additionalContext:
+            '[governança] DESARMADA nesta sessão (bancada). Sem muro de tarefa, branch, commit, gate ou doc AQUI — ' +
+            'as outras sessões/projetos seguem governados. Trabalhe direto no que o Fabiano pedir. ' +
+            'Sem governança, VOCÊ responde pelo básico: branch certa antes de editar, commit no padrão, teste do que mexeu. ' +
+            'Religar: "religa".',
+        },
+      }));
+      process.exit(0);
+    }
+  }
+}
+
 // opt-out por SESSÃO: bancada trabalha dentro de projeto governado sem acordar a governança
 if (isSessionOff(sid)) {
   process.exit(0);
@@ -71,27 +133,26 @@ if (isSessionOff(sid)) {
 // ATIVIDADE DO DEV: qualquer mensagem do dev = ele PRESENTE = atividade. Reseta o
 // relogio de inatividade do time-box, matando o falso-bloqueio de "esperando o dev
 // responder". O time-box so trava tarefa REALMENTE abandonada (sem dev E sem tool).
-// ATENCAO A ORDEM: o status do time-box e medido ANTES do touch. touchTask() move o
-// lastTs pra agora, e a destrava abaixo ancora justamente no lastTs — medir depois
-// dava ageMin=0, overdue=false SEMPRE, e a palavra do dev nunca destravava nada.
-let _t0 = null; let _st0 = null;
-try {
-  _t0 = getTask(sid);
-  if (_t0 && _t0.num && _t0.ts) { _st0 = timeBoxStatus(_t0, Date.now(), loadCompanyConfig(process.cwd())); }
-} catch {}
-
+// ORDEM IMPORTA: o estado do time-box e fotografado ANTES do touch. touchTask carimba
+// lastTs=agora e timeBoxStatus ancora justamente em lastTs — tocar primeiro apagava o
+// estouro e a destrava abaixo virava codigo morto (a mensagem nunca saia).
+let tPre = null; try { tPre = getTask(sid); } catch {}
+const stPre = (tPre && tPre.num && tPre.ts)
+  ? timeBoxStatus(tPre, Date.now(), loadCompanyConfig(process.cwd()))
+  : null;
 try { touchTask(sid); } catch {}
 
 // DESTRAVA DO TIME-BOX: tarefa ativa que ESTOUROU o teto trava a sessão inteira
 // (on-timebox-guard). Só o dev destrava: a palavra de liberação reinicia a janela e o
 // guard volta a liberar. Só age quando a tarefa realmente estourou (evita falso positivo).
 {
-  const t = _t0;
-  if (t && t.num && t.ts && _st0) {
-    const st0 = _st0;
+  const t = tPre;
+  if (stPre) {
+    const st0 = stPre;
     const libera = /^\s*(liberad[oa]|libera)\b/i.test(prompt);
     if (st0.overdue && libera) {
-      setTask(sid, { ...t, ts: Date.now() });
+      const agora = Date.now();
+      setTask(sid, { ...t, ts: agora, lastTs: agora });
       process.stdout.write(JSON.stringify({
         hookSpecificOutput: {
           hookEventName: 'UserPromptSubmit',
@@ -246,15 +307,25 @@ if (isDocumentationTask) {
   // NÃO conta — só aparece acompanhado de outras palavras sem "tarefa". Até isso, LIVRE.
   const temTarefa = /\btarefas?\b|\btask\b/i.test(prompt);
   // mensagem que COMEÇA com número (ex.: "36744", "36744 feat dev todos", "36744 novo modal") = tarefa.
-  const iniciaNum = (prompt.match(/^\s*#?(\d{3,6})\b/) || [])[1] || null;
-  const limpo = prompt
-    .replace(/https?:\/\/\S+/gi, ' ')    // URLs
-    .replace(/:\d+/g, ' ')                // :porta
-    .replace(/\/\S+/g, ' ')               // /paths
-    .replace(/\b[0-9a-f]{7,}\b/gi, ' ');  // hashes
-  const numMatch = limpo.match(/#?\b(\d{3,6})\b/);
-  // engata com: começa com número, OU "tarefa"+número. Número no MEIO de frase (porta/path) NÃO.
-  const numDeliberado = (!isQuestion && (iniciaNum || (temTarefa && numMatch))) ? (iniciaNum || numMatch[1]) : null;
+  const iniciaNumCru = (prompt.match(/^\s*#?(\d{3,6})\b/) || [])[1] || null;
+  // CÓDIGO HTTP NÃO É NÚMERO DE TAREFA (VS-TASK-002): "500 no cadastro", "404 na rota",
+  // "422 ao salvar" abriam tarefa #500/#404/#422 e criavam branch vazia. Aconteceu de
+  // verdade no Egle: feat/fabiano.veloso/100 e feat/fabiano.veloso/500, zero commits em
+  // cada, e o backend ficou sentado numa delas. Regra: 3 dígitos na faixa de status HTTP
+  // (100–599) SEGUIDO DE PROSA é sintoma, não tarefa. Abrir tarefa com esse número exige
+  // ser deliberado — "tarefa 500 ..." ou só os campos ("500 fix dev back").
+  const ehStatusHttp = (n) => /^\d{3}$/.test(String(n || '')) && Number(n) >= 100 && Number(n) <= 599;
+  const restoEhProsa = semValoresDeCampo(prompt.replace(/^\s*#?\d{3,6}\b/, '')).length >= 3;
+  const iniciaNum = (iniciaNumCru && ehStatusHttp(iniciaNumCru) && !temTarefa && restoEhProsa) ? null : iniciaNumCru;
+  // NÚMERO MARCADO (VS-BRANCH-010): "#39701", "tarefa 39701", "chamado 39701" — o
+  // marcador tem que estar COLADO no número. Antes bastava a palavra "tarefa" aparecer
+  // em qualquer ponto do texto + o primeiro número de 3-6 dígitos: no report de QA isso
+  // capturava o "100" de "Navegação 100%" e a data "04/09/2026", nunca o número real.
+  // O guard de status HTTP NÃO se aplica aqui: "tarefa 500" é justamente a forma
+  // deliberada que o comentário acima já previa. O marcador é a prova da intenção.
+  const { marcado: numMarcado } = extrairNumeroTarefa(prompt);
+  // engata com: começa com número, OU número MARCADO no texto.
+  const numDeliberado = (!isQuestion && (iniciaNum || numMarcado)) ? (iniciaNum || numMarcado) : null;
   const emCurso = !!(pending && pending.num);
 
   // MURO DE TAREFA ATIVA (VS-TASK-001): tarefa já CRIADA e ainda NÃO finalizada
@@ -275,7 +346,18 @@ if (isDocumentationTask) {
       }));
       process.exit(0);
     }
-    // mesmo número, ou sem número deliberado = conversa/trabalho da própria tarefa ativa -> livre
+    // mesmo número, ou sem número deliberado = conversa/trabalho da própria tarefa ativa.
+    // LIVRE, mas dizendo à IA QUAL tarefa está ativa: sem isso ela pede o número que o
+    // Fabiano já deu (o turno com o número foi BLOQUEADO e nunca chegou nela).
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'UserPromptSubmit',
+        additionalContext:
+          `[governança] TAREFA ATIVA #${active.num}${active.tipo ? ` (${active.tipo})` : ''}` +
+          `${hasList(active.repositorios) ? ` · REPOSITÓRIOS=${active.repositorios.join('+').toUpperCase()}` : ''}. ` +
+          `NÃO peça o número da tarefa de novo — é esta. Siga trabalhando nela.`,
+      },
+    }));
     process.exit(0);
   }
 
@@ -284,14 +366,53 @@ if (isDocumentationTask) {
     process.exit(0);
   }
 
+  // O que sobra da mensagem depois de tirar os VALORES dos campos. Vazio = a mensagem é
+  // só resposta de checklist ("fix", "dev", "front back", "5578"). Sobrou texto = é frase
+  // de conversa ("vc ja fez tudo", "só falta subir") — e frase de conversa NÃO alimenta
+  // campo nenhum. Usado nos dois sentidos: libera campo, barra escopo.
+  const semCampos = semValoresDeCampo(prompt);
+
+  // ANTI-BUG (campo inventado a partir de palavra solta): a tarefa #5578 abriu com
+  // origem=main e repositorios=front+back+mobile porque "tudo" apareceu num "vc ja fez
+  // tudo" e "main" numa frase qualquer. O requisito do dev virava o que o hook deduziu.
+  // Agora só alimenta campo a mensagem que REALMENTE responde o checklist:
+  //   • rotulada ("origem dev", "repositorios: back", "tipo fix"), OU
+  //   • só valores (nada sobra além deles), OU
+  //   • a mensagem que ABRE a tarefa (começa pelo número — aí vem tudo junto de propósito).
+  const temRotulo = /\b(tipo|origem|reposit[óo]rios?|alvo)\s*[:\-]?\s+\S/i.test(prompt);
+  const ehRespostaDeCampo = temRotulo || semCampos.length < 3 || !!(numDeliberado && !emCurso);
+  const campo = ehRespostaDeCampo ? cur : { tipo: null, origem: null, repositorios: null, alvo: null, target: null, crud: cur.crud };
+
   // TAREFA EM CURSO: só cobra os campos que faltam quando o turno REALMENTE traz dado
   // de branch (tipo/origem/alvo) ou é uma resposta curta. Se o Fabiano só conversa/
   // pergunta no meio da tarefa, NÃO fica nagando — deixa livre e mantém o pendente.
-  const trouxeCampo = !!(cur.tipo || cur.origem || cur.repositorios || cur.alvo || cur.target) || !!numDeliberado;
+  const trouxeCampo = !!numDeliberado || !!(campo.tipo || campo.origem || campo.repositorios || campo.alvo || campo.target);
   const respostaCurta = prompt.trim().length <= 25;
   // Conversa longa no meio da tarefa = não naga. MAS se estamos esperando o escopo
   // (coreReadyBefore), a mensagem descritiva longa É o escopo — deixa passar pra captura.
   if (emCurso && !numDeliberado && !trouxeCampo && !respostaCurta && !coreReadyBefore) {
+    // LIVRE, mas a IA precisa SABER que já tem tarefa pendente e o que dela já veio —
+    // senão pede de novo o número/os campos que o Fabiano já mandou em turno bloqueado.
+    const jaTem = [
+      `número ${pending.num}`,
+      pending.tipo ? `tipo ${pending.tipo}` : null,
+      pending.origem ? `origem ${pending.origem}` : null,
+      hasList(pending.repositorios) ? `repositórios ${pending.repositorios.join('+')}` : null,
+    ].filter(Boolean).join(', ');
+    const falta = [
+      pending.tipo ? null : 'tipo',
+      pending.origem ? null : 'origem',
+      hasList(pending.repositorios) ? null : 'repositórios',
+      pending.escopo ? null : 'escopo',
+    ].filter(Boolean);
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'UserPromptSubmit',
+        additionalContext:
+          `[governança] TAREFA #${pending.num} PENDENTE de abertura. JÁ RECEBIDO do Fabiano: ${jaTem}. ` +
+          `FALTA: ${falta.join(' → ')}. NÃO peça o que já está acima (o número principalmente) — pergunte SÓ o que falta, na ordem.`,
+      },
+    }));
     process.exit(0);
   }
 
@@ -307,23 +428,28 @@ if (isDocumentationTask) {
   }
 
   const merged = {
-    num: numDeliberado || pending?.num || null,
-    tipo: cur.tipo || pending?.tipo || null,
-    origem: cur.origem || pending?.origem || null,
-    repositorios: hasList(cur.repositorios) ? cur.repositorios : (pending?.repositorios || null),
+    // VS-BRANCH-010: o checklist JÁ aberto manda. Era `numDeliberado || pending?.num`,
+    // e assim colar o report de QA como ESCOPO trocava a tarefa aberta pelo número que
+    // aparecesse no texto — abria #39702 e criava a branch da #100. Trocar de número no
+    // meio do checklist se faz com "cancela".
+    num: resolverNumero(pending, numDeliberado),
+    tipo: campo.tipo || pending?.tipo || null,
+    origem: campo.origem || pending?.origem || null,
+    repositorios: hasList(campo.repositorios) ? campo.repositorios : (pending?.repositorios || null),
     escopo: pending?.escopo || null,
-    crud: cur.crud || pending?.crud || false,
+    crud: campo.crud || pending?.crud || false,
   };
   // Lista solta (sem rótulo) preenche repositorios quando ainda falta.
-  if (!hasList(merged.repositorios) && hasList(cur.target)) { merged.repositorios = cur.target; }
+  if (!hasList(merged.repositorios) && hasList(campo.target)) { merged.repositorios = campo.target; }
   // ⑤ ESCOPO = descrição da tarefa (TEXTO LIVRE). Assim que os 4 campos core já
   // estavam preenchidos (em turnos ANTERIORES), a PRÓXIMA mensagem é o escopo INTEIRO —
   // NÃO parseia palavra (front/back/tela não trava mais). A IA usa pra saber a tela/fluxo
   // onde corrigir/implementar.
   const cancelou = /^\s*(cancela|cancelar|esquece|aborta)\b/i.test(prompt);
   // Só captura escopo de mensagem DESCRITIVA — nunca de pergunta ou pushback/meta
-  // (senão conversa vira escopo e fecha tarefa fantasma, como o bug do #100).
-  if (!merged.escopo && coreReadyBefore && !cancelou && !isMeta && !isQuestion && prompt.trim().length >= 3) {
+  // (senão conversa vira escopo e fecha tarefa fantasma, como o bug do #100), nem de
+  // mensagem que é só número/campo (a tarefa abria com escopo="39311").
+  if (!merged.escopo && coreReadyBefore && !cancelou && !isMeta && !isQuestion && semCampos.length >= 3) {
     merged.escopo = prompt.trim();
   }
 
@@ -400,13 +526,45 @@ if (isDocumentationTask) {
   const cmdAcc = `git checkout -b ${branchName}`; // mobile: sai da branch ATUAL (acumula), SEM origin/
   const escopoLinha = `ESCOPO: ${merged.escopo}`;
   const temMobile = repos.includes('mobile');
-  const linhas = repos.map((r) => r === 'mobile'
-    ? `• MOBILE → \`${cmdAcc}\` — sai da branch ATUAL (ACUMULA o trabalho anterior; NÃO usa origin/, senão zera o acúmulo). Commits LOCAIS, SEM push até o Fabiano pedir deploy.`
-    : `• ${r.toUpperCase()} → \`${cmdOrigin}\` — a partir de origin/${merged.origem}. Commit + push só no gate VERDE.`);
+
+  // VS-BRANCH-009 — a governança CRIA a branch aqui, agora. Pedir pra IA criar não
+  // funcionava: ela pulava o passo, o dev trabalhava na branch ANTIGA e o problema só
+  // aparecia no commit. Fechou o checklist -> branch criada em cada repo escolhido.
+  let feitas = [];
+  try {
+    const { discoverRepos, resolveTargets, createBranches } = await import('../engine/branch-create.mjs');
+    const disc = discoverRepos(process.cwd(), cfg);
+    const targets = resolveTargets(repos, disc);
+    if (targets.some((t) => t.path)) {
+      feitas = createBranches({ targets, branchName, origem: merged.origem, cfg });
+    }
+  } catch {}
+
+  let linhas;
+  let cabeca;
+  if (feitas.length) {
+    const rot = (f) => (f.nome ? `${f.camada.toUpperCase()} (${f.nome})` : f.camada.toUpperCase());
+    linhas = feitas.map((f) => {
+      if (f.status === 'criada') { return `• ${rot(f)} → ✅ branch \`${f.branch}\` CRIADA a partir de ${f.base}. Trabalhe NELA.`; }
+      if (f.status === 'ja-nela') { return `• ${rot(f)} → ✅ já estava na \`${f.branch}\`. Trabalhe NELA.`; }
+      if (f.status === 'existente') { return `• ${rot(f)} → ⚠️ BUG #${merged.num} VOLTOU: a branch \`${f.branch}\` JÁ existia — fiz checkout nela (saí da ${f.de}), NÃO criei nova. A correção anterior não segurou: investigue a regressão.`; }
+      if (f.status === 'pendente') { return `• ${rot(f)} → ❌ NÃO criei: a branch atual \`${f.branch}\` tem trabalho aberto (${f.naoEnviados} commit(s) não enviado(s), ${f.sujos} arquivo(s) rastreado(s) sujo(s)). Feche a anterior (commit + push) e crie a branch ANTES de editar este repo.`; }
+      if (f.status === 'sem-repo') { return `• ${f.camada.toUpperCase()} → ❌ repo não encontrado no projeto. Crie a branch manualmente: \`${f.camada === 'mobile' ? cmdAcc : cmdOrigin}\`.`; }
+      return `• ${rot(f)} → ❌ ERRO ao criar: ${f.erro}. Resolva e crie manualmente antes de editar: \`${f.camada === 'mobile' ? cmdAcc : cmdOrigin}\`.`;
+    });
+    const okCount = feitas.filter((f) => f.status === 'criada' || f.status === 'ja-nela' || f.status === 'existente').length;
+    cabeca = `🌿 BRANCHES DA TAREFA — a governança já criou (${okCount}/${feitas.length} prontos). NÃO recrie, NÃO faça checkout em outra:`;
+  } else {
+    // Layout de repos não reconhecido: cai no modo antigo (a IA cria) em vez de travar.
+    linhas = repos.map((r) => r === 'mobile'
+      ? `• MOBILE → \`${cmdAcc}\` — sai da branch ATUAL (ACUMULA o trabalho anterior; NÃO usa origin/, senão zera o acúmulo). Commits LOCAIS, SEM push até o Fabiano pedir deploy.`
+      : `• ${r.toUpperCase()} → \`${cmdOrigin}\` — a partir de origin/${merged.origem}. Commit + push só no gate VERDE.`);
+    cabeca = `⚠️ PASSO 1 OBRIGATÓRIO — não localizei os repos do projeto, então crie a branch \`${branchName}\` você, ANTES de editar QUALQUER arquivo:`;
+  }
+
   let ctx = `[governança] TAREFA #${merged.num} (${merged.tipo}) · REPOSITÓRIOS=${repos.join('+').toUpperCase()}.\n${escopoLinha}\n` +
-    `⚠️ PASSO 1 OBRIGATÓRIO — ANTES de editar/corrigir QUALQUER arquivo, crie a branch \`${branchName}\` em CADA repo escolhido:\n` +
-    linhas.join('\n') + '\n' +
-    `Só DEPOIS de criar TODAS as branches, comece a trabalhar. NÃO pule esse passo, NÃO vá direto pro código.` +
+    cabeca + '\n' + linhas.join('\n') + '\n' +
+    `Repo marcado com ❌ = NÃO edite arquivo dele até a branch existir.` +
     (temMobile ? `\nREGRA MOBILE: branch sai da ATUAL (acumula), commits LOCAIS, SEM push — deploy (APK) só no fim do dia a pedido do Fabiano.` : '');
   // PREFLIGHT 1x na sessão: 1ª tarefa valida ambiente ON antes de codar. Verde -> libera
   // a sessão (não repete). Cair algo depois: a IA resolve na hora e segue (sem re-travar).
@@ -421,7 +579,10 @@ if (isDocumentationTask) {
     ctx += `\nBUG CRUD/VALIDAÇÃO: rode o QA-Gate na rota/fluxo afetado — ele reproduz o erro real. Corrija com base no que o gate mostrar.`;
   }
   // BUG VOLTOU: branch do número já pode existir.
-  ctx += `\n⚠️ Antes de criar: se JÁ existir branch com o número #${merged.num} (local/remota) = BUG VOLTOU → NÃO crie nova, faça \`git checkout\` na existente e investigue a regressão (a correção anterior não segurou).`;
+  // "bug voltou" já foi checado repo a repo na criação; só avisa quando a IA vai criar.
+  if (!feitas.length) {
+    ctx += `\n⚠️ Antes de criar: se JÁ existir branch com o número #${merged.num} (local/remota) = BUG VOLTOU → NÃO crie nova, faça \`git checkout\` na existente e investigue a regressão (a correção anterior não segurou).`;
+  }
   // PADRÃO DE COMMIT conforme a config da empresa (default = número da tarefa).
   const commitEx = (cfg.commitScope === 'modulo')
     ? `${merged.tipo}(<modulo>): <descrição breve>`
@@ -429,8 +590,15 @@ if (isDocumentationTask) {
   ctx += `\nCOMMIT (padrão da empresa): \`${commitEx}\`` +
     (cfg.commitScope === 'numero' ? ` — escopo é o NÚMERO da tarefa; módulo/contexto vai NA descrição.` : '') +
     ` Sem assinatura de IA.`;
+  // CORPO DETALHADO: quando a empresa exige (commitBody='detalhado'), o assunto sozinho
+  // e reprovado pelo VS-AUD-006 na hora do commit. Avisa ANTES, junto do padrao.
+  if (requerCorpoCommit(cfg)) {
+    ctx += `\nCORPO DO COMMIT (obrigatorio): assunto breve na 1a linha, linha EM BRANCO, e corpo detalhando a tarefa` +
+      ` — o que era o problema/pedido, a causa, o que mudou e como foi validado. Minimo ${cfg.commitBodyMinChars} caracteres.` +
+      ` Escreva com heredoc bash alimentando a entrada padrao (-F -). So o assunto = commit BLOQUEADO (VS-AUD-006).`;
+  }
   // FLUXO ABSOLUTO — na ordem, sem pular:
-  ctx += `\nFLUXO (na ordem): ① CRIA a(s) branch(es) → ② trabalha → ③ roda o QA-Gate → ④ VERDE: commit + push das branches (mobile acumula local) → ⑤ documenta (Redmine). ` +
+  ctx += `\nFLUXO (na ordem): ① ${feitas.length ? 'branch(es) JÁ criada(s) acima' : 'CRIA a(s) branch(es)'} → ② trabalha → ③ roda o QA-Gate → ④ VERDE: commit + push das branches (mobile acumula local) → ⑤ documenta (Redmine). ` +
     `Gate faltando/erro = RESPONSABILIDADE SUA: vê o que é, arruma e roda até VERDE (se vira, não peça pro Fabiano subir ambiente). Só prossegue no verde.`;
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: ctx },

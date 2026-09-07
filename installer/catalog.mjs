@@ -11,7 +11,6 @@ export const PRODUTOS = [
   { id: 'vsqa', nome: 'VSqa', linha: 'dev', status: 'available', desc: 'Testa a US como um QA: gera cenário, roda no browser e dá o veredito (verde fecha / vermelho devolve).' },
   { id: 'vsanalista', nome: 'VSanalista', linha: 'dev', status: 'available', desc: 'Cria Épico + Histórias de Usuário + tarefas técnicas no padrão do time.' },
   { id: 'vsdiretoria', nome: 'VSdiretoria', linha: 'dev', status: 'available', desc: 'Painel executivo (BI): produtividade, qualidade, governança — com exportação em PDF.' },
-  { id: 'vsinfluence', nome: 'VSinfluence', linha: 'criador', status: 'available', desc: 'Corta e melhora os vídeos, agenda a subida por rede, cobra conteúdo quando a pasta está vazia e controla campanhas, ganhos, métricas e lives.' },
   { id: 'vsvendas', nome: 'VSvendas', linha: 'vendas', status: 'available', desc: 'Vendas + Marketing: qualifica leads, redige follow-up, contorna objeção e gera anúncios das fotos.' },
   { id: 'vssuporte', nome: 'VSsuporte', linha: 'suporte', status: 'coming_soon', desc: 'Automação do atendimento/suporte — em breve.' },
 ];

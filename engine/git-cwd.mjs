@@ -16,23 +16,13 @@ export function toNativePath(p) {
  * recibo/branch/projeto saem trocados (leak de projeto que suja o audit). Extrai o último
  * `cd` do comando ou o alvo de `git -C`; relativo é resolvido contra `base` (cwd da sessão).
  */
-/**
- * Absoluto de verdade em QUALQUER plataforma. `isAbsolute('D:/Proj')` e false no Linux
- * (path posix), entao um `cd /d/Proj/repo` normalizado virava resolve(base,'D:/Proj')
- * -> caminho Frankenstein e o guard ia validar o repo errado. Aceita drive-letter
- * explicitamente, sem depender do SO onde o hook roda.
- */
-function isAbsCross(p) {
-  return isAbsolute(p) || /^[A-Za-z]:[\\/]/.test(String(p || ''));
-}
-
 export function resolveGitCwd(command, base) {
   try {
     const cmd = String(command || '');
     const mC = cmd.match(/\bgit\s+-C\s+("([^"]+)"|'([^']+)'|([^\s&;|]+))/);
-    if (mC) { const d = toNativePath(mC[2] || mC[3] || mC[4]); return isAbsCross(d) ? d : resolve(base, d); }
+    if (mC) { const d = toNativePath(mC[2] || mC[3] || mC[4]); return isAbsolute(d) ? d : resolve(base, d); }
     const cds = [...cmd.matchAll(/\bcd\s+("([^"]+)"|'([^']+)'|([^\s&;|]+))/g)];
-    if (cds.length) { const c = cds[cds.length - 1]; const d = toNativePath(c[2] || c[3] || c[4]); return isAbsCross(d) ? d : resolve(base, d); }
+    if (cds.length) { const c = cds[cds.length - 1]; const d = toNativePath(c[2] || c[3] || c[4]); return isAbsolute(d) ? d : resolve(base, d); }
   } catch {}
   return base;
 }

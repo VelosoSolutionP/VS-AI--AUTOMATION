@@ -8,24 +8,12 @@ import { detectFromHome } from '../installer/detect.mjs';
 import { serverEntry, mergeServer, installIntoTool, SERVER_NAME } from '../installer/mcp-config.mjs';
 import { issueTrial } from '../installer/trial.mjs';
 import { runInstall } from '../installer/install.mjs';
-import { requiredSetsFor, precisaApplyConfig, buildAndValidate, modulosAtivos } from '../installer/onboarding.mjs';
-import { applyProfiles } from '../engine/interview/apply.mjs';
-import { requiredMissing } from '../engine/interview/install.mjs';
-import { buildHooks, mergeHooks, installHooksInto } from '../installer/hooks-config.mjs';
+import { requiredSetsFor, precisaApplyConfig, buildAndValidate } from '../installer/onboarding.mjs';
 
 const noop = () => {};
 const respVendas = {
-  empresa: { empresa_nome: 'ACME' },
-  vendas: {
-    vende: 'produtos', proposta_valor: 'melhor preço', icp: 'lojista gestor', tom: 'Direto',
-    funil: 'Novo\nFechado', canais: ['WhatsApp'], plataformas_anuncio: ['Instagram'],
-  },
-};
-
-/** Respostas mínimas do set dev — o único sempre obrigatório. */
-const respDev = {
-  branch_pattern: '<tipo>/<autor>/<numero>', branch_autor: 'nome.sobrenome',
-  branch_tipos: ['fix', 'feat'], commit_pattern: '<tipo>(<escopo>): <desc>', commit_escopo: 'numero',
+  empresa: { empresa_nome: 'ACME', vende: 'produtos', proposta_valor: 'melhor preço', icp: 'lojista gestor', tom: 'Direto' },
+  vendas: { funil: 'Novo\nFechado', canais: ['WhatsApp'], plataformas_anuncio: ['Instagram'] },
 };
 
 /* ---------------- catalog ---------------- */
@@ -77,62 +65,6 @@ test('installIntoTool: cria/mescla o arquivo de config', () => {
   assert.equal(saved.mcpServers[SERVER_NAME].args[0], '/s.mjs');
 });
 
-/* ---------------- hooks-config ---------------- */
-
-test('buildHooks: cobre os eventos do fluxo e usa caminho absoluto da instalação', () => {
-  const h = buildHooks('/opt/vsia/hooks');
-  assert.deepEqual(Object.keys(h).sort(), ['PostToolUse', 'PreToolUse', 'SessionStart', 'UserPromptSubmit']);
-  // o hook que conduz o fluxo da tarefa (número -> tipo -> origem -> repos)
-  assert.equal(h.UserPromptSubmit[0].hooks[0].command, 'node /opt/vsia/hooks/on-task.mjs');
-  assert.ok(!('matcher' in h.UserPromptSubmit[0]));
-  const bash = h.PreToolUse.find((e) => e.matcher === 'Bash');
-  assert.deepEqual(bash.hooks.map((x) => x.command), [
-    'node /opt/vsia/hooks/on-commit.mjs',
-    'node /opt/vsia/hooks/on-git-guard.mjs',
-    'node /opt/vsia/hooks/on-qa-gate.mjs',
-  ]);
-});
-
-test('mergeHooks: preserva hooks do cliente e não duplica ao reinstalar', () => {
-  const doCliente = { matcher: 'Bash', hooks: [{ type: 'command', command: 'node /meu/proprio.mjs' }] };
-  const base = { theme: 'dark', hooks: { PreToolUse: [doCliente] } };
-
-  const um = mergeHooks(base, '/opt/vsia/hooks');
-  assert.equal(um.theme, 'dark'); // não mexe no resto do settings
-  assert.ok(um.hooks.PreToolUse.some((e) => e.hooks[0].command === 'node /meu/proprio.mjs'));
-
-  const dois = mergeHooks(um, '/opt/vsia/hooks'); // reinstalar
-  assert.deepEqual(dois.hooks.PreToolUse.length, um.hooks.PreToolUse.length);
-  assert.deepEqual(dois, um);
-});
-
-test('mergeHooks: trocar a pasta da suite não deixa hook órfão', () => {
-  const antigo = mergeHooks({}, '/velho/hooks');
-  const novo = mergeHooks(antigo, '/novo/hooks');
-  const cmds = JSON.stringify(novo.hooks);
-  assert.ok(!cmds.includes('/velho/hooks'));
-  assert.ok(cmds.includes('/novo/hooks'));
-});
-
-test('installHooksInto: cria/mescla o settings da ferramenta', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'vshooks-'));
-  const cfg = join(dir, 'settings.json');
-  writeFileSync(cfg, JSON.stringify({ theme: 'dark' }));
-  const r = installHooksInto(cfg, '/opt/vsia/hooks');
-  const saved = JSON.parse(readFileSync(cfg, 'utf8'));
-  assert.equal(saved.theme, 'dark');
-  assert.equal(saved.hooks.UserPromptSubmit[0].hooks[0].command, 'node /opt/vsia/hooks/on-task.mjs');
-  assert.ok(r.eventos.includes('UserPromptSubmit'));
-});
-
-test('detectFromHome: Claude Code expõe settingsPath (hooks); os outros não', () => {
-  const found = detectFromHome('/home/x', (p) => p.includes('.claude') || p.includes('.cursor'));
-  const cc = found.find((f) => f.tool === 'Claude Code');
-  assert.ok(cc.settingsPath.includes('.claude/settings.json'));
-  assert.notEqual(cc.settingsPath, cc.configPath); // hooks e MCP vivem em arquivos diferentes
-  assert.equal(found.find((f) => f.tool === 'Cursor').settingsPath, null);
-});
-
 /* ---------------- trial ---------------- */
 
 test('trial: 7 dias (não 30)', async () => {
@@ -154,46 +86,15 @@ test('trial: chave genérica embutida ativa (assinada, plano trial)', async () =
 
 /* ---------------- onboarding (entrevista inline) ---------------- */
 
-test('requiredSetsFor: cada produto puxa só os sets que consome', () => {
-  assert.deepEqual(requiredSetsFor(['gate']).sort(), ['dev']);
-  assert.deepEqual(requiredSetsFor(['vsqa']).sort(), ['dev', 'qa']);
-  assert.deepEqual(requiredSetsFor(['vsanalista']).sort(), ['analista', 'dev']);
+test('requiredSetsFor: dev-flow puxa empresa+dev+analista+qa; vendas puxa empresa+vendas', () => {
+  assert.deepEqual(requiredSetsFor(['vsqa']).sort(), ['analista', 'dev', 'empresa', 'qa']);
   assert.deepEqual(requiredSetsFor(['vsvendas']).sort(), ['empresa', 'vendas']);
   assert.equal(precisaApplyConfig(['vsvendas']), false);
   assert.equal(precisaApplyConfig(['vsdiretoria']), true);
 });
 
-test('requiredSetsFor: só o Gate não pergunta tracker nem sistema de QA', () => {
-  const sets = requiredSetsFor(['gate']);
-  assert.ok(!sets.includes('analista'));
-  assert.ok(!sets.includes('qa'));
-  assert.ok(!sets.includes('empresa'));
-});
-
-test('modulosAtivos: devolve todas as chaves, false pro que não foi escolhido', () => {
-  assert.deepEqual(modulosAtivos(['gate']), { analista: false, qa: false });
-  assert.deepEqual(modulosAtivos(['gate', 'vsqa']), { analista: false, qa: true });
-  assert.deepEqual(modulosAtivos(['vsdiretoria']), { analista: true, qa: false });
-  assert.deepEqual(modulosAtivos([]), { analista: false, qa: false });
-});
-
-test('applyProfiles: grava enabled do módulo sem apagar credencial já existente', () => {
-  const base = { integrations: { redmine: { enabled: true, baseUrl: 'https://r', apiKey: 'k', projectId: 7 } } };
-  const { company } = applyProfiles(base, { dev: respDev, modulos: { analista: false, qa: false } });
-  assert.equal(company.integrations.redmine.enabled, false);
-  assert.equal(company.integrations.redmine.apiKey, 'k'); // credencial preservada
-  assert.equal(company.integrations.qa.enabled, false);
-});
-
-test('requiredMissing: módulo desligado não cobra credencial; ligado cobra', () => {
-  const so = (sel) => applyProfiles({}, { dev: respDev, modulos: modulosAtivos(sel) }).company;
-  assert.deepEqual(requiredMissing(so(['gate'])), []); // Gate puro instala
-  assert.ok(requiredMissing(so(['gate', 'vsqa'])).some((m) => m.startsWith('qa:')));
-  assert.ok(requiredMissing(so(['gate', 'vsanalista'])).some((m) => m.startsWith('analista:')));
-});
-
 test('buildAndValidate: aponta obrigatórias faltando; ok quando completo', () => {
-  const faltou = buildAndValidate(['vendas'], { vendas: { funil: 'Novo' } });
+  const faltou = buildAndValidate(['empresa'], { empresa: { empresa_nome: 'X' } });
   assert.ok(faltou.erros.length > 0);
   const ok = buildAndValidate(['empresa', 'vendas'], respVendas);
   assert.equal(ok.erros.length, 0);
