@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { resolve, isAbsolute } from 'node:path';
+import { toNativePath } from './git-cwd.mjs';
 /**
  * Detecção de invocação REAL de `git <subcomando>` — não palavra solta no texto do
  * comando. Fecha o furo dos recibos/gate fantasma: um `echo "pronto pra commit"`, um
@@ -12,51 +15,100 @@ function subRe(sub) {
 }
 const RE_PUSH = subRe('push');
 const RE_COMMIT = subRe('commit');
-const RE_BRANCH = subRe('branch');
 
 export function isGitPush(cmd) { return RE_PUSH.test(String(cmd || '')); }
 export function isGitCommit(cmd) { return RE_COMMIT.test(String(cmd || '')); }
 
 /**
- * CRIAÇÃO de branch. `checkout -b` / `switch -c` sempre criam. O subcomando `branch` só
- * cria quando recebe um NOME — com flag de leitura/manutenção (`-a`, `-r`, `--list`,
- * `--show-current`, `--format=…`, `--merged`, `-d`, `-m`…) é consulta ou faxina.
+ * `--no-verify` (ou o `-n` de `git commit`) burla os hooks locais.
  *
- * Antes o guard testava `\s+branch\s+\S`: QUALQUER argumento contava como criação, então
- * uma LISTAGEM caía no VS-BRANCH-002 ("crie a partir de origin/<origem>") — bloqueando
- * justamente o passo que o fluxo EXIGE: antes de criar, conferir se já existe branch do
- * número (bug voltou).
+ * Testar /-n\b/ na linha inteira dá falso positivo em série: `git push … | grep -n`,
+ * `git commit -m "corrige -n"`, qualquer `sort -n`/`head -n` na mesma linha. Aqui a
+ * busca acontece só nos ARGUMENTOS do git, até o primeiro separador de shell.
+ *
+ * Detalhe que importa: em `git push`, `-n` é `--dry-run`, não `--no-verify`. Ensaio é
+ * inofensivo e não deve ser barrado; o `-n` curto só conta para `git commit`.
+ */
+export function usaNoVerify(cmd) {
+  const s = String(cmd || '');
+  const alvos = [
+    { re: RE_COMMIT, curto: true },
+    { re: RE_PUSH, curto: false },
+  ];
+
+  for (const { re, curto } of alvos) {
+    const m = re.exec(s);
+    if (!m) continue;
+
+    // Argumentos do git até o próximo separador de shell (pipe, ;, &&, redireção,
+    // here-doc). O que vier depois é outro comando e não é problema deste guard.
+    const resto = s.slice(m.index + m[0].length);
+    const args = resto.split(/\||;|&&|<<|>>|>|\n/)[0];
+
+    // Ignora conteúdo entre aspas: `-m "corrige -n"` não é flag.
+    const semAspas = args.replace(/"[^"]*"|'[^']*'/g, ' ');
+    const tokens = semAspas.split(/\s+/).filter(Boolean);
+
+    if (tokens.includes('--no-verify')) return true;
+
+    // Formas curtas do commit: -n isolado ou agrupado (-an, -nm).
+    if (curto && tokens.some((t) => /^-[a-z]*n[a-z]*$/.test(t))) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Modos de `git branch` que NÃO criam nada: listagem, remoção, renomeio, cópia,
+ * consulta. Testar `git branch \S` barrava `git branch -r`, `-a`, `--list`, `-vv`
+ * e até `git branch -d` — todos tratados como "criar branch nova".
  */
 const BRANCH_NAO_CRIA = new Set([
-  '--all', '--remotes', '--list', '--verbose', '--quiet', '--show-current', '--format',
-  '--contains', '--no-contains', '--merged', '--no-merged', '--sort', '--points-at',
-  '--color', '--no-color', '--column', '--no-column', '--delete', '--move', '--copy',
-  '--set-upstream-to', '--unset-upstream', '--edit-description',
+  '-l', '--list', '-r', '--remotes', '-a', '--all', '-v', '-vv', '--verbose',
+  '-d', '-D', '--delete', '-m', '-M', '--move', '-c', '-C', '--copy',
+  '--show-current', '--merged', '--no-merged', '--contains', '--no-contains',
+  '--points-at', '--format', '--sort', '--edit-description',
+  '--set-upstream-to', '-u', '--unset-upstream', '--column', '--no-column',
 ]);
-// flags curtas que NÃO criam (-a -r -l -v -q -d/-D -m/-M -C -u), inclusive combinadas (-av).
-const BRANCH_CURTA_NAO_CRIA = /[arlvqdDmMCu]/;
 
-export function createsBranch(cmd) {
+/** Opções de `git branch` que consomem o próximo token como valor. */
+const BRANCH_COM_VALOR = new Set([
+  '--contains', '--no-contains', '--merged', '--no-merged', '--points-at',
+  '--format', '--sort', '--set-upstream-to', '-u', '--color',
+]);
+
+/**
+ * O comando CRIA uma branch? Devolve também o nome, quando houver.
+ *
+ * Só é criação em: `git checkout -b <nome>`, `git switch -c|-C <nome>` e
+ * `git branch <nome>` sem flag de modo. Listar, deletar e renomear não são criação.
+ */
+export function analisarCriacaoDeBranch(cmd) {
   const s = String(cmd || '');
-  if (/\bgit\s+checkout\s+-b\b/.test(s) || /\bgit\s+switch\s+-c\b/.test(s)) { return true; }
-  const m = s.match(RE_BRANCH);
-  if (!m) { return false; }
-  // argumentos do subcomando até o próximo separador de comando
-  const args = s.slice(m.index + m[0].length).split(/[&|;]/)[0].trim();
-  if (!args) { return false; } // sem argumento = listagem
-  let nomes = 0;
-  for (const t of (args.match(/"[^"]*"|'[^']*'|\S+/g) || [])) {
-    if (t.startsWith('--')) {
-      if (BRANCH_NAO_CRIA.has(t.split('=')[0])) { return false; }
-      continue; // --force e afins não descaracterizam criação
-    }
-    if (/^-[a-zA-Z]+$/.test(t)) {
-      if (BRANCH_CURTA_NAO_CRIA.test(t.slice(1))) { return false; }
+
+  const co = s.match(/\bgit\b[^|;&\n]*?\s(?:checkout\s+-b|switch\s+-[cC])\s+(\S+)/);
+  if (co) return { cria: true, nome: co[1] };
+
+  const br = s.match(/\bgit\b[^|;&\n]*?\sbranch\b([^|;&\n]*)/);
+  if (!br) return { cria: false, nome: '' };
+
+  const tokens = br[1].replace(/"[^"]*"|'[^']*'/g, ' ').split(/\s+/).filter(Boolean);
+
+  let nome = '';
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    const base = t.split('=')[0];
+
+    if (t.startsWith('-')) {
+      if (BRANCH_NAO_CRIA.has(base)) return { cria: false, nome: '' };
+      if (BRANCH_COM_VALOR.has(base) && !t.includes('=')) i++;
       continue;
     }
-    nomes++;
+
+    if (!nome) nome = t;
   }
-  return nomes > 0;
+
+  return nome ? { cria: true, nome } : { cria: false, nome: '' };
 }
 
 /**
@@ -71,25 +123,84 @@ export function hasPowerShellHereStringAt(cmd) {
 }
 
 /**
- * Mensagem COMPLETA do commit a partir da linha de comando.
- * Cobre os dois jeitos de escrever corpo: varios `-m` (git junta com linha em branco)
- * e heredoc (`git commit -F - <<'EOF' ... EOF`). Devolve null quando nao da pra ler
- * (ex.: `git commit -F arquivo`), e ai o chamador libera em vez de chutar.
+ * MENSAGEM REAL do git commit, venha de onde vier. O parser antigo lia so o PRIMEIRO `-m`,
+ * entao tres caminhos passavam sem validacao nenhuma:
+ *   - `-m "titulo" -m "Co-Authored-By: Claude"` -> assinatura de IA escondida no 2o -m;
+ *   - `git commit -F arquivo`                       -> justamente o que o VS-AUD-005 manda usar;
+ *   - `git commit -F - <<EOF ... EOF`               -> heredoc.
+ * Junta todos os `-m/--message`, o conteudo de `-F/--file` e o corpo do heredoc.
+ * `base` e o cwd do repo, pra resolver caminho relativo do -F.
  */
-const RE_DASH_M = /-m\s+(?:"([^"]*)"|'([^']*)')/g;
+/**
+ * Argumentos do git a partir de `from`, parando no primeiro separador de shell que
+ * esteja FORA de aspas. Split cru por /|;&&>/ cortava no meio de `-m 'Co-Authored-By:
+ * Claude <x@y.com>'` — o `>` do e-mail encerrava os argumentos e a assinatura de IA
+ * escapava da validacao.
+ */
+function sliceGitArgs(s, from) {
+  let q = null;
+  let out = '';
+  for (let i = from; i < s.length; i++) {
+    const c = s[i];
+    if (q) { out += c; if (c === q) { q = null; } continue; }
+    if (c === '"' || c === "'") { q = c; out += c; continue; }
+    if (c === '\n' || c === ';' || c === '|') { break; }
+    if (c === '&' && s[i + 1] === '&') { break; }
+    if (c === '<' && s[i + 1] === '<') { break; }
+    if (c === '>') { break; }
+    out += c;
+  }
+  return out;
+}
 
-export function extractCommitMessage(cmd) {
+export function extractCommitMessage(cmd, base) {
   const s = String(cmd || '');
   const partes = [];
-  for (const m of s.matchAll(RE_DASH_M)) {
-    partes.push(m[1] !== undefined ? m[1] : m[2]);
+  let origem = null;
+
+  // -m/-F so valem nos ARGUMENTOS do git. Varrer a linha inteira fazia o CORPO da
+  // mensagem virar flag: um commit que explica "so o primeiro -m era lido" casava
+  // `-m era` e o guard passava a validar a palavra "era" como titulo. Corta no
+  // primeiro separador de shell (o heredoc entra por outro caminho, abaixo).
+  const inicio = RE_COMMIT.exec(s);
+  const args = inicio ? sliceGitArgs(s, inicio.index + inicio[0].length) : s;
+
+  const RE_M = /(?:^|\s)(?:-m|--message)(?:=|\s+)("([^"]*)"|'([^']*)'|([^\s;|&]+))/g;
+  for (const m of args.matchAll(RE_M)) {
+    partes.push(m[2] ?? m[3] ?? m[4] ?? '');
+    origem = origem || '-m';
   }
-  if (partes.length) { return partes.join('\n\n'); }
-  // heredoc SO vale como mensagem quando a entrada padrao alimenta mesmo o -F -.
-  // Sem essa amarra, QUALQUER heredoc na linha (escrever arquivo, rodar script) virava
-  // 'mensagem' e o commit legitimo era barrado por um texto que nao era dele.
-  if (!/(?:-F|--file)(?:=|\s+)-(?![\w-])/.test(s)) { return null; }
-  const here = s.match(/<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1\s*\r?\n([\s\S]*?)\r?\n[ \t]*\2\s*$/m);
-  if (here) { return here[3]; }
-  return null;
+
+  const heredoc = s.match(/<<-?\s*(['"]?)([A-Za-z_]\w*)\1\r?\n([\s\S]*?)\r?\n[ \t]*\2\b/);
+  const mF = args.match(/(?:^|\s)(?:-F|--file)(?:=|\s+)("([^"]*)"|'([^']*)'|([^\s;|&]+))/);
+  if (mF) {
+    const alvo = mF[2] ?? mF[3] ?? mF[4] ?? '';
+    if (alvo === '-') {
+      if (heredoc) { partes.push(heredoc[3]); origem = origem || 'heredoc'; }
+    } else {
+      try {
+        const nat = toNativePath(alvo);
+        const abs = isAbsolute(nat) ? nat : resolve(base || '.', nat);
+        partes.push(readFileSync(abs, 'utf8'));
+        origem = origem || '-F';
+      } catch {
+        // PreToolUse roda ANTES do comando: `cat > msg.txt <<EOF ... && ... -F msg.txt`
+        // ainda nao criou o arquivo. O texto esta no heredoc do proprio comando.
+        if (heredoc) { partes.push(heredoc[3]); origem = origem || 'heredoc'; }
+        else { origem = origem || '-F-ilegivel'; }
+      }
+    }
+  } else if (heredoc) {
+    partes.push(heredoc[3]);
+    origem = origem || 'heredoc';
+  }
+
+  const full = partes.join('\n\n').replace(/^\s*\n/, '');
+  const linhas = full.split(/\r?\n/);
+  return {
+    origem,
+    full,
+    subject: (linhas[0] || '').trim(),
+    body: linhas.slice(1).join('\n').trim(),
+  };
 }

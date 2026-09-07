@@ -38,7 +38,7 @@ test('nextQuestion: obrigatórias primeiro; completa quando todas required respo
 });
 
 test('answer: rejeita choice inválida com erro', () => {
-  const r = answer(createState('empresa'), 'tom', 'ZZ');
+  const r = answer(createState('vendas'), 'tom', 'ZZ');
   assert.equal(r.ok, false);
   assert.match(r.error, /escolha uma/);
 });
@@ -135,8 +135,12 @@ test('listProducts: agrupa variantes por nome base', () => {
 
 test('buildAds: gera por plataforma no tom da empresa; sem preço avisa', () => {
   const p = mapProfile(empresa, vendas);
-  const semPreco = buildAds({ produto: 'Sofá', imagens: ['a.jpg'] }, p, ['instagram']);
+  // Preço passou a ser exigido só no CLASSIFICADO (marketplace/ML/OLX); feed e direct
+  // geram sem preço — ver tests/vsvendas-ads.test.mjs.
+  const semPreco = buildAds({ produto: 'Sofá', imagens: ['a.jpg'] }, p, ['mercadolivre']);
   assert.equal(semPreco.faltando, 'preço');
+  const feedSemPreco = buildAds({ produto: 'Sofá', imagens: ['a.jpg'] }, p, ['instagram']);
+  assert.equal(feedSemPreco.anuncios.length, 1);
 
   const r = buildAds({ produto: 'Sofá 3 lugares', preco: 1299.9, descricao: 'seminovo', imagens: ['a.jpg'] }, p, ['instagram', 'mercadolivre', 'whatsapp']);
   assert.equal(r.anuncios.length, 3);
