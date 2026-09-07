@@ -69,3 +69,27 @@ export function hasPowerShellHereStringAt(cmd) {
   const s = String(cmd || '');
   return /-m\s*@/.test(s) || /@'[\s\S]*'@/.test(s) || /@"[\s\S]*"@/.test(s);
 }
+
+/**
+ * Mensagem COMPLETA do commit a partir da linha de comando.
+ * Cobre os dois jeitos de escrever corpo: varios `-m` (git junta com linha em branco)
+ * e heredoc (`git commit -F - <<'EOF' ... EOF`). Devolve null quando nao da pra ler
+ * (ex.: `git commit -F arquivo`), e ai o chamador libera em vez de chutar.
+ */
+const RE_DASH_M = /-m\s+(?:"([^"]*)"|'([^']*)')/g;
+
+export function extractCommitMessage(cmd) {
+  const s = String(cmd || '');
+  const partes = [];
+  for (const m of s.matchAll(RE_DASH_M)) {
+    partes.push(m[1] !== undefined ? m[1] : m[2]);
+  }
+  if (partes.length) { return partes.join('\n\n'); }
+  // heredoc SO vale como mensagem quando a entrada padrao alimenta mesmo o -F -.
+  // Sem essa amarra, QUALQUER heredoc na linha (escrever arquivo, rodar script) virava
+  // 'mensagem' e o commit legitimo era barrado por um texto que nao era dele.
+  if (!/(?:-F|--file)(?:=|\s+)-(?![\w-])/.test(s)) { return null; }
+  const here = s.match(/<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1\s*\r?\n([\s\S]*?)\r?\n[ \t]*\2\s*$/m);
+  if (here) { return here[3]; }
+  return null;
+}

@@ -12,7 +12,7 @@
  */
 
 import { parseBranch, extrairNumeroTarefa, resolverNumero, loadReq, saveReq, clearReq, setConsult, clearConsult, isFree, clearFree, isSessionOff, setSessionOff, clearSessionOff, setTask, clearTask, getTask, touchTask, isPreflight, setPreflight } from '../engine/branch-req.mjs';
-import { loadCompanyConfig, branchName as buildBranchName } from '../engine/company-config.mjs';
+import { loadCompanyConfig, branchName as buildBranchName, requerCorpoCommit } from '../engine/company-config.mjs';
 import { timeBoxStatus } from '../engine/timebox.mjs';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -133,18 +133,26 @@ if (isSessionOff(sid)) {
 // ATIVIDADE DO DEV: qualquer mensagem do dev = ele PRESENTE = atividade. Reseta o
 // relogio de inatividade do time-box, matando o falso-bloqueio de "esperando o dev
 // responder". O time-box so trava tarefa REALMENTE abandonada (sem dev E sem tool).
+// ORDEM IMPORTA: o estado do time-box e fotografado ANTES do touch. touchTask carimba
+// lastTs=agora e timeBoxStatus ancora justamente em lastTs — tocar primeiro apagava o
+// estouro e a destrava abaixo virava codigo morto (a mensagem nunca saia).
+let tPre = null; try { tPre = getTask(sid); } catch {}
+const stPre = (tPre && tPre.num && tPre.ts)
+  ? timeBoxStatus(tPre, Date.now(), loadCompanyConfig(process.cwd()))
+  : null;
 try { touchTask(sid); } catch {}
 
 // DESTRAVA DO TIME-BOX: tarefa ativa que ESTOUROU o teto trava a sessão inteira
 // (on-timebox-guard). Só o dev destrava: a palavra de liberação reinicia a janela e o
 // guard volta a liberar. Só age quando a tarefa realmente estourou (evita falso positivo).
 {
-  let t = null; try { t = getTask(sid); } catch {}
-  if (t && t.num && t.ts) {
-    const st0 = timeBoxStatus(t, Date.now(), loadCompanyConfig(process.cwd()));
+  const t = tPre;
+  if (stPre) {
+    const st0 = stPre;
     const libera = /^\s*(liberad[oa]|libera)\b/i.test(prompt);
     if (st0.overdue && libera) {
-      setTask(sid, { ...t, ts: Date.now() });
+      const agora = Date.now();
+      setTask(sid, { ...t, ts: agora, lastTs: agora });
       process.stdout.write(JSON.stringify({
         hookSpecificOutput: {
           hookEventName: 'UserPromptSubmit',
@@ -582,6 +590,13 @@ if (isDocumentationTask) {
   ctx += `\nCOMMIT (padrão da empresa): \`${commitEx}\`` +
     (cfg.commitScope === 'numero' ? ` — escopo é o NÚMERO da tarefa; módulo/contexto vai NA descrição.` : '') +
     ` Sem assinatura de IA.`;
+  // CORPO DETALHADO: quando a empresa exige (commitBody='detalhado'), o assunto sozinho
+  // e reprovado pelo VS-AUD-006 na hora do commit. Avisa ANTES, junto do padrao.
+  if (requerCorpoCommit(cfg)) {
+    ctx += `\nCORPO DO COMMIT (obrigatorio): assunto breve na 1a linha, linha EM BRANCO, e corpo detalhando a tarefa` +
+      ` — o que era o problema/pedido, a causa, o que mudou e como foi validado. Minimo ${cfg.commitBodyMinChars} caracteres.` +
+      ` Escreva com heredoc bash alimentando a entrada padrao (-F -). So o assunto = commit BLOQUEADO (VS-AUD-006).`;
+  }
   // FLUXO ABSOLUTO — na ordem, sem pular:
   ctx += `\nFLUXO (na ordem): ① ${feitas.length ? 'branch(es) JÁ criada(s) acima' : 'CRIA a(s) branch(es)'} → ② trabalha → ③ roda o QA-Gate → ④ VERDE: commit + push das branches (mobile acumula local) → ⑤ documenta (Redmine). ` +
     `Gate faltando/erro = RESPONSABILIDADE SUA: vê o que é, arruma e roda até VERDE (se vira, não peça pro Fabiano subir ambiente). Só prossegue no verde.`;

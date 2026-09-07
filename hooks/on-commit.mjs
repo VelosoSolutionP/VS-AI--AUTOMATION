@@ -11,8 +11,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
 import { getTask, isSessionOff } from '../engine/branch-req.mjs';
-import { loadCompanyConfig, checkCommitScope } from '../engine/company-config.mjs';
-import { isGitCommit, hasPowerShellHereStringAt } from '../engine/git-cmd.mjs';
+import { loadCompanyConfig, checkCommitScope, checkCommitBody, requerCorpoCommit } from '../engine/company-config.mjs';
+import { isGitCommit, hasPowerShellHereStringAt, extractCommitMessage } from '../engine/git-cmd.mjs';
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
 import { evaluateUnitTestGuard } from '../engine/unit-test-guard.mjs';
 
@@ -42,10 +42,11 @@ if (hasPowerShellHereStringAt(cmd)) {
   deny('[VS-AUD-005] BLOCKED — sintaxe de commit inválida: here-string PowerShell @\'...\'@ na tool Bash (POSIX). O "@" vaza pro TÍTULO do commit e quebra o padrão/CMMI. Use `git commit -F <arquivo>` OU heredoc bash (`git commit -F - <<\'EOF\' ... EOF`). NUNCA @\'...\'@ aqui.');
 }
 
-const m = cmd.match(/-m\s+(["'])([\s\S]*?)\1/);
-if (!m) { allow(); } // sem -m (ex.: commit -F arquivo/heredoc) — validado por outra via
+const mensagem = extractCommitMessage(cmd);
+// ilegivel daqui (ex.: commit -F arquivo): libera, nao chuta.
+if (mensagem == null) { allow(); }
 
-const subject = m[2].split(/\r?\n/)[0].trim();
+const subject = mensagem.split(/\r?\n/)[0].trim();
 // merge / promoção de ambiente: "Merge branch ..." não segue o padrão de tarefa (é junção
 // via MR) — liberado. NÃO libera commit direto de código em protegida (VS-GIT-002 segue).
 if (/^Merge\b/i.test(subject)) { allow(); }
@@ -70,8 +71,32 @@ if (task && task.num) {
       `Recebido: "${subject}"\nCorrija p/: ${exemplo}`);
   }
 }
+// CORPO DO COMMIT conforme a CONFIG DA EMPRESA (commitBody). Quando 'detalhado', o
+// assunto breve nao basta: exige linha em branco e corpo descrevendo a tarefa.
+{
+  const cfgBody = loadCompanyConfig(process.cwd());
+  if (requerCorpoCommit(cfgBody)) {
+    const { ok, motivo, min } = checkCommitBody(cfgBody, mensagem);
+    if (!ok) {
+      const tipoB = (subject.match(/^([a-z]+)/i) || [])[1] || 'fix';
+      const escopoB = (subject.match(/^[a-z]+\(([^)]*)\)/i) || [])[1] || '<numero>';
+      deny([
+        `[VS-AUD-006] BLOCKED - commit sem descricao detalhada: ${motivo}.`,
+        `A empresa exige assunto breve + linha EM BRANCO + corpo com no minimo ${min} caracteres,`,
+        `dizendo o que era o problema/pedido, a causa, o que mudou e como foi validado.`,
+        `Formato esperado da mensagem:`,
+        `  ${tipoB}(${escopoB}): <descricao breve>`,
+        `  <linha em branco>`,
+        `  <descricao detalhada da tarefa>`,
+        `Escreva com heredoc bash alimentando a entrada padrao (-F -).`,
+        `Here-string do PowerShell continua proibida na tool Bash (VS-AUD-005).`,
+      ].join('\n'));
+    }
+  }
+}
+
 // tempo/assinatura de IA proibida no commit
-if (/co-authored-by:\s*claude|generated with .*claude/i.test(m[2])) {
+if (/co-authored-by:\s*claude|generated with .*claude/i.test(mensagem)) {
   deny('[VS-AUD-003] BLOCKED — commit não pode conter assinatura/atribuição de IA.');
 }
 // CAMADA EXTRA (regra absoluta, VS-AUD-004): tocou código de produção (back/front/mobile)

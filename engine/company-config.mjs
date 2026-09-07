@@ -26,6 +26,10 @@ export const DEFAULT_CONFIG = {
   branchPattern: '<tipo>/<autor>/<numero>',
   commitScope: 'numero',        // 'numero' | 'modulo' | 'any'
   commitScopeRegex: null,       // opcional: string de regex; se setado, sobrepõe commitScope
+  // Corpo do commit. 'off' = so o assunto basta (default: instalacao existente nao muda).
+  // 'detalhado' = exige assunto breve + linha em branco + corpo descrevendo a tarefa.
+  commitBody: 'off',            // 'off' | 'detalhado'
+  commitBodyMinChars: 80,       // tamanho minimo do corpo quando commitBody = 'detalhado'
   tipos: ['fix', 'feat', 'feature', 'perf', 'refactor', 'hotfix', 'chore', 'test', 'docs', 'build', 'ci', 'style', 'revert'],
   doc: { template: 'redmine', required: true },
   push: { setUpstream: true },
@@ -176,4 +180,31 @@ export function checkCommitScope(cfg, scope, numero) {
   if (rule === 'any') { return { ok: true, expected: 'qualquer escopo' }; }
   if (rule === 'modulo') { return { ok: !!scope && !/^\d+$/.test(scope), expected: 'um módulo/contexto (ex.: auth, chat) — não o número' }; }
   return { ok: scope === String(numero), expected: `o número da tarefa (${numero})` };
+}
+
+/**
+ * A empresa exige corpo detalhado no commit?
+ */
+export function requerCorpoCommit(cfg) {
+  return String(cfg?.commitBody ?? DEFAULT_CONFIG.commitBody) === 'detalhado';
+}
+
+/**
+ * Valida a mensagem COMPLETA do commit contra a regra de corpo da empresa.
+ * Formato exigido: assunto na 1a linha, 2a linha EM BRANCO, corpo a partir da 3a.
+ * Devolve { ok, motivo, min } — motivo ja legivel pro dev.
+ */
+export function checkCommitBody(cfg, message) {
+  if (!requerCorpoCommit(cfg)) { return { ok: true }; }
+  const min = Number(cfg?.commitBodyMinChars ?? DEFAULT_CONFIG.commitBodyMinChars);
+  const linhas = String(message ?? '').split(/\r?\n/);
+  const corpo = linhas.slice(1).join('\n').trim();
+  if (!corpo) { return { ok: false, motivo: 'o commit tem so o assunto, sem corpo', min }; }
+  if ((linhas[1] ?? '').trim() !== '') {
+    return { ok: false, motivo: 'falta a linha EM BRANCO entre o assunto e o corpo', min };
+  }
+  if (corpo.length < min) {
+    return { ok: false, motivo: `o corpo tem ${corpo.length} caracteres`, min };
+  }
+  return { ok: true };
 }

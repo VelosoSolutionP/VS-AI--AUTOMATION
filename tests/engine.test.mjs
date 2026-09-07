@@ -59,10 +59,15 @@ function runTbGuard(sid, toolCommand) {
 }
 
 const ONCOMMIT = join(__dir, '..', 'hooks', 'on-commit.mjs');
-function runOnCommit(command) {
+function runOnCommit(command, politica) {
   const cwd = join(tmpdir(), 'qa-gate-oncommit-test');
   try { mkdirSync(cwd, { recursive: true }); } catch {}
-  const r = spawnSync('node', [ONCOMMIT], { input: JSON.stringify({ tool_input: { command }, session_id: 'oc-test' }), cwd, encoding: 'utf8' });
+  // Config DETERMINISTICA: sem isso o hook cai no ~/.qa-gate/company.json e o
+  // resultado do teste passa a depender da politica da maquina de quem roda.
+  const cfgPath = join(cwd, 'company.json');
+  writeFileSync(cfgPath, JSON.stringify({ commitScope: 'numero', commitBody: 'off', ...(politica || {}) }));
+  const env = { ...process.env, QA_GATE_COMPANY_CONFIG: cfgPath };
+  const r = spawnSync('node', [ONCOMMIT], { input: JSON.stringify({ tool_input: { command }, session_id: 'oc-test' }), cwd, encoding: 'utf8', env });
   return r.stdout || '';
 }
 
@@ -372,6 +377,21 @@ test('VS-AUD-005 on-commit: BLOQUEIA commit com @ vazado (here-string @...@)', (
 test('on-commit: LIBERA commit no padrao correto (aspas normais)', () => {
   const out = runOnCommit('git commit -m "fix(35575): trata dado sensivel na edicao"');
   assert.doesNotMatch(out, /VS-AUD-005/);
+  assert.doesNotMatch(out, /"permissionDecision":"deny"/);
+});
+
+// Regra de CORPO (VS-AUD-006): a empresa pode exigir descricao detalhada, nao so o assunto.
+test('on-commit: BLOQUEIA commit so com assunto quando a empresa exige corpo', () => {
+  const out = runOnCommit('git commit -m "fix(35575): trata dado sensivel"', { commitBody: 'detalhado' });
+  assert.match(out, /VS-AUD-006/);
+  assert.match(out, /"permissionDecision":"deny"/);
+});
+
+test('on-commit: LIBERA commit com assunto + linha em branco + corpo detalhado', () => {
+  const out = runOnCommit(
+    'git commit -m "fix(35575): trata dado sensivel" -m "corrige a leitura de data pura que caia um dia antes no fuso de Roraima, com teste cobrindo o caso"',
+    { commitBody: 'detalhado' },
+  );
   assert.doesNotMatch(out, /"permissionDecision":"deny"/);
 });
 
