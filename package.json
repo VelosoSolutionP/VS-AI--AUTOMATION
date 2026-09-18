@@ -27,7 +27,8 @@
     "vsdiretoria": "./engine/vsdiretoria/cli.mjs",
     "vsvendas": "./engine/vsvendas/cli.mjs",
     "vs-install": "./installer/cli.mjs",
-    "vsinfluence": "./engine/vsinfluence/cli.mjs"
+    "vsinfluence": "./engine/vsinfluence/cli.mjs",
+    "vstiktok": "./engine/vstiktok/cli.mjs"
   },
   "engines": {
     "node": ">=18"
