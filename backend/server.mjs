@@ -18,6 +18,12 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { issueLicense } from '../license/issue.mjs';
 import { sendLicense } from './whatsapp.mjs';
+import * as crm from '../engine/vscrm/index.mjs';
+import { testarConexao, CREDENCIAL } from '../engine/vsinfluence/coletor.mjs';
+import { diagnostico as tiktokDiagnostico } from '../engine/vstiktok/index.mjs';
+import { testar as tiktokTestar } from '../engine/vstiktok/conectar.mjs';
+import { reservarEvento } from './idempotencia.mjs';
+import { lerCorpoLimitado, criarRateLimit, ipDe, segredoIgual, CORPO_MAX_BYTES } from './limites.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8787;
@@ -27,6 +33,11 @@ const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID || '';
 const PUBLIC_URL = process.env.PUBLIC_URL || 'https://api.velososolution.online';
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || ''; // emissão admin on-demand (/issue)
+// CRM: DESLIGADO por padrão. Este processo roda exposto na VPS e o CRM guarda nome e
+// telefone de cliente — publicar sem querer seria vazamento. Ligar exige CRM_ENABLED=1
+// e, se CRM_TOKEN estiver setado, o token em toda chamada.
+const CRM_ENABLED = process.env.CRM_ENABLED === '1';
+const CRM_TOKEN = process.env.CRM_TOKEN || '';
 
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://velososolution.online';
 function cors(res) {
@@ -39,10 +50,38 @@ function json(res, code, obj) {
   res.end(JSON.stringify(obj));
 }
 
+/** Sentinela: quando o corpo estoura o teto, o handler responde 413 e para. */
+const CORPO_GRANDE = Symbol('corpo-grande');
+
 async function readBody(req) {
-  const chunks = [];
-  for await (const c of req) { chunks.push(c); }
-  return Buffer.concat(chunks);
+  const r = await lerCorpoLimitado(req, CORPO_MAX_BYTES);
+  if (r.excedeu) { return CORPO_GRANDE; }
+  return r.buffer;
+}
+
+/** true se o handler já respondeu por corpo grande demais. */
+function corpoEstourou(res, raw) {
+  if (raw !== CORPO_GRANDE) { return false; }
+  json(res, 413, { error: `corpo acima de ${CORPO_MAX_BYTES} bytes` });
+  return true;
+}
+
+// Cotas por IP. Emissão de licença é a rota cara: sem teto dava pra mintar chave em
+// massa com um laço de shell. Em memória basta com um processo só; com mais de uma
+// instância isto precisa ir pro Redis, senão cada uma conta sua própria cota.
+const LIM_TRIAL = criarRateLimit({ max: Number(process.env.RATE_TRIAL || 5), janelaMs: 3600000 });
+const LIM_CHECKOUT = criarRateLimit({ max: Number(process.env.RATE_CHECKOUT || 20), janelaMs: 3600000 });
+const LIM_ISSUE = criarRateLimit({ max: Number(process.env.RATE_ISSUE || 60), janelaMs: 3600000 });
+const LIM_CRM = criarRateLimit({ max: Number(process.env.RATE_CRM || 300), janelaMs: 60000 });
+
+/** Aplica a cota; se estourou, responde 429 e devolve true. */
+function barrado(res, limitador, req, oque) {
+  const r = limitador.checar(ipDe(req));
+  if (r.ok) { return false; }
+  console.warn(`[rate] ${oque} bloqueado para ${ipDe(req)} — espera ${r.esperaSeg}s`);
+  res.setHeader('retry-after', String(r.esperaSeg));
+  json(res, 429, { error: `muitas tentativas em ${oque}; tente em ${r.esperaSeg}s` });
+  return true;
 }
 
 const ALLOW_INSECURE = process.env.ALLOW_INSECURE_WEBHOOK === '1';
@@ -72,6 +111,25 @@ async function deliverLicense({ email, phone, name, token, plan }) {
   return res;
 }
 
+/**
+ * Traduz a entrega pra resposta HTTP. `entregue` só é true quando a mensagem SAIU
+ * pela rede (spec §6). Quando fica pendente, devolve o motivo e o link manual, pra
+ * ninguém achar que o cliente recebeu a chave quando ela só foi pro console.
+ */
+function entregaResumo(entrega) {
+  if (!entrega) { return { entregue: false, entrega: { pendente: true, motivo: 'sem telefone valido para entrega' } }; }
+  if (entrega.ok) { return { entregue: true, entrega: { provider: entrega.provider, id: entrega.id || null } }; }
+  return {
+    entregue: false,
+    entrega: {
+      pendente: true,
+      provider: entrega.provider,
+      motivo: entrega.error || 'entrega falhou',
+      linkManual: entrega.link || null,
+    },
+  };
+}
+
 const server = createServer(async (req, res) => {
   if (req.method === 'GET' && req.url === '/health') { return json(res, 200, { ok: true }); }
 
@@ -85,8 +143,14 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === 'GET' && req.url.split('?')[0] === '/obrigado') {
+    // A página prometia "a caminho do seu WhatsApp" mesmo com o provider em `log`,
+    // quando nada era enviado. Agora o texto segue o que o servidor consegue fazer.
+    const envia = process.env.WHATSAPP_PROVIDER === 'cloud' && !!process.env.WA_TOKEN && !!process.env.WA_PHONE_ID;
+    const recado = envia
+      ? 'Sua licença QA-Gate está a caminho do seu WhatsApp.'
+      : 'Sua licença QA-Gate já foi emitida e será enviada em instantes.';
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-    return res.end('<meta charset=utf-8><body style="font-family:system-ui;background:#0b1220;color:#f2f4f7;text-align:center;padding:80px 20px"><h1>Pagamento confirmado ✅</h1><p style="color:#cfd6e4">Sua licença QA-Gate está a caminho do seu WhatsApp. Qualquer coisa: velososolution.online</p></body>');
+    return res.end(`<meta charset=utf-8><body style="font-family:system-ui;background:#0b1220;color:#f2f4f7;text-align:center;padding:80px 20px"><h1>Pagamento confirmado ✅</h1><p style="color:#cfd6e4">${recado} Qualquer coisa: velososolution.online</p></body>`);
   }
 
   // preflight CORS do checkout (form vindo do site)
@@ -97,7 +161,10 @@ const server = createServer(async (req, res) => {
   // cadastro (nome + WhatsApp) -> cria sessão de checkout no Stripe
   if (req.method === 'POST' && req.url === '/checkout') {
     cors(res);
-    const raw = (await readBody(req)).toString('utf8');
+    if (barrado(res, LIM_CHECKOUT, req, '/checkout')) { return; }
+    const buf = await readBody(req);
+    if (corpoEstourou(res, buf)) { return; }
+    const raw = buf.toString('utf8');
     let data; try { data = JSON.parse(raw); } catch { data = {}; }
     const name = String(data.name || '').trim().slice(0, 80);
     const phone = String(data.phone || '').replace(/\D/g, '').slice(0, 20);
@@ -132,10 +199,17 @@ const server = createServer(async (req, res) => {
   if (req.method === 'POST' && req.url === '/issue') {
     cors(res);
     if (!ADMIN_TOKEN) { return json(res, 403, { error: 'emissão admin desativada (defina ADMIN_TOKEN)' }); }
+    if (barrado(res, LIM_ISSUE, req, '/issue')) { return; }
     const auth = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
-    const raw = (await readBody(req)).toString('utf8');
+    const buf = await readBody(req);
+    if (corpoEstourou(res, buf)) { return; }
+    const raw = buf.toString('utf8');
     let data; try { data = JSON.parse(raw); } catch { data = {}; }
-    if (auth !== ADMIN_TOKEN && data.token !== ADMIN_TOKEN) { return json(res, 401, { error: 'token admin inválido' }); }
+    // Comparacao em tempo constante: `!==` vaza pelo tempo quantos caracteres do
+    // token ja estao certos, e o token do /issue emite licenca de qualquer plano.
+    if (!segredoIgual(auth, ADMIN_TOKEN) && !segredoIgual(data.token, ADMIN_TOKEN)) {
+      return json(res, 401, { error: 'token admin inválido' });
+    }
     const plan = String(data.plan || 'pro').toLowerCase();
     const name = String(data.name || '').trim().slice(0, 80);
     const phone = String(data.whatsapp || data.phone || '').replace(/\D/g, '').slice(0, 20);
@@ -144,8 +218,12 @@ const server = createServer(async (req, res) => {
     const days = data.days != null ? Number(data.days) : (planToDays[plan] ?? 365);
     const token = issueLicense({ email: contato, plan, days });
     let entrega = null;
-    if (phone.length >= 10 && data.entregar !== false) { try { entrega = await deliverLicense({ email: contato, phone, name, token, plan }); } catch {} }
-    return json(res, 200, { token, plan, days, entregue: !!(entrega && entrega.ok) });
+    if (phone.length >= 10 && data.entregar !== false) {
+      // catch vazio escondia a falha e a resposta saia igual a de um envio bem-sucedido.
+      try { entrega = await deliverLicense({ email: contato, phone, name, token, plan }); }
+      catch (e) { console.error('[entrega] erro inesperado:', e.message); entrega = { ok: false, provider: 'erro', error: e.message }; }
+    }
+    return json(res, 200, { token, plan, days, ...entregaResumo(entrega) });
   }
 
   // preflight do trial (instalador)
@@ -155,7 +233,10 @@ const server = createServer(async (req, res) => {
   // feito pela trava por data de instalação no cliente). Entrega best-effort no WhatsApp.
   if (req.method === 'POST' && req.url === '/trial') {
     cors(res);
-    const raw = (await readBody(req)).toString('utf8');
+    if (barrado(res, LIM_TRIAL, req, '/trial')) { return; }
+    const buf = await readBody(req);
+    if (corpoEstourou(res, buf)) { return; }
+    const raw = buf.toString('utf8');
     let data; try { data = JSON.parse(raw); } catch { data = {}; }
     const name = String(data.name || '').trim().slice(0, 80);
     const phone = String(data.whatsapp || data.phone || data.contato || '').replace(/\D/g, '').slice(0, 20);
@@ -163,17 +244,30 @@ const server = createServer(async (req, res) => {
     if (!contato) { return json(res, 400, { error: 'Informe WhatsApp ou e-mail.' }); }
     const token = issueLicense({ email: contato, plan: 'trial', days: 3650 });
     let entrega = null;
-    if (phone.length >= 10) { try { entrega = await deliverLicense({ email: contato, phone, name, token, plan: 'trial' }); } catch {} }
-    return json(res, 200, { token, plan: 'trial', entregue: !!(entrega && entrega.ok) });
+    if (phone.length >= 10) {
+      try { entrega = await deliverLicense({ email: contato, phone, name, token, plan: 'trial' }); }
+      catch (e) { console.error('[entrega] erro inesperado:', e.message); entrega = { ok: false, provider: 'erro', error: e.message }; }
+    }
+    return json(res, 200, { token, plan: 'trial', ...entregaResumo(entrega) });
   }
 
   if (req.method === 'POST' && req.url === '/webhook') {
-    const raw = (await readBody(req)).toString('utf8');
+    const buf = await readBody(req);
+    if (corpoEstourou(res, buf)) { return; }
+    const raw = buf.toString('utf8');
     const ok = await verifyStripeSig(raw, req.headers['stripe-signature'] || '', WEBHOOK_SECRET);
     if (!ok) { return json(res, 400, { error: 'assinatura Stripe inválida' }); }
 
     let event;
     try { event = JSON.parse(raw); } catch { return json(res, 400, { error: 'payload inválido' }); }
+
+    // Idempotência (spec §24): o Stripe reentrega o mesmo evento quando não recebe 2xx.
+    // Sem esta trava, cada reentrega emitia OUTRA licença pro mesmo pagamento.
+    // Responde 200 na reentrega — 4xx faria o Stripe insistir para sempre.
+    if (event.id && !reservarEvento(event.id, { tipo: event.type })) {
+      console.log(`[webhook] evento ${event.id} ja processado — reentrega ignorada`);
+      return json(res, 200, { received: true, duplicado: true, issued: false });
+    }
 
     if (event.type === 'checkout.session.completed') {
       const s = event.data?.object || {};
@@ -182,10 +276,69 @@ const server = createServer(async (req, res) => {
       const name = s.customer_details?.name || s.metadata?.name || '';
       const plan = (s.metadata?.plan || 'pro').toLowerCase();
       const token = issueLicense({ email, plan, days: planToDays[plan] ?? 365 });
-      await deliverLicense({ email, phone, name, token, plan });
-      return json(res, 200, { received: true, issued: true, email, phone: !!phone, plan });
+      const entrega = await deliverLicense({ email, phone, name, token, plan });
+      return json(res, 200, { received: true, issued: true, email, phone: !!phone, plan, ...entregaResumo(entrega) });
     }
     return json(res, 200, { received: true, issued: false });
+  }
+
+  // ---- VScrm (opt-in: CRM_ENABLED=1) ----
+  if (CRM_ENABLED && req.url.split('?')[0].startsWith('/crm')) {
+    const rota = req.url.split('?')[0];
+    if (req.method === 'GET' && rota === '/crm') {
+      try {
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        return res.end(readFileSync(join(HERE, 'crm.html'), 'utf8'));
+      } catch (e) { return json(res, 500, { erro: 'crm page: ' + e.message }); }
+    }
+    // O token do painel chega no header; o ?t= da URL só alimenta o header no front.
+    if (barrado(res, LIM_CRM, req, '/crm')) { return; }
+    if (CRM_TOKEN && !segredoIgual(req.headers['x-crm-token'], CRM_TOKEN)) {
+      return json(res, 403, { erro: 'CRM_TOKEN ausente ou invalido' });
+    }
+    if (req.method === 'GET' && rota === '/crm/api/painel') { return json(res, 200, crm.painel()); }
+    if (req.method === 'GET' && rota === '/crm/api/status') { return json(res, 200, crm.statusIntegracoes()); }
+    if (req.method === 'GET' && rota === '/crm/api/indicacao') { return json(res, 200, crm.painelIndicacao()); }
+    if (req.method === 'GET' && rota === '/crm/api/redes') { return json(res, 200, { credenciais: CREDENCIAL }); }
+    // TikTok: o painel LE o estado e MANDA testar, mas nao grava credencial por HTTP.
+    // Gravar token via endpoint web contradiz a regra desta tela ("a credencial nao
+    // fica gravada") e poria app_secret num POST. A configuracao mora na CLI, que
+    // guarda em ~/.qa-gate/vstiktok com arquivo 0600. O diagnostico ja sai mascarado.
+    if (req.method === 'GET' && rota === '/crm/api/tiktok') { return json(res, 200, tiktokDiagnostico()); }
+    if (req.method === 'POST' && rota === '/crm/api/tiktok/testar') {
+      const b = await readBody(req);
+      if (corpoEstourou(res, b)) { return; }
+      let d; try { d = JSON.parse(b.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
+      const familia = String(d.familia || '').toLowerCase();
+      if (!['open', 'business', 'shop'].includes(familia)) { return json(res, 400, { erro: 'familia invalida' }); }
+      return json(res, 200, await tiktokTestar(familia));
+    }
+    // Teste de conexao: a credencial e USADA e descartada — nao gravamos token aqui.
+    if (req.method === 'POST' && rota === '/crm/api/redes/testar') {
+      const b = await readBody(req);
+      if (corpoEstourou(res, b)) { return; }
+      let d; try { d = JSON.parse(b.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
+      const r = await testarConexao(d.rede, d.cred || {});
+      return json(res, 200, r);
+    }
+    if (req.method === 'POST' && rota.startsWith('/crm/api/')) {
+      const b = await readBody(req);
+      if (corpoEstourou(res, b)) { return; }
+      let d; try { d = JSON.parse(b.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
+      let r;
+      switch (rota) {
+        case '/crm/api/funil': r = crm.setFunil(d.etapas); break;
+        case '/crm/api/leads': r = crm.criar(d); break;
+        case '/crm/api/mover': r = crm.mover(d.id, d.etapa); break;
+        case '/crm/api/fechar': r = crm.encerrar(d.id, d.status, d.motivo); break;
+        case '/crm/api/indicacao': r = crm.setRegraIndicacao(d); break;
+        case '/crm/api/parceiros': r = crm.criarParceiro(d); break;
+        case '/crm/api/parceiros/remover': r = crm.removerParceiro(d.id); break;
+        default: return json(res, 404, { erro: 'rota de CRM desconhecida' });
+      }
+      return json(res, r.erro ? 400 : 200, r);
+    }
+    return json(res, 404, { erro: 'rota de CRM desconhecida' });
   }
 
   json(res, 404, { error: 'not found' });

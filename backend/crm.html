@@ -1,0 +1,664 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Veloso Solution — Console</title>
+<style>
+/* Paleta monocromática: cinza neutro + tinta. Cor só quando SIGNIFICA algo —
+   verde ok, âmbar atenção, vermelho erro. Nada decorativo. */
+:root{
+  --bg:#fafafa; --panel:#fff; --raised:#f4f4f5; --line:#e4e4e7; --line-2:#d4d4d8;
+  --fg:#18181b; --muted:#52525b; --dim:#a1a1aa;
+  --ink:#18181b; --ink-fg:#fff;
+  --ok:#15803d; --ok-bg:#f0fdf4; --ok-line:#bbf7d0;
+  --warn:#b45309; --warn-bg:#fffbeb; --warn-line:#fde68a;
+  --err:#b91c1c; --err-bg:#fef2f2; --err-line:#fecaca;
+  --r:10px; --r-sm:7px; --sidebar:248px;
+  --shadow:0 1px 2px rgba(0,0,0,.05); --shadow-2:0 1px 3px rgba(0,0,0,.08),0 8px 24px -12px rgba(0,0,0,.12);
+  color-scheme:light;
+}
+/* aninhar @media dentro da regra depende de CSS Nesting; versao plana funciona em todo lugar */
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --bg:#09090b; --panel:#131316; --raised:#1c1c20; --line:#27272a; --line-2:#3f3f46;
+  --fg:#fafafa; --muted:#a1a1aa; --dim:#71717a;
+  --ink:#fafafa; --ink-fg:#18181b;
+  --ok:#4ade80; --ok-bg:rgba(34,197,94,.1); --ok-line:rgba(34,197,94,.28);
+  --warn:#fbbf24; --warn-bg:rgba(245,158,11,.1); --warn-line:rgba(245,158,11,.28);
+  --err:#f87171; --err-bg:rgba(239,68,68,.1); --err-line:rgba(239,68,68,.28);
+  --shadow:0 1px 2px rgba(0,0,0,.4); --shadow-2:0 1px 3px rgba(0,0,0,.5),0 8px 24px -12px rgba(0,0,0,.7);
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#09090b; --panel:#131316; --raised:#1c1c20; --line:#27272a; --line-2:#3f3f46;
+  --fg:#fafafa; --muted:#a1a1aa; --dim:#71717a;
+  --ink:#fafafa; --ink-fg:#18181b;
+  --ok:#4ade80; --ok-bg:rgba(34,197,94,.1); --ok-line:rgba(34,197,94,.28);
+  --warn:#fbbf24; --warn-bg:rgba(245,158,11,.1); --warn-line:rgba(245,158,11,.28);
+  --err:#f87171; --err-bg:rgba(239,68,68,.1); --err-line:rgba(239,68,68,.28);
+  --shadow:0 1px 2px rgba(0,0,0,.4); --shadow-2:0 1px 3px rgba(0,0,0,.5),0 8px 24px -12px rgba(0,0,0,.7);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Inter,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0}
+code{font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--raised);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:9px}
+::-webkit-scrollbar-track{background:transparent}
+
+.shell{display:flex;min-height:100vh}
+aside{width:var(--sidebar);flex:0 0 var(--sidebar);background:var(--panel);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;position:sticky;top:0;height:100vh;padding-top:env(safe-area-inset-top,0px)}
+.brand{display:flex;align-items:center;gap:10px;padding:18px 16px;border-bottom:1px solid var(--line)}
+.mark{width:30px;height:30px;border-radius:8px;flex:0 0 30px;display:grid;place-items:center;font-weight:700;font-size:12px;
+  background:var(--ink);color:var(--ink-fg)}
+.brand b{display:block;font-size:13px;line-height:1.3;letter-spacing:-.1px}
+.brand span{display:block;font-size:11px;color:var(--dim)}
+nav{flex:1;overflow-y:auto;padding:8px}
+.sec-label{font-size:10px;letter-spacing:.7px;text-transform:uppercase;color:var(--dim);padding:14px 9px 6px;font-weight:600}
+.nav-item{display:flex;align-items:center;gap:9px;width:100%;padding:7.5px 9px;border-radius:var(--r-sm);
+  color:var(--muted);font-size:13.5px;text-align:left;transition:background .12s,color .12s}
+.nav-item:hover{background:var(--raised);color:var(--fg)}
+.nav-item svg{width:16px;height:16px;flex:0 0 16px;opacity:.7}
+.nav-item.active{background:var(--raised);color:var(--fg);font-weight:600}
+.nav-item.active svg{opacity:1}
+.chev{margin-left:auto;transition:transform .16s;opacity:.5}
+.nav-item[aria-expanded="true"] .chev{transform:rotate(90deg)}
+.submenu{overflow:hidden;max-height:0;transition:max-height .2s ease}
+.submenu.open{max-height:340px}
+.sub-item{display:block;width:100%;padding:6.5px 9px 6.5px 34px;border-radius:var(--r-sm);color:var(--dim);
+  font-size:13px;text-align:left;position:relative}
+.sub-item::before{content:'';position:absolute;left:18px;top:2px;bottom:2px;width:1px;background:var(--line)}
+.sub-item:hover{color:var(--fg);background:var(--raised)}
+.sub-item.active{color:var(--fg);font-weight:600}
+.sub-item.active::before{background:var(--fg);width:1.5px}
+.side-foot{padding:10px;border-top:1px solid var(--line);display:grid;gap:8px}
+.env{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--r-sm);background:var(--raised)}
+.dot{width:6px;height:6px;border-radius:50%;flex:0 0 6px;background:var(--dim)}
+.dot.on{background:var(--ok)}
+.env small{font-size:11px;color:var(--dim);line-height:1.3}
+.env b{display:block;color:var(--fg);font-size:11.5px;font-weight:600}
+.theme{display:flex;gap:3px;padding:3px;background:var(--raised);border-radius:var(--r-sm)}
+.theme button{flex:1;padding:5px;border-radius:5px;font-size:11.5px;color:var(--dim);display:flex;align-items:center;justify-content:center;gap:5px}
+.theme button svg{width:13px;height:13px}
+.theme button.on{background:var(--panel);color:var(--fg);font-weight:600;box-shadow:var(--shadow)}
+
+main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:12px 24px;
+  padding-top:calc(12px + env(safe-area-inset-top,0px));background:var(--bg);border-bottom:1px solid var(--line)}
+.burger{display:none;padding:6px;border-radius:6px;border:1px solid var(--line);color:var(--muted)}
+.crumb{font-size:12.5px;color:var(--dim);display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crumb b{color:var(--fg);font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.crumb i{opacity:.5;font-style:normal}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;padding:4px 10px;border-radius:99px;
+  border:1px solid var(--line);background:var(--panel);color:var(--muted);white-space:nowrap}
+.content{padding:24px;max-width:1440px;width:100%;margin:0 auto;flex:1}
+.page-head{margin-bottom:20px}
+.page-head h1{font-size:21px;letter-spacing:-.4px;font-weight:650;line-height:1.25}
+.page-head p{color:var(--muted);font-size:13.5px;margin-top:4px;max-width:72ch}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:17px;box-shadow:var(--shadow)}
+.card h3{font-size:13.5px;font-weight:650;margin-bottom:3px}
+.card .hint{color:var(--dim);font-size:12.5px}
+.grid{display:grid;gap:12px}
+.g-kpi{grid-template-columns:repeat(auto-fit,minmax(165px,1fr))}
+.g-2{grid-template-columns:repeat(auto-fit,minmax(290px,1fr))}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow)}
+.kpi span{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim);font-weight:600}
+.kpi b{display:block;font-size:25px;font-weight:650;letter-spacing:-.8px;margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi em{font-style:normal;font-size:12px;color:var(--muted)}
+
+.empty{text-align:center;padding:42px 22px;border:1px dashed var(--line-2);border-radius:var(--r);background:var(--panel)}
+.empty .ico{width:44px;height:44px;border-radius:12px;margin:0 auto 13px;display:grid;place-items:center;
+  background:var(--raised);border:1px solid var(--line);color:var(--muted)}
+.empty .ico svg{width:21px;height:21px}
+.empty h3{font-size:14.5px;margin-bottom:5px;font-weight:650}
+.empty p{color:var(--muted);font-size:13px;max-width:54ch;margin:0 auto 15px}
+.steps{text-align:left;max-width:530px;margin:0 auto;display:grid;gap:7px}
+.step{display:flex;gap:10px;align-items:flex-start;background:var(--raised);border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 12px}
+.step .n{width:19px;height:19px;flex:0 0 19px;border-radius:5px;display:grid;place-items:center;font-size:10.5px;font-weight:700;
+  background:var(--ink);color:var(--ink-fg)}
+.step div{font-size:12.5px;color:var(--muted);line-height:1.5}
+
+.stat-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+.stat-row:last-child{border-bottom:0}
+.stat-row .lbl{font-size:13px;min-width:0}
+.stat-row .lbl small{display:block;color:var(--dim);font-size:11.5px;margin-top:1px}
+.badge{margin-left:auto;font-size:11px;font-weight:600;padding:3px 9px;border-radius:99px;white-space:nowrap;border:1px solid var(--line);color:var(--muted);background:var(--raised)}
+.b-ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-line)}
+.b-warn{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-line)}
+.b-err{background:var(--err-bg);color:var(--err);border-color:var(--err-line)}
+
+.board{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;align-items:flex-start}
+.col{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);min-width:262px;flex:1 0 262px;padding:12px;box-shadow:var(--shadow)}
+.col-h{display:flex;align-items:baseline;gap:7px;margin-bottom:10px}
+.col-h h3{font-size:12.5px;font-weight:650}
+.col-h .n{font-size:11px;color:var(--dim);background:var(--raised);border-radius:99px;padding:1px 7px}
+.col-h .v{margin-left:auto;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.lead{background:var(--raised);border:1px solid var(--line);border-radius:var(--r-sm);padding:11px;margin-bottom:8px}
+.lead:hover{border-color:var(--line-2)}
+.lead .nm{font-weight:650;font-size:13.5px}
+.lead .meta{color:var(--dim);font-size:12px;margin:2px 0 8px;word-break:break-word}
+.tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px}
+.tag{font-size:10px;font-weight:600;padding:2px 7px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--panel)}
+.t-quente{background:var(--err-bg);color:var(--err);border-color:var(--err-line)}
+.t-morno{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-line)}
+.t-frio{background:var(--raised);color:var(--muted)}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+select,input,textarea{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);padding:7.5px 9px;width:100%;transition:border-color .12s,box-shadow .12s}
+select:focus,input:focus,textarea:focus{outline:0;border-color:var(--fg);box-shadow:0 0 0 3px var(--raised)}
+select{flex:1;min-width:104px;font-size:12.5px;padding:5.5px 7px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:7.5px 14px;border-radius:var(--r-sm);font-size:13px;font-weight:600;transition:opacity .12s,background .12s}
+.btn-p{background:var(--ink);color:var(--ink-fg)}
+.btn-p:hover{opacity:.85}
+.btn-s{border:1px solid var(--line);background:var(--panel);color:var(--muted)}
+.btn-s:hover{color:var(--fg);border-color:var(--line-2)}
+.btn-xs{padding:4.5px 9px;font-size:11.5px}
+.btn-ok{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-line)}
+.btn-no{background:var(--panel);color:var(--dim);border:1px solid var(--line)}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;align-items:end}
+.field label{display:block;font-size:11px;color:var(--dim);margin-bottom:4px;font-weight:600}
+.msg{padding:10px 13px;border-radius:var(--r-sm);margin-bottom:14px;font-size:13px;display:none}
+.msg.err{display:block;background:var(--err-bg);border:1px solid var(--err-line);color:var(--err)}
+.msg.ok{display:block;background:var(--ok-bg);border:1px solid var(--ok-line);color:var(--ok)}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:29}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);padding:0 10px 8px;font-weight:600}
+td{padding:11px 10px;border-top:1px solid var(--line)}
+.linkbox{display:flex;gap:7px;align-items:center;background:var(--raised);border:1px solid var(--line);border-radius:var(--r-sm);padding:5px 5px 5px 11px}
+.linkbox span{flex:1;font:12px ui-monospace,Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tbl-wrap{overflow-x:auto}
+
+@media(max-width:900px){
+  aside{position:fixed;left:0;top:0;z-index:30;transform:translateX(-100%);transition:transform .2s ease;box-shadow:var(--shadow-2)}
+  aside.open{transform:none}
+  .overlay.show{display:block}
+  .burger{display:grid;place-items:center}
+  .content,.topbar{padding-left:16px;padding-right:16px}
+  .crumb .pai{display:none}
+  .top-right .pill:first-child{display:none}
+  .page-head h1{font-size:19px}
+}
+</style>
+
+<div class="overlay" id="ov" onclick="toggleNav(false)"></div>
+<div class="shell">
+  <aside id="side">
+    <div class="brand"><div class="mark">VS</div><div><b>Veloso Solution</b><span>Console</span></div></div>
+    <nav id="nav"></nav>
+    <div class="side-foot">
+      <div class="theme">
+        <button id="thLight" onclick="setTema('light')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Claro</button>
+        <button id="thDark" onclick="setTema('dark')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>Escuro</button>
+      </div>
+      <div class="env"><span class="dot" id="envDot"></span><small><b id="envName">verificando…</b><span id="envSub">backend</span></small></div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <button class="burger" onclick="toggleNav(true)" aria-label="Abrir menu"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+      <div class="crumb" id="crumb"></div>
+      <div class="top-right"><span class="pill" id="pillLeads">—</span><span class="pill" id="pillWa">—</span></div>
+    </div>
+    <div class="content"><div class="msg" id="msg"></div><div id="view"></div></div>
+  </main>
+</div>
+
+<script>
+/* ---------- tema ---------- */
+function setTema(t){
+  try{localStorage.setItem('vs-tema',t);}catch{}
+  document.documentElement.setAttribute('data-theme',t);
+  marcarTema(t);
+}
+function marcarTema(t){
+  document.getElementById('thLight')?.classList.toggle('on',t==='light');
+  document.getElementById('thDark')?.classList.toggle('on',t==='dark');
+}
+(function(){
+  let t=null; try{t=localStorage.getItem('vs-tema');}catch{}
+  if(t){document.documentElement.setAttribute('data-theme',t);}
+  addEventListener('DOMContentLoaded',()=>marcarTema(t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')));
+})();
+
+/* ---------- icones ---------- */
+const I={
+ visao:'<rect x="3" y="3" width="8" height="9" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="14" width="8" height="7" rx="1.5"/>',
+ estoque:'<path d="M3 7.5 12 3l9 4.5v9L12 21 3 16.5z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/>',
+ financeiro:'<path d="M12 2v20"/><path d="M17 6.5c0-1.9-2.2-3-5-3s-5 1.1-5 3 2.2 2.6 5 3 5 1.2 5 3.2-2.2 3.3-5 3.3-5-1.3-5-3.3"/>',
+ bot:'<rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4"/><circle cx="12" cy="3" r="1.3"/><path d="M9 13.5h.01M15 13.5h.01M9.5 17h5"/>',
+ auditor:'<path d="M9 11.5l2 2 4-4.5"/><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/>',
+ redes:'<circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.6 10.7 15.4 6.5M8.6 13.3l6.8 4.2"/>',
+ relatorios:'<path d="M5 21V10M12 21V4M19 21v-7"/><path d="M3 21h18"/>',
+ crm:'<path d="M16 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="3.5"/><path d="M17 11h5M19.5 8.5v5"/>',
+ whats:'<path d="M3.5 20.5 5 16a8.2 8.2 0 1 1 3 3z"/><path d="M8.8 9.2c0 3.3 2.7 6 6 6 .9 0 1.4-.4 1.4-1.2 0-.5-1.6-1.4-2-1.4-.5 0-.7.8-1.2.8-.8 0-2.4-1.6-2.4-2.4 0-.5.8-.7.8-1.2 0-.4-.9-2-1.4-2-.8 0-1.2.5-1.2 1.4z"/>',
+ consumo:'<path d="M3 17l5-6 4 3.5L21 6"/><path d="M16 6h5v5"/>',
+ integra:'<path d="M9 7H7a5 5 0 0 0 0 10h2M15 7h2a5 5 0 0 1 0 10h-2"/><path d="M8 12h8"/>',
+ person:'<path d="M12 3 9.5 9.5 3 12l6.5 2.5L12 21l2.5-6.5L21 12l-6.5-2.5z"/>',
+ indicacao:'<circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.6 10.7 15.4 6.5M8.6 13.3l6.8 4.2"/>',
+ plano:'<rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20"/>',
+ contrato:'<path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5M9 13h6M9 17h4"/>',
+ politica:'<path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/><path d="M12 8v4M12 15.5h.01"/>',
+ config:'<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/>',
+ perfil:'<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/>',
+};
+const ico=(k)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${I[k]||''}</svg>`;
+
+/* ---------- menu ---------- */
+const GRUPOS=[
+ { secao:'Operação', itens:[
+   {id:'visao',nome:'Visão geral',icone:'visao'},
+   {id:'estoque',nome:'Estoque',icone:'estoque'},
+   {id:'financeiro',nome:'Financeiro',icone:'financeiro'},
+   {id:'bot',nome:'Bot',icone:'bot'},
+   {id:'auditor',nome:'Auditor',icone:'auditor'},
+   {id:'redes',nome:'Conexões com redes sociais',icone:'redes'},
+   {id:'relatorios',nome:'Relatórios',icone:'relatorios'},
+   {id:'crm',nome:'Integração CRM',icone:'crm'},
+   {id:'whats',nome:'WhatsApp',icone:'whats',filhos:[
+     {id:'wa-integracao',nome:'Integração'},{id:'wa-consumo',nome:'Consumo'},{id:'wa-bot',nome:'Bot'},
+     {id:'wa-personalizar',nome:'Personalizar'},{id:'wa-relatorios',nome:'Relatórios'},{id:'wa-auditor',nome:'Auditor'}]},
+ ]},
+ { secao:'Crescimento', itens:[
+   {id:'indicacao',nome:'Indicações e parceiros',icone:'indicacao'},
+ ]},
+ { secao:'Conta', itens:[
+   {id:'plano',nome:'Plano e acesso',icone:'plano',filhos:[
+     {id:'pl-consumo',nome:'Consumo'},{id:'pl-comprar',nome:'Comprar acesso'},{id:'pl-recebimento',nome:'Recebimento'}]},
+   {id:'contrato',nome:'Contrato',icone:'contrato'},
+   {id:'politica',nome:'Política de uso',icone:'politica'},
+   {id:'config',nome:'Configurações',icone:'config'},
+   {id:'perfil',nome:'Perfil',icone:'perfil'},
+ ]},
+];
+const MENU=GRUPOS.flatMap(g=>g.itens);
+const TITULO={};
+MENU.forEach(m=>{TITULO[m.id]=[m.nome];(m.filhos||[]).forEach(f=>TITULO[f.id]=[m.nome,f.nome]);});
+const PAI={}; MENU.forEach(m=>(m.filhos||[]).forEach(f=>PAI[f.id]=m.id));
+
+let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null;
+const TESTE={}; // resultado do ultimo teste por rede (so em memoria)
+const PROVA={}; // ultimo teste real das APIs do TikTok, por familia
+let rota=location.hash.slice(1)||'visao';
+const abertos=new Set(PAI[rota]?[PAI[rota]]:[]);
+
+const esc=(s)=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const brl=(v)=>v==null?'—':v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:2});
+function flash(t,tipo){const m=document.getElementById('msg');m.className='msg '+tipo;m.textContent=t;if(tipo==='ok')setTimeout(()=>m.className='msg',3200);}
+const TOKEN=new URLSearchParams(location.search).get('t')||'';
+async function api(r,body){
+  const res=await fetch('/crm/api/'+r,{method:body?'POST':'GET',
+    headers:{'content-type':'application/json',...(TOKEN?{'x-crm-token':TOKEN}:{})},body:body?JSON.stringify(body):undefined});
+  const j=await res.json().catch(()=>({erro:'resposta invalida do servidor'}));
+  if(!res.ok||j.erro) throw new Error(j.erro||('HTTP '+res.status));
+  return j;
+}
+function toggleNav(v){document.getElementById('side').classList.toggle('open',v);document.getElementById('ov').classList.toggle('show',v);}
+
+const head=(t,p)=>`<div class="page-head"><h1>${esc(t)}</h1><p>${p}</p></div>`;
+
+/* O TikTok tem tres apps separados (login, anuncios e loja), cada um com autorizacao
+   propria — por isso ele aparece como bloco, e nao como mais uma linha de credencial. */
+const TK_NOME={open:'Login Kit / Display',business:'Business (Ads)',shop:'Shop (produtos)'};
+function tiktokCard(){
+  if(!TK) return '';
+  const blocos=Object.entries(TK.familias).map(([f,s])=>{
+    const pv=PROVA[f];
+    const badge=!s.appConfigurado?`<span class="badge">falta ${esc(s.faltando.join(', '))}</span>`
+      :!s.autorizado?'<span class="badge b-warn">app pronto · conta não autorizada</span>'
+      :s.expirado?'<span class="badge b-err">token vencido</span>'
+      :`<span class="badge b-ok">conectado${s.venceEmMin!=null?' · vence em '+s.venceEmMin+' min':''}</span>`;
+    const cmd=!s.appConfigurado
+      ?`<p class="hint">No terminal: <code>vstiktok app ${esc(f)} ${esc(s.faltando.map(x=>x+'=...').join(' '))}</code></p>`
+      :!s.autorizado?`<p class="hint">No terminal: <code>vstiktok conectar ${esc(f)}</code> — ele sobe o túnel e abre a autorização.</p>`:'';
+    const provas=!pv?''
+      :pv.motivo?`<p class="hint">✖ ${esc(pv.motivo)}</p>`
+      :pv.provas.map(x=>linha(x.chamada,esc(x.detalhe),x.ok?'ok':'falhou',x.ok?'b-ok':'b-err')).join('');
+    const btn=s.autorizado?`<button class="btn" onclick="testarTiktok('${esc(f)}')">Testar contra a API</button>`:'';
+    return `<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div><h3>TikTok · ${esc(TK_NOME[f]||f)}</h3><p class="hint">${esc(s.ajuda)}</p></div>${badge}</div>
+      ${s.conta?linha('Conta conectada','',esc(s.conta),'b-ok'):''}
+      ${s.token?linha('Token guardado','só o miolo aparece mascarado',esc(s.token),''):''}
+      ${cmd}${provas}${btn}</div>`;
+  }).join('');
+  const pronto=Object.entries(TK.pronto).filter(([,v])=>v).map(([k])=>k);
+  return `<div class="card" style="margin-bottom:16px"><h3>TikTok</h3>
+    <p class="hint">São três apps separados na TikTok — login, anúncios e loja — cada um com autorização própria.</p>
+    ${linha('Pronto pra',' ',pronto.length?pronto.join(', '):'nada ainda',pronto.length?'b-ok':'b-warn')}
+    ${TK.lojaAtiva?linha('Loja ativa','shop_cipher',esc(TK.lojaAtiva),'b-ok'):''}
+    ${TK.anuncianteAtivo?linha('Conta de anúncio ativa','advertiser_id',esc(TK.anuncianteAtivo),'b-ok'):''}</div>
+  <div class="card" style="margin-bottom:16px;border-style:dashed">
+    <h3>Aqui o token FICA gravado — e é diferente do resto desta tela</h3>
+    <p class="hint">OAuth só funciona guardando o token pra renovar depois. Ele mora em
+    <code>~/.qa-gate/vstiktok</code>, na sua máquina, com arquivo <code>0600</code>, e nunca é
+    enviado a este painel inteiro — o que você vê acima é mascarado. Este painel <b>lê e testa</b>;
+    quem grava credencial é a CLI.</p></div>
+  ${blocos}`;
+}
+const kpi=(l,v,e)=>`<div class="kpi"><span>${esc(l)}</span><b>${esc(String(v))}</b><em>${esc(e)}</em></div>`;
+function vazio(icone,titulo,texto,passos){
+  return `<div class="empty"><div class="ico">${ico(icone)}</div><h3>${esc(titulo)}</h3><p>${texto}</p>
+   ${passos?`<div class="steps">${passos.map((p,i)=>`<div class="step"><div class="n">${i+1}</div><div>${p}</div></div>`).join('')}</div>`:''}</div>`;
+}
+const linha=(l,s,b,c)=>`<div class="stat-row"><div class="lbl">${esc(l)}${s?`<small>${s}</small>`:''}</div><span class="badge ${c||''}">${esc(b)}</span></div>`;
+
+/* ---------- telas ---------- */
+function telaVisao(){
+  const r=ST.resumo,w=STATUS?.whatsapp||{};
+  return head('Visão geral','O que está realmente ligado nesta instalação. Número que a suíte não tem aparece como “—”, nunca como zero.')+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Leads abertos',r.abertos,ST.funil.length?ST.funil.length+' etapas no funil':'sem funil')}
+    ${kpi('Ganhos',r.ganhos,'fechados no CRM')}
+    ${kpi('Conversão',r.conversao==null?'—':Math.round(r.conversao*100)+'%',r.conversao==null?'nenhum lead fechado ainda':'ganhos ÷ fechados')}
+    ${kpi('Bot no ar',w.envia?'sim':'não',w.envia?'Cloud API ativa':'provider = '+(w.provider||'log'))}</div>
+  <div class="grid g-2">
+    <div class="card"><h3>Integrações</h3><p class="hint" style="margin-bottom:6px">Estado real, lido do ambiente.</p>
+      ${linha('WhatsApp Cloud API','provider '+(w.provider||'log'),w.envia?'enviando':'não envia',w.envia?'b-ok':'')}
+      ${linha('Token da Meta','WA_TOKEN / WA_PHONE_ID',w.waToken&&w.waPhoneId?'presentes':'ausentes',w.waToken&&w.waPhoneId?'b-ok':'')}
+      ${linha('Webhook de entrada','recebe mensagem do cliente','não existe','')}
+      ${linha('Notificação do QA-Gate','CallMeBot',STATUS?.notify?.enabled?'ligada':'desligada',STATUS?.notify?.enabled?'b-ok':'')}
+      ${linha('CRM','funil de '+(STATUS?.crm?.funilOrigem||'—'),STATUS?.crm?.funil?'ativo':'sem funil',STATUS?.crm?.funil?'b-ok':'b-warn')}
+      ${linha('Indicação','regra de comissão',IND?.regra?'definida':'não definida',IND?.regra?'b-ok':'b-warn')}</div>
+    <div class="card"><h3>Sem fonte de dado ainda</h3><p class="hint" style="margin-bottom:6px">Telas prontas, esperando de onde puxar.</p>
+      ${linha('Estoque','nenhuma fonte conectada','vazio','')}
+      ${linha('Financeiro','nenhuma fonte conectada','vazio','')}
+      ${linha('Auditor','sem execução registrada','vazio','')}
+      ${linha('Redes sociais','sem conta ligada','vazio','')}
+      ${linha('Relatórios','dependem das fontes acima','vazio','')}</div></div>`;
+}
+
+function telaCrm(){
+  if(!ST.funil.length){
+    return head('Integração CRM','O funil vem do seu processo — o CRM não inventa etapas.')+
+    `<div class="card"><h3>Defina o funil</h3><p class="hint" style="margin-bottom:11px">Uma etapa por linha, na ordem em que a venda anda.</p>
+      <textarea id="funilTxt" rows="6" placeholder="Novo lead&#10;Qualificado&#10;Proposta enviada&#10;Negociação&#10;Fechado"></textarea>
+      <div style="margin-top:10px"><button class="btn btn-p" onclick="salvarFunil()">Salvar funil</button></div></div>`;
+  }
+  const r=ST.resumo;
+  return head('Integração CRM','Pipeline de vendas. O bot vai escrever aqui: cada mensagem vira interação, cada qualificação vira score auditável.')+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Abertos',r.abertos,'no funil')}${kpi('Ganhos',r.ganhos,'fechados')}${kpi('Perdidos',r.perdidos,'fechados')}
+    ${kpi('Conversão',r.conversao==null?'—':Math.round(r.conversao*100)+'%',r.conversao==null?'sem fechamento ainda':'ganhos ÷ fechados')}</div>
+  <div class="card" style="margin-bottom:16px"><h3>Novo lead</h3><p class="hint" style="margin-bottom:11px">Telefone sem DDI recebe o 55 automático.</p>
+    <div class="form-grid">
+      <div class="field"><label>Nome</label><input id="nome" placeholder="Carla Souza"></div>
+      <div class="field"><label>WhatsApp</label><input id="telefone" placeholder="31975127978"></div>
+      <div class="field"><label>Interesse</label><input id="interesse" placeholder="Plano médio"></div>
+      <div class="field"><label>Valor (R$)</label><input id="valor" type="number" step="any" placeholder="1490"></div>
+      <button class="btn btn-p" onclick="criar()">Adicionar lead</button></div></div>
+  <div class="board">${ST.funil.map(colHtml).join('')}</div>`;
+}
+function colHtml(etapa){
+  const et=ST.resumo.etapas.find(e=>e.etapa===etapa)||{leads:0,valor:null};
+  const g=ST.leads.filter(l=>l.status==='aberto'&&l.etapa===etapa);
+  return `<div class="col"><div class="col-h"><h3>${esc(etapa)}</h3><span class="n">${et.leads}</span><span class="v">${brl(et.valor)}</span></div>
+   ${g.map(cardLead).join('')||'<div class="hint" style="padding:12px 0;text-align:center">vazio</div>'}</div>`;
+}
+function cardLead(l){
+  const tags=[l.faixa?`<span class="tag t-${esc(l.faixa)}">${esc(l.faixa)}${l.score!=null?' · '+l.score:''}</span>`:'',
+   l.telefoneAviso?`<span class="tag t-morno">telefone suspeito</span>`:'',
+   l.origem&&l.origem!=='manual'?`<span class="tag">${esc(l.origem)}</span>`:''].join('');
+  return `<div class="lead"><div class="nm">${esc(l.nome||'sem nome')}</div>
+   <div class="meta">+${esc(l.telefone)}${l.interesse?' · '+esc(l.interesse):''} · ${brl(l.valor)}</div>
+   ${tags?`<div class="tags">${tags}</div>`:''}
+   <div class="acts"><select onchange="mover('${esc(l.id)}',this.value)">${ST.funil.map(e=>`<option${e===l.etapa?' selected':''}>${esc(e)}</option>`).join('')}</select>
+    <button class="btn btn-xs btn-ok" onclick="fechar('${esc(l.id)}','ganho')">Ganhou</button>
+    <button class="btn btn-xs btn-no" onclick="fechar('${esc(l.id)}','perdido')">Perdeu</button></div></div>`;
+}
+
+/* ---- indicação (funcional) ---- */
+function telaIndicacao(){
+  const g=IND?.regra||{},r=IND?.resumo||{parceiros:0,indicados:0,aPagar:null};
+  const ex=IND?.exemplo||{};
+  return head('Indicações e parceiros','Você define a regra aqui. Enquanto ela não existir, a suíte não calcula comissão nenhuma — não chuta percentual.')+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Parceiros',r.parceiros,'cadastrados')}
+    ${kpi('Indicados',r.indicados,'trazidos por parceiro')}
+    ${kpi('A pagar',brl(r.aPagar),r.aPagar==null?'nenhum ganho lançado':'comissão acumulada')}
+    ${kpi('Numa venda de R$ 1.000',ex.valor==null?'—':brl(ex.valor),ex.motivo||'pela regra atual')}</div>
+
+  <div class="card" style="margin-bottom:16px"><h3>Regra de comissão</h3>
+   <p class="hint" style="margin-bottom:12px">Vale para todos os parceiros. Mudança aqui não altera comissão já lançada.</p>
+   <div class="form-grid">
+     <div class="field"><label>Modelo</label><select id="iModelo" onchange="trocaModelo()">
+       <option value="percentual"${g.modelo==='percentual'?' selected':''}>Percentual da venda</option>
+       <option value="fixo"${g.modelo==='fixo'?' selected':''}>Valor fixo por venda</option></select></div>
+     <div class="field" id="fPct"><label>Percentual (%)</label><input id="iPct" type="number" step="any" value="${g.percentual??''}" placeholder="20"></div>
+     <div class="field" id="fFixo"><label>Valor fixo (R$)</label><input id="iFixo" type="number" step="any" value="${g.valorFixo??''}" placeholder="100"></div>
+     <div class="field"><label>Paga quando</label><select id="iQuando">
+       <option value="primeira"${g.quando==='primeira'?' selected':''}>Só a primeira venda</option>
+       <option value="sempre"${g.quando==='sempre'?' selected':''}>Toda venda do indicado</option></select></div>
+     <div class="field"><label>Validade (dias)</label><input id="iVal" type="number" value="${g.validadeDias??''}" placeholder="90"></div>
+     <div class="field" style="grid-column:1/-1"><label>Link base</label><input id="iLink" value="${esc(g.linkBase||'')}" placeholder="https://velososolution.online"></div>
+     <button class="btn btn-p" onclick="salvarRegra()">Salvar regra</button></div></div>
+
+  <div class="card" style="margin-bottom:16px"><h3>Novo parceiro</h3>
+   <p class="hint" style="margin-bottom:11px">O código sai do nome; o link de indicação é montado com ele.</p>
+   <div class="form-grid">
+     <div class="field"><label>Nome</label><input id="pNome" placeholder="Ana Ribeiro"></div>
+     <div class="field"><label>WhatsApp</label><input id="pTel" placeholder="31975127978"></div>
+     <div class="field"><label>Código (opcional)</label><input id="pCod" placeholder="ana"></div>
+     <button class="btn btn-p" onclick="criarParceiro()">Cadastrar</button></div></div>
+
+  <div class="card"><h3>Parceiros</h3>
+   ${(IND?.parceiros||[]).length?`<div class="tbl-wrap"><table><thead><tr><th>Parceiro</th><th>Código</th><th>Link</th><th>Indicados</th><th></th></tr></thead><tbody>
+     ${IND.parceiros.map(p=>`<tr>
+       <td><b>${esc(p.nome)}</b>${p.telefone?`<br><small style="color:var(--dim)">+${esc(p.telefone)}</small>`:''}</td>
+       <td><code>${esc(p.codigo)}</code></td>
+       <td>${p.link?`<div class="linkbox"><span>${esc(p.link)}</span><button class="btn btn-s btn-xs" onclick="copiar('${esc(p.link)}')">Copiar</button></div>`:`<span class="badge b-warn">${esc(p.motivo||'sem link')}</span>`}</td>
+       <td>${p.indicados||0}</td>
+       <td style="text-align:right"><button class="btn btn-s btn-xs" onclick="removerParceiro('${esc(p.id)}')">Remover</button></td></tr>`).join('')}
+     </tbody></table></div>`:'<p class="hint" style="padding:12px 0">Nenhum parceiro cadastrado ainda.</p>'}</div>`;
+}
+function trocaModelo(){
+  const m=document.getElementById('iModelo').value;
+  document.getElementById('fPct').style.display=m==='percentual'?'':'none';
+  document.getElementById('fFixo').style.display=m==='fixo'?'':'none';
+}
+
+/* ---- shells honestos ---- */
+const S={
+ estoque:()=>head('Estoque','Produtos, variantes e saldo — a base do que o bot pode oferecer.')+
+  vazio('estoque','Nenhuma fonte de estoque conectada','O VSvendas já lê uma <b>pasta de fotos</b> e agrupa variantes, mas isso é catálogo, não estoque: não tem quantidade nem reserva.',
+   ['Definir a fonte: pasta de fotos, planilha ou ERP','Amarrar produto do catálogo ao saldo','Só então o bot promete prazo sem mentir']),
+ financeiro:()=>head('Financeiro','Entradas, recebimentos e o que o CRM fechou virando caixa.')+
+  vazio('financeiro','Sem fonte financeira','O que existe hoje é o <code>/checkout</code> do Stripe e a emissão de licença. Nada disso é conciliado aqui ainda.',
+   ['Ligar o Stripe como fonte de recebimento','Casar lead ganho com pagamento confirmado','Aí o valor do funil deixa de ser estimativa']),
+ bot:()=>head('Bot','O atendimento automático — visão geral, fora do WhatsApp.')+
+  vazio('bot','Nenhum canal de bot ativo','O WhatsApp é o primeiro canal previsto e está parado na pendência da sua conta Meta.',
+   ['Destravar o WhatsApp (WhatsApp › Integração)','Subir o webhook e a máquina de conversa','Depois avaliar Instagram Direct e site']),
+ auditor:()=>head('Auditor','Governança: o que rodou, o que passou no gate, o que foi entregue.')+
+  vazio('auditor','Sem execução registrada neste painel','O QA-Gate grava recibo em <code>.git/qa-gate-green.json</code> por repositório — este painel ainda não lê esses recibos.',
+   ['Apontar o painel para os repositórios auditados','Ler o recibo do gate de cada um','Mostrar verde/vermelho com data e branch']),
+ redes:()=>{
+  const c=REDES?.credenciais||{};
+  const linhas=Object.keys(c).map(r=>{
+    const res=TESTE[r];
+    const campos=c[r].campos.map(f=>`<div class="field"><label>${esc(f)}</label><input id="rc-${esc(r)}-${esc(f)}" placeholder="${esc(c[r].ajuda)}" autocomplete="off"></div>`).join('');
+    const badge=!res?'<span class="badge">não testado</span>'
+      :res.ok?`<span class="badge b-ok">conectado${res.conta?' · '+esc(res.conta):''}</span>`
+      :`<span class="badge b-err">${esc(res.motivo)}</span>`;
+    return `<div class="card" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div><h3>${esc(c[r].nome)}</h3><p class="hint">${esc(c[r].ajuda)}</p></div>${badge}</div>
+      <div class="form-grid">${campos}
+        <button class="btn btn-p" onclick="testarRede('${esc(r)}')">Testar conexão</button></div></div>`;
+  }).join('');
+  return head('Conexões com redes sociais','Cole a credencial e teste. A chamada sai daqui de verdade — se a rede responder, você vê o nome da conta; se recusar, vê o motivo.')+
+  `<div class="card" style="margin-bottom:16px"><h3>O que já existia no VSinfluence</h3>
+    ${linha('Formato de corte por rede','1080×1920 para TikTok, Reels e Shorts','pronto','b-ok')}
+    ${linha('Agenda de publicação','5 redes, varredura por cron','pronto','b-ok')}
+    ${linha('Normalizador de métrica','YouTube, Instagram, TikTok e Facebook','pronto','b-ok')}
+    ${linha('Chamada nas APIs','o coletor que faltava','novo','b-ok')}
+    ${linha('OAuth completo','TikTok: autorização e renovação automática de token','no TikTok','b-ok')}
+    ${linha('Publicação automática','TikTok: postar vídeo pela API','no TikTok','b-ok')}
+    ${linha('Catálogo e campanhas','TikTok Shop e TikTok Ads','no TikTok','b-ok')}
+    ${linha('Demais redes','YouTube, Instagram, Facebook: só leitura','ainda não','b-warn')}</div>
+  ${tiktokCard()}
+  <div class="card" style="margin-bottom:16px;border-style:dashed">
+    <h3>A credencial não fica gravada</h3>
+    <p class="hint">O token vai até este servidor, é usado na chamada e descartado. Nada de token em disco enquanto não existir um cofre pra isso — token vazado em arquivo é problema sério.</p></div>
+  ${linhas}`;
+ },
+ relatorios:()=>head('Relatórios','Cruzamento entre vendas, atendimento e conteúdo.')+
+  vazio('relatorios','Sem base para relatar','Relatório aqui é derivado. O único dado real hoje é o funil do CRM.',
+   ['Conectar ao menos uma fonte além do CRM','Definir período e recorte','O cruzamento vem depois, com dado real']),
+
+ 'wa-integracao':()=>{const w=STATUS?.whatsapp||{};
+  return head('WhatsApp · Integração','Conexão com a Cloud API da Meta. Enquanto o provider for <code>log</code>, nada sai do servidor.')+
+  `<div class="card" style="margin-bottom:16px"><h3>Estado da conexão</h3>
+    ${linha('Provider','WHATSAPP_PROVIDER',w.provider||'log',w.envia?'b-ok':'b-warn')}
+    ${linha('WA_TOKEN','token do app da Meta',w.waToken?'presente':'ausente',w.waToken?'b-ok':'')}
+    ${linha('WA_PHONE_ID','id do número Business',w.waPhoneId?'presente':'ausente',w.waPhoneId?'b-ok':'')}
+    ${linha('WA_TEMPLATE','exigido fora da janela de 24h',w.template?'configurado':'ausente',w.template?'b-ok':'b-warn')}
+    ${linha('Webhook de entrada','rota que recebe a mensagem do cliente','não existe','')}</div>`+
+  vazio('integra','Falta o acesso da Meta','Sua conta está com pendência, então o token ainda não existe. O código que fala com a Cloud API já está pronto em <code>backend/whatsapp.mjs</code>.',
+   ['Resolver a pendência no Meta Business e verificar o negócio','Criar o app e pegar <code>WA_TOKEN</code> e <code>WA_PHONE_ID</code>','Setar <code>WHATSAPP_PROVIDER=cloud</code> no systemd','Eu escrevo o webhook e o bot passa a responder']);},
+ 'wa-consumo':()=>head('WhatsApp · Consumo','Mensagens enviadas e recebidas, e o custo por conversa cobrado pela Meta.')+
+  vazio('consumo','Sem consumo para medir','Nenhuma mensagem saiu desta instalação: o provider está em <code>log</code>, que só imprime o link <code>wa.me</code> no console.',
+   ['Ligar a integração','O contador começa na primeira conversa','Custo vem da categoria da conversa na fatura da Meta']),
+ 'wa-bot':()=>head('WhatsApp · Bot','O atendimento automático dentro da conversa.')+
+  vazio('bot','O bot ainda não foi construído','Existe só o caminho de saída. Não há webhook que receba mensagem nem máquina de estado. O motor de vendas já existe: <code>qualify</code>, <code>followup</code>, <code>objection</code> e <code>ads</code>.',
+   ['Webhook de entrada com verificação de assinatura da Meta','Máquina de estado da conversa, gravando no CRM','Oferta montada pelo <code>ads.mjs</code>','Escalonamento pro humano quando o lead esquenta']),
+ 'wa-personalizar':()=>head('WhatsApp · Personalizar','Nome, avatar, tom de voz e as mensagens do bot.')+
+  `<div class="card" style="margin-bottom:16px"><h3>Avatar e nome do negócio</h3>
+    <p class="hint">A foto e o nome que o cliente vê na conversa não são código: vêm do perfil da conta no WhatsApp Manager da Meta.</p></div>`+
+  vazio('person','Tom de voz vem da entrevista','O jeito de escrever sai do perfil que a entrevista coleta. Nesta máquina ela ainda não rodou.',
+   ['Rodar a entrevista dos sets <code>empresa</code> e <code>vendas</code>','O tom passa a valer no follow-up e na objeção','Aqui você revisa mensagem por mensagem']),
+ 'wa-relatorios':()=>head('WhatsApp · Relatórios','Volume, tempo de resposta e o que virou venda.')+
+  vazio('relatorios','Sem conversa registrada','Construído em cima do histórico de interação do CRM — que já grava por lead. Falta o bot alimentá-lo.',
+   ['Ligar a integração e subir o bot','Cada mensagem vira interação no lead','O relatório cruza conversa com etapa do funil']),
+ 'wa-auditor':()=>head('WhatsApp · Auditor','Trilha do que o bot falou, com quem e quando.')+
+  vazio('auditor','Nada para auditar ainda','O CRM já guarda trilha por lead: criação, etapa, qualificação com os motivos do score, e cada interação.',
+   ['A trilha já existe no histórico de cada lead','O auditor mostra por conversa, não por lead','Score vem com os motivos — nada de caixa-preta']),
+
+ 'pl-consumo':()=>head('Plano e acesso · Consumo','Quanto do seu pacote já foi usado no período.')+
+  vazio('consumo','Sem medidor de consumo','Não existe ainda a noção de pacote e saldo nesta instalação. A licença hoje é por plano e validade (<code>trial</code>, <code>mensal</code>, <code>pequena</code>, <code>medio</code>, <code>grande</code>), sem contador de uso.',
+   ['Definir o que é consumido: conversa, mensagem ou lead','Contador por período, preso à chave da licença','Aviso quando faltar pouco, antes de travar']),
+ 'pl-comprar':()=>head('Plano e acesso · Comprar acesso','Estender o pacote quando o consumo acabar.')+
+  vazio('plano','Compra ainda não ligada a este painel','Existe o <code>/checkout</code> do Stripe no backend, que hoje serve à venda de licença — não a recarga de pacote.',
+   ['Ter o medidor de consumo primeiro','Criar os pacotes de recarga e seus preços','Ligar ao checkout, com a chave estendida na confirmação']),
+ 'pl-recebimento':()=>head('Plano e acesso · Recebimento','Como você paga: cartão ou PIX.')+
+  `<div class="card" style="margin-bottom:16px"><h3>Meios disponíveis hoje</h3>
+    ${linha('Cartão','via Stripe Checkout','configurável','')}
+    ${linha('PIX','cobrança instantânea','não implementado','')}
+    ${linha('Assinatura recorrente','renovação automática','não implementado','')}</div>`+
+  vazio('plano','PIX ainda não existe no backend','O caminho de pagamento hoje é o Stripe (cartão). PIX exige provedor próprio — Stripe no Brasil, ou PSP nacional como Asaas, Pagar.me ou Mercado Pago.',
+   ['Escolher o provedor de PIX','Webhook de confirmação, igual ao do Stripe','Aí o painel mostra os dois meios de verdade']),
+ contrato:()=>head('Contrato','O que você assinou e o que está valendo.')+
+  vazio('contrato','Nenhum contrato registrado','Não existe documento de contrato nesta instalação. A relação hoje é a chave de licença assinada (Ed25519) com plano e validade.',
+   ['Escrever o contrato do produto','Guardar a versão aceita por cliente, com data','Mostrar aqui com histórico de versões']),
+ politica:()=>head('Política de uso','Regras de uso, dados e privacidade.')+
+  vazio('politica','Política ainda não escrita','A suíte já trata dado sensível com cuidado — telemetria desligada sem consentimento, lead fora do repositório, chave privada só no servidor. Isso precisa virar texto público.',
+   ['Escrever a política a partir do que o código já faz','Versionar e marcar a data de vigência','Exibir aqui e no site, com aceite registrado']),
+ config:()=>head('Configurações','Ajustes desta instalação.')+
+  `<div class="card" style="margin-bottom:16px"><h3>Aparência</h3>
+    <p class="hint" style="margin-bottom:10px">O tema fica guardado só neste navegador.</p>
+    <div class="acts"><button class="btn btn-s" onclick="setTema('light')">Claro</button><button class="btn btn-s" onclick="setTema('dark')">Escuro</button></div></div>
+   <div class="card" style="margin-bottom:16px"><h3>Funil do CRM</h3>
+    <p class="hint" style="margin-bottom:10px">Origem atual: <b>${esc(STATUS?.crm?.funilOrigem||'não definido')}</b>. Uma etapa por linha.</p>
+    <textarea id="funilTxt" rows="6">${esc((ST.funil||[]).join('\n'))}</textarea>
+    <div style="margin-top:10px"><button class="btn btn-p" onclick="salvarFunil()">Salvar funil</button></div></div>
+   <div class="card"><h3>Onde ficam os dados</h3>
+    ${linha('Leads e parceiros','~/.qa-gate/vscrm/','fora do repo','b-ok')}
+    ${linha('Config da empresa','~/.qa-gate/company.json','local','b-ok')}
+    ${linha('Acesso ao painel','CRM_ENABLED + CRM_TOKEN',TOKEN?'com token':'sem token','')}</div>`,
+ perfil:()=>head('Perfil','Seus dados e os da empresa.')+
+  vazio('perfil','Perfil ainda não preenchido','Os dados de empresa (nome, o que vende, proposta de valor, tom de voz, cliente ideal) vêm da entrevista da suíte — e ela não rodou nesta máquina. Por isso o VSvendas responde que falta perfil.',
+   ['Rodar a entrevista do set <code>empresa</code>','O perfil passa a alimentar bot, anúncio e follow-up','Aqui você revisa e edita sem repetir a entrevista']),
+};
+const TELAS={visao:telaVisao,crm:telaCrm,indicacao:telaIndicacao,whats:S['wa-integracao'],plano:S['pl-consumo'],...S};
+
+/* ---------- render ---------- */
+function renderNav(){
+  document.getElementById('nav').innerHTML=GRUPOS.map(g=>
+   `<div class="sec-label">${esc(g.secao)}</div>`+g.itens.map(m=>{
+    if(!m.filhos) return `<button class="nav-item${rota===m.id?' active':''}" onclick="ir('${m.id}')">${ico(m.icone)}<span>${esc(m.nome)}</span></button>`;
+    const ab=abertos.has(m.id);
+    return `<button class="nav-item${m.filhos.some(f=>f.id===rota)&&!ab?' active':''}" aria-expanded="${ab}" onclick="toggleSub('${m.id}')">${ico(m.icone)}<span>${esc(m.nome)}</span>
+      <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg></button>
+      <div class="submenu${ab?' open':''}">${m.filhos.map(f=>`<button class="sub-item${rota===f.id?' active':''}" onclick="ir('${f.id}')">${esc(f.nome)}</button>`).join('')}</div>`;
+   }).join('')).join('');
+}
+function render(){
+  renderNav();
+  const t=TITULO[rota]||['Console'];
+  document.getElementById('crumb').innerHTML=t.map((x,i)=>i===t.length-1?`<b>${esc(x)}</b>`:`<span class="pai">${esc(x)} <i>/</i></span>`).join(' ');
+  document.getElementById('view').innerHTML=(TELAS[rota]||telaVisao)();
+  if(rota==='indicacao') trocaModelo();
+  document.getElementById('pillLeads').textContent=ST.resumo.abertos+' lead(s) aberto(s)';
+  const w=STATUS?.whatsapp||{};
+  document.getElementById('pillWa').innerHTML=`<span class="dot ${w.envia?'on':''}"></span> WhatsApp ${w.envia?'ativo':'inativo'}`;
+}
+function ir(id){rota=id;if(PAI[id])abertos.add(PAI[id]);location.hash=id;toggleNav(false);render();scrollTo(0,0);}
+function toggleSub(id){abertos.has(id)?abertos.delete(id):abertos.add(id);renderNav();}
+addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h&&h!==rota){rota=h;render();}});
+
+/* ---------- ações ---------- */
+async function carregar(){
+  try{
+    // O diagnostico do TikTok nao pode derrubar o painel inteiro se o backend for antigo.
+    [ST,STATUS,IND,REDES,TK]=await Promise.all([api('painel'),api('status'),api('indicacao'),api('redes'),api('tiktok').catch(()=>null)]);
+    document.getElementById('envDot').className='dot on';
+    document.getElementById('envName').textContent='Backend online';
+    document.getElementById('envSub').textContent=location.host;
+  }catch(e){
+    document.getElementById('envName').textContent='Backend fora';
+    document.getElementById('envSub').textContent=e.message.slice(0,26);
+    flash('Não consegui carregar: '+e.message,'err');
+  }
+  render();
+}
+async function salvarFunil(){
+  const etapas=document.getElementById('funilTxt').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  try{await api('funil',{etapas});flash('Funil salvo.','ok');carregar();}catch(e){flash(e.message,'err');}
+}
+async function criar(){
+  const v=document.getElementById('valor').value;
+  try{await api('leads',{nome:document.getElementById('nome').value,telefone:document.getElementById('telefone').value,
+    interesse:document.getElementById('interesse').value,valor:v===''?null:Number(v)});
+    flash('Lead adicionado.','ok');carregar();}catch(e){flash(e.message,'err');}
+}
+async function mover(id,etapa){try{await api('mover',{id,etapa});carregar();}catch(e){flash(e.message,'err');carregar();}}
+async function fechar(id,status){try{await api('fechar',{id,status});carregar();}catch(e){flash(e.message,'err');}}
+async function salvarRegra(){
+  const m=document.getElementById('iModelo').value;
+  try{await api('indicacao',{modelo:m,percentual:document.getElementById('iPct').value,
+    valorFixo:document.getElementById('iFixo').value,quando:document.getElementById('iQuando').value,
+    validadeDias:document.getElementById('iVal').value,linkBase:document.getElementById('iLink').value});
+    flash('Regra salva.','ok');carregar();}catch(e){flash(e.message,'err');}
+}
+async function criarParceiro(){
+  try{await api('parceiros',{nome:document.getElementById('pNome').value,
+    telefone:document.getElementById('pTel').value,codigo:document.getElementById('pCod').value});
+    flash('Parceiro cadastrado.','ok');carregar();}catch(e){flash(e.message,'err');}
+}
+async function removerParceiro(id){try{await api('parceiros/remover',{id});flash('Parceiro removido.','ok');carregar();}catch(e){flash(e.message,'err');}}
+async function testarRede(rede){
+  const campos=REDES.credenciais[rede].campos;
+  const cred={};
+  campos.forEach(f=>{cred[f]=document.getElementById(`rc-${rede}-${f}`).value.trim();});
+  TESTE[rede]={ok:false,motivo:'testando…'};render();
+  try{
+    TESTE[rede]=await api('redes/testar',{rede,cred});
+    flash(TESTE[rede].ok?`${rede}: conectado.`:`${rede}: ${TESTE[rede].motivo}`,TESTE[rede].ok?'ok':'err');
+  }catch(e){TESTE[rede]={ok:false,motivo:e.message};flash(e.message,'err');}
+  render();
+  campos.forEach(f=>{const el=document.getElementById(`rc-${rede}-${f}`);if(el)el.value=cred[f];});
+}
+async function testarTiktok(familia){
+  PROVA[familia]={provas:[],motivo:'testando…'};render();
+  try{
+    PROVA[familia]=await api('tiktok/testar',{familia});
+    const p=PROVA[familia];
+    flash(p.ok?`TikTok ${familia}: todas as chamadas responderam.`:`TikTok ${familia}: alguma chamada falhou.`,p.ok?'ok':'err');
+  }catch(e){PROVA[familia]={provas:[],motivo:e.message};flash(e.message,'err');}
+  render();
+}
+function copiar(t){navigator.clipboard?.writeText(t).then(()=>flash('Link copiado.','ok'),()=>flash('Copie manualmente: '+t,'err'));}
+
+carregar();
+</script>
