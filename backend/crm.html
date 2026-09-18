@@ -327,7 +327,7 @@ function tiktokCard(){
   const pronto=Object.entries(TK.pronto).filter(([,v])=>v).map(([k])=>k);
   return `<div class="card" style="margin-bottom:16px"><h3>TikTok</h3>
     <p class="hint">São três apps separados na TikTok — login, anúncios e loja — cada um com autorização própria.</p>
-    ${linha('Pronto pra',' ',pronto.length?pronto.join(', '):'nada ainda',pronto.length?'b-ok':'b-warn')}
+    ${linha('Pronto pra','o que já dá pra fazer pela API',pronto.length?pronto.join(', '):'nada ainda',pronto.length?'b-ok':'b-warn')}
     ${TK.lojaAtiva?linha('Loja ativa','shop_cipher',esc(TK.lojaAtiva),'b-ok'):''}
     ${TK.anuncianteAtivo?linha('Conta de anúncio ativa','advertiser_id',esc(TK.anuncianteAtivo),'b-ok'):''}</div>
   <div class="card" style="margin-bottom:16px;border-style:dashed">
@@ -499,8 +499,10 @@ const S={
     ${linha('Demais redes','YouTube, Instagram, Facebook: só leitura','ainda não','b-warn')}</div>
   ${tiktokCard()}
   <div class="card" style="margin-bottom:16px;border-style:dashed">
-    <h3>A credencial não fica gravada</h3>
-    <p class="hint">O token vai até este servidor, é usado na chamada e descartado. Nada de token em disco enquanto não existir um cofre pra isso — token vazado em arquivo é problema sério.</p></div>
+    <h3>Teste rápido — a credencial abaixo não fica gravada</h3>
+    <p class="hint">Vale para os formulários desta seção: o token vai até este servidor, é usado na chamada e descartado.
+    Serve para conferir se uma credencial funciona, não para deixar a integração ligada.
+    <b>A integração completa do TikTok é o bloco acima</b>, com OAuth e token renovado sozinho.</p></div>
   ${linhas}`;
  },
  relatorios:()=>head('Relatórios','Cruzamento entre vendas, atendimento e conteúdo.')+
