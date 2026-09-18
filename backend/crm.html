@@ -278,7 +278,7 @@ const TITULO={};
 MENU.forEach(m=>{TITULO[m.id]=[m.nome];(m.filhos||[]).forEach(f=>TITULO[f.id]=[m.nome,f.nome]);});
 const PAI={}; MENU.forEach(m=>(m.filhos||[]).forEach(f=>PAI[f.id]=m.id));
 
-let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null;
+let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null;
 const TESTE={}; // resultado do ultimo teste por rede (so em memoria)
 const PROVA={}; // ultimo teste real das APIs do TikTok, por familia
 let rota=location.hash.slice(1)||'visao';
@@ -461,9 +461,64 @@ function trocaModelo(){
 
 /* ---- shells honestos ---- */
 const S={
- estoque:()=>head('Estoque','Produtos, variantes e saldo — a base do que o bot pode oferecer.')+
-  vazio('estoque','Nenhuma fonte de estoque conectada','O VSvendas já lê uma <b>pasta de fotos</b> e agrupa variantes, mas isso é catálogo, não estoque: não tem quantidade nem reserva.',
-   ['Definir a fonte: pasta de fotos, planilha ou ERP','Amarrar produto do catálogo ao saldo','Só então o bot promete prazo sem mentir']),
+ estoque:()=>{
+  if(!EST) return head('Estoque','Produtos, saldo e exportação para os canais.')+
+    vazio('estoque','Backend sem a rota de estoque','Este painel é mais novo que o servidor que está rodando. Atualize o backend.',
+     ['Subir o backend com o VSestoque','Recarregar esta página']);
+  const p=EST;
+  const lin=p.produtos.map(x=>`<tr>
+    <td><b>${esc(x.nome)}</b><br><small class="hint">${esc(x.sku)}${x.marca?' · '+esc(x.marca):''}</small></td>
+    <td>${esc(x.vigenteFormatado)}${x.promocionalFormatado?`<br><small class="hint"><s>${esc(x.precoFormatado)}</s></small>`:''}</td>
+    <td style="text-align:center">${x.quantidade}</td>
+    <td style="text-align:center">${x.reservado||'—'}</td>
+    <td style="text-align:center"><b>${x.disponivel}</b></td>
+    <td><span class="badge ${!x.ativo?'':x.disponibilidade==='in_stock'?'b-ok':'b-warn'}">${!x.ativo?'inativo':x.disponibilidade==='in_stock'?'à venda':'sem saldo'}</span></td>
+    <td style="white-space:nowrap">
+      <button class="btn" onclick="movEstoque('${esc(x.sku)}','entrada')">+</button>
+      <button class="btn" onclick="movEstoque('${esc(x.sku)}','saida')">−</button>
+      <button class="btn" onclick="movEstoque('${esc(x.sku)}','reserva')">reservar</button>
+      <button class="btn" onclick="movEstoque('${esc(x.sku)}','vender')">vender</button>
+    </td></tr>`).join('');
+
+  const canais=Object.entries(p.canais).map(([c,s])=>`<div class="stat-row">
+    <div class="lbl">${esc(s.nome)}<small>${s.prontos} de ${s.total} produto(s) prontos${s.faltando?` · ${s.faltando} incompleto(s)`:''}</small></div>
+    <button class="btn ${s.prontos?'btn-p':''}" ${s.prontos?'':'disabled'} onclick="baixarFeed('${esc(c)}')">Baixar</button></div>`).join('');
+
+  return head('Estoque','Cadastro de produto, saldo com reserva e exportação para os canais de venda.')+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Produtos',p.total,`${p.ativos} à venda`)}
+    ${kpi('Unidades',p.unidades,`${p.reservadas} reservada(s)`)}
+    ${kpi('Valor parado',p.valorFormatado,'quantidade × preço')}
+    ${kpi('Sem saldo',p.semEstoque,'ativos que não dá pra entregar')}
+  </div>
+  ${p.alertas.length?`<div class="card" style="margin-bottom:16px"><h3>Precisa de atenção</h3>
+    ${p.alertas.map(a=>linha(esc(a.nome||a.sku),esc(a.sku),a.nivel==='acabou'?'acabou':`baixo: ${a.livre}`,a.nivel==='acabou'?'b-err':'b-warn')).join('')}</div>`:''}
+
+  <div class="card" style="margin-bottom:16px"><h3>Novo produto</h3>
+    <div class="form-grid">
+      <div class="field"><label>Nome *</label><input id="eNome" placeholder="Camiseta Veloso Preta"></div>
+      <div class="field"><label>Preço *</label><input id="ePreco" placeholder="R$ 79,90"></div>
+      <div class="field"><label>Preço promocional</label><input id="ePromo" placeholder="opcional"></div>
+      <div class="field"><label>Quantidade</label><input id="eQtd" type="number" min="0" value="0"></div>
+      <div class="field"><label>Marca</label><input id="eMarca" placeholder="exigida pelo Google"></div>
+      <div class="field"><label>Categoria</label><input id="eCat" placeholder="Vestuário"></div>
+      <div class="field"><label>GTIN / EAN</label><input id="eGtin" placeholder="código de barras"></div>
+      <div class="field"><label>Link do produto</label><input id="eLink" placeholder="https://sualoja.com/produto"></div>
+      <div class="field" style="grid-column:1/-1"><label>Imagens (URLs separadas por vírgula)</label><input id="eImgs" placeholder="https://cdn/1.jpg, https://cdn/2.jpg"></div>
+      <div class="field" style="grid-column:1/-1"><label>Descrição</label><textarea id="eDesc" rows="2" placeholder="Usada nos anúncios"></textarea></div>
+      <button class="btn btn-p" onclick="criarProduto()">Cadastrar</button>
+    </div>
+    <p class="hint">Só nome e preço são obrigatórios pra cadastrar. O resto é o que cada canal exige pra <b>exportar</b> — a lista abaixo mostra quem já está pronto.</p></div>
+
+  <div class="card" style="margin-bottom:16px"><h3>Exportar para os canais</h3>
+    <p class="hint">Produto com campo faltando <b>não entra no arquivo</b>: o Google reprova o item calado e a Meta reprova o feed inteiro. Melhor saber aqui.</p>
+    ${canais}</div>
+
+  ${p.produtos.length?`<div class="card"><h3>Catálogo</h3>
+    <div class="tbl-wrap"><table><thead><tr><th>Produto</th><th>Preço</th><th>Qtd</th><th>Reserv.</th><th>Disp.</th><th>Situação</th><th></th></tr></thead>
+    <tbody>${lin}</tbody></table></div></div>`
+   :`<div class="card"><p class="hint">Catálogo vazio — cadastre o primeiro produto acima.</p></div>`}`;
+ },
  financeiro:()=>head('Financeiro','Entradas, recebimentos e o que o CRM fechou virando caixa.')+
   vazio('financeiro','Sem fonte financeira','O que existe hoje é o <code>/checkout</code> do Stripe e a emissão de licença. Nada disso é conciliado aqui ainda.',
    ['Ligar o Stripe como fonte de recebimento','Casar lead ganho com pagamento confirmado','Aí o valor do funil deixa de ser estimativa']),
@@ -603,7 +658,8 @@ addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h&&h!==rota
 async function carregar(){
   try{
     // O diagnostico do TikTok nao pode derrubar o painel inteiro se o backend for antigo.
-    [ST,STATUS,IND,REDES,TK]=await Promise.all([api('painel'),api('status'),api('indicacao'),api('redes'),api('tiktok').catch(()=>null)]);
+    [ST,STATUS,IND,REDES,TK,EST]=await Promise.all([api('painel'),api('status'),api('indicacao'),api('redes'),
+      api('tiktok').catch(()=>null),api('estoque').catch(()=>null)]);
     document.getElementById('envDot').className='dot on';
     document.getElementById('envName').textContent='Backend online';
     document.getElementById('envSub').textContent=location.host;
@@ -650,6 +706,47 @@ async function testarRede(rede){
   }catch(e){TESTE[rede]={ok:false,motivo:e.message};flash(e.message,'err');}
   render();
   campos.forEach(f=>{const el=document.getElementById(`rc-${rede}-${f}`);if(el)el.value=cred[f];});
+}
+async function criarProduto(){
+  const v=(id)=>document.getElementById(id).value.trim();
+  try{
+    const r=await api('estoque/produto',{nome:v('eNome'),preco:v('ePreco'),precoPromocional:v('ePromo'),
+      quantidade:v('eQtd'),marca:v('eMarca'),categoria:v('eCat'),gtin:v('eGtin'),link:v('eLink'),
+      descricao:v('eDesc'),imagens:v('eImgs').split(',').map(x=>x.trim()).filter(Boolean)});
+    // Aviso nao impede cadastrar, mas impede exportar — a tela tem que dizer isso na hora.
+    flash((r.avisos&&r.avisos.length)?`Cadastrado. Pendente pra exportar: ${r.avisos.join('; ')}`:'Produto cadastrado.',
+      (r.avisos&&r.avisos.length)?'err':'ok');
+    ['eNome','ePreco','ePromo','eMarca','eCat','eGtin','eLink','eImgs','eDesc'].forEach(i=>{document.getElementById(i).value='';});
+    document.getElementById('eQtd').value='0';
+    carregar();
+  }catch(e){flash(e.message,'err');}
+}
+async function movEstoque(sku,tipo){
+  const rotulo={entrada:'Entraram quantas unidades?',saida:'Saíram quantas (perda, quebra)?',reserva:'Reservar quantas?',vender:'Vender quantas?'}[tipo];
+  const q=prompt(`${sku} — ${rotulo}`,'1');
+  if(q===null) return;
+  try{
+    const r=await api('estoque/movimentar',{sku,tipo,quantidade:Number(q)});
+    flash(`${sku}: ${r.produto.quantidade} em estoque, ${r.produto.reservado} reservado(s).`,'ok');
+    carregar();
+  }catch(e){flash(e.message,'err');}
+}
+async function baixarFeed(canal){
+  // O feed é ARQUIVO (XML/CSV), não JSON. Não dá pra usar <a download> porque ele não
+  // manda header, e o token do painel só viaja em header de propósito — na querystring
+  // ele acabaria gravado no log de acesso do servidor.
+  try{
+    const res=await fetch('/crm/api/estoque/exportar?canal='+encodeURIComponent(canal),
+      {headers:TOKEN?{'x-crm-token':TOKEN}:{}});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const nome=(res.headers.get('content-disposition')||'').match(/filename="([^"]+)"/)?.[1]||canal;
+    const incl=res.headers.get('x-vs-incluidos'), rec=res.headers.get('x-vs-recusados');
+    const url=URL.createObjectURL(await res.blob());
+    const a=document.createElement('a');a.href=url;a.download=nome;document.body.appendChild(a);a.click();a.remove();
+    URL.revokeObjectURL(url);
+    flash(Number(rec)?`${nome}: ${incl} produto(s). ${rec} ficaram de fora por campo faltando.`
+                     :`${nome}: ${incl} produto(s).`, Number(rec)?'err':'ok');
+  }catch(e){flash('Não consegui gerar o arquivo: '+e.message,'err');}
 }
 async function testarTiktok(familia){
   PROVA[familia]={provas:[],motivo:'testando…'};render();

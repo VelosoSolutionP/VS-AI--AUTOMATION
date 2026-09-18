@@ -22,6 +22,7 @@ import * as crm from '../engine/vscrm/index.mjs';
 import { testarConexao, CREDENCIAL } from '../engine/vsinfluence/coletor.mjs';
 import { diagnostico as tiktokDiagnostico } from '../engine/vstiktok/index.mjs';
 import { testar as tiktokTestar } from '../engine/vstiktok/conectar.mjs';
+import * as estoque from '../engine/vsestoque/index.mjs';
 import { reservarEvento } from './idempotencia.mjs';
 import { lerCorpoLimitado, criarRateLimit, ipDe, segredoIgual, CORPO_MAX_BYTES } from './limites.mjs';
 
@@ -305,6 +306,24 @@ const server = createServer(async (req, res) => {
     // fica gravada") e poria app_secret num POST. A configuracao mora na CLI, que
     // guarda em ~/.qa-gate/vstiktok com arquivo 0600. O diagnostico ja sai mascarado.
     if (req.method === 'GET' && rota === '/crm/api/tiktok') { return json(res, 200, tiktokDiagnostico()); }
+    if (req.method === 'GET' && rota === '/crm/api/estoque') { return json(res, 200, estoque.painel()); }
+    if (req.method === 'GET' && rota === '/crm/api/estoque/historico') {
+      return json(res, 200, { movimentos: estoque.historico(new URL(req.url, 'http://x').searchParams.get('sku')) });
+    }
+    // Download do feed: sai como ARQUIVO, nao como JSON — e o que o Google e a Meta
+    // consomem. Os recusados vao no header, pra tela poder avisar sem baixar duas vezes.
+    if (req.method === 'GET' && rota === '/crm/api/estoque/exportar') {
+      const canal = new URL(req.url, 'http://x').searchParams.get('canal') || 'json';
+      const r = estoque.exportar(canal, { loja: process.env.VSESTOQUE_LOJA, site: process.env.VSESTOQUE_SITE });
+      if (!r.ok) { return json(res, 400, { erro: r.motivo }); }
+      res.writeHead(200, {
+        'content-type': r.tipo,
+        'content-disposition': `attachment; filename="${r.arquivo}"`,
+        'x-vs-incluidos': String(r.incluidos),
+        'x-vs-recusados': String(r.recusados.length),
+      });
+      return res.end(r.conteudo);
+    }
     if (req.method === 'POST' && rota === '/crm/api/tiktok/testar') {
       const b = await readBody(req);
       if (corpoEstourou(res, b)) { return; }
@@ -327,6 +346,10 @@ const server = createServer(async (req, res) => {
       let d; try { d = JSON.parse(b.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
       let r;
       switch (rota) {
+        case '/crm/api/estoque/produto': r = estoque.criar(d); break;
+        case '/crm/api/estoque/editar': r = estoque.editar(d.sku, d.mudancas || {}); break;
+        case '/crm/api/estoque/movimentar': r = estoque.movimentar(d.sku, d); break;
+        case '/crm/api/estoque/excluir': r = estoque.excluir(d.sku); break;
         case '/crm/api/funil': r = crm.setFunil(d.etapas); break;
         case '/crm/api/leads': r = crm.criar(d); break;
         case '/crm/api/mover': r = crm.mover(d.id, d.etapa); break;
@@ -336,7 +359,10 @@ const server = createServer(async (req, res) => {
         case '/crm/api/parceiros/remover': r = crm.removerParceiro(d.id); break;
         default: return json(res, 404, { erro: 'rota de CRM desconhecida' });
       }
-      return json(res, r.erro ? 400 : 200, r);
+      // Os modulos novos recusam com {ok:false, erros:[...]}; os antigos com {erro}.
+      // Sem unificar aqui, uma recusa voltaria HTTP 200 e a tela mostraria "salvo".
+      if (r && r.ok === false && !r.erro) { r = { ...r, erro: (r.erros || []).join('; ') || 'nao foi possivel concluir' }; }
+      return json(res, (r?.erro || r?.ok === false) ? 400 : 200, r);
     }
     return json(res, 404, { erro: 'rota de CRM desconhecida' });
   }

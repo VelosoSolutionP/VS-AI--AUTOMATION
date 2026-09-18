@@ -28,7 +28,8 @@
     "vsvendas": "./engine/vsvendas/cli.mjs",
     "vs-install": "./installer/cli.mjs",
     "vsinfluence": "./engine/vsinfluence/cli.mjs",
-    "vstiktok": "./engine/vstiktok/cli.mjs"
+    "vstiktok": "./engine/vstiktok/cli.mjs",
+    "vsestoque": "./engine/vsestoque/cli.mjs"
   },
   "engines": {
     "node": ">=18"
