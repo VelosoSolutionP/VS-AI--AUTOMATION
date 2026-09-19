@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VSmarket — Serviços locais</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{--bg:#0b0b0c;--panel:#141416;--line:#26262a;--fg:#e8e8ea;--dim:#8b8b93;--muted:#a1a1aa;
+      --ok:#22c55e;--warn:#f59e0b;--err:#ef4444;--acc:#6366f1;--r:12px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 60px}
+header{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--line);margin-bottom:20px;flex-wrap:wrap}
+.logo{width:34px;height:34px;border-radius:9px;background:var(--acc);display:grid;place-items:center;font-weight:700;font-size:13px}
+h1{font-size:17px;margin:0;font-weight:650}
+h1 small{display:block;font-size:11.5px;color:var(--dim);font-weight:400}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:14px}
+.card h2{font-size:14px;margin:0 0 10px;font-weight:650}
+.hint{color:var(--muted);font-size:12.5px;line-height:1.55;margin:6px 0}
+label{display:block;font-size:11.5px;color:var(--dim);margin:0 0 4px;text-transform:uppercase;letter-spacing:.4px}
+input,select,textarea{width:100%;background:#0e0e10;border:1px solid var(--line);color:var(--fg);
+  border-radius:9px;padding:9px 11px;font:inherit;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--acc)}
+.grid{display:grid;gap:11px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.btn{background:#1d1d21;border:1px solid var(--line);color:var(--fg);border-radius:9px;
+  padding:9px 15px;font:inherit;cursor:pointer;font-weight:550}
+.btn:hover{border-color:#3a3a42}
+.btn-p{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn-p:hover{filter:brightness(1.12)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row b{font-weight:600}
+.row small{display:block;color:var(--dim);font-size:11.5px;font-weight:400}
+.tag{font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.t-ok{color:var(--ok);border-color:#14532d;background:#052e16}
+.t-warn{color:var(--warn);border-color:#78350f;background:#2a1a05}
+.t-err{color:var(--err);border-color:#7f1d1d;background:#2a0808}
+#map{height:380px;border-radius:var(--r);border:1px solid var(--line);margin:10px 0}
+.leaflet-container{background:#0e0e10}
+nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+nav button{background:transparent;border:1px solid transparent;color:var(--muted);padding:7px 13px;
+  border-radius:9px;cursor:pointer;font:inherit}
+nav button.on{background:var(--panel);border-color:var(--line);color:var(--fg);font-weight:600}
+.msg{padding:10px 13px;border-radius:9px;margin-bottom:14px;display:none;font-size:13px}
+.msg.show{display:block}
+.msg.ok{background:#052e16;color:#86efac;border:1px solid #14532d}
+.msg.err{background:#2a0808;color:#fca5a5;border:1px solid #7f1d1d}
+.login{max-width:380px;margin:9vh auto}
+.kpis{display:grid;gap:11px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:14px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:13px 15px}
+.kpi span{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);font-weight:600}
+.kpi b{display:block;font-size:23px;margin-top:3px;font-weight:650;letter-spacing:-.5px}
+.kpi em{font-style:normal;font-size:11.5px;color:var(--muted)}
+code{background:#0e0e10;padding:1px 5px;border-radius:5px;font-size:12px;border:1px solid var(--line)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);
+  background:#0e0e10;color:var(--muted);cursor:pointer}
+.chip.on{border-color:var(--acc);color:#fff;background:#1e1b4b}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--dim);
+  padding:7px 8px;border-bottom:1px solid var(--line);font-weight:600}
+td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.scroll{overflow-x:auto}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="msg" class="msg"></div>
+  <div id="app"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/* ── estado ───────────────────────────────────────────────────────────── */
+let TOKEN = sessionStorage.getItem('vsmarket_token') || '';
+let EU = null, CAT = [], ABA = 'painel', MAPA = null, MARCA = null, RAIO = null, PONTO = null;
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $ = (id) => document.getElementById(id);
+
+function aviso(t, tipo) {
+  const m = $('msg');
+  m.className = 'msg show ' + tipo;
+  m.textContent = t;
+  if (tipo === 'ok') setTimeout(() => { m.className = 'msg'; }, 3500);
+}
+
+async function api(rota, corpo, metodo) {
+  const res = await fetch('/api/' + rota, {
+    method: metodo || (corpo ? 'POST' : 'GET'),
+    headers: { 'content-type': 'application/json', ...(TOKEN ? { authorization: 'Bearer ' + TOKEN } : {}) },
+    body: corpo ? JSON.stringify(corpo) : undefined,
+  });
+  const j = await res.json().catch(() => ({ erro: 'resposta inválida do servidor' }));
+  if (res.status === 401 && TOKEN) { sair(true); throw new Error(j.erro || 'sessão encerrada'); }
+  if (!res.ok || j.erro) throw new Error(j.erro || ('HTTP ' + res.status));
+  return j;
+}
+
+/* ── login ────────────────────────────────────────────────────────────── */
+function telaLogin() {
+  $('app').innerHTML = `
+  <div class="login">
+    <header style="border:0;justify-content:center">
+      <div class="logo">VS</div>
+      <h1>VSmarket<small>Serviços locais · BH e Grande BH</small></h1>
+    </header>
+    <div class="card">
+      <h2>Entrar</h2>
+      <div style="display:grid;gap:11px">
+        <div><label>E-mail</label><input id="lgEmail" type="email" autocomplete="username" placeholder="voce@empresa.com"></div>
+        <div><label>Senha</label><input id="lgSenha" type="password" autocomplete="current-password" placeholder="sua senha"></div>
+        <button class="btn btn-p" id="lgBtn">Entrar</button>
+      </div>
+      <p class="hint">O primeiro administrador é criado no primeiro boot do servidor, com senha aleatória impressa no terminal — nunca há senha padrão no código.</p>
+    </div>
+  </div>`;
+  $('lgBtn').onclick = entrar;
+  $('lgSenha').onkeydown = (e) => { if (e.key === 'Enter') entrar(); };
+  $('lgEmail').focus();
+}
+
+async function entrar() {
+  const b = $('lgBtn');
+  b.disabled = true; b.textContent = 'Entrando…';
+  try {
+    const r = await api('login', { email: $('lgEmail').value.trim(), senha: $('lgSenha').value });
+    TOKEN = r.token;
+    sessionStorage.setItem('vsmarket_token', TOKEN);
+    EU = r.usuario;
+    await iniciar();
+  } catch (e) {
+    aviso(e.message, 'err');
+    b.disabled = false; b.textContent = 'Entrar';
+  }
+}
+
+function sair(expirou) {
+  TOKEN = ''; EU = null;
+  sessionStorage.removeItem('vsmarket_token');
+  telaLogin();
+  if (expirou) aviso('Sua sessão expirou. Entre de novo.', 'err');
+}
+
+/* ── casca ────────────────────────────────────────────────────────────── */
+const ABAS = [
+  ['painel', 'Painel'], ['prestadores', 'Prestadores'], ['clientes', 'Clientes'],
+  ['mapa', 'Mapa e busca'], ['indicacao', 'Indicação'], ['auditoria', 'Auditoria'],
+];
+
+function casca(conteudo) {
+  $('app').innerHTML = `
+  <header>
+    <div class="logo">VS</div>
+    <h1>VSmarket<small>${esc(EU.nome)} · ${esc(EU.papel)}</small></h1>
+    <div style="margin-left:auto"><button class="btn" onclick="sair()">Sair</button></div>
+  </header>
+  <nav>${ABAS.map(([id, nome]) => `<button class="${ABA === id ? 'on' : ''}" onclick="irPara('${id}')">${nome}</button>`).join('')}</nav>
+  <div id="conteudo">${conteudo}</div>`;
+}
+
+function irPara(id) { ABA = id; render(); }
+
+async function render() {
+  try {
+    if (ABA === 'painel') return await telaPainel();
+    if (ABA === 'prestadores') return await telaPrestadores();
+    if (ABA === 'clientes') return await telaClientes();
+    if (ABA === 'mapa') return await telaMapa();
+    if (ABA === 'indicacao') return await telaIndicacao();
+    if (ABA === 'auditoria') return await telaAuditoria();
+  } catch (e) { aviso(e.message, 'err'); }
+}
+
+/* ── painel ───────────────────────────────────────────────────────────── */
+async function telaPainel() {
+  const p = await api('painel');
+  const st = p.prestadores.porStatus;
+  const integro = p.auditoria.integridade.ok;
+  casca(`
+  <div class="kpis">
+    <div class="kpi"><span>Prestadores</span><b>${p.prestadores.total}</b><em>${st.ACTIVE || 0} ativos no matching</em></div>
+    <div class="kpi"><span>Clientes</span><b>${p.clientes}</b><em>cadastrados</em></div>
+    <div class="kpi"><span>Categorias</span><b>${p.categorias}</b><em>cadastráveis</em></div>
+    <div class="kpi"><span>Auditoria</span><b>${p.auditoria.registros}</b><em>${integro ? 'corrente íntegra' : 'CORRENTE QUEBRADA'}</em></div>
+  </div>
+  <div class="card"><h2>Situação dos prestadores</h2>
+    ${Object.entries(st).map(([s, n]) => `<div class="row"><div><b>${esc(s)}</b>
+      <small>${s === 'ACTIVE' ? 'participa do matching' : 'fora do matching'}</small></div>
+      <span class="tag ${s === 'ACTIVE' ? 't-ok' : (s === 'BLOCKED' ? 't-err' : '')}">${n}</span></div>`).join('')}
+    ${p.prestadores.semRecebimento ? `<div class="row"><div><b>Sem conta de recebimento</b>
+      <small>não dá pra repassar pagamento a estes</small></div><span class="tag t-warn">${p.prestadores.semRecebimento}</span></div>` : ''}
+  </div>
+  <div class="card"><h2>Região atendida</h2>
+    <div class="row"><div><b>${esc(p.regiao.nome)}</b><small>raio de ${p.regiao.raioKm} km do centro de BH</small></div>
+      <span class="tag">MVP</span></div>
+    <p class="hint">O §1 limita o MVP a esta região. Cadastro fora dela é avisado, não bloqueado — a arquitetura permite expandir depois.</p>
+  </div>`);
+}
+
+/* ── prestadores ──────────────────────────────────────────────────────── */
+async function telaPrestadores() {
+  const { prestadores } = await api('prestadores');
+  if (!CAT.length) CAT = (await api('categorias')).categorias;
+  const linhas = prestadores.map(p => `<tr>
+    <td><b>${esc(p.nome)}</b><br><small style="color:var(--dim)">${esc(p.documentoMascarado)} · ${esc(p.categorias.join(', '))}</small></td>
+    <td>${esc(p.base.lat.toFixed(4))}, ${esc(p.base.lng.toFixed(4))}<br><small style="color:var(--dim)">raio ${p.raioKm} km</small></td>
+    <td><span class="tag ${p.status === 'ACTIVE' ? 't-ok' : (p.status === 'BLOCKED' ? 't-err' : 't-warn')}">${esc(p.status)}</span></td>
+    <td style="white-space:nowrap">
+      ${p.status !== 'ACTIVE' ? `<button class="btn" onclick="mudarStatus('${esc(p.id)}','${p.status === 'PENDING' ? 'UNDER_REVIEW' : 'ACTIVE'}')">${p.status === 'PENDING' ? 'Revisar' : 'Ativar'}</button>` : ''}
+      ${p.status === 'ACTIVE' ? `<button class="btn" onclick="mudarStatus('${esc(p.id)}','SUSPENDED')">Suspender</button>` : ''}
+    </td></tr>`).join('');
+
+  casca(`
+  <div class="card"><h2>Novo prestador</h2>
+    <div class="grid">
+      <div><label>Nome *</label><input id="prNome" placeholder="João Elétrica"></div>
+      <div><label>CPF ou CNPJ *</label><input id="prDoc" placeholder="111.444.777-35"></div>
+      <div><label>Telefone *</label><input id="prTel" placeholder="(31) 98765-4321"></div>
+      <div><label>Raio de atendimento (km) *</label><input id="prRaio" type="number" min="1" value="15"></div>
+      <div><label>Latitude *</label><input id="prLat" placeholder="-19.9167"></div>
+      <div><label>Longitude *</label><input id="prLng" placeholder="-43.9345"></div>
+      <div><label>Cidades atendidas</label><input id="prCidades" placeholder="Contagem, Betim"></div>
+      <div><label>Bairros atendidos</label><input id="prBairros" placeholder="Savassi, Funcionários"></div>
+    </div>
+    <div style="margin:12px 0 6px"><label>Categorias *</label>
+      <div class="chips" id="prCats">${CAT.map(c => `<span class="chip" data-id="${esc(c.id)}" onclick="this.classList.toggle('on')">${esc(c.nome)}</span>`).join('')}</div>
+    </div>
+    <p class="hint">Use o botão abaixo para pegar a coordenada do navegador, ou clique no mapa da aba <b>Mapa e busca</b>.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" onclick="meuGps('prLat','prLng')">📍 Usar minha localização</button>
+      <button class="btn btn-p" onclick="criarPrestador()">Cadastrar</button>
+    </div>
+    <p class="hint">Todo prestador nasce <code>PENDING</code>: quem cadastra não se aprova. Só <code>ACTIVE</code> entra no matching.</p>
+  </div>
+  <div class="card"><h2>Cadastrados (${prestadores.length})</h2>
+    ${prestadores.length ? `<div class="scroll"><table><thead><tr><th>Prestador</th><th>Base</th><th>Status</th><th></th></tr></thead><tbody>${linhas}</tbody></table></div>`
+      : '<p class="hint">Nenhum prestador ainda.</p>'}
+  </div>`);
+}
+
+async function criarPrestador() {
+  const cats = [...document.querySelectorAll('#prCats .chip.on')].map(c => c.dataset.id);
+  const lista = (v) => v.split(',').map(x => x.trim()).filter(Boolean);
+  try {
+    const r = await api('prestadores', {
+      nome: $('prNome').value.trim(), documento: $('prDoc').value.trim(), telefone: $('prTel').value.trim(),
+      raioKm: Number($('prRaio').value), lat: Number($('prLat').value), lng: Number($('prLng').value),
+      categorias: cats, cidades: lista($('prCidades').value), bairros: lista($('prBairros').value),
+    });
+    aviso(r.avisos?.length ? 'Cadastrado. Pendências: ' + r.avisos.join(' · ') : 'Prestador cadastrado como PENDING.', r.avisos?.length ? 'err' : 'ok');
+    render();
+  } catch (e) { aviso(e.message, 'err'); }
+}
+
+async function mudarStatus(id, status) {
+  let motivo = '';
+  if (status === 'SUSPENDED' || status === 'BLOCKED') {
+    motivo = prompt('Motivo (obrigatório — o prestador tem direito de saber):') || '';
+    if (!motivo.trim()) return aviso('Motivo é obrigatório para suspender ou bloquear.', 'err');
+  }
+  try { await api('prestadores/status', { id, status, motivo }); aviso('Status alterado para ' + status + '.', 'ok'); render(); }
+  catch (e) { aviso(e.message, 'err'); }
+}
+
+/* ── clientes ─────────────────────────────────────────────────────────── */
+async function telaClientes() {
+  const { clientes } = await api('clientes');
+  casca(`
+  <div class="card"><h2>Novo cliente</h2>
+    <div class="grid">
+      <div><label>Nome *</label><input id="clNome" placeholder="Maria Souza"></div>
+      <div><label>Telefone *</label><input id="clTel" placeholder="(31) 99999-0000"></div>
+      <div><label>E-mail</label><input id="clMail" placeholder="opcional"></div>
+    </div>
+    <h2 style="margin-top:16px">Endereço</h2>
+    <div class="grid">
+      <div><label>Logradouro *</label><input id="clRua" placeholder="Rua da Bahia"></div>
+      <div><label>Número</label><input id="clNum" placeholder="1200"></div>
+      <div><label>Bairro</label><input id="clBairro" placeholder="Centro"></div>
+      <div><label>Cidade *</label><input id="clCidade" value="Belo Horizonte"></div>
+      <div><label>Latitude *</label><input id="clLat" placeholder="-19.9245"></div>
+      <div><label>Longitude *</label><input id="clLng" placeholder="-43.9352"></div>
+    </div>
+    <div style="margin:12px 0"><label style="text-transform:none;display:flex;gap:8px;align-items:center;color:var(--fg)">
+      <input type="checkbox" id="clTermos" style="width:auto"> Li e aceito os termos de uso</label></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" onclick="meuGps('clLat','clLng')">📍 Usar minha localização</button>
+      <button class="btn btn-p" onclick="criarCliente()">Cadastrar</button>
+    </div>
+    <p class="hint">Coleta mínima (§3). Documento não é pedido aqui: só vira necessário no pagamento, e lá quem guarda é o provedor.</p>
+  </div>
+  <div class="card"><h2>Cadastrados (${clientes.length})</h2>
+    ${clientes.length ? clientes.map(c => `<div class="row"><div><b>${esc(c.nome)}</b>
+      <small>${esc(c.telefone)} · ${c.enderecos.length} endereço(s)</small></div>
+      <span class="tag t-ok">aceite ${esc((c.aceiteEm || '').slice(0, 10))}</span></div>`).join('')
+      : '<p class="hint">Nenhum cliente ainda.</p>'}
+  </div>`);
+}
+
+async function criarCliente() {
+  try {
+    const r = await api('clientes', {
+      nome: $('clNome').value.trim(), telefone: $('clTel').value.trim(), email: $('clMail').value.trim(),
+      aceitouTermos: $('clTermos').checked,
+      enderecos: [{ logradouro: $('clRua').value.trim(), numero: $('clNum').value.trim(),
+        bairro: $('clBairro').value.trim(), cidade: $('clCidade').value.trim(),
+        lat: Number($('clLat').value), lng: Number($('clLng').value) }],
+    });
+    aviso(r.avisos?.length ? 'Cadastrado. ' + r.avisos.join(' · ') : 'Cliente cadastrado.', 'ok');
+    render();
+  } catch (e) { aviso(e.message, 'err'); }
+}
+
+/* ── mapa e busca ─────────────────────────────────────────────────────── */
+async function telaMapa() {
+  if (!CAT.length) CAT = (await api('categorias')).categorias;
+  casca(`
+  <div class="card"><h2>Onde é o serviço?</h2>
+    <p class="hint">Clique no mapa para marcar o endereço, ou use sua localização. O círculo mostra o alcance de cada prestador elegível.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <button class="btn" onclick="meuGpsMapa()">📍 Minha localização</button>
+      <select id="bsCat" style="max-width:240px"><option value="">Todas as categorias</option>
+        ${CAT.map(c => `<option value="${esc(c.id)}">${esc(c.nome)}</option>`).join('')}</select>
+      <button class="btn btn-p" onclick="buscar()">Buscar prestadores</button>
+    </div>
+    <div id="map"></div>
+    <div id="coord" class="hint">Nenhum ponto marcado ainda.</div>
+  </div>
+  <div id="resultado"></div>`);
+  montarMapa();
+}
+
+function montarMapa() {
+  MAPA = L.map('map').setView([-19.9167, -43.9345], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '&copy; OpenStreetMap',
+  }).addTo(MAPA);
+  MAPA.on('click', (e) => marcar(e.latlng.lat, e.latlng.lng));
+  if (PONTO) marcar(PONTO.lat, PONTO.lng);
+}
+
+function marcar(lat, lng) {
+  PONTO = { lat, lng };
+  if (MARCA) MAPA.removeLayer(MARCA);
+  MARCA = L.marker([lat, lng]).addTo(MAPA).bindPopup('Local do serviço');
+  $('coord').innerHTML = `Ponto marcado: <code>${lat.toFixed(5)}, ${lng.toFixed(5)}</code>`;
+}
+
+/** GPS do navegador. Exige HTTPS ou localhost — e o erro precisa dizer isso. */
+function gps(ok, falha) {
+  if (!navigator.geolocation) return falha('este navegador não expõe geolocalização');
+  navigator.geolocation.getCurrentPosition(
+    (p) => ok(p.coords.latitude, p.coords.longitude, p.coords.accuracy),
+    (e) => falha(e.code === 1 ? 'permissão de localização negada'
+      : e.code === 2 ? 'não foi possível obter a posição (sem sinal de GPS/rede)'
+      : 'a localização demorou demais para responder'),
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+}
+
+function meuGps(idLat, idLng) {
+  aviso('Pedindo sua localização…', 'ok');
+  gps((lat, lng, acc) => {
+    $(idLat).value = lat.toFixed(6);
+    $(idLng).value = lng.toFixed(6);
+    aviso(`Localização obtida (precisão de ~${Math.round(acc)} m).`, 'ok');
+  }, (m) => aviso(m, 'err'));
+}
+
+function meuGpsMapa() {
+  aviso('Pedindo sua localização…', 'ok');
+  gps((lat, lng) => { MAPA.setView([lat, lng], 15); marcar(lat, lng); aviso('Localização obtida.', 'ok'); },
+      (m) => aviso(m, 'err'));
+}
+
+async function buscar() {
+  if (!PONTO) return aviso('Marque um ponto no mapa primeiro.', 'err');
+  try {
+    const r = await api('buscar', { lat: PONTO.lat, lng: PONTO.lng, categoria: $('bsCat').value || undefined });
+    if (RAIO) { RAIO.forEach(c => MAPA.removeLayer(c)); }
+    RAIO = [];
+    for (const p of r.elegiveis) {
+      RAIO.push(L.circle([p.base.lat, p.base.lng], { radius: p.raioKm * 1000, color: '#6366f1', weight: 1, fillOpacity: .06 }).addTo(MAPA));
+      RAIO.push(L.marker([p.base.lat, p.base.lng])
+        .addTo(MAPA).bindPopup(`<b>${esc(p.nome)}</b><br>${p.distanciaKm} km · raio ${p.raioKm} km<br>${esc(p.motivo)}`));
+    }
+    $('resultado').innerHTML = `
+    <div class="card"><h2>Elegíveis (${r.totalElegiveis})</h2>
+      <p class="hint">Só prestadores <code>ACTIVE</code> entram. ${r.inativosIgnorados} fora do matching por status.</p>
+      ${r.elegiveis.length ? r.elegiveis.map(p => `<div class="row"><div><b>${esc(p.nome)}</b>
+        <small>${esc(p.motivo)} · ${esc(p.categorias.join(', '))}</small></div>
+        <span class="tag t-ok">${p.distanciaKm ?? '—'} km</span></div>`).join('')
+        : '<p class="hint">Ninguém atende este ponto.</p>'}
+    </div>
+    ${r.descartados.length ? `<div class="card"><h2>Descartados (${r.descartados.length})</h2>
+      <p class="hint">Aparecem aqui porque matching sem explicação não dá para auditar.</p>
+      ${r.descartados.map(d => `<div class="row"><div><b>${esc(d.nome)}</b><small>${esc(d.motivo)}</small></div></div>`).join('')}</div>` : ''}`;
+  } catch (e) { aviso(e.message, 'err'); }
+}
+
+/* ── indicação ────────────────────────────────────────────────────────── */
+async function telaIndicacao() {
+  const p = await api('indicacao');
+  casca(`
+  <div class="kpis">
+    <div class="kpi"><span>Indicações</span><b>${p.total}</b><em>registradas</em></div>
+    <div class="kpi"><span>Convertidas</span><b>${p.convertidas}</b><em>viraram cadastro ou pedido</em></div>
+    <div class="kpi"><span>Indicadores</span><b>${p.linhas.length}</b><em>com ao menos uma</em></div>
+  </div>
+  <div class="card"><h2>Recompensa</h2>
+    <div class="row"><div><b>Valor por indicação</b><small>${esc(p.recompensa.motivo)}</small></div>
+      <span class="tag t-warn">pendente de regra</span></div>
+    <p class="hint">O §32 é explícito: não definir recompensa financeira antes da regra comercial e jurídica. Inventar um valor aqui viraria promessa que alguém teria de honrar.</p>
+  </div>
+  <div class="card"><h2>Por indicador</h2>
+    ${p.linhas.length ? p.linhas.map(l => `<div class="row"><div><b>${esc(l.codigo || l.indicadorId)}</b>
+      <small>${l.indicados} indicado(s)</small></div>
+      <span class="tag ${l.convertidas ? 't-ok' : ''}">${l.convertidas} convertida(s)</span></div>`).join('')
+      : '<p class="hint">Nenhuma indicação registrada ainda.</p>'}
+  </div>`);
+}
+
+/* ── auditoria ────────────────────────────────────────────────────────── */
+async function telaAuditoria() {
+  let r;
+  try { r = await api('auditoria'); }
+  catch (e) { return casca(`<div class="card"><h2>Auditoria</h2><p class="hint">${esc(e.message)}</p></div>`); }
+  const i = r.integridade;
+  casca(`
+  <div class="card"><h2>Integridade da trilha</h2>
+    <div class="row"><div><b>${i.ok ? 'Corrente íntegra' : 'CORRENTE QUEBRADA'}</b>
+      <small>${i.ok ? i.registros + ' registro(s) encadeados por hash' : esc(i.motivo)}</small></div>
+      <span class="tag ${i.ok ? 't-ok' : 't-err'}">${i.ok ? 'ok' : 'seq ' + i.seq}</span></div>
+    <p class="hint">Cada registro carrega o hash do anterior. Apagar ou alterar qualquer linha do meio quebra a corrente e aponta onde. Isso não impede a edição — impede que ela passe despercebida.</p>
+  </div>
+  <div class="card"><h2>Últimos eventos</h2>
+    <div class="scroll"><table><thead><tr><th>#</th><th>Quando</th><th>Ator</th><th>Ação</th><th>Entidade</th></tr></thead>
+    <tbody>${r.registros.map(x => `<tr><td>${x.seq}</td><td>${esc(x.em.slice(0, 19).replace('T', ' '))}</td>
+      <td>${esc(x.ator)}</td><td><code>${esc(x.acao)}</code></td>
+      <td>${esc(x.entidade || '—')}<br><small style="color:var(--dim)">${esc(x.entidadeId || '')}</small></td></tr>`).join('')}</tbody></table></div>
+  </div>`);
+}
+
+/* ── início ───────────────────────────────────────────────────────────── */
+async function iniciar() {
+  try {
+    EU = (await api('eu')).usuario;
+    CAT = (await api('categorias')).categorias;
+    await render();
+  } catch { telaLogin(); }
+}
+
+if (TOKEN) iniciar(); else telaLogin();
+</script>
+</body>
+</html>
