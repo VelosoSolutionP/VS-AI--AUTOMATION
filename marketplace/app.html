@@ -288,6 +288,10 @@ function montarMapa() {
   S.mapa = L.map('map').setView(p, S.rascunho.lat ? 16 : 12);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(S.mapa);
   S.mapa.on('click', e => marcar(e.latlng.lat, e.latlng.lng));
+  // O Leaflet calcula o tamanho do container NA CRIAÇÃO. Como o mapa nasce junto com
+  // o resto da tela, o layout ainda não fechou e ele mede errado — o mapa renderiza
+  // cortado e o clique cai numa coordenada que não é a que o dedo tocou.
+  setTimeout(() => S.mapa && S.mapa.invalidateSize(), 60);
   if (S.rascunho.lat) marcar(S.rascunho.lat, S.rascunho.lng);
 }
 function marcar(lat, lng) {
@@ -545,6 +549,9 @@ function telaPagamento() {
     <button class="btn btn-p" onclick="pagar('PIX')">Pagar com Pix</button>
     <button class="btn" style="margin-top:9px" onclick="pagar('CARTAO')">Pagar com cartão</button>
     <p class="dim3" style="text-align:center;margin-top:12px">Não guardamos dados do seu cartão.</p>
+    ${S.pagCfg && S.pagCfg.simulado ? `<div class="cartao" style="margin-top:12px;border-style:dashed">
+      <b>Pagamento simulado</b><p class="dim" style="margin-top:4px">Este ambiente não cobra de verdade.
+      Com a chave do provedor configurada, a mesma tela cobra por Pix e cartão.</p></div>` : ''}
   </div>`);
 }
 
@@ -672,7 +679,7 @@ function telaLogin(admin) {
     </div>
     ${admin ? '' : `<div class="cartao"><h3>Ainda não tem conta?</h3>
       <p class="dim" style="margin:6px 0 12px">Entre grátis e encontre novos clientes.</p>
-      <button class="btn" onclick="fala('Cadastro de profissional: próxima etapa.','ok')">Quero me cadastrar</button></div>`}
+      <button class="btn" onclick="ir('cadastro')">Quero me cadastrar</button></div>`}
   </div>`);
 }
 
@@ -794,6 +801,72 @@ async function enviarProposta(pedidoId) {
   } catch (e) { fala(e.message, 'er'); }
 }
 
+/* ═══ CADASTRO PÚBLICO DO PROFISSIONAL ═══ */
+function telaCadastro() {
+  casca(topo('Cadastro de profissional', 'login') + `<div class="tela">
+    <div id="aviso" class="aviso"></div>
+    <div class="cartao" style="background:var(--laranja-claro);border-color:transparent">
+      <b>Entre grátis e encontre novos clientes.</b>
+      <p class="dim" style="margin-top:4px;color:var(--tinta)">Sem pagar por lead. Sem comprar moeda para ver telefone.</p>
+    </div>
+    <div class="campo"><label>Seu nome ou da empresa</label><input id="cdNome" placeholder="Carlos Elétrica"></div>
+    <div class="campo"><label>CPF ou CNPJ</label><input id="cdDoc" inputmode="numeric" placeholder="somente números"></div>
+    <div class="campo"><label>Telefone</label><input id="cdTel" inputmode="tel" placeholder="(31) 98765-4321"></div>
+    <div class="campo"><label>E-mail</label><input id="cdMail" type="email" autocomplete="username" placeholder="para acompanhar sua análise"></div>
+    <div class="campo"><label>Senha</label><input id="cdSenha" type="password" autocomplete="new-password" placeholder="mínimo 10 caracteres, com número"></div>
+    <div class="campo"><label>O que você faz</label>
+      <div class="cats" id="cdCats">${S.cats.map(c => `<div class="cat" data-id="${esc(c.id)}" onclick="this.classList.toggle('on')">
+        <span class="ic">${c.icone || '🔧'}</span><b>${esc(c.nome)}</b></div>`).join('')}</div></div>
+    <div class="campo"><label>Conte um pouco do seu trabalho</label><textarea id="cdDesc" placeholder="Anos de experiência, o que você faz melhor"></textarea></div>
+    <div class="campo"><label>Onde fica sua base</label>
+      <button class="btn" onclick="usarGpsCadastro()">📍 Usar minha localização</button>
+      <div id="map" style="margin-top:10px"></div></div>
+    <div class="dupla">
+      <div class="campo"><label>Atende em quantos km</label><input id="cdRaio" type="number" value="10"></div>
+      <div class="campo"><label>Cidades</label><input id="cdCidades" placeholder="Belo Horizonte, Contagem"></div>
+    </div>
+    <button class="btn btn-p" onclick="enviarCadastro()">Quero me cadastrar</button>
+    <p class="dim3" style="text-align:center;margin-top:10px">Seu cadastro passa por análise antes de receber pedidos.</p>
+  </div>`);
+  montarMapa();
+}
+function usarGpsCadastro() { usarGps(); }
+
+async function enviarCadastro() {
+  if (!S.rascunho.lat) return fala('Marque no mapa onde fica sua base de atendimento.', 'er');
+  const cats = [...document.querySelectorAll('#cdCats .cat.on')].map(c => c.dataset.id);
+  if (!cats.length) return fala('Escolha ao menos uma área de atuação.', 'er');
+  try {
+    const r = await api('cadastrar-profissional', {
+      nome: $('cdNome').value.trim(), documento: $('cdDoc').value.trim(),
+      telefone: $('cdTel').value.trim(), email: $('cdMail').value.trim().toLowerCase(),
+      senha: $('cdSenha').value, descricao: $('cdDesc').value.trim(),
+      categorias: cats, lat: S.rascunho.lat, lng: S.rascunho.lng,
+      raioKm: Number($('cdRaio').value),
+      cidades: $('cdCidades').value.split(',').map(x => x.trim()).filter(Boolean),
+    });
+    S.cadastroFeito = r;
+    ir('cadastro-ok');
+  } catch (e) { fala(e.message, 'er'); }
+}
+
+function telaCadastroOk() {
+  const r = S.cadastroFeito || {};
+  casca(topo('Cadastro enviado') + `<div class="tela">
+    <div class="vazio" style="padding-top:40px"><span class="ic">✅</span>
+      <h2>Recebemos seu cadastro</h2>
+      <p class="dim" style="margin-top:10px">${esc(r.proximoPasso || 'Seu cadastro entrou em análise.')}</p></div>
+    <div class="cartao">
+      <div class="item"><span class="dim">Situação</span><span class="tag t-al">${esc(r.prestador?.status || 'PENDING')}</span></div>
+      <p class="dim3" style="margin-top:10px">Só profissionais aprovados recebem pedidos. Isso protege você e o cliente.</p>
+    </div>
+    ${(r.avisos || []).length ? `<div class="cartao" style="border-style:dashed"><h3>Pendências</h3>
+      ${r.avisos.map(a => `<p class="dim" style="margin:6px 0">• ${esc(a)}</p>`).join('')}</div>` : ''}
+    <button class="btn btn-p" onclick="ir('login')">Entrar na minha conta</button>
+    <button class="btn" style="margin-top:9px" onclick="ir('home')">Voltar ao início</button>
+  </div>`);
+}
+
 /* ═══ ADMIN ═══ */
 async function carregarAdmin() { S.admin = await api('admin'); }
 
@@ -847,12 +920,14 @@ const TELAS = {
   procurando: telaProcurando, propostas: telaPropostas, aviso: telaAviso, aceite: telaAceite,
   expirou: telaExpirou, escopo: telaEscopo, pagamento: telaPagamento, os: telaOS,
   contestar: telaContestar, login: () => telaLogin(false), 'admin-login': () => telaLogin(true),
+  cadastro: telaCadastro, 'cadastro-ok': telaCadastroOk,
   prestador: telaPrestador, admin: telaAdmin,
 };
 function render() { (TELAS[S.tela] || telaHome)(); }
 
 (async function inicio() {
   try { S.cats = (await api('categorias')).categorias; } catch { S.cats = []; }
+  try { S.pagCfg = await api('pagamento-config'); } catch { S.pagCfg = null; }
   render();
 })();
 </script>

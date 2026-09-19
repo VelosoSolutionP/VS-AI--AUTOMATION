@@ -18,9 +18,28 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import * as vs from '../engine/vsmarket/index.mjs';
 import { save as salvar } from '../engine/vsmarket/store.mjs';
+import { criarSimulado } from './gateway-simulado.mjs';
+import { criarAsaas } from './gateway-asaas.mjs';
+import * as seo from './seo.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8900;
+
+/**
+ * O provedor de pagamento é escolhido na partida e injetado no fluxo. Com
+ * ASAAS_API_KEY no ambiente, cobra de verdade; sem ela, o simulado assume — e o
+ * painel DIZ qual está em uso, para ninguém achar que cobrou quando não cobrou.
+ */
+const GATEWAY = process.env.ASAAS_API_KEY
+  ? criarAsaas({
+      apiKey: process.env.ASAAS_API_KEY,
+      ambiente: process.env.ASAAS_AMBIENTE || 'sandbox',
+      webhookToken: process.env.ASAAS_WEBHOOK_TOKEN,
+    })
+  : criarSimulado();
+
+/** Comissão configurável. Sem variável, cai na hipótese comercial de 80%. */
+const PCT_PRESTADOR = Number(process.env.QG_PERCENTUAL_PRESTADOR || 80);
 
 const json = (res, code, obj) => {
   res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' });
@@ -97,6 +116,7 @@ const PUBLICAS = [
   '/api/pedidos', '/api/propostas-do-pedido', '/api/escolher', '/api/aviso-escolha',
   '/api/aceite', '/api/aceitar', '/api/escopo', '/api/escopo/aceitar', '/api/pagar',
   '/api/os', '/api/os/mover', '/api/avaliar', '/api/contestar', '/api/buscar-publico',
+  '/api/pagamento-config', '/api/liquidar', '/api/cadastrar-profissional',
 ];
 
 const server = createServer(async (req, res) => {
@@ -115,11 +135,53 @@ const server = createServer(async (req, res) => {
       + ' fill="#fff" text-anchor="middle">QG</text></svg>');
   }
 
+  /* ---- páginas públicas indexáveis (§SEO) ---- */
+  const origem = `http://${req.headers.host || '127.0.0.1:' + PORT}`;
+  if (rota === '/robots.txt') {
+    res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
+    return res.end(seo.robots(origem));
+  }
+  if (rota === '/sitemap.xml') {
+    res.writeHead(200, { 'content-type': 'application/xml; charset=utf-8' });
+    return res.end(seo.sitemap(vs.categorias(), origem));
+  }
+  if (rota.startsWith('/servicos/')) {
+    const [, , catSlug, cidSlug] = rota.split('/');
+    const categoria = seo.acharCategoria(vs.categorias(), catSlug || '');
+    const cidade = seo.acharCidade(cidSlug || '');
+    if (!categoria || !cidade) {
+      res.writeHead(404, { 'content-type': 'text/html; charset=utf-8' });
+      return res.end('<!doctype html><meta charset=utf-8><title>Não encontrado</title>'
+        + '<p>Essa página não existe. <a href="/">Ir para o Quebra-Galho</a>.</p>');
+    }
+    // A contagem é REAL. A pagina escreve o texto a partir dela, nunca o contrário.
+    const quem = seo.quemAtende(vs.prestadores(), categoria.id, cidade);
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public,max-age=300' });
+    return res.end(seo.pagina({ categoria, cidade, prestadores: quem, origem }));
+  }
+
   if (rota === '/' || rota === '/app') {
     try {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       return res.end(readFileSync(join(AQUI, 'app.html'), 'utf8'));
     } catch (e) { return json(res, 500, { erro: 'não consegui servir a página: ' + e.message }); }
+  }
+
+  /**
+   * Webhook do provedor. Fica FORA de /api de proposito: nao usa sessao, a
+   * autenticacao e do proprio provedor, e responder 200 rapido e obrigatorio —
+   * o Asaas pausa a fila apos 15 falhas consecutivas.
+   */
+  if (rota === '/webhooks/pagamento' && req.method === 'POST') {
+    if (GATEWAY.validarWebhook) {
+      const v = GATEWAY.validarWebhook(req.headers);
+      if (!v.ok) { return json(res, 401, { erro: v.motivo }); }
+    }
+    const b = await corpo(req);
+    if (b.excedeu) { return json(res, 413, { erro: 'corpo grande demais' }); }
+    if (b.invalido) { return json(res, 400, { erro: 'payload invalido' }); }
+    const r = vs.fluxo.aplicarEventoPagamento(GATEWAY.traduzirEvento(b.dados));
+    return json(res, r.http || 200, r);
   }
 
   if (!rota.startsWith('/api/')) { return json(res, 404, { erro: 'rota desconhecida' }); }
@@ -141,6 +203,11 @@ const server = createServer(async (req, res) => {
       if (rota === '/api/categorias') { return json(res, 200, { categorias: vs.categorias() }); }
       if (rota === '/api/estado') { return json(res, 200, vs.estado()); }
       if (rota === '/api/numeros') { return json(res, 200, vs.fluxo.numeros()); }
+      if (rota === '/api/pagamento-config') {
+        // A tela precisa dizer se o dinheiro e de verdade. Nada de chave aqui.
+        return json(res, 200, { provedor: GATEWAY.nome, simulado: Boolean(GATEWAY.simulado),
+          ambiente: GATEWAY.ambiente || null, percentualPrestador: PCT_PRESTADOR });
+      }
       if (rota === '/api/propostas-do-pedido') {
         const id = new URL(req.url, 'http://x').searchParams.get('pedido');
         const r = vs.fluxo.propostasDoPedido(id, vs.prestadores());
@@ -224,6 +291,21 @@ const server = createServer(async (req, res) => {
       }
       if (rota === '/api/logout') { return json(res, 200, vs.logout((req.headers.authorization || '').replace(/^Bearer\s+/i, ''))); }
 
+      if (rota === '/api/cadastrar-profissional') {
+        // Cadastro publico: entra PENDING e ainda NAO participa de matching. Criar a
+        // conta junto e o que permite o profissional acompanhar a propria analise.
+        const p = vs.criarPrestador(d, 'cadastro-publico');
+        if (!p.ok) { return json(res, 400, { erro: p.erros.join('; '), erros: p.erros, avisos: p.avisos }); }
+        let conta = null;
+        if (d.email && d.senha) {
+          const u = vs.criarUsuario({ email: d.email, nome: d.nome, papel: 'prestador', senha: d.senha }, 'cadastro-publico');
+          if (!u.ok) { return json(res, 400, { erro: u.erros.join('; '), erros: u.erros, prestador: p.prestador }); }
+          vs.editarPrestador(p.prestador.id, { usuarioId: u.usuario.id }, 'cadastro-publico');
+          conta = u.usuario;
+        }
+        return json(res, 200, { ok: true, prestador: p.prestador, conta, avisos: p.avisos,
+          proximoPasso: 'Seu cadastro entrou em análise. Você não paga nada para participar.' });
+      }
       if (rota === '/api/prestadores') {
         const r = vs.criarPrestador(d, ator);
         return json(res, r.ok ? 200 : 400, r.ok ? r : { erro: r.erros.join('; '), erros: r.erros, avisos: r.avisos });
@@ -274,8 +356,23 @@ const server = createServer(async (req, res) => {
         return json(res, r.ok ? 200 : 400, r);
       }
       if (rota === '/api/pagar') {
-        const r = vs.fluxo.pagar(d.escopoId, d);
+        const r = await vs.fluxo.pagar(d.escopoId, { ...d, percentualPrestador: PCT_PRESTADOR }, GATEWAY);
         return json(res, r.ok ? 200 : 400, r);
+      }
+      if (rota === '/api/repassar') {
+        const a = vs.ident.autorizado(sessao.sessao, { papeis: ['admin'] });
+        if (!a.ok) { return json(res, 403, { erro: a.motivo }); }
+        const r = vs.fluxo.repassar(d.pagamentoId);
+        return json(res, r.ok ? 200 : 400, r);
+      }
+      if (rota === '/api/liquidar') {
+        // Demonstração: dispara a liquidação que, em produção, vem do webhook.
+        if (!GATEWAY.simulado) { return json(res, 400, { erro: 'com provedor real a liquidação vem do webhook, não daqui' }); }
+        const r = vs.fluxo.aplicarEventoPagamento({
+          conhecido: true, estado: 'DISPONIVEL',
+          eventoId: 'sim_' + Date.now(), cobrancaId: d.externoId || d.pagamentoId,
+        });
+        return json(res, r.http || 200, r);
       }
       if (rota === '/api/os/mover') {
         const r = vs.fluxo.moverOrdem(d.ordemId, d.status, { nota: d.nota, por: ator });
@@ -337,4 +434,7 @@ else if (!semeado.jaExistia) {
     } else { console.error('[vsmarket] nao criei o usuario do profissional:', r.erros.join('; ')); }
   }
 }
-server.listen(PORT, () => console.log(`[vsmarket] no ar em http://127.0.0.1:${PORT}  (independente do Bolso Cheio)`));
+server.listen(PORT, () => {
+  console.log(`[quebra-galho] no ar em http://127.0.0.1:${PORT}  (produto independente)`);
+  console.log(`[quebra-galho] pagamento: ${GATEWAY.nome}${GATEWAY.simulado ? ' (SIMULADO — nao cobra de verdade)' : ' ' + GATEWAY.ambiente} · prestador fica com ${PCT_PRESTADOR}%`);
+});

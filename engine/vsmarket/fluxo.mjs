@@ -11,6 +11,7 @@ import * as ped from './pedido.mjs';
 import * as prp from './proposta.mjs';
 import * as ord from './ordem.mjs';
 import { atende, distanciaKm } from './geo.mjs';
+import * as pag from './pagamento.mjs';
 import { PARTICIPA_MATCHING, prestadorPublico } from './cadastro.mjs';
 
 const PEDIDOS = 'pedidos';
@@ -21,7 +22,7 @@ const AVALIACOES = 'avaliacoes';
 const DISPUTAS = 'disputas';
 const PAGAMENTOS = 'pagamentos';
 
-export { ped, prp, ord };
+export { ped, prp, ord, pag };
 
 export const pedidos = () => load(PEDIDOS, []);
 export const propostas = () => load(PROPOSTAS, []);
@@ -255,58 +256,161 @@ export function aceitarEscopo(escopoId, quem) {
   return { ok: true, escopo: r.escopo, fechado: r.fechado };
 }
 
-/* ---------------- 4. pagamento (mock do gateway) ---------------- */
+/* ---------------- 4. pagamento ---------------- */
+
+const EVENTOS_PAG = 'eventos-pagamento';
 
 /**
- * Pagamento simulado. O gateway real (Asaas) já existe em engine/vspagamentos, mas
- * este módulo NÃO o importa: aqui o marketplace fala com uma interface, e o mock
- * cumpre o mesmo contrato. Trocar o mock pelo real é injetar outra implementação.
+ * Cobra pelo provedor INJETADO. O fluxo não conhece Asaas nem simulador: recebe algo
+ * que cumpre o contrato de `pagamento.mjs` e conversa por ele.
  *
- * O split é calculado com percentual CONFIGURÁVEL — nada de 80/20 fixo no código.
+ * O percentual da comissão vem de fora e não tem default — 80/20 é hipótese
+ * comercial. E o split que VALEU fica gravado no pagamento: mudar a política em
+ * março não pode reescrever o que foi combinado em janeiro.
  */
-export function pagar(escopoId, e = {}) {
+export async function pagar(escopoId, e = {}, gateway = null) {
   const escopo = escopos().find((x) => x.id === String(escopoId));
   if (!escopo) { return { ok: false, erro: 'escopo não encontrado' }; }
   if (!escopo.aceiteCliente || !escopo.aceitePrestador) {
     return { ok: false, erro: 'o escopo precisa do aceite das duas partes antes do pagamento' };
   }
   const metodo = String(e.metodo || '').toUpperCase();
-  if (!['PIX', 'CARTAO'].includes(metodo)) { return { ok: false, erro: 'escolha PIX ou CARTAO' }; }
+  if (!pag.METODOS.includes(metodo)) { return { ok: false, erro: `escolha ${pag.METODOS.join(' ou ')}` }; }
 
-  const pct = Number(e.percentualPrestador ?? 80);
-  if (!Number.isFinite(pct) || pct <= 0 || pct >= 100) { return { ok: false, erro: 'percentual do prestador inválido' }; }
+  const g = validarProvedor(gateway);
+  if (!g.ok) { return { ok: false, erro: g.motivo }; }
 
-  const bruto = escopo.valorCentavos;
-  const prestador = Math.round(bruto * (pct / 100));
+  const divisao = pag.dividir(escopo.valorCentavos, e.percentualPrestador ?? 80);
+  if (!divisao.ok) { return { ok: false, erro: divisao.motivo }; }
+
+  const r = await gateway.criarCobranca({
+    metodo,
+    valorCentavos: escopo.valorCentavos,
+    prestadorCentavos: divisao.split.prestadorCentavos,
+    walletIdPrestador: e.walletIdPrestador || null,
+    clienteExternoId: e.clienteExternoId || null,
+    referencia: escopo.pedidoId,
+    descricao: 'Quebra-Galho — ' + (escopo.incluido || '').slice(0, 60),
+    vencimento: e.vencimento || new Date().toISOString().slice(0, 10),
+  });
+  if (!r.ok) { return { ok: false, erro: r.motivo }; }
+
+  // Quando o provedor informa o líquido, o split é refeito sobre ele: é o que existe
+  // de verdade para dividir depois da taxa.
+  const final = r.cobranca.liquidoCentavos != null && r.cobranca.liquidoCentavos !== escopo.valorCentavos
+    ? pag.dividir(escopo.valorCentavos, e.percentualPrestador ?? 80, r.cobranca.liquidoCentavos)
+    : divisao;
+
   const pagamento = {
     id: 'pag_' + Math.random().toString(36).slice(2, 10),
+    externoId: r.cobranca.id,
+    provedor: gateway.nome,
+    simulado: Boolean(gateway.simulado),
     escopoId: escopo.id, pedidoId: escopo.pedidoId,
-    metodo, valorCentavos: bruto,
-    // Nada de arredondar os dois: a plataforma leva o RESTO, e o total sempre fecha.
-    prestadorCentavos: prestador,
-    plataformaCentavos: bruto - prestador,
-    percentualPrestador: pct,
-    // O estado é o nosso vocabulário: CONFIRMADO não é DISPONIVEL.
-    estado: 'CONFIRMADO',
-    simulado: true,
+    metodo, valorCentavos: escopo.valorCentavos,
+    split: final.split,
+    // atalhos que a tela usa, sem ela precisar entender o split
+    prestadorCentavos: final.split.prestadorCentavos,
+    plataformaCentavos: final.split.plataformaCentavos,
+    percentualPrestador: final.split.percentualPrestador,
+    estado: r.cobranca.estado || 'PENDENTE',
+    link: r.cobranca.link || null,
+    repassado: false,
     criadoEm: new Date().toISOString(),
+    historico: [{ estado: r.cobranca.estado || 'PENDENTE', em: new Date().toISOString() }],
   };
   save(PAGAMENTOS, [...pagamentos(), pagamento]);
 
-  const r = ord.criarOrdem({
+  const o = ord.criarOrdem({
     pedidoId: escopo.pedidoId, propostaId: escopo.propostaId, escopoId: escopo.id,
-    clienteId: escopo.clienteId, prestadorId: escopo.prestadorId, valorCentavos: bruto,
+    clienteId: escopo.clienteId, prestadorId: escopo.prestadorId, valorCentavos: escopo.valorCentavos,
   });
-  if (r.erros.length) { return { ok: false, erro: r.erros.join('; ') }; }
-  let ordem = r.ordem;
-  ordem.pagamentoId = pagamento.id;
-  ordem = ord.moverOrdem(ordem, 'PAID', { nota: `Pago por ${metodo === 'PIX' ? 'Pix' : 'cartão'}` }).ordem;
+  if (o.erros.length) { return { ok: false, erro: o.erros.join('; ') }; }
+  let ordem = { ...o.ordem, pagamentoId: pagamento.id };
+
+  // A OS só avança para PAGO quando o pagamento está CONFIRMADO. Em Pix com
+  // pendência, ela fica em CREATED esperando o webhook — que é a verdade.
+  if (pagamento.estado === 'CONFIRMADO' || pagamento.estado === 'DISPONIVEL') {
+    ordem = ord.moverOrdem(ordem, 'PAID', { nota: `Pago por ${metodo === 'PIX' ? 'Pix' : 'cartão'}` }).ordem;
+    const pedido = acharPedido(escopo.pedidoId);
+    if (pedido) { gravarPedido({ ...ped.transitar(pedido, 'CONVERTED').pedido, escolhidaId: escopo.propostaId }); }
+  }
   gravarOrdem(ordem);
 
-  const pedido = acharPedido(escopo.pedidoId);
-  if (pedido) { gravarPedido({ ...ped.transitar(pedido, 'CONVERTED').pedido, escolhidaId: escopo.propostaId }); }
+  return { ok: true, pagamento, ordem, aguardandoPagamento: pagamento.estado !== 'CONFIRMADO' && pagamento.estado !== 'DISPONIVEL' };
+}
 
-  return { ok: true, pagamento, ordem };
+function validarProvedor(g) {
+  const v = pag.validarGateway(g);
+  return v.ok ? { ok: true } : { ok: false, motivo: v.motivo };
+}
+
+/**
+ * Aplica um evento do provedor. Idempotente pelo id do evento: a entrega é
+ * at-least-once e a reentrega é rotina, não erro.
+ */
+export function aplicarEventoPagamento(traduzido = {}) {
+  if (!traduzido.eventoId) { return { ok: false, http: 400, motivo: 'evento sem id — sem ele não há idempotência' }; }
+  const vistos = load(EVENTOS_PAG, {});
+  if (vistos[traduzido.eventoId]) { return { ok: true, http: 200, duplicado: true }; }
+
+  const registrar = (extra) => save(EVENTOS_PAG, { ...vistos, [traduzido.eventoId]: { em: new Date().toISOString(), ...extra } });
+
+  if (!traduzido.conhecido || !traduzido.estado) {
+    registrar({ ignorado: true, evento: traduzido.evento });
+    return { ok: true, http: 200, ignorado: true, motivo: `evento não tratado: "${traduzido.evento}"` };
+  }
+
+  const todos = pagamentos();
+  const i = todos.findIndex((x) => x.externoId === traduzido.cobrancaId || x.id === traduzido.cobrancaId);
+  if (i < 0) {
+    registrar({ orfao: true });
+    return { ok: true, http: 200, orfao: true, motivo: 'cobrança não é nossa' };
+  }
+
+  const t = pag.podeIr(todos[i].estado, traduzido.estado);
+  if (!t.ok) { registrar({ recusado: t.motivo }); return { ok: false, http: 200, motivo: t.motivo }; }
+
+  if (!t.repetido) {
+    todos[i] = {
+      ...todos[i], estado: traduzido.estado,
+      historico: [...todos[i].historico, { estado: traduzido.estado, em: new Date().toISOString() }],
+    };
+    if (traduzido.liquidoCentavos != null && todos[i].split?.liquidoCentavos == null) {
+      const refeito = pag.dividir(todos[i].valorCentavos, todos[i].percentualPrestador, traduzido.liquidoCentavos);
+      if (refeito.ok) {
+        todos[i].split = refeito.split;
+        todos[i].prestadorCentavos = refeito.split.prestadorCentavos;
+        todos[i].plataformaCentavos = refeito.split.plataformaCentavos;
+      }
+    }
+    save(PAGAMENTOS, todos);
+
+    // Pagamento confirmado move a OS — é o gatilho da contratação virar serviço.
+    if (traduzido.estado === 'CONFIRMADO') {
+      const o = ordens().find((x) => x.pagamentoId === todos[i].id);
+      if (o && o.status === 'CREATED') { gravarOrdem(ord.moverOrdem(o, 'PAID', { nota: 'Pagamento confirmado' }).ordem); }
+    }
+  }
+
+  registrar({ cobranca: traduzido.cobrancaId, estado: traduzido.estado });
+  return { ok: true, http: 200, pagamento: todos[i], estado: traduzido.estado };
+}
+
+/** Repasse: só com dinheiro liquidado e sem contestação aberta. */
+export function repassar(pagamentoId) {
+  const todos = pagamentos();
+  const i = todos.findIndex((x) => x.id === String(pagamentoId));
+  if (i < 0) { return { ok: false, erro: 'pagamento não encontrado' }; }
+  const o = ordens().find((x) => x.pagamentoId === todos[i].id);
+  const disputaAberta = disputas().some((d) => d.ordemId === o?.id && d.status !== 'RESOLVIDA');
+
+  const pode = pag.podeRepassar(todos[i], { disputaAberta });
+  if (!pode.ok) { return { ok: false, erro: pode.motivo }; }
+
+  todos[i] = { ...todos[i], repassado: true, repassadoEm: new Date().toISOString() };
+  save(PAGAMENTOS, todos);
+  return { ok: true, pagamento: todos[i], valorCentavos: pode.valorCentavos };
 }
 
 /* ---------------- 5. ordem de serviço ---------------- */

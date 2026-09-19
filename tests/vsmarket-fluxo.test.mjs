@@ -12,6 +12,7 @@ import {
   congelarEscopo, aceitarEscopo, criarOrdem, moverOrdem, osPodeIr, timeline,
   normalizarAvaliacao, media, abrirDisputa, resolverDisputa, OS_ROTULO,
 } from '../engine/vsmarket/ordem.mjs';
+import { criarSimulado } from '../marketplace/gateway-simulado.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'qg-'));
 process.env.VSMARKET_DIR = dir;
@@ -248,7 +249,7 @@ test('resolver exige laudo, e a consequencia financeira fica PENDENTE de politic
 
 /* ── fluxo ponta a ponta, pela orquestração real ── */
 
-test('ponta a ponta: pedido -> proposta -> escolha -> aceite -> escopo -> pagamento -> OS -> avaliacao', () => {
+test('ponta a ponta: pedido -> proposta -> escolha -> aceite -> escopo -> pagamento -> OS -> avaliacao', async () => {
   vs.semear();
   const prestadores = vs.prestadores();
 
@@ -275,12 +276,13 @@ test('ponta a ponta: pedido -> proposta -> escolha -> aceite -> escopo -> pagame
   assert.equal(esc.ok, true);
 
   // pagar ANTES dos dois aceites tem que ser recusado
-  assert.match(vs.fluxo.pagar(esc.escopo.id, { metodo: 'PIX' }).erro, /aceite das duas partes/);
+  const cedo = await vs.fluxo.pagar(esc.escopo.id, { metodo: 'PIX', percentualPrestador: 80 }, criarSimulado());
+  assert.match(cedo.erro, /aceite das duas partes/);
 
   vs.fluxo.aceitarEscopo(esc.escopo.id, 'cliente');
   vs.fluxo.aceitarEscopo(esc.escopo.id, 'prestador');
 
-  const pag = vs.fluxo.pagar(esc.escopo.id, { metodo: 'PIX', percentualPrestador: 80 });
+  const pag = await vs.fluxo.pagar(esc.escopo.id, { metodo: 'PIX', percentualPrestador: 80 }, criarSimulado());
   assert.equal(pag.ok, true);
   assert.equal(pag.pagamento.prestadorCentavos + pag.pagamento.plataformaCentavos, pag.pagamento.valorCentavos,
     'o split precisa fechar exatamente — nao pode sobrar nem sumir centavo');
