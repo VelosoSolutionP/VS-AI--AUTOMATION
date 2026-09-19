@@ -29,6 +29,7 @@ import { painelQuebraGalho, QG_URL } from './quebragalho.mjs';
 import * as tk from '../engine/vstiktok/index.mjs';
 import { reservarEvento } from './idempotencia.mjs';
 import * as pagar from '../engine/vspagamentos/index.mjs';
+import * as midia from './midia.mjs';
 import { lerCorpoLimitado, criarRateLimit, ipDe, segredoIgual, CORPO_MAX_BYTES } from './limites.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -337,6 +338,15 @@ const server = createServer(async (req, res) => {
     }
   }
 
+  /* Arquivo de midia. Publico porque quem baixa e o servidor da TikTok, sem
+     sessao nenhuma: o `PULL_FROM_URL` manda ELA buscar o video. O nome e gerado
+     por nos e conferido antes de tocar no disco. */
+  if (req.method === 'GET' && req.url.split('?')[0].startsWith('/midia/')) {
+    const nome = decodeURIComponent(req.url.split('?')[0].slice('/midia/'.length));
+    if (midia.servir(req, res, nome)) { return; }
+    return json(res, 404, { erro: 'midia nao encontrada' });
+  }
+
   if (req.url.split('?')[0].startsWith('/oauth/callback/')) {
     const u = new URL(req.url, 'http://x');
     const familia = u.pathname.split('/')[3] || '';
@@ -482,6 +492,25 @@ const server = createServer(async (req, res) => {
         verificacao: tk.getVerificacao(),
       });
     }
+    /* Upload do video. NAO passa pelo leitor de JSON (teto de 256 KB): vai
+       direto pro disco em streaming, com teto proprio. */
+    if (req.method === 'POST' && rota === '/crm/api/midia') {
+      if (!acesso.confere(req.headers['x-crm-token'])) { return json(res, 403, { erro: 'senha ausente ou invalida' }); }
+      const nome = new URL(req.url, 'http://x').searchParams.get('nome') || '';
+      const r = await midia.receber(req, nome);
+      if (!r.ok) { return json(res, 413, { erro: r.motivo }); }
+      const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
+      return json(res, 201, { ...r, url: `${origem}/midia/${r.arquivo}` });
+    }
+    if (req.method === 'GET' && rota === '/crm/api/midia') {
+      if (!acesso.confere(req.headers['x-crm-token'])) { return json(res, 403, { erro: 'senha ausente ou invalida' }); }
+      const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
+      return json(res, 200, { arquivos: midia.listar().map((a) => ({ ...a, url: `${origem}/midia/${a.arquivo}` })), maxBytes: midia.MAX_BYTES });
+    }
+    if (req.method === 'GET' && rota === '/crm/api/tiktok/publicacao') {
+      const id = new URL(req.url, 'http://x').searchParams.get('id') || '';
+      return json(res, 200, await tk.statusPublicacao(id));
+    }
     if (req.method === 'GET' && rota === '/crm/api/pagamentos') {
       const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
       return json(res, 200, {
@@ -575,6 +604,16 @@ const server = createServer(async (req, res) => {
           // Pix so tem QR depois de criada a cobranca — por isso vem aqui, nao antes.
           const qr = String(d.metodo).toUpperCase() === 'PIX' ? await pagar.qrPix(cob.pagamento.id) : null;
           r = { ...cob, clienteReusado: c.reusado, pix: qr?.ok ? qr.pix : null, pixErro: qr && !qr.ok ? qr.motivo : null };
+          break;
+        }
+        case '/crm/api/tiktok/publicar': {
+          // App ainda nao auditado so publica privado. Mandar publico nesse estado
+          // faz a TikTok recusar — melhor avisar do que deixar falhar la.
+          r = await tk.publicarVideo({
+            videoUrl: d.videoUrl,
+            titulo: d.titulo,
+            privacidade: d.privacidade || 'SELF_ONLY',
+          });
           break;
         }
         case '/crm/api/estoque/produto': r = estoque.criar(d); break;

@@ -461,6 +461,23 @@ function tiktokCard(){
         <button class="btn btn-s" onclick="salvarAppTiktok('${esc(f)}',${JSON.stringify(campos.map(c=>c[0])).replace(/"/g,'&quot;')})">Salvar credenciais</button>
         ${s.appConfigurado?`<button class="btn btn-p" onclick="autorizarTiktok('${esc(f)}')">Conectar conta</button>`:''}
       </div>`:`<button class="btn btn-s" onclick="autorizarTiktok('${esc(f)}')">Reconectar</button>`}
+      ${f==='open'&&s.autorizado?`<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+        <h3 style="font-size:14px">Publicar vídeo</h3>
+        <p class="hint">O arquivo fica hospedado neste painel e a TikTok busca ele aqui — por isso o domínio
+          precisou ser verificado. Enquanto o app não for aprovado, o vídeo sai <b>privado</b>: aparece só pra você.</p>
+        <div class="form-grid" style="margin-top:10px">
+          <div class="field" style="grid-column:1/-1"><label>Arquivo de vídeo <small>(mp4, mov ou webm)</small></label>
+            <input type="file" id="tkVideo" accept="video/mp4,video/quicktime,video/webm"></div>
+          <div class="field" style="grid-column:1/-1"><label>Legenda</label>
+            <input id="tkTitulo" placeholder="O que vai escrito no post"></div>
+          <div class="field"><label>Quem vê</label><select id="tkPriv">
+            <option value="SELF_ONLY">Só eu (privado)</option>
+            <option value="FOLLOWER_OF_CREATOR">Meus seguidores</option>
+            <option value="MUTUAL_FOLLOW_FRIENDS">Amigos</option>
+            <option value="PUBLIC_TO_EVERYONE">Todo mundo</option></select></div>
+          <button class="btn btn-p" onclick="publicarNoTiktok()">Publicar</button>
+        </div>
+        <div id="tkPubResultado"></div></div>`:''}
       ${app?`<p class="hint" style="margin-top:10px">URL de retorno para colar no app:
         <code>${esc(app.redirects[f])}</code></p>`:''}
     </div>`;
@@ -494,6 +511,41 @@ function tiktokCard(){
   ${bloco('open','Login e conteúdo',[['clientKey','Client key','do app em developers.tiktok.com'],['clientSecret','Client secret','']],'publicar vídeo, ler perfil e métricas')}
   ${bloco('business','Anúncios (Ads)',[['appId','App ID','de business-api.tiktok.com'],['secret','Secret','']],'campanhas, conjuntos e relatórios')}
   ${bloco('shop','Loja (produtos)',[['appKey','App key','de partner.tiktokshop.com'],['appSecret','App secret',''],['serviceId','Service ID','do painel do app']],'catálogo, estoque e preço')}`;
+}
+
+async function publicarNoTiktok(){
+  const arq=(document.getElementById('tkVideo')||{}).files?.[0];
+  const alvo=document.getElementById('tkPubResultado');
+  if(!arq) return flash('Escolha o arquivo de vídeo.','err');
+  const titulo=(document.getElementById('tkTitulo')||{}).value?.trim()||'';
+  const priv=(document.getElementById('tkPriv')||{}).value||'SELF_ONLY';
+  alvo.innerHTML='<p class="hint">Enviando o arquivo…</p>';
+  try{
+    // O vídeo NÃO vai em JSON: sobe cru, em streaming, pra rota própria — o leitor
+    // de JSON do painel corta em 256 KB.
+    const up=await fetch('/crm/api/midia?nome='+encodeURIComponent(arq.name),
+      {method:'POST',headers:{'content-type':arq.type||'video/mp4',...(TOKEN?{'x-crm-token':TOKEN}:{})},body:arq});
+    const uj=await up.json().catch(()=>({erro:'resposta inválida do servidor'}));
+    if(!up.ok||uj.erro) throw new Error(uj.erro||('HTTP '+up.status));
+
+    alvo.innerHTML='<p class="hint">Arquivo no ar. Mandando pra TikTok…</p>';
+    const r=await api('tiktok/publicar',{videoUrl:uj.url,titulo,privacidade:priv});
+    alvo.innerHTML=`<div class="card" style="margin-top:12px;border-style:dashed">
+      <h3>Enviado pra TikTok</h3>
+      ${linha('Arquivo','hospedado neste painel',(uj.bytes/1048576).toFixed(1)+' MB','b-ok')}
+      ${linha('Quem vê','',priv==='SELF_ONLY'?'só você (privado)':priv,'')}
+      ${r.publishId?linha('Id da publicação','a TikTok ainda processa o vídeo',esc(r.publishId),'b-warn'):''}
+      ${(r.avisos||[]).map(a=>`<p class="hint">⚠ ${esc(a)}</p>`).join('')}
+      ${r.publishId?`<button class="btn btn-s" onclick="verStatusTiktok('${esc(r.publishId)}')">Ver situação</button>`:''}</div>`;
+    flash('Vídeo enviado. A TikTok processa em alguns segundos.','ok');
+  }catch(e){ alvo.innerHTML=''; flash(e.message,'err'); }
+}
+
+async function verStatusTiktok(id){
+  try{
+    const r=await api('tiktok/publicacao?id='+encodeURIComponent(id));
+    flash('Situação: '+(r.dados?.status||r.motivo||'sem resposta'), r.ok?'ok':'err');
+  }catch(e){flash(e.message,'err');}
 }
 
 async function salvarVerificacaoTiktok(limpar){

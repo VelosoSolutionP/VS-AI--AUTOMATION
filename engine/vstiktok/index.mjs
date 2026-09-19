@@ -282,6 +282,13 @@ export async function publicarVideo(dados, opts = {}) {
   });
 }
 
+/** Situacao de uma publicacao. A TikTok processa o video depois do envio: sem
+    consultar isto, a tela diria "publicado" com o video ainda em fila la. */
+export async function statusPublicacao(publishId, opts = {}) {
+  if (!String(publishId || '').trim()) { return { ok: false, motivo: 'informe o id da publicacao' }; }
+  return comCtx('open', opts, (ctx) => conteudo.status(ctx, publishId));
+}
+
 export async function metricasDeVideos(videoIds, opts = {}) {
   return comCtx('open', opts, (ctx) => metricas.coletarMetricas(ctx, videoIds, opts));
 }
