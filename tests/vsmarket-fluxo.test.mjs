@@ -276,13 +276,14 @@ test('ponta a ponta: pedido -> proposta -> escolha -> aceite -> escopo -> pagame
   assert.equal(esc.ok, true);
 
   // pagar ANTES dos dois aceites tem que ser recusado
-  const cedo = await vs.fluxo.pagar(esc.escopo.id, { metodo: 'PIX', percentualPrestador: 80 }, criarSimulado());
+  const PAGADOR = { id: 'cli_t', nome: 'Maria', documento: '11144477735' };
+  const cedo = await vs.fluxo.pagar(esc.escopo.id, { metodo: 'PIX', percentualPrestador: 80, cliente: PAGADOR }, criarSimulado());
   assert.match(cedo.erro, /aceite das duas partes/);
 
   vs.fluxo.aceitarEscopo(esc.escopo.id, 'cliente');
   vs.fluxo.aceitarEscopo(esc.escopo.id, 'prestador');
 
-  const pag = await vs.fluxo.pagar(esc.escopo.id, { metodo: 'PIX', percentualPrestador: 80 }, criarSimulado());
+  const pag = await vs.fluxo.pagar(esc.escopo.id, { metodo: 'PIX', percentualPrestador: 80, cliente: PAGADOR }, criarSimulado());
   assert.equal(pag.ok, true);
   assert.equal(pag.pagamento.prestadorCentavos + pag.pagamento.plataformaCentavos, pag.pagamento.valorCentavos,
     'o split precisa fechar exatamente — nao pode sobrar nem sumir centavo');

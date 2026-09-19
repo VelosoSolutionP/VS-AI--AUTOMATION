@@ -16,3 +16,13 @@ dist/
 # trial guard (anti-tamper, local)
 .vsguard
 installer/.url
+
+# Credenciais soltas na raiz. "Recebimento" guarda a chave do Asaas — um commit
+# descuidado levaria ela pro GitHub, e chave de gateway vazada movimenta dinheiro
+# de verdade.
+Recebimento
+Recebimento.*
+*.secret
+.env
+.env.*
+!.env.example

@@ -15,6 +15,11 @@ export function criarSimulado() {
     nome: 'simulado',
     simulado: true,
 
+    /** No simulado o "cliente do gateway" é o proprio id local. */
+    async garantirCliente(cliente = {}) {
+      return { ok: true, externoId: 'simcus_' + String(cliente.id || randomBytes(4).toString('hex')) };
+    },
+
     async criarCobranca(e = {}) {
       return {
         ok: true,

@@ -64,6 +64,29 @@ export function criarAsaas(cfg = {}) {
     nome: 'asaas',
     ambiente: cfg.ambiente || 'sandbox',
 
+    /**
+     * O Asaas exige um `customer` proprio em toda cobranca — o id do nosso cliente
+     * nao serve. Reusa pelo CPF/CNPJ quando ja existir: criar duplicado espalha o
+     * historico do mesmo pagador por varios cadastros.
+     */
+    async garantirCliente(cliente = {}) {
+      const doc = String(cliente.documento || '').replace(/\D/g, '');
+      if (doc) {
+        const busca = await chamar('GET', `/customers?cpfCnpj=${encodeURIComponent(doc)}`);
+        const achado = busca.ok && busca.dados?.data?.[0];
+        if (achado) { return { ok: true, externoId: achado.id, reusado: true }; }
+      }
+      const r = await chamar('POST', '/customers', {
+        name: cliente.nome,
+        cpfCnpj: doc || undefined,
+        mobilePhone: cliente.telefone ? String(cliente.telefone).replace(/^55/, '') : undefined,
+        email: cliente.email || undefined,
+        externalReference: cliente.id || undefined,
+      });
+      if (!r.ok) { return r; }
+      return { ok: true, externoId: r.dados?.id, reusado: false };
+    },
+
     async criarCobranca(e = {}) {
       const r = await chamar('POST', '/payments', {
         customer: e.clienteExternoId,

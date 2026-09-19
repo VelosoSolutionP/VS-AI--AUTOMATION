@@ -105,6 +105,16 @@ export function logout(token) {
 export const clientes = () => load(CLIENTES, []);
 export const prestadores = () => load(PRESTADORES, []);
 
+/** Liga o cliente ao cadastro dele no provedor de pagamento. Sem guardar o documento. */
+export function vincularGateway(clienteId, gatewayClienteId) {
+  const todos = clientes();
+  const i = todos.findIndex((c) => c.id === String(clienteId));
+  if (i < 0) { return { ok: false, erro: 'cliente não encontrado' }; }
+  todos[i] = { ...todos[i], gatewayClienteId };
+  save(CLIENTES, todos);
+  return { ok: true };
+}
+
 export function criarCliente(e = {}, ator = 'sistema') {
   const r = cad.normalizarCliente(e);
   if (r.erros.length) { return { ok: false, erros: r.erros, avisos: r.avisos }; }

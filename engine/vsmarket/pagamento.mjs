@@ -88,7 +88,7 @@ export function podeRepassar(pagamento, opts = {}) {
  * O contrato que todo provedor precisa cumprir. Quem não cumprir é recusado na
  * partida, e não no meio de uma cobrança de verdade.
  */
-export const METODOS_GATEWAY = ['nome', 'criarCobranca', 'consultarCobranca', 'traduzirEvento'];
+export const METODOS_GATEWAY = ['nome', 'garantirCliente', 'criarCobranca', 'consultarCobranca', 'traduzirEvento'];
 
 export function validarGateway(g) {
   if (!g) { return { ok: false, motivo: 'nenhum provedor de pagamento configurado' }; }

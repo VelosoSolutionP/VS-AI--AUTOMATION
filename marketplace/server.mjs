@@ -414,7 +414,13 @@ const server = createServer(async (req, res) => {
         return json(res, r.ok ? 200 : 400, r);
       }
       if (rota === '/api/pagar') {
-        const r = await vs.fluxo.pagar(d.escopoId, { ...d, percentualPrestador: PCT_PRESTADOR }, GATEWAY);
+        // O pagador vem do cadastro local; o provedor cria o dele a partir disso.
+        const esc = vs.fluxo.escopos().find((x) => x.id === d.escopoId);
+        const cliente = esc ? vs.clientes().find((c) => c.id === esc.clienteId) : null;
+        const r = await vs.fluxo.pagar(d.escopoId, {
+          ...d, cliente, percentualPrestador: PCT_PRESTADOR,
+          aoGuardarCliente: (id, externo) => vs.vincularGateway(id, externo),
+        }, GATEWAY);
         return json(res, r.ok ? 200 : 400, r);
       }
       if (rota === '/api/repassar') {

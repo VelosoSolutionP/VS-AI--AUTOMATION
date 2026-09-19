@@ -65,7 +65,7 @@ test('estado nao pula de CRIADO para DISPONIVEL', () => {
 
 test('provedor que nao cumpre o contrato é recusado ANTES de cobrar', () => {
   assert.match(validarGateway(null).motivo, /nenhum provedor/);
-  assert.match(validarGateway({ nome: 'meia-boca' }).motivo, /não implementa: criarCobranca/);
+  assert.match(validarGateway({ nome: 'meia-boca' }).motivo, /não implementa: garantirCliente, criarCobranca/);
   assert.equal(validarGateway(criarSimulado()).ok, true);
   assert.equal(validarGateway(criarAsaas({ apiKey: 'x' })).ok, true);
 });
@@ -111,6 +111,9 @@ test('Asaas: evento desconhecido nao move dinheiro', () => {
 
 /* ── fluxo com provedor injetado ── */
 
+/** O provedor exige saber quem paga — e o documento so aparece na hora de pagar. */
+const PAGADOR = { id: 'cli_teste', nome: 'Maria Souza', telefone: '5531988887777', documento: '11144477735' };
+
 async function contratar() {
   vs.semear();
   const ps = vs.prestadores();
@@ -130,14 +133,14 @@ async function contratar() {
 
 test('pagar SEM provedor é recusado — nada de cobrar no escuro', async () => {
   const escopo = await contratar();
-  const r = await vs.fluxo.pagar(escopo.id, { metodo: 'PIX', percentualPrestador: 80 }, null);
+  const r = await vs.fluxo.pagar(escopo.id, { metodo: 'PIX', percentualPrestador: 80, cliente: PAGADOR }, null);
   assert.equal(r.ok, false);
   assert.match(r.erro, /nenhum provedor/);
 });
 
 test('pagar pelo provedor injetado grava o split que VALEU', async () => {
   const escopo = await contratar();
-  const r = await vs.fluxo.pagar(escopo.id, { metodo: 'PIX', percentualPrestador: 70 }, criarSimulado());
+  const r = await vs.fluxo.pagar(escopo.id, { metodo: 'PIX', percentualPrestador: 70, cliente: PAGADOR }, criarSimulado());
   assert.equal(r.ok, true);
   assert.equal(r.pagamento.provedor, 'simulado');
   assert.equal(r.pagamento.percentualPrestador, 70);
@@ -177,4 +180,46 @@ test('evento sem id é recusado — sem ele nao ha idempotencia', () => {
   const r = vs.fluxo.aplicarEventoPagamento({ conhecido: true, estado: 'DISPONIVEL', cobrancaId: 'x' });
   assert.equal(r.ok, false);
   assert.equal(r.http, 400);
+});
+
+
+test('pagar sem saber QUEM paga é recusado — o provedor exige um pagador', async () => {
+  const escopo = await contratar();
+  const r = await vs.fluxo.pagar(escopo.id, { metodo: 'PIX', percentualPrestador: 80 }, criarSimulado());
+  assert.equal(r.ok, false);
+  assert.match(r.erro, /não sei quem é o pagador/);
+});
+
+test('sem CPF/CNPJ a cobranca é recusada com aviso especifico, nao erro generico', async () => {
+  const escopo = await contratar();
+  const r = await vs.fluxo.pagar(escopo.id, {
+    metodo: 'PIX', percentualPrestador: 80,
+    cliente: { id: 'c1', nome: 'Sem Documento', telefone: '5531988887777' },
+  }, criarSimulado());
+  assert.equal(r.ok, false);
+  assert.equal(r.pedeDocumento, true, 'a tela precisa saber que é so o documento que falta');
+  assert.match(r.erro, /exige CPF ou CNPJ/);
+});
+
+test('o documento NAO fica guardado por nos — so a referencia do provedor', async () => {
+  const escopo = await contratar();
+  let vinculado = null;
+  const r = await vs.fluxo.pagar(escopo.id, {
+    metodo: 'PIX', percentualPrestador: 80, cliente: { id: 'c2', nome: 'Maria' },
+    documento: '11144477735',
+    aoGuardarCliente: (id, externo) => { vinculado = { id, externo }; },
+  }, criarSimulado());
+  assert.equal(r.ok, true);
+  const txt = JSON.stringify(r.pagamento);
+  assert.ok(!txt.includes('11144477735'), 'o CPF nao pode ficar no nosso pagamento');
+  assert.ok(vinculado?.externo, 'guardamos a referencia do provedor');
+});
+
+test('cliente ja vinculado nao precisa informar documento de novo', async () => {
+  const escopo = await contratar();
+  const r = await vs.fluxo.pagar(escopo.id, {
+    metodo: 'PIX', percentualPrestador: 80,
+    cliente: { id: 'c3', nome: 'Maria', gatewayClienteId: 'cus_ja_existe' },
+  }, criarSimulado());
+  assert.equal(r.ok, true);
 });

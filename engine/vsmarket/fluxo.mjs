@@ -319,12 +319,30 @@ export async function pagar(escopoId, e = {}, gateway = null) {
   const divisao = pag.dividir(escopo.valorCentavos, e.percentualPrestador ?? 80);
   if (!divisao.ok) { return { ok: false, erro: divisao.motivo }; }
 
+  /**
+   * O provedor exige um cliente DELE, com CPF/CNPJ, em toda cobranca. O cadastro do
+   * Quebra-Galho nao pede documento de proposito (§3, coleta minima) — mas o mesmo
+   * §3 lista "dados necessarios ao pagamento". Entao o documento e pedido AQUI, na
+   * hora de pagar, e NAO fica guardado por nos: vai para o provedor e o que
+   * guardamos e so o id que ele devolve (§39 — dado financeiro fica no provedor).
+   */
+  let clienteExternoId = e.clienteExternoId || e.cliente?.gatewayClienteId || null;
+  if (!clienteExternoId) {
+    if (!e.cliente) { return { ok: false, erro: 'não sei quem é o pagador desta cobrança' }; }
+    if (!e.documento && !e.cliente.documento) {
+      return { ok: false, erro: 'o provedor de pagamento exige CPF ou CNPJ do pagador', pedeDocumento: true };
+    }
+    const gc = await gateway.garantirCliente({ ...e.cliente, documento: e.documento || e.cliente.documento });
+    if (!gc.ok) { return { ok: false, erro: 'não consegui registrar o pagador no provedor: ' + gc.motivo }; }
+    clienteExternoId = gc.externoId;
+  }
+
   const r = await gateway.criarCobranca({
     metodo,
     valorCentavos: escopo.valorCentavos,
     prestadorCentavos: divisao.split.prestadorCentavos,
     walletIdPrestador: e.walletIdPrestador || null,
-    clienteExternoId: e.clienteExternoId || null,
+    clienteExternoId,
     referencia: escopo.pedidoId,
     descricao: 'Quebra-Galho — ' + (escopo.incluido || '').slice(0, 60),
     vencimento: e.vencimento || new Date().toISOString().slice(0, 10),
@@ -356,6 +374,11 @@ export async function pagar(escopoId, e = {}, gateway = null) {
     historico: [{ estado: r.cobranca.estado || 'PENDENTE', em: new Date().toISOString() }],
   };
   save(PAGAMENTOS, [...pagamentos(), pagamento]);
+  // Guarda SO a referencia do provedor: na proxima compra nao pedimos documento de
+  // novo, e o numero em si continua so la.
+  if (e.cliente && !e.cliente.gatewayClienteId && typeof e.aoGuardarCliente === 'function') {
+    e.aoGuardarCliente(e.cliente.id, clienteExternoId);
+  }
 
   const o = ord.criarOrdem({
     pedidoId: escopo.pedidoId, propostaId: escopo.propostaId, escopoId: escopo.id,

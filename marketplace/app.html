@@ -584,6 +584,9 @@ function telaPagamento() {
       <span class="dim">Total</span>
       <div class="preco" style="font-size:34px">${brl(S.escopo.valorCentavos)}</div>
     </div>
+    <div class="campo" style="margin-top:16px"><label>CPF ou CNPJ do pagador</label>
+      <input id="pgDoc" inputmode="numeric" placeholder="somente números" value="${esc(S.contato?.documento || '')}">
+      <p class="dim3" style="margin-top:6px">Exigido pelo provedor de pagamento. Ele fica guardado lá, não aqui.</p></div>
     <button class="btn btn-p" onclick="pagar('PIX')">Pagar com Pix</button>
     <button class="btn" style="margin-top:9px" onclick="pagar('CARTAO')">Pagar com cartão</button>
     <p class="dim3" style="text-align:center;margin-top:12px">Não guardamos dados do seu cartão.</p>
@@ -594,8 +597,12 @@ function telaPagamento() {
 }
 
 async function pagar(metodo) {
+  const doc = ($('pgDoc')?.value || '').replace(/\D/g, '');
+  if (doc && doc.length !== 11 && doc.length !== 14) {
+    return fala('CPF tem 11 dígitos e CNPJ tem 14. Confira o número.', 'er');
+  }
   try {
-    const r = await api('pagar', { escopoId: S.escopo.id, metodo });
+    const r = await api('pagar', { escopoId: S.escopo.id, metodo, documento: doc });
     S.ultimaOS = r.ordem.id;
     sessionStorage.setItem('qg_os', r.ordem.id);
     sessionStorage.removeItem('qg_pedido'); S.ultimoPedido = null;
