@@ -906,13 +906,18 @@ function telaCadastroOk() {
 }
 
 /* ═══ ADMIN ═══ */
-async function carregarAdmin() { S.admin = await api('admin'); }
+async function carregarAdmin() {
+  S.admin = await api('admin');
+  try { S.qualidade = await api('qualidade'); } catch { S.qualidade = null; }
+}
 
 function telaAdmin() {
   const a = S.admin; if (!a) return;
+  if (S.abaAdm === 'disputas') { return telaAdminDisputas(); }
+  if (S.abaAdm === 'qualidade') { return telaAdminQualidade(); }
   const n = a.numeros;
   casca(topo('Administração') + `
-  <div class="abas"><button class="on">Painel</button><button onclick="sair()">Sair</button></div>
+  <div class="abas">${abasAdmin('painel')}<button onclick="sair()">Sair</button></div>
   <div class="tela">
     <div id="aviso" class="aviso"></div>
     <div class="kpis">
@@ -948,6 +953,112 @@ function telaAdmin() {
       ${a.prestadores.map(p => `<div class="item"><div><b>${esc(p.nome)}</b>
         <div class="dim3">${esc(p.documentoMascarado)} · ${p.raioKm} km</div></div>
         <span class="tag ${p.status === 'ACTIVE' ? 't-ok' : 't-al'}">${esc(p.status)}</span></div>`).join('')}
+    </div>
+  </div>`, true);
+}
+
+const abasAdmin = (atual) => [['painel', 'Painel'], ['disputas', 'Contestações'], ['qualidade', 'Qualidade']]
+  .map(([id, n]) => `<button class="${atual === id ? 'on' : ''}" onclick="irAdmin('${id}')">${n}</button>`).join('');
+
+async function irAdmin(aba) { S.abaAdm = aba; await carregarAdmin(); render(); }
+
+/**
+ * Contestação: o admin decide comparando o que foi COMBINADO com o que foi ENTREGUE.
+ * Por isso o escopo congelado aparece do lado do relato, e não numa outra tela.
+ */
+function telaAdminDisputas() {
+  const lista = (S.admin.disputas || []);
+  const abertas = lista.filter(d => d.status !== 'RESOLVIDA');
+  const card = (d) => {
+    const nivel = ['ABERTA', 'NIVEL_1', 'NIVEL_2', 'NIVEL_3'];
+    const prox = nivel[nivel.indexOf(d.status) + 1];
+    const rotulo = { NIVEL_1: 'Mediação digital', NIVEL_2: 'Análise técnica remota', NIVEL_3: 'Vistoria presencial' };
+    return `<div class="cartao">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+        <div><h3>${esc(d.rotuloMotivo)}</h3><p class="dim3">${esc(d.ordemId)} · aberta por ${esc(d.abertaPor)}</p></div>
+        <span class="tag ${d.status === 'RESOLVIDA' ? 't-ok' : 't-er'}">${esc(rotulo[d.status] || d.status)}</span>
+      </div>
+      <h3 style="margin-top:14px;font-size:13px;color:var(--tinta2)">O QUE O CLIENTE RELATA</h3>
+      <p class="dim" style="margin:6px 0 14px">${esc(d.descricao)}</p>
+      <h3 style="font-size:13px;color:var(--tinta2)">O QUE FOI COMBINADO</h3>
+      ${d.escopo ? `<p class="dim" style="margin:6px 0">${esc(d.escopo.incluido)}</p>
+        ${d.escopo.naoIncluido ? `<p class="dim3">Não incluía: ${esc(d.escopo.naoIncluido)}</p>` : ''}
+        <p class="dim3">Valor ${brl(d.escopo.valorCentavos)} · versão ${d.escopo.versao} · registro ${esc(d.escopo.hash.slice(0, 12))}</p>`
+        : '<p class="dim3">Escopo não encontrado.</p>'}
+      ${d.resultado ? `<div class="item" style="margin-top:12px"><span class="dim">Resultado</span><b>${esc(d.resultado)}</b></div>
+        <p class="dim" style="margin-top:8px">${esc(d.laudo || '')}</p>
+        <p class="dim3" style="margin-top:8px">A consequência financeira depende de política aprovada juridicamente — não é aplicada automaticamente.</p>`
+        : `<div style="margin-top:14px">
+          ${prox ? `<button class="btn" onclick="subirNivel('${esc(d.id)}','${prox}')">Levar para ${esc(rotulo[prox])}</button>` : ''}
+          <div class="campo" style="margin-top:12px"><label>Laudo (obrigatório)</label>
+            <textarea id="lau_${esc(d.id)}" placeholder="O que as evidências mostram, comparado ao escopo"></textarea></div>
+          <div class="campo"><label>Resultado</label><select id="res_${esc(d.id)}">
+            <option value="CUSTOMER_FAVOR">A favor do cliente</option>
+            <option value="PROVIDER_FAVOR">A favor do profissional</option>
+            <option value="PARTIAL">Parcial</option>
+            <option value="REWORK">Refazer o serviço</option>
+            <option value="AGREEMENT">Acordo entre as partes</option>
+            <option value="INCONCLUSIVE">Inconclusivo</option></select></div>
+          <button class="btn btn-p" onclick="resolverDisputa('${esc(d.id)}')">Registrar decisão</button>
+        </div>`}
+    </div>`;
+  };
+  casca(topo('Contestações') + `
+  <div class="abas">${abasAdmin('disputas')}<button onclick="sair()">Sair</button></div>
+  <div class="tela">
+    <div id="aviso" class="aviso"></div>
+    <div class="cartao" style="border-style:dashed">
+      <p class="dim">A pergunta da contestação é sempre a mesma: <b>o que foi combinado</b> contra <b>o que foi entregue</b>.
+      Por isso o escopo congelado aparece junto do relato. A análise sobe um nível por vez — mediação antes de perícia.</p>
+    </div>
+    <h2 style="margin:18px 0 10px">Abertas (${abertas.length})</h2>
+    ${abertas.length ? abertas.map(card).join('') : '<div class="vazio"><span class="ic">🤝</span><b>Nenhuma contestação aberta</b></div>'}
+    ${lista.length > abertas.length ? `<h2 style="margin:22px 0 10px">Resolvidas</h2>${lista.filter(d => d.status === 'RESOLVIDA').map(card).join('')}` : ''}
+  </div>`, true);
+}
+
+async function subirNivel(id, nivel) {
+  try { await api('disputas/nivel', { disputaId: id, nivel }); fala('Contestação avançou de nível.', 'ok'); irAdmin('disputas'); }
+  catch (e) { fala(e.message, 'er'); }
+}
+async function resolverDisputa(id) {
+  const laudo = $('lau_' + id).value.trim();
+  if (!laudo) return fala('O laudo é obrigatório — decisão sem justificativa não se sustenta.', 'er');
+  try {
+    await api('disputas/resolver', { disputaId: id, resultado: $('res_' + id).value, laudo });
+    fala('Decisão registrada.', 'ok'); irAdmin('disputas');
+  } catch (e) { fala(e.message, 'er'); }
+}
+
+/** Qualidade: incidentes, strikes e a política — que RECOMENDA, não pune sozinha. */
+function telaAdminQualidade() {
+  const q = S.qualidade;
+  if (!q) return casca(topo('Qualidade') + `<div class="tela"><div class="vazio"><span class="ic">⏳</span>carregando…</div></div>`, true);
+  const pol = q.politica;
+  casca(topo('Qualidade') + `
+  <div class="abas">${abasAdmin('qualidade')}<button onclick="sair()">Sair</button></div>
+  <div class="tela">
+    <div id="aviso" class="aviso"></div>
+    <div class="cartao" style="border-color:${pol.aprovadaPorJuridico ? 'var(--verde)' : 'var(--amarelo)'}">
+      <h3>Política de qualidade</h3>
+      <div class="item"><span class="dim">Situação</span>
+        <span class="tag ${pol.aprovadaPorJuridico ? 't-ok' : 't-al'}">${pol.aprovadaPorJuridico ? 'aprovada' : 'não aprovada'}</span></div>
+      <div class="item"><span class="dim">Ocorrências graves para desativar</span><b>${pol.gravesParaDesativar}</b></div>
+      <div class="item"><span class="dim">Janela</span><b>${pol.janelaDias} dias</b></div>
+      <div class="item"><span class="dim">Versão</span><b>${esc(pol.versao)}</b></div>
+      ${!pol.aprovadaPorJuridico ? `<p class="dim" style="margin-top:10px">Enquanto não houver aprovação jurídica, a política apenas
+        <b>sinaliza</b>. Ninguém é desativado automaticamente — punir por regra não aprovada é indefensável depois.</p>` : ''}
+    </div>
+    ${q.sinalizados.length ? `<div class="cartao"><h3>Sinalizados pela política (${q.sinalizados.length})</h3>
+      ${q.sinalizados.map(s => `<div class="item"><div><b>${esc(s.alvoId)}</b>
+        <small>${s.gatilhos.map(g => esc(g.texto)).join(' · ')}</small></div>
+        <span class="tag ${s.aplicavel ? 't-er' : 't-al'}">${s.aplicavel ? esc(s.recomendacao) : 'só sinalizado'}</span></div>`).join('')}</div>` : ''}
+    <div class="cartao"><h3>Incidentes (${q.total})</h3>
+      <p class="dim3" style="margin-bottom:10px">Avaliação ruim não é infração. Aqui só entra ocorrência apurada.</p>
+      ${q.incidentes.length ? q.incidentes.map(i => `<div class="item"><div><b>${esc(i.rotuloOrigem)}</b>
+        <small>${esc(i.alvoTipo)} ${esc(i.alvoId)} · ${esc(i.severidade)} · ${esc(i.descricao.slice(0, 60))}…</small></div>
+        <span class="tag ${i.estado === 'FINAL' ? 't-er' : i.estado === 'DISMISSED' ? 't-ok' : 't-al'}">${esc(i.estado)}</span></div>`).join('')
+        : '<p class="dim">Nenhum incidente registrado.</p>'}
     </div>
   </div>`, true);
 }

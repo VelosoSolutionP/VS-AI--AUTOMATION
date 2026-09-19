@@ -248,6 +248,11 @@ const server = createServer(async (req, res) => {
         const alvo = q.get('prestador') || q.get('cliente');
         return json(res, 200, { ordens: vs.fluxo.ordens().filter((o) => o[campo] === alvo) });
       }
+      if (rota === '/api/qualidade') {
+        const a = vs.ident.autorizado(sessao.sessao, { papeis: ['admin', 'suporte', 'analista_disputa'] });
+        if (!a.ok) { return json(res, 403, { erro: a.motivo }); }
+        return json(res, 200, vs.fluxo.painelQualidade());
+      }
       if (rota === '/api/admin') {
         const a = vs.ident.autorizado(sessao.sessao, { papeis: ['admin', 'suporte'] });
         if (!a.ok) { return json(res, 403, { erro: a.motivo }); }
@@ -256,7 +261,15 @@ const server = createServer(async (req, res) => {
           pedidos: vs.fluxo.pedidos().map(vs.fluxo.ped.resumo),
           ordens: vs.fluxo.ordens(),
           pagamentos: vs.fluxo.pagamentos(),
-          disputas: vs.fluxo.disputas(),
+          disputas: vs.fluxo.disputas().map((d) => ({
+            ...d,
+            // O admin precisa ver a ordem e o escopo lado a lado: a pergunta da
+            // contestacao e sempre "o que foi combinado x o que foi entregue".
+            ordem: vs.fluxo.ordens().find((o) => o.id === d.ordemId) || null,
+            escopo: vs.fluxo.escopos().find((e) => e.id === d.escopoId) || null,
+          })),
+          incidentes: vs.fluxo.incidentes(),
+          politica: vs.fluxo.politica(),
           avaliacoes: vs.fluxo.avaliacoes(),
           prestadores: vs.prestadores().map(vs.cad.prestadorPublico),
           clientes: vs.clientes(),
@@ -390,6 +403,43 @@ const server = createServer(async (req, res) => {
       if (rota === '/api/contestar') {
         const r = vs.fluxo.contestar(d);
         return json(res, r.ok ? 200 : 400, r.ok ? r : { erro: r.erros.join('; ') });
+      }
+      if (rota === '/api/disputas/nivel') {
+        const a = vs.ident.autorizado(sessao.sessao, { papeis: ['admin', 'analista_disputa'] });
+        if (!a.ok) { return json(res, 403, { erro: a.motivo }); }
+        const todas = vs.fluxo.disputas();
+        const i = todas.findIndex((x) => x.id === d.disputaId);
+        if (i < 0) { return json(res, 404, { erro: 'contestação não encontrada' }); }
+        const ordem = ['ABERTA', 'NIVEL_1', 'NIVEL_2', 'NIVEL_3'];
+        const pos = ordem.indexOf(d.nivel);
+        if (pos < 0) { return json(res, 400, { erro: 'nível inválido' }); }
+        // So avanca um degrau por vez: pular direto pra vistoria presencial gasta
+        // dinheiro que a mediacao digital talvez resolvesse.
+        if (pos !== ordem.indexOf(todas[i].status) + 1) {
+          return json(res, 400, { erro: 'a análise avança um nível por vez — mediação antes de perícia' });
+        }
+        todas[i] = { ...todas[i], status: d.nivel, [`entrouEm_${d.nivel}`]: new Date().toISOString(), responsavel: ator };
+        const { save } = await import('../engine/vsmarket/store.mjs');
+        save('disputas', todas);
+        return json(res, 200, { ok: true, disputa: todas[i] });
+      }
+      if (rota === '/api/incidentes') {
+        const a = vs.ident.autorizado(sessao.sessao, { papeis: ['admin', 'suporte', 'analista_disputa'] });
+        if (!a.ok) { return json(res, 403, { erro: a.motivo }); }
+        const r = vs.fluxo.abrirIncidente({ ...d, abertoPor: ator });
+        return json(res, r.ok ? 200 : 400, r.ok ? r : { erro: r.erros.join('; ') });
+      }
+      if (rota === '/api/incidentes/mover') {
+        const a = vs.ident.autorizado(sessao.sessao, { papeis: ['admin', 'analista_disputa'] });
+        if (!a.ok) { return json(res, 403, { erro: a.motivo }); }
+        const r = vs.fluxo.moverIncidente(d.id, d.estado, { justificativa: d.justificativa, por: ator });
+        return json(res, r.ok ? 200 : 400, r);
+      }
+      if (rota === '/api/politica') {
+        const a = vs.ident.autorizado(sessao.sessao, { papeis: ['admin'] });
+        if (!a.ok) { return json(res, 403, { erro: a.motivo }); }
+        const r = vs.fluxo.definirPolitica({ ...d, aprovadoPor: d.aprovadaPorJuridico ? ator : undefined });
+        return json(res, r.ok ? 200 : 400, r);
       }
       if (rota === '/api/disputas/resolver') {
         const a = vs.ident.autorizado(sessao.sessao, { papeis: ['admin', 'analista_disputa'] });

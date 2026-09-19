@@ -12,6 +12,7 @@ import * as prp from './proposta.mjs';
 import * as ord from './ordem.mjs';
 import { atende, distanciaKm } from './geo.mjs';
 import * as pag from './pagamento.mjs';
+import * as qua from './qualidade.mjs';
 import { PARTICIPA_MATCHING, prestadorPublico } from './cadastro.mjs';
 
 const PEDIDOS = 'pedidos';
@@ -21,8 +22,10 @@ const ORDENS = 'ordens';
 const AVALIACOES = 'avaliacoes';
 const DISPUTAS = 'disputas';
 const PAGAMENTOS = 'pagamentos';
+const INCIDENTES = 'incidentes';
+const POLITICA = 'politica';
 
-export { ped, prp, ord, pag };
+export { ped, prp, ord, pag, qua };
 
 export const pedidos = () => load(PEDIDOS, []);
 export const propostas = () => load(PROPOSTAS, []);
@@ -31,6 +34,8 @@ export const ordens = () => load(ORDENS, []);
 export const avaliacoes = () => load(AVALIACOES, []);
 export const disputas = () => load(DISPUTAS, []);
 export const pagamentos = () => load(PAGAMENTOS, []);
+export const incidentes = () => load(INCIDENTES, []);
+export const politica = () => load(POLITICA, qua.POLITICA_PADRAO);
 
 const acharPedido = (id) => pedidos().find((p) => p.id === String(id)) || null;
 const gravarPedido = (p) => { const t = pedidos(); const i = t.findIndex((x) => x.id === p.id); if (i < 0) { t.push(p); } else { t[i] = p; } save(PEDIDOS, t); return p; };
@@ -564,5 +569,92 @@ export function ganhosDoPrestador(prestadorId) {
     totalTaxa: linhas.reduce((a, l) => a + l.taxaCentavos, 0),
     totalRecebe: linhas.reduce((a, l) => a + l.recebeCentavos, 0),
     aguardando: linhas.filter((l) => !l.liberado).reduce((a, l) => a + l.recebeCentavos, 0),
+  };
+}
+
+
+/* ---------------- 7. qualidade: incidentes, strikes e política ---------------- */
+
+export function definirPolitica(mudancas = {}) {
+  const atual = politica();
+  const nova = { ...atual, ...mudancas };
+  if (nova.gravesParaDesativar != null && !(Number(nova.gravesParaDesativar) > 0)) {
+    return { ok: false, erro: 'o número de ocorrências graves precisa ser maior que zero' };
+  }
+  // Ligar a aplicação automática é uma decisão que precisa estar registrada.
+  if (nova.aprovadaPorJuridico && !String(nova.aprovadoPor || '').trim()) {
+    return { ok: false, erro: 'para marcar a política como aprovada, registre QUEM aprovou' };
+  }
+  save(POLITICA, nova);
+  return { ok: true, politica: nova };
+}
+
+export function abrirIncidente(e = {}) {
+  const r = qua.abrirIncidente(e);
+  if (r.erros.length) { return { ok: false, erros: r.erros }; }
+  save(INCIDENTES, [...incidentes(), r.incidente]);
+  return { ok: true, incidente: r.incidente };
+}
+
+export function moverIncidente(id, para, opts = {}) {
+  const todos = incidentes();
+  const i = todos.findIndex((x) => x.id === String(id));
+  if (i < 0) { return { ok: false, erro: 'incidente não encontrado' }; }
+  const r = qua.mover(todos[i], String(para).toUpperCase(), opts);
+  if (r.erro) { return { ok: false, erro: r.erro }; }
+  todos[i] = r.incidente;
+  save(INCIDENTES, todos);
+  return { ok: true, incidente: r.incidente, virouStrike: qua.viraStrike(r.incidente) };
+}
+
+/** O que a política DIRIA sobre este profissional — recomendação, não punição. */
+export function situacaoQualidade(prestadorId, agora = Date.now()) {
+  return qua.avaliarPolitica({
+    incidentes: incidentes(), avaliacoes: avaliacoes(),
+    alvoId: prestadorId, politica: politica(), agora,
+  });
+}
+
+/**
+ * Resultado de contestação pode gerar incidente — mas NÃO automaticamente. Resultado
+ * a favor do cliente não prova má-fé do profissional: pode ter sido mal-entendido de
+ * escopo. Quem abre o incidente é gente, e este método só prepara a sugestão.
+ */
+export function sugerirIncidenteDaDisputa(disputaId) {
+  const d = disputas().find((x) => x.id === String(disputaId));
+  if (!d) { return { ok: false, erro: 'contestação não encontrada' }; }
+  if (d.status !== 'RESOLVIDA') { return { ok: false, erro: 'a contestação ainda não foi resolvida' }; }
+  const o = ordens().find((x) => x.id === d.ordemId);
+
+  const sugere = ['CUSTOMER_FAVOR', 'REWORK'].includes(d.resultado);
+  return {
+    ok: true,
+    sugere,
+    motivo: sugere
+      ? 'o resultado foi a favor do cliente — vale avaliar se houve descumprimento'
+      : 'o resultado não indica falha do profissional',
+    rascunho: sugere ? {
+      alvoTipo: 'prestador', alvoId: o?.prestadorId || null,
+      origem: 'DISPUTE_RESULT', severidade: 'MEDIUM',
+      descricao: `Contestação ${d.id} resolvida como ${d.resultado}. ${d.laudo || ''}`.trim(),
+      ordemId: d.ordemId, disputaId: d.id,
+    } : null,
+  };
+}
+
+/** Painel de qualidade do admin. */
+export function painelQualidade() {
+  const todos = incidentes();
+  const pol = politica();
+  return {
+    politica: pol,
+    total: todos.length,
+    porEstado: qua.ESTADOS.reduce((a, e) => ({ ...a, [e]: todos.filter((i) => i.estado === e).length }), {}),
+    abertos: todos.filter((i) => !['FINAL', 'DISMISSED'].includes(i.estado)),
+    incidentes: todos,
+    // Quem a política sinalizaria HOJE, se estivesse valendo.
+    sinalizados: [...new Set(todos.filter((i) => i.alvoTipo === 'prestador').map((i) => i.alvoId))]
+      .map((id) => situacaoQualidade(id))
+      .filter((s) => s.disparou),
   };
 }
