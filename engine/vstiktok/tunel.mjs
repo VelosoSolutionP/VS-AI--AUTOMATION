@@ -116,6 +116,10 @@ export function subirProvedor(nome, opts = {}) {
  * propagação leva alguns segundos — mas desiste, em vez de aceitar um 404 calado.
  */
 export async function verificarTunel(url, opts = {}) {
+  // O caminho do ping e configuravel porque o tunel nao serve so ao receptor de
+  // callback: apontado para outro servico, `/__vstiktok/ping` nao existe la e a
+  // verificacao acusava 404 num tunel que estava perfeito.
+  const caminho = opts.caminhoPing || PING;
   const fetchImpl = opts.fetchImpl || globalThis.fetch;
   const esperar = opts.esperar || ((ms) => new Promise((r) => setTimeout(r, ms)));
   const tentativas = opts.tentativas ?? 8;
@@ -123,7 +127,7 @@ export async function verificarTunel(url, opts = {}) {
 
   for (let i = 0; i < tentativas; i++) {
     try {
-      const res = await fetchImpl(`${url}${PING}`, { redirect: 'follow' });
+      const res = await fetchImpl(`${url}${caminho}`, { redirect: 'follow' });
       ultimo = res.status;
       if (res.status === 200) { return { ok: true, tentativas: i + 1 }; }
     } catch (e) {
@@ -131,7 +135,11 @@ export async function verificarTunel(url, opts = {}) {
     }
     if (i < tentativas - 1) { await esperar(opts.intervaloMs ?? 2500); }
   }
-  return { ok: false, motivo: `o tunel subiu mas nao responde de fora (ultimo: ${ultimo})`, status: ultimo };
+  return {
+    ok: false,
+    motivo: `o tunel subiu mas nao responde de fora em ${caminho} (ultimo: ${ultimo})`,
+    status: ultimo,
+  };
 }
 
 /**
