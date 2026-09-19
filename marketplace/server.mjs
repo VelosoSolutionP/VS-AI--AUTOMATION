@@ -87,13 +87,33 @@ function bootstrap() {
   }
 }
 
-const PUBLICAS = ['/api/login', '/api/categorias', '/api/saude'];
+/**
+ * Rotas abertas. O fluxo do CLIENTE é público de proposito: o requisito diz que
+ * ninguem paga — nem faz conta — para PROCURAR. Exigir login na home mataria a
+ * conversao logo na entrada. Area do prestador e admin continuam protegidas.
+ */
+const PUBLICAS = [
+  '/api/login', '/api/categorias', '/api/saude', '/api/estado',
+  '/api/pedidos', '/api/propostas-do-pedido', '/api/escolher', '/api/aviso-escolha',
+  '/api/aceite', '/api/aceitar', '/api/escopo', '/api/escopo/aceitar', '/api/pagar',
+  '/api/os', '/api/os/mover', '/api/avaliar', '/api/contestar', '/api/buscar-publico',
+];
 
 const server = createServer(async (req, res) => {
   const rota = req.url.split('?')[0];
   const ip = ipDe(req);
 
-  if (rota === '/api/saude') { return json(res, 200, { ok: true, servico: 'vsmarket' }); }
+  if (rota === '/api/saude') { return json(res, 200, { ok: true, servico: 'quebra-galho' }); }
+
+  // Favicon inline: o browser pede sempre, e sem isso todo carregamento deixa um
+  // 404 no console — ruido que esconde erro de verdade.
+  if (rota === '/favicon.ico' || rota === '/favicon.svg') {
+    res.writeHead(200, { 'content-type': 'image/svg+xml', 'cache-control': 'public,max-age=86400' });
+    return res.end('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+      + '<rect width="64" height="64" rx="14" fill="#F4511E"/>'
+      + '<text x="32" y="43" font-family="system-ui,sans-serif" font-size="28" font-weight="800"'
+      + ' fill="#fff" text-anchor="middle">QG</text></svg>');
+  }
 
   if (rota === '/' || rota === '/app') {
     try {
@@ -119,6 +139,62 @@ const server = createServer(async (req, res) => {
   try {
     if (req.method === 'GET') {
       if (rota === '/api/categorias') { return json(res, 200, { categorias: vs.categorias() }); }
+      if (rota === '/api/estado') { return json(res, 200, vs.estado()); }
+      if (rota === '/api/numeros') { return json(res, 200, vs.fluxo.numeros()); }
+      if (rota === '/api/propostas-do-pedido') {
+        const id = new URL(req.url, 'http://x').searchParams.get('pedido');
+        const r = vs.fluxo.propostasDoPedido(id, vs.prestadores());
+        return json(res, r.ok ? 200 : 404, r.ok ? r : { erro: r.erro });
+      }
+      if (rota === '/api/aviso-escolha') {
+        const q = new URL(req.url, 'http://x').searchParams;
+        return json(res, 200, { aviso: vs.fluxo.avisoDaEscolha(q.get('pedido'), q.get('proposta'), vs.prestadores()) });
+      }
+      if (rota === '/api/aceite') {
+        const id = new URL(req.url, 'http://x').searchParams.get('proposta');
+        const r = vs.fluxo.estadoAceite(id, vs.prestadores());
+        return json(res, r.ok ? 200 : 404, r);
+      }
+      if (rota === '/api/os') {
+        const id = new URL(req.url, 'http://x').searchParams.get('id');
+        const r = vs.fluxo.ordemCompleta(id);
+        return json(res, r.ok ? 200 : 404, r.ok ? r : { erro: r.erro });
+      }
+      if (rota === '/api/oportunidades') {
+        // Pedidos em que ESTE prestador foi convidado.
+        const meu = new URL(req.url, 'http://x').searchParams.get('prestador');
+        const meus = vs.fluxo.pedidos().filter((p) => ['MATCHING', 'RECEIVING_QUOTES'].includes(p.status)
+          && p.convidados.some((c) => c.prestadorId === meu));
+        const jaPropus = vs.fluxo.propostas().filter((x) => x.prestadorId === meu).map((x) => x.pedidoId);
+        return json(res, 200, {
+          oportunidades: meus.map((p) => ({ ...vs.fluxo.ped.resumo(p), jaPropus: jaPropus.includes(p.id),
+            distanciaKm: p.convidados.find((c) => c.prestadorId === meu)?.distanciaKm ?? null })),
+        });
+      }
+      if (rota === '/api/ganhos') {
+        const meu = new URL(req.url, 'http://x').searchParams.get('prestador');
+        return json(res, 200, vs.fluxo.ganhosDoPrestador(meu));
+      }
+      if (rota === '/api/minhas-os') {
+        const q = new URL(req.url, 'http://x').searchParams;
+        const campo = q.get('prestador') ? 'prestadorId' : 'clienteId';
+        const alvo = q.get('prestador') || q.get('cliente');
+        return json(res, 200, { ordens: vs.fluxo.ordens().filter((o) => o[campo] === alvo) });
+      }
+      if (rota === '/api/admin') {
+        const a = vs.ident.autorizado(sessao.sessao, { papeis: ['admin', 'suporte'] });
+        if (!a.ok) { return json(res, 403, { erro: a.motivo }); }
+        return json(res, 200, {
+          numeros: vs.fluxo.numeros(),
+          pedidos: vs.fluxo.pedidos().map(vs.fluxo.ped.resumo),
+          ordens: vs.fluxo.ordens(),
+          pagamentos: vs.fluxo.pagamentos(),
+          disputas: vs.fluxo.disputas(),
+          avaliacoes: vs.fluxo.avaliacoes(),
+          prestadores: vs.prestadores().map(vs.cad.prestadorPublico),
+          clientes: vs.clientes(),
+        });
+      }
       if (rota === '/api/eu') { return json(res, 200, { usuario: sessao.usuario }); }
       if (rota === '/api/painel') { return json(res, 200, vs.painel()); }
       if (rota === '/api/prestadores') { return json(res, 200, { prestadores: vs.prestadores().map(vs.cad.prestadorPublico) }); }
@@ -169,6 +245,56 @@ const server = createServer(async (req, res) => {
         const r = vs.indicar(d, ator);
         return json(res, r.ok ? 200 : 400, r.ok ? r : { erro: r.erros.join('; ') });
       }
+      if (rota === '/api/pedidos') {
+        const r = vs.fluxo.criarPedido(d, vs.prestadores());
+        if (!r.ok) { return json(res, 400, { erro: r.erros.join('; '), erros: r.erros, avisos: r.avisos }); }
+        // Em demonstracao os convidados respondem na hora, pelo mesmo caminho validado.
+        // Com VSMARKET_DEMO=0 o pedido fica esperando proposta de gente de verdade.
+        if (process.env.VSMARKET_DEMO !== '0') { vs.fluxo.simularPropostas(r.pedido.id, vs.prestadores(), vs.categorias()); }
+        return json(res, 200, r);
+      }
+      if (rota === '/api/propostas') {
+        const r = vs.fluxo.enviarProposta(d);
+        return json(res, r.ok ? 200 : 400, r.ok ? r : { erro: r.erros.join('; ') });
+      }
+      if (rota === '/api/escolher') {
+        const r = vs.fluxo.escolherProposta(d.propostaId, vs.prestadores());
+        return json(res, r.ok ? 200 : 400, r);
+      }
+      if (rota === '/api/aceitar') {
+        const r = vs.fluxo.aceitarProposta(d.propostaId);
+        return json(res, r.ok ? 200 : 400, r);
+      }
+      if (rota === '/api/escopo') {
+        const r = vs.fluxo.congelarEscopo(d.propostaId);
+        return json(res, r.ok ? 200 : 400, r.ok ? r : { erro: r.erros.join('; ') });
+      }
+      if (rota === '/api/escopo/aceitar') {
+        const r = vs.fluxo.aceitarEscopo(d.escopoId, d.quem);
+        return json(res, r.ok ? 200 : 400, r);
+      }
+      if (rota === '/api/pagar') {
+        const r = vs.fluxo.pagar(d.escopoId, d);
+        return json(res, r.ok ? 200 : 400, r);
+      }
+      if (rota === '/api/os/mover') {
+        const r = vs.fluxo.moverOrdem(d.ordemId, d.status, { nota: d.nota, por: ator });
+        return json(res, r.ok ? 200 : 400, r);
+      }
+      if (rota === '/api/avaliar') {
+        const r = vs.fluxo.avaliar(d);
+        return json(res, r.ok ? 200 : 400, r.ok ? r : { erro: r.erros.join('; ') });
+      }
+      if (rota === '/api/contestar') {
+        const r = vs.fluxo.contestar(d);
+        return json(res, r.ok ? 200 : 400, r.ok ? r : { erro: r.erros.join('; ') });
+      }
+      if (rota === '/api/disputas/resolver') {
+        const a = vs.ident.autorizado(sessao.sessao, { papeis: ['admin', 'analista_disputa'] });
+        if (!a.ok) { return json(res, 403, { erro: a.motivo }); }
+        const r = vs.fluxo.resolverDisputa(d.disputaId, { ...d, responsavel: ator });
+        return json(res, r.ok ? 200 : 400, r);
+      }
       if (rota === '/api/usuarios') {
         const a = vs.ident.autorizado(sessao.sessao, { papeis: ['admin'] });
         if (!a.ok) { return json(res, 403, { erro: a.motivo }); }
@@ -187,4 +313,28 @@ const server = createServer(async (req, res) => {
 });
 
 bootstrap();
+// Sem dado nenhum o fluxo nao pode ser percorrido — e produto que nao se percorre
+// nao se avalia. O seed passa pelo caminho REAL de cadastro e validacao.
+const semeado = vs.semear();
+if (!semeado.ok) { console.error('[vsmarket] seed falhou em', semeado.em, '->', (semeado.erros || []).join('; ')); }
+else if (!semeado.jaExistia) {
+  console.log(`[vsmarket] demonstracao: ${semeado.prestadores} profissionais, 1 pedido com propostas`);
+  // Um login de PROFISSIONAL, senao a area do prestador nao tem como ser percorrida:
+  // os prestadores sao cadastro, nao conta de acesso.
+  const primeiro = vs.prestadores().find((x) => x.status === 'ACTIVE');
+  if (primeiro && !vs.usuarios().some((u) => u.papel === 'prestador')) {
+    const senha = randomBytes(12).toString('base64url');
+    const email = 'profissional@quebragalho.local';
+    const r = vs.criarUsuario({ email, nome: primeiro.nome, papel: 'prestador', senha }, 'bootstrap');
+    if (r.ok) {
+      // Amarra a conta ao cadastro: o app precisa saber QUAL profissional entrou.
+      vs.editarPrestador(primeiro.id, { usuarioId: r.usuario.id }, 'bootstrap');
+      console.log('  ┌─ ACESSO DO PROFISSIONAL (demonstracao) ───────');
+      console.log(`  │  e-mail: ${email}`);
+      console.log(`  │  senha : ${senha}`);
+      console.log(`  │  perfil: ${primeiro.nome}`);
+      console.log('  └───────────────────────────────────────────────\n');
+    } else { console.error('[vsmarket] nao criei o usuario do profissional:', r.erros.join('; ')); }
+  }
+}
 server.listen(PORT, () => console.log(`[vsmarket] no ar em http://127.0.0.1:${PORT}  (independente do Bolso Cheio)`));

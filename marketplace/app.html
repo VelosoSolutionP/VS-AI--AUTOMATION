@@ -2,457 +2,859 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>VSmarket — Serviços locais</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Quebra-Galho — Precisou, chamou, resolveu.</title>
+<meta name="description" content="Encontre profissionais avaliados perto de você em BH e Grande BH. Peça, receba propostas e contrate com segurança.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#F4511E">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
-:root{--bg:#0b0b0c;--panel:#141416;--line:#26262a;--fg:#e8e8ea;--dim:#8b8b93;--muted:#a1a1aa;
-      --ok:#22c55e;--warn:#f59e0b;--err:#ef4444;--acc:#6366f1;--r:12px}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
-.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 60px}
-header{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--line);margin-bottom:20px;flex-wrap:wrap}
-.logo{width:34px;height:34px;border-radius:9px;background:var(--acc);display:grid;place-items:center;font-weight:700;font-size:13px}
-h1{font-size:17px;margin:0;font-weight:650}
-h1 small{display:block;font-size:11.5px;color:var(--dim);font-weight:400}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:14px}
-.card h2{font-size:14px;margin:0 0 10px;font-weight:650}
-.hint{color:var(--muted);font-size:12.5px;line-height:1.55;margin:6px 0}
-label{display:block;font-size:11.5px;color:var(--dim);margin:0 0 4px;text-transform:uppercase;letter-spacing:.4px}
-input,select,textarea{width:100%;background:#0e0e10;border:1px solid var(--line);color:var(--fg);
-  border-radius:9px;padding:9px 11px;font:inherit;outline:none}
-input:focus,select:focus,textarea:focus{border-color:var(--acc)}
-.grid{display:grid;gap:11px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
-.btn{background:#1d1d21;border:1px solid var(--line);color:var(--fg);border-radius:9px;
-  padding:9px 15px;font:inherit;cursor:pointer;font-weight:550}
-.btn:hover{border-color:#3a3a42}
-.btn-p{background:var(--acc);border-color:var(--acc);color:#fff}
-.btn-p:hover{filter:brightness(1.12)}
-.btn:disabled{opacity:.45;cursor:not-allowed}
-.row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
-.row:last-child{border-bottom:0}
-.row b{font-weight:600}
-.row small{display:block;color:var(--dim);font-size:11.5px;font-weight:400}
-.tag{font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
-.t-ok{color:var(--ok);border-color:#14532d;background:#052e16}
-.t-warn{color:var(--warn);border-color:#78350f;background:#2a1a05}
-.t-err{color:var(--err);border-color:#7f1d1d;background:#2a0808}
-#map{height:380px;border-radius:var(--r);border:1px solid var(--line);margin:10px 0}
-.leaflet-container{background:#0e0e10}
-nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
-nav button{background:transparent;border:1px solid transparent;color:var(--muted);padding:7px 13px;
-  border-radius:9px;cursor:pointer;font:inherit}
-nav button.on{background:var(--panel);border-color:var(--line);color:var(--fg);font-weight:600}
-.msg{padding:10px 13px;border-radius:9px;margin-bottom:14px;display:none;font-size:13px}
-.msg.show{display:block}
-.msg.ok{background:#052e16;color:#86efac;border:1px solid #14532d}
-.msg.err{background:#2a0808;color:#fca5a5;border:1px solid #7f1d1d}
-.login{max-width:380px;margin:9vh auto}
-.kpis{display:grid;gap:11px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:14px}
-.kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:13px 15px}
-.kpi span{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);font-weight:600}
-.kpi b{display:block;font-size:23px;margin-top:3px;font-weight:650;letter-spacing:-.5px}
-.kpi em{font-style:normal;font-size:11.5px;color:var(--muted)}
-code{background:#0e0e10;padding:1px 5px;border-radius:5px;font-size:12px;border:1px solid var(--line)}
-.chips{display:flex;gap:6px;flex-wrap:wrap}
-.chip{font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);
-  background:#0e0e10;color:var(--muted);cursor:pointer}
-.chip.on{border-color:var(--acc);color:#fff;background:#1e1b4b}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--dim);
-  padding:7px 8px;border-bottom:1px solid var(--line);font-weight:600}
-td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
-.scroll{overflow-x:auto}
+:root{
+  --laranja:#F4511E; --laranja-esc:#D93C0C; --laranja-claro:#FFF1EB;
+  --verde:#0E9F6E; --verde-claro:#E6F7F1; --amarelo:#F59E0B;
+  --vermelho:#DC2626; --vermelho-claro:#FEF2F2;
+  --tinta:#1C1917; --tinta2:#57534E; --tinta3:#A8A29E;
+  --papel:#FFFDFB; --cartao:#FFFFFF; --linha:#EDE9E6; --linha2:#E0DAD5;
+  --r:16px; --r-s:10px; --sombra:0 1px 2px rgba(28,25,23,.06),0 8px 24px rgba(28,25,23,.05);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{background:var(--papel);color:var(--tinta);
+  font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  padding-bottom:env(safe-area-inset-bottom)}
+.app{max-width:520px;margin:0 auto;min-height:100vh;position:relative}
+.wide{max-width:1100px}
+h1,h2,h3{margin:0;line-height:1.25;letter-spacing:-.02em}
+h1{font-size:26px;font-weight:800}
+h2{font-size:19px;font-weight:750}
+h3{font-size:15px;font-weight:700}
+p{margin:0}
+.dim{color:var(--tinta2);font-size:14px}
+.dim3{color:var(--tinta3);font-size:13px}
+
+/* topo */
+.topo{display:flex;align-items:center;gap:10px;padding:14px 16px;position:sticky;top:0;z-index:40;
+  background:rgba(255,253,251,.93);backdrop-filter:blur(10px);border-bottom:1px solid var(--linha)}
+.marca{display:flex;align-items:center;gap:9px;cursor:pointer;min-width:0}
+.marca .qg{width:34px;height:34px;border-radius:10px;background:var(--laranja);color:#fff;
+  display:grid;place-items:center;font-weight:800;font-size:15px;flex:none;letter-spacing:-.04em}
+.marca b{font-size:16.5px;font-weight:800;letter-spacing:-.03em;white-space:nowrap}
+.marca small{display:block;font-size:10.5px;color:var(--tinta2);font-weight:500;margin-top:-2px}
+.voltar{background:none;border:0;font-size:15px;color:var(--tinta2);cursor:pointer;padding:6px 8px 6px 0;font-weight:600}
+
+/* conteudo */
+.tela{padding:18px 16px 90px}
+.cartao{background:var(--cartao);border:1px solid var(--linha);border-radius:var(--r);
+  padding:16px;margin-bottom:12px;box-shadow:var(--sombra)}
+.cartao.sel{border-color:var(--laranja);box-shadow:0 0 0 3px var(--laranja-claro)}
+
+/* botoes: alvo grande no dedo */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;
+  min-height:52px;padding:14px 18px;border-radius:var(--r-s);border:1.5px solid var(--linha2);
+  background:var(--cartao);color:var(--tinta);font:inherit;font-weight:700;font-size:16px;
+  cursor:pointer;transition:transform .06s}
+.btn:active{transform:scale(.985)}
+.btn-p{background:var(--laranja);border-color:var(--laranja);color:#fff}
+.btn-p:hover{background:var(--laranja-esc)}
+.btn-g{background:var(--verde);border-color:var(--verde);color:#fff}
+.btn-peq{min-height:40px;padding:8px 14px;font-size:14px;width:auto}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btns{display:flex;gap:9px;flex-wrap:wrap}
+.btns .btn{width:auto;flex:1;min-width:130px}
+
+/* campos */
+label{display:block;font-size:13px;font-weight:650;color:var(--tinta2);margin:0 0 6px}
+input,textarea,select{width:100%;font:inherit;font-size:16px;padding:14px;border-radius:var(--r-s);
+  border:1.5px solid var(--linha2);background:var(--cartao);color:var(--tinta);outline:none}
+input:focus,textarea:focus,select:focus{border-color:var(--laranja)}
+textarea{resize:vertical;min-height:96px}
+.campo{margin-bottom:14px}
+.dupla{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* etiquetas */
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:650;
+  padding:4px 10px;border-radius:999px;background:#F5F3F1;color:var(--tinta2);white-space:nowrap}
+.t-ok{background:var(--verde-claro);color:var(--verde)}
+.t-al{background:#FEF6E7;color:#B45309}
+.t-er{background:var(--vermelho-claro);color:var(--vermelho)}
+.t-lj{background:var(--laranja-claro);color:var(--laranja-esc)}
+
+/* categorias */
+.cats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.cat{background:var(--cartao);border:1.5px solid var(--linha2);border-radius:var(--r);
+  padding:16px 12px;text-align:center;cursor:pointer;transition:.12s}
+.cat:active{transform:scale(.97)}
+.cat.on{border-color:var(--laranja);background:var(--laranja-claro)}
+.cat .ic{font-size:26px;display:block;margin-bottom:6px}
+.cat b{font-size:14px;font-weight:700;display:block}
+
+/* card de proposta */
+.prop{display:flex;gap:12px;align-items:flex-start}
+.ava{width:48px;height:48px;border-radius:50%;background:var(--laranja-claro);color:var(--laranja-esc);
+  display:grid;place-items:center;font-weight:800;font-size:17px;flex:none}
+.estrelas{color:var(--amarelo);letter-spacing:-1px;font-size:14px}
+.preco{font-size:22px;font-weight:800;letter-spacing:-.03em}
+
+/* passos / timeline */
+.passos{display:flex;gap:6px;margin:14px 0 18px}
+.passo{flex:1;height:4px;border-radius:99px;background:var(--linha2)}
+.passo.on{background:var(--laranja)}
+.linha-t{position:relative;padding-left:26px}
+.linha-t .pt{position:relative;padding:0 0 18px}
+.linha-t .pt:last-child{padding-bottom:0}
+.linha-t .pt::before{content:'';position:absolute;left:-26px;top:4px;width:12px;height:12px;
+  border-radius:50%;background:var(--linha2);border:2px solid var(--papel)}
+.linha-t .pt.feito::before{background:var(--verde)}
+.linha-t .pt.agora::before{background:var(--laranja);box-shadow:0 0 0 4px var(--laranja-claro)}
+.linha-t .pt::after{content:'';position:absolute;left:-21px;top:16px;bottom:0;width:2px;background:var(--linha2)}
+.linha-t .pt:last-child::after{display:none}
+.linha-t .pt.feito::after{background:var(--verde)}
+
+/* contador */
+.contador{font-size:44px;font-weight:800;letter-spacing:-.04em;font-variant-numeric:tabular-nums;
+  text-align:center;color:var(--laranja)}
+.contador.urgente{color:var(--vermelho)}
+
+#map{height:230px;border-radius:var(--r);border:1px solid var(--linha2);margin:10px 0}
+.leaflet-container{font:inherit}
+
+.aviso{padding:12px 14px;border-radius:var(--r-s);font-size:14px;margin-bottom:12px;display:none;font-weight:600}
+.aviso.on{display:block}
+.aviso.ok{background:var(--verde-claro);color:#065F46}
+.aviso.er{background:var(--vermelho-claro);color:#991B1B}
+
+.vazio{text-align:center;padding:40px 20px;color:var(--tinta2)}
+.vazio .ic{font-size:44px;display:block;margin-bottom:12px;opacity:.6}
+
+.abas{display:flex;gap:4px;overflow-x:auto;padding:10px 16px;border-bottom:1px solid var(--linha);
+  position:sticky;top:62px;background:var(--papel);z-index:30;-webkit-overflow-scrolling:touch}
+.abas button{background:none;border:0;padding:9px 14px;border-radius:99px;font:inherit;font-size:14px;
+  font-weight:650;color:var(--tinta2);cursor:pointer;white-space:nowrap}
+.abas button.on{background:var(--tinta);color:#fff}
+
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
+.kpi{background:var(--cartao);border:1px solid var(--linha);border-radius:var(--r);padding:14px}
+.kpi span{font-size:11px;font-weight:700;color:var(--tinta3);text-transform:uppercase;letter-spacing:.4px}
+.kpi b{display:block;font-size:24px;font-weight:800;letter-spacing:-.03em;margin-top:2px}
+.kpi em{font-style:normal;font-size:12px;color:var(--tinta2)}
+
+.item{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:13px 0;border-bottom:1px solid var(--linha)}
+.item:last-child{border-bottom:0}
+
+.hero{padding:26px 16px 20px;background:linear-gradient(170deg,var(--laranja-claro),var(--papel) 75%)}
+.hero h1{font-size:30px;margin-bottom:8px}
+.hero .slogan{font-size:17px;font-weight:700;color:var(--laranja-esc);margin-bottom:6px}
+.como{counter-reset:p}
+.como .p{display:flex;gap:12px;padding:9px 0;align-items:flex-start}
+.como .n{width:26px;height:26px;border-radius:50%;background:var(--laranja);color:#fff;flex:none;
+  display:grid;place-items:center;font-size:13px;font-weight:800}
+.rodape{padding:22px 16px 40px;border-top:1px solid var(--linha);color:var(--tinta2);font-size:13px}
+@media(min-width:760px){
+  .app.wide .tela{padding:24px}
+  .kpis{grid-template-columns:repeat(4,1fr)}
+  .cats{grid-template-columns:repeat(3,1fr)}
+}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div id="msg" class="msg"></div>
-  <div id="app"></div>
-</div>
-
+<div class="app" id="app"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-/* ── estado ───────────────────────────────────────────────────────────── */
-let TOKEN = sessionStorage.getItem('vsmarket_token') || '';
-let EU = null, CAT = [], ABA = 'painel', MAPA = null, MARCA = null, RAIO = null, PONTO = null;
-
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/* ═══ estado ═══ */
+const S = {
+  tela: 'home', cats: [], pedido: null, rascunho: {}, cards: [], escolha: null,
+  aviso: null, escopo: null, os: null, timer: null, mapa: null, marca: null,
+  token: sessionStorage.getItem('qg_token') || '', eu: null, prestador: null,
+  aba: 'oportunidades', admin: null, ultimoPedido: sessionStorage.getItem('qg_pedido') || null,
+  ultimaOS: sessionStorage.getItem('qg_os') || null,
+};
 const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const brl = (c) => (c == null ? '—' : (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
+const iniciais = (n) => String(n || '?').split(' ').filter(Boolean).slice(0, 2).map(x => x[0]).join('').toUpperCase();
+const estrelas = (n) => n == null ? '<span class="dim3">sem avaliação ainda</span>'
+  : `<span class="estrelas">${'★'.repeat(Math.round(n))}${'☆'.repeat(5 - Math.round(n))}</span> <b>${n.toFixed(1)}</b>`;
 
-function aviso(t, tipo) {
-  const m = $('msg');
-  m.className = 'msg show ' + tipo;
-  m.textContent = t;
-  if (tipo === 'ok') setTimeout(() => { m.className = 'msg'; }, 3500);
+function fala(t, tipo) {
+  const a = $('aviso'); if (!a) return;
+  a.className = 'aviso on ' + tipo; a.textContent = t;
+  if (tipo === 'ok') setTimeout(() => { a.className = 'aviso'; }, 3800);
+  a.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
 async function api(rota, corpo, metodo) {
-  const res = await fetch('/api/' + rota, {
+  const r = await fetch('/api/' + rota, {
     method: metodo || (corpo ? 'POST' : 'GET'),
-    headers: { 'content-type': 'application/json', ...(TOKEN ? { authorization: 'Bearer ' + TOKEN } : {}) },
+    headers: { 'content-type': 'application/json', ...(S.token ? { authorization: 'Bearer ' + S.token } : {}) },
     body: corpo ? JSON.stringify(corpo) : undefined,
   });
-  const j = await res.json().catch(() => ({ erro: 'resposta inválida do servidor' }));
-  if (res.status === 401 && TOKEN) { sair(true); throw new Error(j.erro || 'sessão encerrada'); }
-  if (!res.ok || j.erro) throw new Error(j.erro || ('HTTP ' + res.status));
+  const j = await r.json().catch(() => ({ erro: 'não consegui falar com o servidor' }));
+  if (!r.ok || j.erro) throw new Error(j.erro || ('HTTP ' + r.status));
   return j;
 }
 
-/* ── login ────────────────────────────────────────────────────────────── */
-function telaLogin() {
-  $('app').innerHTML = `
-  <div class="login">
-    <header style="border:0;justify-content:center">
-      <div class="logo">VS</div>
-      <h1>VSmarket<small>Serviços locais · BH e Grande BH</small></h1>
-    </header>
-    <div class="card">
-      <h2>Entrar</h2>
-      <div style="display:grid;gap:11px">
-        <div><label>E-mail</label><input id="lgEmail" type="email" autocomplete="username" placeholder="voce@empresa.com"></div>
-        <div><label>Senha</label><input id="lgSenha" type="password" autocomplete="current-password" placeholder="sua senha"></div>
-        <button class="btn btn-p" id="lgBtn">Entrar</button>
-      </div>
-      <p class="hint">O primeiro administrador é criado no primeiro boot do servidor, com senha aleatória impressa no terminal — nunca há senha padrão no código.</p>
+function ir(tela) { S.tela = tela; clearInterval(S.timer); window.scrollTo(0, 0); render(); }
+
+/* ═══ casca ═══ */
+function topo(titulo, voltar) {
+  return `<div class="topo">
+    ${voltar ? `<button class="voltar" onclick="ir('${voltar}')">‹ Voltar</button>` : ''}
+    <div class="marca" onclick="ir('home')">
+      <div class="qg">QG</div>
+      <div><b>Quebra-Galho</b><small>${esc(titulo || 'Precisou, chamou, resolveu.')}</small></div>
     </div>
   </div>`;
-  $('lgBtn').onclick = entrar;
-  $('lgSenha').onkeydown = (e) => { if (e.key === 'Enter') entrar(); };
-  $('lgEmail').focus();
 }
+const casca = (html, larga) => { $('app').className = 'app' + (larga ? ' wide' : ''); $('app').innerHTML = html; };
 
-async function entrar() {
-  const b = $('lgBtn');
-  b.disabled = true; b.textContent = 'Entrando…';
-  try {
-    const r = await api('login', { email: $('lgEmail').value.trim(), senha: $('lgSenha').value });
-    TOKEN = r.token;
-    sessionStorage.setItem('vsmarket_token', TOKEN);
-    EU = r.usuario;
-    await iniciar();
-  } catch (e) {
-    aviso(e.message, 'err');
-    b.disabled = false; b.textContent = 'Entrar';
-  }
-}
-
-function sair(expirou) {
-  TOKEN = ''; EU = null;
-  sessionStorage.removeItem('vsmarket_token');
-  telaLogin();
-  if (expirou) aviso('Sua sessão expirou. Entre de novo.', 'err');
-}
-
-/* ── casca ────────────────────────────────────────────────────────────── */
-const ABAS = [
-  ['painel', 'Painel'], ['prestadores', 'Prestadores'], ['clientes', 'Clientes'],
-  ['mapa', 'Mapa e busca'], ['indicacao', 'Indicação'], ['auditoria', 'Auditoria'],
-];
-
-function casca(conteudo) {
-  $('app').innerHTML = `
-  <header>
-    <div class="logo">VS</div>
-    <h1>VSmarket<small>${esc(EU.nome)} · ${esc(EU.papel)}</small></h1>
-    <div style="margin-left:auto"><button class="btn" onclick="sair()">Sair</button></div>
-  </header>
-  <nav>${ABAS.map(([id, nome]) => `<button class="${ABA === id ? 'on' : ''}" onclick="irPara('${id}')">${nome}</button>`).join('')}</nav>
-  <div id="conteudo">${conteudo}</div>`;
-}
-
-function irPara(id) { ABA = id; render(); }
-
-async function render() {
-  try {
-    if (ABA === 'painel') return await telaPainel();
-    if (ABA === 'prestadores') return await telaPrestadores();
-    if (ABA === 'clientes') return await telaClientes();
-    if (ABA === 'mapa') return await telaMapa();
-    if (ABA === 'indicacao') return await telaIndicacao();
-    if (ABA === 'auditoria') return await telaAuditoria();
-  } catch (e) { aviso(e.message, 'err'); }
-}
-
-/* ── painel ───────────────────────────────────────────────────────────── */
-async function telaPainel() {
-  const p = await api('painel');
-  const st = p.prestadores.porStatus;
-  const integro = p.auditoria.integridade.ok;
-  casca(`
-  <div class="kpis">
-    <div class="kpi"><span>Prestadores</span><b>${p.prestadores.total}</b><em>${st.ACTIVE || 0} ativos no matching</em></div>
-    <div class="kpi"><span>Clientes</span><b>${p.clientes}</b><em>cadastrados</em></div>
-    <div class="kpi"><span>Categorias</span><b>${p.categorias}</b><em>cadastráveis</em></div>
-    <div class="kpi"><span>Auditoria</span><b>${p.auditoria.registros}</b><em>${integro ? 'corrente íntegra' : 'CORRENTE QUEBRADA'}</em></div>
+/* ═══ HOME ═══ */
+function telaHome() {
+  casca(topo() + `
+  <div class="hero">
+    <div class="slogan">Precisou, chamou, resolveu.</div>
+    <h1>Encontre quem resolve, pertinho de você.</h1>
+    <p class="dim" style="margin-top:8px">Profissionais avaliados em BH e Grande BH. Você não paga para procurar.</p>
+    <div style="margin-top:18px">
+      <button class="btn btn-p" onclick="ir('categoria')">Encontrar profissional</button>
+      <button class="btn" style="margin-top:9px" onclick="ir('login')">Quero prestar serviços</button>
+    </div>
   </div>
-  <div class="card"><h2>Situação dos prestadores</h2>
-    ${Object.entries(st).map(([s, n]) => `<div class="row"><div><b>${esc(s)}</b>
-      <small>${s === 'ACTIVE' ? 'participa do matching' : 'fora do matching'}</small></div>
-      <span class="tag ${s === 'ACTIVE' ? 't-ok' : (s === 'BLOCKED' ? 't-err' : '')}">${n}</span></div>`).join('')}
-    ${p.prestadores.semRecebimento ? `<div class="row"><div><b>Sem conta de recebimento</b>
-      <small>não dá pra repassar pagamento a estes</small></div><span class="tag t-warn">${p.prestadores.semRecebimento}</span></div>` : ''}
+  <div class="tela" style="padding-top:8px">
+    <div id="aviso" class="aviso"></div>
+    ${S.ultimaOS ? `<div class="cartao" style="border-color:var(--laranja)">
+      <h3>Você tem um serviço em andamento</h3>
+      <p class="dim" style="margin:6px 0 12px">Acompanhe o passo a passo do seu Quebra-Galho.</p>
+      <button class="btn btn-p btn-peq" onclick="abrirOS('${esc(S.ultimaOS)}')">Ver meu serviço</button></div>` : ''}
+    ${S.ultimoPedido && !S.ultimaOS ? `<div class="cartao" style="border-color:var(--laranja)">
+      <h3>Seu pedido está recebendo propostas</h3>
+      <button class="btn btn-p btn-peq" style="margin-top:10px" onclick="verPropostas('${esc(S.ultimoPedido)}')">Ver propostas</button></div>` : ''}
+
+    <h2 style="margin:20px 0 12px">Como funciona</h2>
+    <div class="cartao como">
+      ${['Conte o que precisa.', 'Receba propostas.', 'Compare preço e avaliações.',
+         'Escolha o profissional.', 'Pague pela plataforma.', 'Serviço concluído.', 'Avalie.']
+        .map((t, i) => `<div class="p"><div class="n">${i + 1}</div><div>${t}</div></div>`).join('')}
+    </div>
+    <div class="cartao" style="background:var(--laranja-claro);border-color:transparent">
+      <b>Você não paga para procurar.</b>
+      <p class="dim" style="margin-top:4px;color:var(--tinta)">E o profissional não paga para disputar seu pedido.</p>
+    </div>
+    <h2 style="margin:20px 0 12px">O que você precisa?</h2>
+    <div class="cats">${S.cats.map(c => `<div class="cat" onclick="escolherCat('${esc(c.id)}')">
+      <span class="ic">${c.icone || '🔧'}</span><b>${esc(c.nome)}</b></div>`).join('')}</div>
   </div>
-  <div class="card"><h2>Região atendida</h2>
-    <div class="row"><div><b>${esc(p.regiao.nome)}</b><small>raio de ${p.regiao.raioKm} km do centro de BH</small></div>
-      <span class="tag">MVP</span></div>
-    <p class="hint">O §1 limita o MVP a esta região. Cadastro fora dela é avisado, não bloqueado — a arquitetura permite expandir depois.</p>
+  <div class="rodape">
+    <b style="color:var(--tinta)">Quebra-Galho</b> · Veloso Solution<br>
+    Belo Horizonte e Grande BH · <a href="#" onclick="ir('admin-login');return false" style="color:var(--tinta2)">Administração</a>
   </div>`);
 }
 
-/* ── prestadores ──────────────────────────────────────────────────────── */
-async function telaPrestadores() {
-  const { prestadores } = await api('prestadores');
-  if (!CAT.length) CAT = (await api('categorias')).categorias;
-  const linhas = prestadores.map(p => `<tr>
-    <td><b>${esc(p.nome)}</b><br><small style="color:var(--dim)">${esc(p.documentoMascarado)} · ${esc(p.categorias.join(', '))}</small></td>
-    <td>${esc(p.base.lat.toFixed(4))}, ${esc(p.base.lng.toFixed(4))}<br><small style="color:var(--dim)">raio ${p.raioKm} km</small></td>
-    <td><span class="tag ${p.status === 'ACTIVE' ? 't-ok' : (p.status === 'BLOCKED' ? 't-err' : 't-warn')}">${esc(p.status)}</span></td>
-    <td style="white-space:nowrap">
-      ${p.status !== 'ACTIVE' ? `<button class="btn" onclick="mudarStatus('${esc(p.id)}','${p.status === 'PENDING' ? 'UNDER_REVIEW' : 'ACTIVE'}')">${p.status === 'PENDING' ? 'Revisar' : 'Ativar'}</button>` : ''}
-      ${p.status === 'ACTIVE' ? `<button class="btn" onclick="mudarStatus('${esc(p.id)}','SUSPENDED')">Suspender</button>` : ''}
-    </td></tr>`).join('');
+/* ═══ FLUXO DO CLIENTE ═══ */
+function escolherCat(id) { S.rascunho.categoria = id; ir('local'); }
 
-  casca(`
-  <div class="card"><h2>Novo prestador</h2>
-    <div class="grid">
-      <div><label>Nome *</label><input id="prNome" placeholder="João Elétrica"></div>
-      <div><label>CPF ou CNPJ *</label><input id="prDoc" placeholder="111.444.777-35"></div>
-      <div><label>Telefone *</label><input id="prTel" placeholder="(31) 98765-4321"></div>
-      <div><label>Raio de atendimento (km) *</label><input id="prRaio" type="number" min="1" value="15"></div>
-      <div><label>Latitude *</label><input id="prLat" placeholder="-19.9167"></div>
-      <div><label>Longitude *</label><input id="prLng" placeholder="-43.9345"></div>
-      <div><label>Cidades atendidas</label><input id="prCidades" placeholder="Contagem, Betim"></div>
-      <div><label>Bairros atendidos</label><input id="prBairros" placeholder="Savassi, Funcionários"></div>
-    </div>
-    <div style="margin:12px 0 6px"><label>Categorias *</label>
-      <div class="chips" id="prCats">${CAT.map(c => `<span class="chip" data-id="${esc(c.id)}" onclick="this.classList.toggle('on')">${esc(c.nome)}</span>`).join('')}</div>
-    </div>
-    <p class="hint">Use o botão abaixo para pegar a coordenada do navegador, ou clique no mapa da aba <b>Mapa e busca</b>.</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn" onclick="meuGps('prLat','prLng')">📍 Usar minha localização</button>
-      <button class="btn btn-p" onclick="criarPrestador()">Cadastrar</button>
-    </div>
-    <p class="hint">Todo prestador nasce <code>PENDING</code>: quem cadastra não se aprova. Só <code>ACTIVE</code> entra no matching.</p>
-  </div>
-  <div class="card"><h2>Cadastrados (${prestadores.length})</h2>
-    ${prestadores.length ? `<div class="scroll"><table><thead><tr><th>Prestador</th><th>Base</th><th>Status</th><th></th></tr></thead><tbody>${linhas}</tbody></table></div>`
-      : '<p class="hint">Nenhum prestador ainda.</p>'}
+function telaCategoria() {
+  casca(topo('Passo 1 de 4', 'home') + `<div class="tela">
+    <div id="aviso" class="aviso"></div>
+    <div class="passos"><div class="passo on"></div><div class="passo"></div><div class="passo"></div><div class="passo"></div></div>
+    <h2>Do que você precisa?</h2>
+    <p class="dim" style="margin:6px 0 16px">Escolha a área do serviço.</p>
+    <div class="cats">${S.cats.map(c => `<div class="cat ${S.rascunho.categoria === c.id ? 'on' : ''}" onclick="escolherCat('${esc(c.id)}')">
+      <span class="ic">${c.icone || '🔧'}</span><b>${esc(c.nome)}</b>
+      <span class="dim3" style="display:block;margin-top:4px;font-size:11.5px">${esc((c.exemplos || [])[0] || '')}</span></div>`).join('')}</div>
   </div>`);
 }
 
-async function criarPrestador() {
-  const cats = [...document.querySelectorAll('#prCats .chip.on')].map(c => c.dataset.id);
-  const lista = (v) => v.split(',').map(x => x.trim()).filter(Boolean);
-  try {
-    const r = await api('prestadores', {
-      nome: $('prNome').value.trim(), documento: $('prDoc').value.trim(), telefone: $('prTel').value.trim(),
-      raioKm: Number($('prRaio').value), lat: Number($('prLat').value), lng: Number($('prLng').value),
-      categorias: cats, cidades: lista($('prCidades').value), bairros: lista($('prBairros').value),
-    });
-    aviso(r.avisos?.length ? 'Cadastrado. Pendências: ' + r.avisos.join(' · ') : 'Prestador cadastrado como PENDING.', r.avisos?.length ? 'err' : 'ok');
-    render();
-  } catch (e) { aviso(e.message, 'err'); }
-}
-
-async function mudarStatus(id, status) {
-  let motivo = '';
-  if (status === 'SUSPENDED' || status === 'BLOCKED') {
-    motivo = prompt('Motivo (obrigatório — o prestador tem direito de saber):') || '';
-    if (!motivo.trim()) return aviso('Motivo é obrigatório para suspender ou bloquear.', 'err');
-  }
-  try { await api('prestadores/status', { id, status, motivo }); aviso('Status alterado para ' + status + '.', 'ok'); render(); }
-  catch (e) { aviso(e.message, 'err'); }
-}
-
-/* ── clientes ─────────────────────────────────────────────────────────── */
-async function telaClientes() {
-  const { clientes } = await api('clientes');
-  casca(`
-  <div class="card"><h2>Novo cliente</h2>
-    <div class="grid">
-      <div><label>Nome *</label><input id="clNome" placeholder="Maria Souza"></div>
-      <div><label>Telefone *</label><input id="clTel" placeholder="(31) 99999-0000"></div>
-      <div><label>E-mail</label><input id="clMail" placeholder="opcional"></div>
-    </div>
-    <h2 style="margin-top:16px">Endereço</h2>
-    <div class="grid">
-      <div><label>Logradouro *</label><input id="clRua" placeholder="Rua da Bahia"></div>
-      <div><label>Número</label><input id="clNum" placeholder="1200"></div>
-      <div><label>Bairro</label><input id="clBairro" placeholder="Centro"></div>
-      <div><label>Cidade *</label><input id="clCidade" value="Belo Horizonte"></div>
-      <div><label>Latitude *</label><input id="clLat" placeholder="-19.9245"></div>
-      <div><label>Longitude *</label><input id="clLng" placeholder="-43.9352"></div>
-    </div>
-    <div style="margin:12px 0"><label style="text-transform:none;display:flex;gap:8px;align-items:center;color:var(--fg)">
-      <input type="checkbox" id="clTermos" style="width:auto"> Li e aceito os termos de uso</label></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn" onclick="meuGps('clLat','clLng')">📍 Usar minha localização</button>
-      <button class="btn btn-p" onclick="criarCliente()">Cadastrar</button>
-    </div>
-    <p class="hint">Coleta mínima (§3). Documento não é pedido aqui: só vira necessário no pagamento, e lá quem guarda é o provedor.</p>
-  </div>
-  <div class="card"><h2>Cadastrados (${clientes.length})</h2>
-    ${clientes.length ? clientes.map(c => `<div class="row"><div><b>${esc(c.nome)}</b>
-      <small>${esc(c.telefone)} · ${c.enderecos.length} endereço(s)</small></div>
-      <span class="tag t-ok">aceite ${esc((c.aceiteEm || '').slice(0, 10))}</span></div>`).join('')
-      : '<p class="hint">Nenhum cliente ainda.</p>'}
-  </div>`);
-}
-
-async function criarCliente() {
-  try {
-    const r = await api('clientes', {
-      nome: $('clNome').value.trim(), telefone: $('clTel').value.trim(), email: $('clMail').value.trim(),
-      aceitouTermos: $('clTermos').checked,
-      enderecos: [{ logradouro: $('clRua').value.trim(), numero: $('clNum').value.trim(),
-        bairro: $('clBairro').value.trim(), cidade: $('clCidade').value.trim(),
-        lat: Number($('clLat').value), lng: Number($('clLng').value) }],
-    });
-    aviso(r.avisos?.length ? 'Cadastrado. ' + r.avisos.join(' · ') : 'Cliente cadastrado.', 'ok');
-    render();
-  } catch (e) { aviso(e.message, 'err'); }
-}
-
-/* ── mapa e busca ─────────────────────────────────────────────────────── */
-async function telaMapa() {
-  if (!CAT.length) CAT = (await api('categorias')).categorias;
-  casca(`
-  <div class="card"><h2>Onde é o serviço?</h2>
-    <p class="hint">Clique no mapa para marcar o endereço, ou use sua localização. O círculo mostra o alcance de cada prestador elegível.</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-      <button class="btn" onclick="meuGpsMapa()">📍 Minha localização</button>
-      <select id="bsCat" style="max-width:240px"><option value="">Todas as categorias</option>
-        ${CAT.map(c => `<option value="${esc(c.id)}">${esc(c.nome)}</option>`).join('')}</select>
-      <button class="btn btn-p" onclick="buscar()">Buscar prestadores</button>
-    </div>
+function telaLocal() {
+  casca(topo('Passo 2 de 4', 'categoria') + `<div class="tela">
+    <div id="aviso" class="aviso"></div>
+    <div class="passos"><div class="passo on"></div><div class="passo on"></div><div class="passo"></div><div class="passo"></div></div>
+    <h2>Onde é o serviço?</h2>
+    <p class="dim" style="margin:6px 0 12px">Toque no mapa ou use sua localização.</p>
+    <button class="btn" onclick="usarGps()">📍 Usar minha localização</button>
     <div id="map"></div>
-    <div id="coord" class="hint">Nenhum ponto marcado ainda.</div>
-  </div>
-  <div id="resultado"></div>`);
+    <div class="campo"><label>Endereço</label><input id="fRua" placeholder="Rua da Bahia, 1200" value="${esc(S.rascunho.endereco || '')}"></div>
+    <div class="dupla">
+      <div class="campo"><label>Bairro</label><input id="fBairro" placeholder="Centro" value="${esc(S.rascunho.bairro || '')}"></div>
+      <div class="campo"><label>Cidade</label><input id="fCidade" value="${esc(S.rascunho.cidade || 'Belo Horizonte')}"></div>
+    </div>
+    <button class="btn btn-p" onclick="salvarLocal()">Continuar</button>
+  </div>`);
   montarMapa();
 }
 
 function montarMapa() {
-  MAPA = L.map('map').setView([-19.9167, -43.9345], 12);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19, attribution: '&copy; OpenStreetMap',
-  }).addTo(MAPA);
-  MAPA.on('click', (e) => marcar(e.latlng.lat, e.latlng.lng));
-  if (PONTO) marcar(PONTO.lat, PONTO.lng);
+  const p = S.rascunho.lat ? [S.rascunho.lat, S.rascunho.lng] : [-19.9245, -43.9352];
+  S.mapa = L.map('map').setView(p, S.rascunho.lat ? 16 : 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(S.mapa);
+  S.mapa.on('click', e => marcar(e.latlng.lat, e.latlng.lng));
+  if (S.rascunho.lat) marcar(S.rascunho.lat, S.rascunho.lng);
 }
-
 function marcar(lat, lng) {
-  PONTO = { lat, lng };
-  if (MARCA) MAPA.removeLayer(MARCA);
-  MARCA = L.marker([lat, lng]).addTo(MAPA).bindPopup('Local do serviço');
-  $('coord').innerHTML = `Ponto marcado: <code>${lat.toFixed(5)}, ${lng.toFixed(5)}</code>`;
+  S.rascunho.lat = lat; S.rascunho.lng = lng;
+  if (S.marca) S.mapa.removeLayer(S.marca);
+  S.marca = L.marker([lat, lng]).addTo(S.mapa);
 }
-
-/** GPS do navegador. Exige HTTPS ou localhost — e o erro precisa dizer isso. */
-function gps(ok, falha) {
-  if (!navigator.geolocation) return falha('este navegador não expõe geolocalização');
+function usarGps() {
+  if (!navigator.geolocation) return fala('Este navegador não tem GPS disponível.', 'er');
+  fala('Buscando sua localização…', 'ok');
   navigator.geolocation.getCurrentPosition(
-    (p) => ok(p.coords.latitude, p.coords.longitude, p.coords.accuracy),
-    (e) => falha(e.code === 1 ? 'permissão de localização negada'
-      : e.code === 2 ? 'não foi possível obter a posição (sem sinal de GPS/rede)'
-      : 'a localização demorou demais para responder'),
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+    p => { S.mapa.setView([p.coords.latitude, p.coords.longitude], 16); marcar(p.coords.latitude, p.coords.longitude); fala('Prontinho, achamos você.', 'ok'); },
+    e => fala(e.code === 1 ? 'Você negou a permissão de localização. Toque no mapa para marcar.' : 'Não consegui pegar o GPS. Toque no mapa para marcar.', 'er'),
+    { enableHighAccuracy: true, timeout: 10000 });
+}
+function salvarLocal() {
+  if (!S.rascunho.lat) return fala('Toque no mapa para marcar onde é o serviço.', 'er');
+  S.rascunho.endereco = $('fRua').value.trim();
+  S.rascunho.bairro = $('fBairro').value.trim();
+  S.rascunho.cidade = $('fCidade').value.trim();
+  if (!S.rascunho.cidade) return fala('Informe a cidade.', 'er');
+  ir('descricao');
 }
 
-function meuGps(idLat, idLng) {
-  aviso('Pedindo sua localização…', 'ok');
-  gps((lat, lng, acc) => {
-    $(idLat).value = lat.toFixed(6);
-    $(idLng).value = lng.toFixed(6);
-    aviso(`Localização obtida (precisão de ~${Math.round(acc)} m).`, 'ok');
-  }, (m) => aviso(m, 'err'));
+function telaDescricao() {
+  const cat = S.cats.find(c => c.id === S.rascunho.categoria);
+  casca(topo('Passo 3 de 4', 'local') + `<div class="tela">
+    <div id="aviso" class="aviso"></div>
+    <div class="passos"><div class="passo on"></div><div class="passo on"></div><div class="passo on"></div><div class="passo"></div></div>
+    <h2>Conte o que está acontecendo</h2>
+    <p class="dim" style="margin:6px 0 14px">Quanto mais detalhe, melhor o orçamento.</p>
+    <div class="campo"><textarea id="fDesc" placeholder="Ex.: ${esc((cat?.exemplos || ['A tomada do quarto parou de funcionar'])[0])}…">${esc(S.rascunho.descricao || '')}</textarea></div>
+    <div class="campo"><label>Fotos (opcional, ajuda muito)</label>
+      <button class="btn" onclick="fotoFake()">📷 Adicionar foto</button>
+      <div id="fotos" class="dim3" style="margin-top:8px">${(S.rascunho.fotos || []).length} foto(s) anexada(s)</div></div>
+    <div class="campo"><label>Quando você precisa?</label>
+      <select id="fUrg">
+        <option value="hoje">Hoje</option>
+        <option value="esta_semana" selected>Esta semana</option>
+        <option value="sem_pressa">Sem pressa</option>
+      </select></div>
+    <button class="btn btn-p" onclick="criarPedido()">Pedir orçamento</button>
+    <p class="dim3" style="text-align:center;margin-top:10px">É grátis. Você só paga se contratar.</p>
+  </div>`);
+}
+function fotoFake() {
+  S.rascunho.fotos = [...(S.rascunho.fotos || []), 'foto-' + Date.now()];
+  $('fotos').textContent = S.rascunho.fotos.length + ' foto(s) anexada(s)';
 }
 
-function meuGpsMapa() {
-  aviso('Pedindo sua localização…', 'ok');
-  gps((lat, lng) => { MAPA.setView([lat, lng], 15); marcar(lat, lng); aviso('Localização obtida.', 'ok'); },
-      (m) => aviso(m, 'err'));
-}
-
-async function buscar() {
-  if (!PONTO) return aviso('Marque um ponto no mapa primeiro.', 'err');
+async function criarPedido() {
+  S.rascunho.descricao = $('fDesc').value.trim();
+  S.rascunho.urgencia = $('fUrg').value;
   try {
-    const r = await api('buscar', { lat: PONTO.lat, lng: PONTO.lng, categoria: $('bsCat').value || undefined });
-    if (RAIO) { RAIO.forEach(c => MAPA.removeLayer(c)); }
-    RAIO = [];
-    for (const p of r.elegiveis) {
-      RAIO.push(L.circle([p.base.lat, p.base.lng], { radius: p.raioKm * 1000, color: '#6366f1', weight: 1, fillOpacity: .06 }).addTo(MAPA));
-      RAIO.push(L.marker([p.base.lat, p.base.lng])
-        .addTo(MAPA).bindPopup(`<b>${esc(p.nome)}</b><br>${p.distanciaKm} km · raio ${p.raioKm} km<br>${esc(p.motivo)}`));
-    }
-    $('resultado').innerHTML = `
-    <div class="card"><h2>Elegíveis (${r.totalElegiveis})</h2>
-      <p class="hint">Só prestadores <code>ACTIVE</code> entram. ${r.inativosIgnorados} fora do matching por status.</p>
-      ${r.elegiveis.length ? r.elegiveis.map(p => `<div class="row"><div><b>${esc(p.nome)}</b>
-        <small>${esc(p.motivo)} · ${esc(p.categorias.join(', '))}</small></div>
-        <span class="tag t-ok">${p.distanciaKm ?? '—'} km</span></div>`).join('')
-        : '<p class="hint">Ninguém atende este ponto.</p>'}
+    const r = await api('pedidos', { ...S.rascunho, clienteNome: 'Você' });
+    S.pedido = r.pedido;
+    S.ultimoPedido = r.pedido.id;
+    sessionStorage.setItem('qg_pedido', r.pedido.id);
+    ir('procurando');
+    setTimeout(() => verPropostas(r.pedido.id), 1600);
+  } catch (e) { fala(e.message, 'er'); }
+}
+
+function telaProcurando() {
+  const n = (S.pedido?.convidados || []).length;
+  casca(topo('Quase lá') + `<div class="tela">
+    <div class="vazio" style="padding-top:60px">
+      <span class="ic">🔎</span>
+      <h2>Procurando profissionais…</h2>
+      <p class="dim" style="margin-top:8px">Avisamos ${n} profissional(is) da sua região.</p>
+    </div></div>`);
+}
+
+async function verPropostas(pedidoId) {
+  try {
+    const r = await api('propostas-do-pedido?pedido=' + encodeURIComponent(pedidoId));
+    S.pedido = r.pedido; S.cards = r.cards;
+    ir('propostas');
+  } catch (e) { fala(e.message, 'er'); ir('home'); }
+}
+
+function telaPropostas() {
+  const cards = S.cards.map(c => `<div class="cartao">
+    <div class="prop">
+      <div class="ava">${esc(iniciais(c.nome))}</div>
+      <div style="flex:1;min-width:0">
+        <h3>${esc(c.nome)}</h3>
+        <div style="margin:3px 0 6px">${estrelas(c.nota)} <span class="dim3">· ${c.servicos} serviços</span></div>
+        <div class="dim3">${c.distanciaKm ?? '—'} km · ${esc(c.disponibilidade || 'a combinar')} · ${c.prazoDias} dia(s)</div>
+      </div>
+      <div style="text-align:right"><div class="preco">${brl(c.valorCentavos)}</div>
+        ${c.novo ? '<span class="tag t-lj">novo por aqui</span>' : ''}</div>
     </div>
-    ${r.descartados.length ? `<div class="card"><h2>Descartados (${r.descartados.length})</h2>
-      <p class="hint">Aparecem aqui porque matching sem explicação não dá para auditar.</p>
-      ${r.descartados.map(d => `<div class="row"><div><b>${esc(d.nome)}</b><small>${esc(d.motivo)}</small></div></div>`).join('')}</div>` : ''}`;
-  } catch (e) { aviso(e.message, 'err'); }
-}
+    <p class="dim" style="margin:10px 0 4px">${esc(c.escopo)}</p>
+    <p class="dim3">${c.materiaisInclusos ? '✓ Material incluído' : '✗ Material por conta do cliente'}${c.naoIncluso ? ' · ' + esc(c.naoIncluso) : ''}</p>
+    <div class="btns" style="margin-top:12px">
+      <button class="btn btn-p btn-peq" onclick="escolher('${esc(c.id)}')">Escolher</button>
+    </div>
+  </div>`).join('');
 
-/* ── indicação ────────────────────────────────────────────────────────── */
-async function telaIndicacao() {
-  const p = await api('indicacao');
-  casca(`
-  <div class="kpis">
-    <div class="kpi"><span>Indicações</span><b>${p.total}</b><em>registradas</em></div>
-    <div class="kpi"><span>Convertidas</span><b>${p.convertidas}</b><em>viraram cadastro ou pedido</em></div>
-    <div class="kpi"><span>Indicadores</span><b>${p.linhas.length}</b><em>com ao menos uma</em></div>
-  </div>
-  <div class="card"><h2>Recompensa</h2>
-    <div class="row"><div><b>Valor por indicação</b><small>${esc(p.recompensa.motivo)}</small></div>
-      <span class="tag t-warn">pendente de regra</span></div>
-    <p class="hint">O §32 é explícito: não definir recompensa financeira antes da regra comercial e jurídica. Inventar um valor aqui viraria promessa que alguém teria de honrar.</p>
-  </div>
-  <div class="card"><h2>Por indicador</h2>
-    ${p.linhas.length ? p.linhas.map(l => `<div class="row"><div><b>${esc(l.codigo || l.indicadorId)}</b>
-      <small>${l.indicados} indicado(s)</small></div>
-      <span class="tag ${l.convertidas ? 't-ok' : ''}">${l.convertidas} convertida(s)</span></div>`).join('')
-      : '<p class="hint">Nenhuma indicação registrada ainda.</p>'}
+  casca(topo('Passo 4 de 4', 'home') + `<div class="tela">
+    <div id="aviso" class="aviso"></div>
+    <div class="passos"><div class="passo on"></div><div class="passo on"></div><div class="passo on"></div><div class="passo on"></div></div>
+    <h2>${S.cards.length} proposta(s) para você</h2>
+    <p class="dim" style="margin:6px 0 16px">Compare preço, avaliação e o que está incluído.</p>
+    ${S.cards.length ? cards : `<div class="vazio"><span class="ic">⏳</span>
+      <b>Ainda nenhuma proposta</b><p class="dim" style="margin-top:6px">Os profissionais foram avisados. Volte em alguns minutos.</p></div>`}
   </div>`);
 }
 
-/* ── auditoria ────────────────────────────────────────────────────────── */
-async function telaAuditoria() {
-  let r;
-  try { r = await api('auditoria'); }
-  catch (e) { return casca(`<div class="card"><h2>Auditoria</h2><p class="hint">${esc(e.message)}</p></div>`); }
-  const i = r.integridade;
-  casca(`
-  <div class="card"><h2>Integridade da trilha</h2>
-    <div class="row"><div><b>${i.ok ? 'Corrente íntegra' : 'CORRENTE QUEBRADA'}</b>
-      <small>${i.ok ? i.registros + ' registro(s) encadeados por hash' : esc(i.motivo)}</small></div>
-      <span class="tag ${i.ok ? 't-ok' : 't-err'}">${i.ok ? 'ok' : 'seq ' + i.seq}</span></div>
-    <p class="hint">Cada registro carrega o hash do anterior. Apagar ou alterar qualquer linha do meio quebra a corrente e aponta onde. Isso não impede a edição — impede que ela passe despercebida.</p>
-  </div>
-  <div class="card"><h2>Últimos eventos</h2>
-    <div class="scroll"><table><thead><tr><th>#</th><th>Quando</th><th>Ator</th><th>Ação</th><th>Entidade</th></tr></thead>
-    <tbody>${r.registros.map(x => `<tr><td>${x.seq}</td><td>${esc(x.em.slice(0, 19).replace('T', ' '))}</td>
-      <td>${esc(x.ator)}</td><td><code>${esc(x.acao)}</code></td>
-      <td>${esc(x.entidade || '—')}<br><small style="color:var(--dim)">${esc(x.entidadeId || '')}</small></td></tr>`).join('')}</tbody></table></div>
-  </div>`);
-}
-
-/* ── início ───────────────────────────────────────────────────────────── */
-async function iniciar() {
+async function escolher(propostaId) {
   try {
-    EU = (await api('eu')).usuario;
-    CAT = (await api('categorias')).categorias;
-    await render();
-  } catch { telaLogin(); }
+    const a = await api(`aviso-escolha?pedido=${encodeURIComponent(S.pedido.id)}&proposta=${encodeURIComponent(propostaId)}`);
+    S.escolha = propostaId;
+    if (a.aviso) { S.aviso = a.aviso; return ir('aviso'); }
+    await confirmarEscolha(propostaId);
+  } catch (e) { fala(e.message, 'er'); }
 }
 
-if (TOKEN) iniciar(); else telaLogin();
+/* Proteção do cliente: informa, não impede. */
+function telaAviso() {
+  const a = S.aviso;
+  casca(topo('Antes de continuar', 'propostas') + `<div class="tela">
+    <div id="aviso" class="aviso"></div>
+    <div class="cartao" style="border-color:var(--amarelo);background:#FFFCF5">
+      <h2>Antes de continuar…</h2>
+      <p style="margin:10px 0">O profissional escolhido tem avaliação <b>abaixo da média</b> desta categoria
+        (${a.escolhido.nota} com ${a.escolhido.servicos} serviços).</p>
+      <p style="margin:10px 0">${esc(a.texto)}</p>
+      <p class="dim3">A escolha continua sendo sua. O profissional segue habilitado na plataforma.</p>
+    </div>
+    <button class="btn btn-p" onclick="confirmarEscolha('${esc(S.escolha)}')">Continuar com minha escolha</button>
+    <button class="btn" style="margin-top:9px" onclick="confirmarEscolha('${esc(a.alternativa.id)}')">Ver recomendação: ${esc(a.alternativa.nome)}</button>
+  </div>`);
+}
+
+async function confirmarEscolha(propostaId) {
+  try {
+    const r = await api('escolher', { propostaId });
+    S.escolha = propostaId;
+    S.aceite = r;
+    ir('aceite');
+    rodarContador(propostaId);
+  } catch (e) { fala(e.message, 'er'); }
+}
+
+/* Contador de 5 minutos */
+function telaAceite() {
+  const c = S.cards.find(x => x.id === S.escolha);
+  casca(topo('Aguardando confirmação') + `<div class="tela">
+    <div id="aviso" class="aviso"></div>
+    <div class="cartao" style="text-align:center">
+      <div class="ava" style="margin:0 auto 10px">${esc(iniciais(c?.nome))}</div>
+      <h2>${esc(c?.nome || 'Profissional')}</h2>
+      <p class="dim" style="margin:6px 0 16px">Estamos confirmando com o profissional.</p>
+      <div class="contador" id="cont">05:00</div>
+      <p class="dim3" style="margin-top:8px">Ele tem 5 minutos para confirmar.</p>
+    </div>
+    <div class="cartao" style="background:var(--laranja-claro);border-color:transparent">
+      <p class="dim" style="color:var(--tinta)">Se não confirmar a tempo, <b>você não recomeça</b> — já mostramos a próxima melhor opção.</p>
+    </div>
+    <button class="btn" onclick="simularAceite()">Simular confirmação do profissional</button>
+  </div>`);
+}
+
+function rodarContador(propostaId) {
+  clearInterval(S.timer);
+  S.timer = setInterval(async () => {
+    try {
+      const r = await api('aceite?proposta=' + encodeURIComponent(propostaId));
+      const el = $('cont'); if (!el) return clearInterval(S.timer);
+      if (r.expirou) {
+        clearInterval(S.timer);
+        S.proxima = r.proxima;
+        return ir('expirou');
+      }
+      const s = r.segundosRestantes ?? 0;
+      el.textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+      el.className = 'contador' + (s <= 60 ? ' urgente' : '');
+    } catch { clearInterval(S.timer); }
+  }, 1000);
+}
+
+function telaExpirou() {
+  const p = S.proxima;
+  casca(topo('Não deu certo dessa vez') + `<div class="tela">
+    <div id="aviso" class="aviso"></div>
+    <div class="cartao">
+      <h2>O profissional não confirmou a tempo.</h2>
+      <p class="dim" style="margin:8px 0 0">Encontramos outra opção para você — sem precisar refazer nada.</p>
+    </div>
+    ${p ? `<div class="cartao sel">
+      <div class="prop"><div class="ava">${esc(iniciais(p.nome))}</div>
+        <div style="flex:1"><h3>${esc(p.nome)}</h3>
+          <div style="margin:3px 0">${estrelas(p.nota)} <span class="dim3">· ${p.servicos} serviços</span></div>
+          <div class="dim3">${p.distanciaKm ?? '—'} km · ${p.prazoDias} dia(s)</div></div>
+        <div class="preco">${brl(p.valorCentavos)}</div></div>
+      <button class="btn btn-p" style="margin-top:12px" onclick="confirmarEscolha('${esc(p.id)}')">Contratar próximo</button>
+    </div>` : `<div class="vazio"><span class="ic">😕</span><b>Sem outra proposta agora</b>
+      <button class="btn" style="margin-top:14px" onclick="verPropostas('${esc(S.pedido?.id || '')}')">Ver propostas</button></div>`}
+  </div>`);
+}
+
+async function simularAceite() {
+  try {
+    await api('aceitar', { propostaId: S.escolha });
+    clearInterval(S.timer);
+    const r = await api('escopo', { propostaId: S.escolha });
+    S.escopo = r.escopo;
+    ir('escopo');
+  } catch (e) { fala(e.message, 'er'); }
+}
+
+/* Escopo: o que está e o que NÃO está incluído */
+function telaEscopo() {
+  const e = S.escopo;
+  casca(topo('Confira o combinado', 'propostas') + `<div class="tela">
+    <div id="aviso" class="aviso"></div>
+    <h2>O que foi combinado</h2>
+    <p class="dim" style="margin:6px 0 14px">Isso vira o documento da contratação. Depois do aceite não muda sozinho.</p>
+    <div class="cartao">
+      <h3 style="color:var(--verde)">✓ Está incluído</h3>
+      <p style="margin:6px 0 14px">${esc(e.incluido)}</p>
+      ${e.naoIncluido ? `<h3 style="color:var(--vermelho)">✗ Não está incluído</h3>
+        <p style="margin:6px 0 14px">${esc(e.naoIncluido)}</p>` : ''}
+      <h3>Materiais</h3>
+      <p style="margin:6px 0 14px">${e.materiaisInclusos ? 'Incluídos no valor' : 'Por conta do cliente'}${e.materiais ? ' · ' + esc(e.materiais) : ''}</p>
+      <div class="item"><span class="dim">Prazo</span><b>${e.prazoDias} dia(s)</b></div>
+      <div class="item"><span class="dim">Endereço</span><b>${esc(e.endereco || S.rascunho.endereco || '—')}</b></div>
+      <div class="item"><span class="dim">Valor</span><span class="preco">${brl(e.valorCentavos)}</span></div>
+    </div>
+    <p class="dim3" style="margin-bottom:12px">Versão ${e.versao} · registro <code>${esc(e.hash.slice(0, 12))}</code></p>
+    <button class="btn btn-p" onclick="aceitarEscopo()">Concordo, ir para o pagamento</button>
+  </div>`);
+}
+
+async function aceitarEscopo() {
+  try {
+    await api('escopo/aceitar', { escopoId: S.escopo.id, quem: 'cliente' });
+    const r = await api('escopo/aceitar', { escopoId: S.escopo.id, quem: 'prestador' });
+    S.escopo = r.escopo;
+    ir('pagamento');
+  } catch (e) { fala(e.message, 'er'); }
+}
+
+function telaPagamento() {
+  casca(topo('Pagamento', 'escopo') + `<div class="tela">
+    <div id="aviso" class="aviso"></div>
+    <h2>Como você quer pagar?</h2>
+    <p class="dim" style="margin:6px 0 16px">O pagamento fica com a plataforma até o serviço ser concluído.</p>
+    <div class="cartao" style="text-align:center">
+      <span class="dim">Total</span>
+      <div class="preco" style="font-size:34px">${brl(S.escopo.valorCentavos)}</div>
+    </div>
+    <button class="btn btn-p" onclick="pagar('PIX')">Pagar com Pix</button>
+    <button class="btn" style="margin-top:9px" onclick="pagar('CARTAO')">Pagar com cartão</button>
+    <p class="dim3" style="text-align:center;margin-top:12px">Não guardamos dados do seu cartão.</p>
+  </div>`);
+}
+
+async function pagar(metodo) {
+  try {
+    const r = await api('pagar', { escopoId: S.escopo.id, metodo });
+    S.ultimaOS = r.ordem.id;
+    sessionStorage.setItem('qg_os', r.ordem.id);
+    sessionStorage.removeItem('qg_pedido'); S.ultimoPedido = null;
+    abrirOS(r.ordem.id);
+  } catch (e) { fala(e.message, 'er'); }
+}
+
+/* Ordem de serviço com timeline */
+async function abrirOS(id) {
+  try { S.os = await api('os?id=' + encodeURIComponent(id)); ir('os'); }
+  catch (e) { fala(e.message, 'er'); ir('home'); }
+}
+
+function telaOS() {
+  const { ordem, timeline, escopo, pagamento, avaliacao, disputa } = S.os;
+  const passos = timeline.passos.map(p => `<div class="pt ${p.feito ? 'feito' : ''} ${p.atual ? 'agora' : ''}">
+    <b>${esc(p.rotulo)}</b>${p.em ? `<div class="dim3">${new Date(p.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</div>` : ''}</div>`).join('');
+
+  const acoes = [];
+  if (ordem.status === 'PAID') acoes.push(['SCHEDULED', 'Agendar', 'btn']);
+  if (ordem.status === 'SCHEDULED') acoes.push(['PROVIDER_ON_THE_WAY', 'Profissional a caminho', 'btn']);
+  if (ordem.status === 'PROVIDER_ON_THE_WAY') acoes.push(['IN_PROGRESS', 'Começou o serviço', 'btn']);
+  if (ordem.status === 'IN_PROGRESS') acoes.push(['AWAITING_CUSTOMER_ACCEPTANCE', 'Profissional finalizou', 'btn']);
+
+  casca(topo('Seu serviço', 'home') + `<div class="tela">
+    <div id="aviso" class="aviso"></div>
+    <div class="cartao">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <h2>${esc(timeline.atual.rotulo)}</h2>
+        <span class="tag ${ordem.status === 'COMPLETED' ? 't-ok' : ordem.status === 'DISPUTED' ? 't-er' : 't-lj'}">${esc(ordem.id)}</span>
+      </div>
+      ${timeline.desvio ? `<p class="tag t-er" style="margin-top:10px">${esc(timeline.desvio.rotulo)}</p>` : ''}
+      <div class="linha-t" style="margin-top:16px">${passos}</div>
+    </div>
+    <div class="cartao">
+      <h3>O combinado</h3>
+      <p class="dim" style="margin:8px 0">${esc(escopo?.incluido || '')}</p>
+      <div class="item"><span class="dim">Valor</span><b>${brl(ordem.valorCentavos)}</b></div>
+      ${pagamento ? `<div class="item"><span class="dim">Pagamento</span><b>${pagamento.metodo === 'PIX' ? 'Pix' : 'Cartão'} · ${esc(pagamento.estado)}</b></div>` : ''}
+    </div>
+    ${acoes.length ? `<div class="cartao"><h3>Acompanhamento</h3>
+      <p class="dim3" style="margin:6px 0 10px">Demonstração: avance o serviço para ver o fluxo.</p>
+      ${acoes.map(([s, t]) => `<button class="btn" style="margin-top:8px" onclick="moverOS('${s}')">${t}</button>`).join('')}</div>` : ''}
+    ${ordem.status === 'AWAITING_CUSTOMER_ACCEPTANCE' ? `<div class="cartao" style="border-color:var(--laranja)">
+      <h3>Seu Quebra-Galho informou que terminou.</h3>
+      <p class="dim" style="margin:8px 0 14px">Confira se ficou tudo como combinado.</p>
+      <button class="btn btn-g" onclick="moverOS('COMPLETED')">Está tudo certo</button>
+      <button class="btn" style="margin-top:9px" onclick="ir('contestar')">Tenho um problema</button></div>` : ''}
+    ${ordem.status === 'COMPLETED' && !avaliacao ? `<div class="cartao" style="border-color:var(--verde)">
+      <h3>Como foi seu Quebra-Galho?</h3>
+      <div id="stars" style="font-size:36px;text-align:center;margin:12px 0;cursor:pointer;color:var(--amarelo)">
+        ${[1,2,3,4,5].map(i => `<span onclick="setNota(${i})" data-i="${i}">☆</span>`).join('')}</div>
+      <div class="campo"><textarea id="fComent" placeholder="Conte como foi (opcional)"></textarea></div>
+      <button class="btn btn-p" onclick="enviarAvaliacao()">Enviar avaliação</button></div>` : ''}
+    ${avaliacao ? `<div class="cartao"><h3>Sua avaliação</h3>
+      <div style="margin:8px 0">${estrelas(avaliacao.estrelas)}</div>
+      ${avaliacao.comentario ? `<p class="dim">${esc(avaliacao.comentario)}</p>` : ''}
+      <button class="btn" style="margin-top:12px" onclick="ir('categoria')">Contratar novamente</button></div>` : ''}
+    ${disputa ? `<div class="cartao" style="border-color:var(--vermelho)">
+      <h3>Contestação aberta</h3>
+      <p class="dim" style="margin:8px 0">${esc(disputa.rotuloMotivo)}</p>
+      <p class="dim3">Vamos analisar o que foi contratado e o que foi entregue.</p></div>` : ''}
+  </div>`);
+}
+
+let NOTA = 0;
+function setNota(n) {
+  NOTA = n;
+  [...document.querySelectorAll('#stars span')].forEach(s => { s.textContent = Number(s.dataset.i) <= n ? '★' : '☆'; });
+}
+async function moverOS(status) {
+  try { await api('os/mover', { ordemId: S.os.ordem.id, status }); abrirOS(S.os.ordem.id); }
+  catch (e) { fala(e.message, 'er'); }
+}
+async function enviarAvaliacao() {
+  if (!NOTA) return fala('Toque nas estrelas para dar sua nota.', 'er');
+  try { await api('avaliar', { ordemId: S.os.ordem.id, estrelas: NOTA, comentario: $('fComent').value.trim() }); abrirOS(S.os.ordem.id); }
+  catch (e) { fala(e.message, 'er'); }
+}
+
+function telaContestar() {
+  casca(topo('Tenho um problema', 'os') + `<div class="tela">
+    <div id="aviso" class="aviso"></div>
+    <h2>O que aconteceu?</h2>
+    <p class="dim" style="margin:6px 0 14px">Vamos analisar o que foi contratado e o que foi entregue. Ninguém é acusado automaticamente.</p>
+    <div class="campo"><label>Motivo</label><select id="fMotivo">
+      <option value="servico_incompleto">O serviço ficou incompleto</option>
+      <option value="fora_do_escopo">Fizeram diferente do combinado</option>
+      <option value="qualidade_ruim">A qualidade não ficou boa</option>
+      <option value="nao_compareceu">O profissional não apareceu</option>
+      <option value="dano">Houve dano a algo meu</option>
+      <option value="cobranca_indevida">Cobrança que não combinamos</option>
+      <option value="outro">Outro motivo</option></select></div>
+    <div class="campo"><label>Conte com detalhe</label><textarea id="fDescP" placeholder="O que foi combinado e o que aconteceu de diferente"></textarea></div>
+    <div class="campo"><label>Evidências</label><button class="btn" onclick="fala('Foto anexada (demonstração).','ok')">📷 Anexar foto ou vídeo</button></div>
+    <button class="btn btn-p" onclick="enviarContestacao()">Abrir contestação</button>
+  </div>`);
+}
+async function enviarContestacao() {
+  try {
+    await api('contestar', { ordemId: S.os.ordem.id, motivo: $('fMotivo').value, descricao: $('fDescP').value.trim() });
+    abrirOS(S.os.ordem.id);
+  } catch (e) { fala(e.message, 'er'); }
+}
+
+/* ═══ PRESTADOR ═══ */
+function telaLogin(admin) {
+  casca(topo(admin ? 'Administração' : 'Área do profissional', 'home') + `<div class="tela">
+    <div id="aviso" class="aviso"></div>
+    ${admin ? '' : `<div class="cartao" style="background:var(--laranja-claro);border-color:transparent">
+      <b>Trabalho de verdade. Sem pagar por lead.</b>
+      <p class="dim" style="margin-top:4px;color:var(--tinta)">Você trabalha. Você recebe. Cadastro grátis.</p></div>`}
+    <div class="cartao">
+      <h2>Entrar</h2>
+      <div class="campo" style="margin-top:12px"><label>E-mail</label><input id="lgMail" type="email" autocomplete="username"></div>
+      <div class="campo"><label>Senha</label><input id="lgSenha" type="password" autocomplete="current-password"></div>
+      <button class="btn btn-p" onclick="entrar(${admin ? 'true' : 'false'})">Entrar</button>
+      <p class="dim3" style="margin-top:10px">A senha do primeiro acesso aparece no terminal do servidor.</p>
+    </div>
+    ${admin ? '' : `<div class="cartao"><h3>Ainda não tem conta?</h3>
+      <p class="dim" style="margin:6px 0 12px">Entre grátis e encontre novos clientes.</p>
+      <button class="btn" onclick="fala('Cadastro de profissional: próxima etapa.','ok')">Quero me cadastrar</button></div>`}
+  </div>`);
+}
+
+async function entrar(admin) {
+  try {
+    const r = await api('login', { email: $('lgMail').value.trim(), senha: $('lgSenha').value });
+    S.token = r.token; S.eu = r.usuario;
+    sessionStorage.setItem('qg_token', r.token);
+    if (admin || r.usuario.papel === 'admin') { await carregarAdmin(); return ir('admin'); }
+    ir('prestador');
+  } catch (e) { fala(e.message, 'er'); }
+}
+function sair() { S.token = ''; S.eu = null; sessionStorage.removeItem('qg_token'); ir('home'); }
+
+async function telaPrestador() {
+  const est = await api('estado');
+  // O cadastro é amarrado à conta por `usuarioId`. Sem conta ligada (caso do admin
+  // espiando a área), cai no primeiro ativo — e a tela deixa claro de quem é.
+  S.prestador = S.prestador
+    || est.prestadores.find(p => p.usuarioId && S.eu && p.usuarioId === S.eu.id)
+    || est.prestadores.find(p => p.status === 'ACTIVE');
+  const meu = S.prestador;
+  if (!meu) return casca(topo('Área do profissional') + `<div class="tela"><div class="vazio"><span class="ic">🧰</span><b>Nenhum profissional cadastrado</b></div></div>`);
+
+  const [op, ga, os] = await Promise.all([
+    api('oportunidades?prestador=' + meu.id),
+    api('ganhos?prestador=' + meu.id),
+    api('minhas-os?prestador=' + meu.id),
+  ]);
+
+  const abas = [['oportunidades', 'Pedidos'], ['servicos', 'Serviços'], ['ganhos', 'Ganhos'], ['area', 'Minha área']];
+  let corpo = '';
+
+  if (S.aba === 'oportunidades') {
+    corpo = op.oportunidades.length ? op.oportunidades.map(o => `<div class="cartao">
+      <div style="display:flex;justify-content:space-between;gap:10px">
+        <div><span class="tag t-lj">${esc(o.categoria)}</span>
+          <h3 style="margin-top:8px">${esc(o.bairro || o.cidade)}</h3></div>
+        <span class="tag">${o.distanciaKm ?? '—'} km</span></div>
+      <p class="dim" style="margin:10px 0">"${esc(o.descricao)}"</p>
+      <p class="dim3">${o.fotos} foto(s) · ${esc(o.rotuloUrgencia)}</p>
+      ${o.jaPropus ? '<p class="tag t-ok" style="margin-top:10px">Proposta enviada</p>'
+        : `<button class="btn btn-p btn-peq" style="margin-top:12px" onclick="formProposta('${esc(o.id)}')">Enviar proposta</button>`}
+    </div>`).join('') : `<div class="vazio"><span class="ic">📭</span><b>Nenhum pedido novo agora</b>
+      <p class="dim" style="margin-top:6px">Avisamos assim que chegar um na sua área.</p></div>`;
+  }
+  if (S.aba === 'servicos') {
+    corpo = os.ordens.length ? os.ordens.map(o => `<div class="cartao">
+      <div style="display:flex;justify-content:space-between"><h3>${esc(o.id)}</h3>
+        <span class="tag">${esc(o.status)}</span></div>
+      <div class="item"><span class="dim">Valor</span><b>${brl(o.valorCentavos)}</b></div>
+      <button class="btn btn-peq" style="margin-top:10px" onclick="abrirOS('${esc(o.id)}')">Abrir</button>
+    </div>`).join('') : `<div class="vazio"><span class="ic">🧾</span><b>Nenhum serviço ainda</b></div>`;
+  }
+  if (S.aba === 'ganhos') {
+    corpo = `<div class="cartao">
+      <h3>Resumo</h3>
+      <div class="item"><span class="dim">Valor bruto</span><b>${brl(ga.totalBruto)}</b></div>
+      <div class="item"><span class="dim">Taxa da plataforma</span><b style="color:var(--vermelho)">− ${brl(ga.totalTaxa)}</b></div>
+      <div class="item"><span class="dim">Você recebe</span><span class="preco" style="color:var(--verde)">${brl(ga.totalRecebe)}</span></div>
+      <p class="dim3" style="margin-top:10px">Nada aqui é escondido: a taxa aparece em cada serviço.</p>
+    </div>
+    ${ga.linhas.map(l => `<div class="cartao">
+      <div style="display:flex;justify-content:space-between"><b>${esc(l.ordemId)}</b>
+        <span class="tag ${l.liberado ? 't-ok' : 't-al'}">${esc(l.rotulo)}</span></div>
+      <div class="item"><span class="dim">Serviço</span><b>${brl(l.brutoCentavos)}</b></div>
+      <div class="item"><span class="dim">Taxa</span><span style="color:var(--vermelho)">− ${brl(l.taxaCentavos)}</span></div>
+      <div class="item"><span class="dim">Você recebe</span><b style="color:var(--verde)">${brl(l.recebeCentavos)}</b></div>
+    </div>`).join('') || '<div class="vazio"><span class="ic">💰</span><b>Sem ganhos ainda</b></div>'}`;
+  }
+  if (S.aba === 'area') {
+    corpo = `<div class="cartao">
+      <h3>${esc(meu.nome)}</h3>
+      <div style="margin:6px 0 10px">${estrelas(meu.reputacao)} <span class="dim3">· ${meu.servicosConcluidos} serviços</span></div>
+      <div class="item"><span class="dim">Raio de atendimento</span><b>${meu.raioKm} km</b></div>
+      <div class="item"><span class="dim">Cidades</span><b>${esc((meu.cidades || []).join(', ') || '—')}</b></div>
+      <div class="item"><span class="dim">Bairros</span><b>${esc((meu.bairros || []).join(', ') || '—')}</b></div>
+      <div class="item"><span class="dim">Categorias</span><b>${esc((meu.categorias || []).join(', '))}</b></div>
+    </div>
+    <div class="cartao"><h3>Onde você atende</h3><div id="map"></div>
+      <p class="dim3">O plano básico tem área padrão. Mais alcance virá em planos — sem comprar posição no ranking.</p></div>`;
+  }
+
+  casca(topo('Olá, ' + meu.nome.split(' ')[0]) + `
+    <div class="abas">${abas.map(([id, n]) => `<button class="${S.aba === id ? 'on' : ''}" onclick="S.aba='${id}';render()">${n}</button>`).join('')}
+      <button onclick="sair()">Sair</button></div>
+    <div class="tela"><div id="aviso" class="aviso"></div>${corpo}</div>`);
+
+  if (S.aba === 'area') {
+    const m = L.map('map').setView([meu.base.lat, meu.base.lng], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OSM' }).addTo(m);
+    L.circle([meu.base.lat, meu.base.lng], { radius: meu.raioKm * 1000, color: '#F4511E', fillOpacity: .08 }).addTo(m);
+    L.marker([meu.base.lat, meu.base.lng]).addTo(m);
+  }
+}
+
+function formProposta(pedidoId) {
+  casca(topo('Enviar proposta', 'prestador') + `<div class="tela">
+    <div id="aviso" class="aviso"></div>
+    <h2>Sua proposta</h2>
+    <div class="campo" style="margin-top:14px"><label>Valor (R$)</label><input id="pVal" type="number" inputmode="decimal" placeholder="220,00"></div>
+    <div class="campo"><label>Em quantos dias</label><input id="pPrazo" type="number" value="1"></div>
+    <div class="campo"><label>O que está incluído</label><textarea id="pEsc" placeholder="Descreva o serviço que você vai fazer"></textarea></div>
+    <div class="campo"><label>Material</label><select id="pMat">
+      <option value="1">Incluído no valor</option><option value="0">Por conta do cliente</option></select></div>
+    <div class="campo"><label>Disponibilidade</label><input id="pDisp" placeholder="Disponível hoje"></div>
+    <button class="btn btn-p" onclick="enviarProposta('${esc(pedidoId)}')">Enviar proposta</button>
+  </div>`);
+}
+async function enviarProposta(pedidoId) {
+  try {
+    await api('propostas', {
+      pedidoId, prestadorId: S.prestador.id,
+      valorCentavos: Math.round(Number(String($('pVal').value).replace(',', '.')) * 100),
+      prazoDias: Number($('pPrazo').value), escopo: $('pEsc').value.trim(),
+      materiaisInclusos: $('pMat').value === '1', disponibilidade: $('pDisp').value.trim(),
+    });
+    S.aba = 'oportunidades'; fala('Proposta enviada.', 'ok'); ir('prestador');
+  } catch (e) { fala(e.message, 'er'); }
+}
+
+/* ═══ ADMIN ═══ */
+async function carregarAdmin() { S.admin = await api('admin'); }
+
+function telaAdmin() {
+  const a = S.admin; if (!a) return;
+  const n = a.numeros;
+  casca(topo('Administração') + `
+  <div class="abas"><button class="on">Painel</button><button onclick="sair()">Sair</button></div>
+  <div class="tela">
+    <div id="aviso" class="aviso"></div>
+    <div class="kpis">
+      <div class="kpi"><span>Pedidos hoje</span><b>${n.pedidosHoje}</b><em>${n.pedidosTotal} no total</em></div>
+      <div class="kpi"><span>Em andamento</span><b>${n.emAndamento}</b><em>${n.concluidos} concluídos</em></div>
+      <div class="kpi"><span>GMV</span><b>${brl(n.gmvCentavos)}</b><em>volume transacionado</em></div>
+      <div class="kpi"><span>Receita</span><b>${brl(n.receitaCentavos)}</b><em>comissão da plataforma</em></div>
+      <div class="kpi"><span>Profissionais</span><b>${a.prestadores.filter(p => p.status === 'ACTIVE').length}</b><em>ativos</em></div>
+      <div class="kpi"><span>Clientes</span><b>${a.clientes.length}</b><em>cadastrados</em></div>
+      <div class="kpi"><span>Contestações</span><b>${n.contestacoesAbertas}</b><em>abertas</em></div>
+      <div class="kpi"><span>Cancelamentos</span><b>${n.cancelados}</b><em>no período</em></div>
+    </div>
+    <div class="cartao"><h3>Pedidos</h3>
+      ${a.pedidos.slice(-8).reverse().map(p => `<div class="item"><div><b>${esc(p.categoria)}</b>
+        <div class="dim3">${esc(p.bairro || p.cidade)} · ${esc(p.descricao.slice(0, 50))}…</div></div>
+        <span class="tag">${esc(p.rotulo)}</span></div>`).join('') || '<p class="dim">Nenhum pedido.</p>'}
+    </div>
+    <div class="cartao"><h3>Ordens de serviço</h3>
+      ${a.ordens.slice(-8).reverse().map(o => `<div class="item"><div><b>${esc(o.id)}</b>
+        <div class="dim3">${brl(o.valorCentavos)}</div></div><span class="tag">${esc(o.status)}</span></div>`).join('') || '<p class="dim">Nenhuma OS.</p>'}
+    </div>
+    <div class="cartao"><h3>Pagamentos e repasses</h3>
+      ${a.pagamentos.map(p => `<div class="item"><div><b>${esc(p.metodo)}</b>
+        <div class="dim3">plataforma ${brl(p.plataformaCentavos)} · prestador ${brl(p.prestadorCentavos)}</div></div>
+        <b>${brl(p.valorCentavos)}</b></div>`).join('') || '<p class="dim">Nenhum pagamento.</p>'}
+    </div>
+    <div class="cartao"><h3>Contestações</h3>
+      ${a.disputas.map(d => `<div class="item"><div><b>${esc(d.rotuloMotivo)}</b>
+        <div class="dim3">${esc(d.descricao.slice(0, 60))}…</div></div>
+        <span class="tag ${d.status === 'RESOLVIDA' ? 't-ok' : 't-er'}">${esc(d.status)}</span></div>`).join('') || '<p class="dim">Nenhuma contestação.</p>'}
+    </div>
+    <div class="cartao"><h3>Profissionais</h3>
+      ${a.prestadores.map(p => `<div class="item"><div><b>${esc(p.nome)}</b>
+        <div class="dim3">${esc(p.documentoMascarado)} · ${p.raioKm} km</div></div>
+        <span class="tag ${p.status === 'ACTIVE' ? 't-ok' : 't-al'}">${esc(p.status)}</span></div>`).join('')}
+    </div>
+  </div>`, true);
+}
+
+/* ═══ router ═══ */
+const TELAS = {
+  home: telaHome, categoria: telaCategoria, local: telaLocal, descricao: telaDescricao,
+  procurando: telaProcurando, propostas: telaPropostas, aviso: telaAviso, aceite: telaAceite,
+  expirou: telaExpirou, escopo: telaEscopo, pagamento: telaPagamento, os: telaOS,
+  contestar: telaContestar, login: () => telaLogin(false), 'admin-login': () => telaLogin(true),
+  prestador: telaPrestador, admin: telaAdmin,
+};
+function render() { (TELAS[S.tela] || telaHome)(); }
+
+(async function inicio() {
+  try { S.cats = (await api('categorias')).categorias; } catch { S.cats = []; }
+  render();
+})();
 </script>
 </body>
 </html>

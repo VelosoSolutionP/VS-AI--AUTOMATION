@@ -13,6 +13,8 @@ import * as cad from './cadastro.mjs';
 import * as aud from './auditoria.mjs';
 import * as ind from './indicacao.mjs';
 import { atende, ordenarPorDistancia, distanciaKm, REGIAO_MVP } from './geo.mjs';
+import * as fluxo from './fluxo.mjs';
+import { PRESTADORES_DEMO, CATEGORIAS_DEMO, CLIENTE_DEMO, PEDIDO_DEMO, PROPOSTAS_DEMO } from './seed.mjs';
 
 const USUARIOS = 'usuarios';
 const SESSOES = 'sessoes';
@@ -22,23 +24,14 @@ const INDICACOES = 'indicacoes';
 const TRILHA = 'auditoria';
 const CATEGORIAS = 'categorias';
 
-export { ident, cad, aud, ind, REGIAO_MVP };
+export { ident, cad, aud, ind, fluxo, REGIAO_MVP };
 
-/** Categorias iniciais do §1 — cadastráveis, não fixas no código. */
-const CATEGORIAS_PADRAO = [
-  { id: 'eletricista', nome: 'Eletricista', precificacao: 'ESTIMATE' },
-  { id: 'encanador', nome: 'Encanador', precificacao: 'ESTIMATE' },
-  { id: 'pintor', nome: 'Pintor', precificacao: 'INSPECTION_REQUIRED' },
-  { id: 'montador', nome: 'Montador de móveis', precificacao: 'FIXED_PRICE' },
-  { id: 'reparos', nome: 'Pequenos reparos', precificacao: 'ESTIMATE' },
-  { id: 'manutencao', nome: 'Manutenção residencial', precificacao: 'ESTIMATE' },
-];
-
+/** Categorias são dado, não constante de frontend — vêm daqui e são editáveis. */
 export function categorias() {
   const guardadas = load(CATEGORIAS, null);
   if (guardadas) { return guardadas; }
-  save(CATEGORIAS, CATEGORIAS_PADRAO);
-  return CATEGORIAS_PADRAO;
+  save(CATEGORIAS, CATEGORIAS_DEMO);
+  return CATEGORIAS_DEMO;
 }
 
 /** Grava na trilha encadeada. Falha de auditoria NÃO é silenciosa. */
@@ -233,5 +226,64 @@ export function painel() {
     categorias: categorias().length,
     indicacao: painelIndicacao(),
     auditoria: { registros: t.length, integridade: aud.verificar(t) },
+  };
+}
+
+
+/* ---------------- demonstração ---------------- */
+
+/**
+ * Popula a base com dados de demonstração, percorrendo o FLUXO REAL: cadastra pelo
+ * mesmo caminho validado, promove por transição de status, cria pedido, recebe
+ * propostas. Injetar direto na base esconderia bug de validação — e era justamente
+ * aí que a versão anterior deixava passar coordenada invertida.
+ *
+ * Idempotente: se já houver prestador, não faz nada.
+ */
+export function semear() {
+  if (prestadores().length) { return { ok: true, jaExistia: true }; }
+  categorias();
+
+  const criados = [];
+  for (const d of PRESTADORES_DEMO) {
+    const r = criarPrestador(d, 'seed');
+    if (!r.ok) { return { ok: false, erros: r.erros, em: d.nome }; }
+    // Promove pelo caminho legítimo: PENDING -> UNDER_REVIEW -> ACTIVE.
+    mudarStatusPrestador(r.prestador.id, 'UNDER_REVIEW', { por: 'seed' });
+    mudarStatusPrestador(r.prestador.id, 'ACTIVE', { por: 'seed' });
+    // Reputação e histórico da demonstração ficam no registro, não inventados na tela.
+    const todos = prestadores();
+    const i = todos.findIndex((x) => x.id === r.prestador.id);
+    todos[i] = { ...todos[i], reputacao: d.reputacao, servicosConcluidos: d.servicosConcluidos, descricao: d.descricao, walletId: d.walletId };
+    save(PRESTADORES, todos);
+    criados.push({ id: r.prestador.id, nome: d.nome });
+  }
+
+  const cli = criarCliente(CLIENTE_DEMO, 'seed');
+  const clienteId = cli.ok ? cli.cliente.id : null;
+
+  const ped = fluxo.criarPedido({ ...PEDIDO_DEMO, clienteId, clienteNome: CLIENTE_DEMO.nome }, prestadores());
+  if (ped.ok) {
+    for (const p of PROPOSTAS_DEMO) {
+      const alvo = criados.find((c) => c.nome === p.prestador);
+      if (!alvo) { continue; }
+      fluxo.enviarProposta({ ...p, pedidoId: ped.pedido.id, prestadorId: alvo.id });
+    }
+  }
+
+  return { ok: true, prestadores: criados.length, pedido: ped.ok ? ped.pedido.id : null, cliente: clienteId };
+}
+
+/** Tudo que o app precisa numa chamada — evita cascata de requisições na abertura. */
+export function estado() {
+  return {
+    categorias: categorias(),
+    prestadores: prestadores().map(cad.prestadorPublico),
+    clientes: clientes(),
+    pedidos: fluxo.pedidos(),
+    propostas: fluxo.propostas(),
+    ordens: fluxo.ordens(),
+    numeros: fluxo.numeros(),
+    regiao: REGIAO_MVP,
   };
 }
