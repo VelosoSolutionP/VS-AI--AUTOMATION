@@ -342,6 +342,11 @@ const server = createServer(async (req, res) => {
     const familia = u.pathname.split('/')[3] || '';
     const code = u.searchParams.get('code') || u.searchParams.get('auth_code');
     const erro = u.searchParams.get('error');
+    /* Registra TODA chegada. Sem isto, "nao apareceu token" e indistinguivel de
+       "a rede nem chamou de volta" — e sao problemas opostos: um e nosso, o outro
+       e do app la. O code nao vai pro log; so o fato de ter vindo. */
+    console.log(`[oauth] ${familia} <- code:${code ? 'sim' : 'nao'} erro:${erro || '-'} `
+      + `descricao:${u.searchParams.get('error_description') || '-'} state:${u.searchParams.get('state') ? 'veio' : 'faltou'}`);
     const pagina = (titulo, texto, ok) => {
       res.writeHead(ok ? 200 : 400, { 'content-type': 'text/html; charset=utf-8' });
       res.end(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
@@ -359,6 +364,7 @@ const server = createServer(async (req, res) => {
     if (!code) { return pagina('Retorno sem código', 'A rede voltou sem o código de autorização.', false); }
     try {
       const r = await tk.concluirAutorizacao(familia, code, { state: u.searchParams.get('state') });
+      console.log(`[oauth] ${familia} troca do code -> ${r.ok ? 'OK, token guardado' : 'FALHOU: ' + r.motivo}`);
       if (!r.ok) { return pagina('Não consegui concluir', r.motivo, false); }
       return pagina('Conta conectada', `A conta do TikTok (${familia}) está ligada ao painel. Pode fechar esta aba.`, true);
     } catch (e) {
