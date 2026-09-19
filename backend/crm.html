@@ -444,6 +444,17 @@ function tiktokCard(){
         <div><h3>TikTok · ${esc(nome)}</h3><p class="hint">${esc(ajuda)}</p></div>${badge}</div>
       ${s.conta?linha('Conta conectada','',esc(s.conta),'b-ok'):''}
       ${s.token?linha('Token','mascarado',esc(s.token),''):''}
+      ${f==='open'?`<div style="margin:6px 0 10px">
+        <p class="hint" style="margin-bottom:6px">O que pedir de permissão. Comece só com o perfil:
+          escopo que o app ainda não teve aprovado derruba a autorização inteira, e a TikTok não diz qual foi.</p>
+        ${[['user.info.basic','Perfil básico (sempre vai)',true,true],
+           ['user.info.stats','Estatísticas do perfil',false,false],
+           ['video.list','Listar vídeos',false,false],
+           ['video.publish','Publicar vídeo (precisa de aprovação)',false,false],
+           ['video.upload','Enviar vídeo (precisa de aprovação)',false,false]]
+          .map(([v,rot,marcado,travado])=>`<label style="display:inline-flex;align-items:center;gap:6px;margin-right:14px;font-size:13px">
+            <input type="checkbox" data-esc="${esc(f)}" value="${esc(v)}"${marcado?' checked':''}${travado?' disabled':''}>${esc(rot)}</label>`).join('')}
+      </div>`:''}
       ${!s.autorizado?`<div class="form-grid">
         ${campos.map(c=>`<div class="field"><label>${esc(c[1])}</label>
           <input id="tk-${esc(f)}-${esc(c[0])}" placeholder="${esc(c[2]||'')}" autocomplete="off"></div>`).join('')}
@@ -507,7 +518,10 @@ async function salvarAppTiktok(familia,campos){
 
 async function autorizarTiktok(familia){
   try{
-    const r=await api('tiktok/autorizar',{familia,publicar:familia==='open'});
+    // So o que estiver marcado. O padrao e o minimo: escopo nao aprovado no app
+    // derruba a autorizacao toda, e a TikTok nao diz qual foi.
+    const escopos=[...document.querySelectorAll(`input[data-esc="${familia}"]:checked`)].map(i=>i.value);
+    const r=await api('tiktok/autorizar',{familia,escopos});
     // Abre a tela de consentimento da rede. A volta cai no /oauth/callback deste painel.
     window.open(r.url,'_blank','noopener');
     flash('Abri a autorização do TikTok em outra aba. Ao voltar, recarregue esta tela.','ok');

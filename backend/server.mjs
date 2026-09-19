@@ -531,9 +531,17 @@ const server = createServer(async (req, res) => {
         }
         case '/crm/api/tiktok/autorizar': {
           const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
+          /* Pede o MINIMO por padrao. Escopo que o app ainda nao teve aprovado
+             derruba a autorizacao inteira com "access_denied" — e o erro nao diz
+             qual escopo foi, entao quem pede tudo de uma vez fica sem saber se o
+             problema e a conta, o app ou o redirect. A tela marca o que quer a
+             mais; aqui so passa o que esta na lista conhecida. */
+          const permitidos = new Set(Object.values(tk.auth.ESCOPOS));
+          const pedidos = Array.isArray(d.escopos) ? d.escopos.filter((e) => permitidos.has(e)) : [];
+          const escopos = [tk.auth.ESCOPOS.perfil, ...pedidos.filter((e) => e !== tk.auth.ESCOPOS.perfil)];
           r = tk.iniciarAutorizacao(d.familia, {
             redirectUri: `${origem}/oauth/callback/${d.familia}`,
-            escopos: d.publicar ? [...tk.auth.ESCOPOS_PADRAO, tk.auth.ESCOPOS.publicar, tk.auth.ESCOPOS.enviar] : undefined,
+            escopos,
             serviceId: d.serviceId,
           });
           break;
