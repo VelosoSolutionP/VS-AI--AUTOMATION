@@ -278,7 +278,7 @@ const TITULO={};
 MENU.forEach(m=>{TITULO[m.id]=[m.nome];(m.filhos||[]).forEach(f=>TITULO[f.id]=[m.nome,f.nome]);});
 const PAI={}; MENU.forEach(m=>(m.filhos||[]).forEach(f=>PAI[f.id]=m.id));
 
-let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null;
+let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null;
 const TESTE={}; // resultado do ultimo teste por rede (so em memoria)
 const PROVA={}; // ultimo teste real das APIs do TikTok, por familia
 let rota=location.hash.slice(1)||'visao';
@@ -519,15 +519,71 @@ const S={
     <tbody>${lin}</tbody></table></div></div>`
    :`<div class="card"><p class="hint">Catálogo vazio — cadastre o primeiro produto acima.</p></div>`}`;
  },
- financeiro:()=>head('Financeiro','Entradas, recebimentos e o que o CRM fechou virando caixa.')+
-  vazio('financeiro','Sem fonte financeira','O que existe hoje é o <code>/checkout</code> do Stripe e a emissão de licença. Nada disso é conciliado aqui ainda.',
-   ['Ligar o Stripe como fonte de recebimento','Casar lead ganho com pagamento confirmado','Aí o valor do funil deixa de ser estimativa']),
+ financeiro:()=>{
+  if(!FIN) return head('Financeiro','O que o CRM fechou, o que está no pipeline e o que está parado.')+
+    vazio('financeiro','Backend sem a rota financeira','Atualize o backend para a versão com o VSpainel.',['Subir o backend novo','Recarregar']);
+  const f=FIN;
+  const fontes=f.fontes.map(x=>`<div class="stat-row">
+    <div class="lbl">${esc(x.nome)}<small>${esc(x.detalhe)} · ${esc(x.ressalva)}</small></div>
+    <span class="badge ${x.centavos==null?'':'b-ok'}">${x.centavos==null?'—':esc((x.centavos/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}))}</span></div>`).join('');
+  return head('Financeiro','O que o CRM fechou, o que ainda é promessa e o que está parado em estoque.')+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Receita fechada',f.receitaFechada,'leads ganhos no CRM')}
+    ${kpi('Pipeline',f.pipeline,'ainda em aberto')}
+    ${kpi('Ticket médio',f.ticketMedio,'só dos ganhos com valor')}
+    ${kpi('Estoque parado',f.estoqueParado,'ativo, não receita')}
+  </div>
+  <div class="card" style="margin-bottom:16px"><h3>De onde vem cada número</h3>${fontes}
+    ${linha('Total reconhecido','vendas fechadas + conteúdo — o pipeline NÃO entra',esc(f.totalReconhecido),'b-ok')}
+    ${linha('Perdido','leads marcados como perdidos',esc(f.perdido),'')}
+    ${linha('Conversão','ganhos ÷ fechados',f.conversao==null?'—':Math.round(f.conversao*100)+'%',f.conversao==null?'':'b-ok')}</div>
+  <div class="card" style="border-style:dashed"><h3>O que estes números NÃO são</h3>
+    <p class="hint">Isto é consolidado operacional, não fechamento contábil. Nada aqui foi confirmado contra banco.</p>
+    ${f.lacunas.map(l=>linha('•',' ',esc(l),'b-warn')).join('')||'<p class="hint">Sem lacunas: todas as fontes estão preenchidas.</p>'}</div>`;
+ },
  bot:()=>head('Bot','O atendimento automático — visão geral, fora do WhatsApp.')+
   vazio('bot','Nenhum canal de bot ativo','O WhatsApp é o primeiro canal previsto e está parado na pendência da sua conta Meta.',
    ['Destravar o WhatsApp (WhatsApp › Integração)','Subir o webhook e a máquina de conversa','Depois avaliar Instagram Direct e site']),
- auditor:()=>head('Auditor','Governança: o que rodou, o que passou no gate, o que foi entregue.')+
-  vazio('auditor','Sem execução registrada neste painel','O QA-Gate grava recibo em <code>.git/qa-gate-green.json</code> por repositório — este painel ainda não lê esses recibos.',
-   ['Apontar o painel para os repositórios auditados','Ler o recibo do gate de cada um','Mostrar verde/vermelho com data e branch']),
+ auditor:()=>{
+  if(!AUD) return head('Auditor','Governança: o que rodou, o que passou no gate.')+
+    vazio('auditor','Backend sem a rota de auditoria','Atualize o backend para a versão com o VSpainel.',['Subir o backend novo','Recarregar']);
+  const sit={'verde':'b-ok','vencido':'b-warn','nunca rodou':''};
+  const cards=AUD.itens.map(i=>{
+    if(!i.existe) return `<div class="card" style="margin-bottom:10px"><h3>${esc(i.nome||i.repo)}</h3>
+      <p class="hint">✖ ${esc(i.motivo)}</p><p class="hint"><code>${esc(i.repo)}</code></p></div>`;
+    const recs=Object.entries(i.recibos).map(([stack,r])=>{
+      if(!r.existe) return linha(esc(stack),'nenhum recibo gravado','nunca rodou','');
+      return linha(esc(stack), r.valido?`gravado há ${r.idadeMin} min na branch ${esc(r.branch||'—')}`:esc(r.motivo),
+        r.valido?'verde':'não vale', r.valido?'b-ok':'b-err');
+    }).join('');
+    return `<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div><h3>${esc(i.nome)}</h3><p class="hint">branch <b>${esc(i.branch||'—')}</b></p></div>
+        <span class="badge ${sit[i.situacao]||''}">${esc(i.situacao)}</span></div>
+      ${recs}
+      ${i.docPendente?linha('Documentação pendente',`push feito na branch ${esc(i.docPendente.branch||'—')}`,'pendente','b-warn'):''}</div>`;
+  }).join('');
+  const g=AUD.governanca||{};
+  return head('Auditor','Recibo do QA-Gate por repositório, com a mesma regra de validade da governança.')+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Repositórios',AUD.total,'auditados agora')}
+    ${kpi('Com verde válido',AUD.verdes,`de ${AUD.total}`)}
+    ${kpi('Verde vencido',AUD.vencidos,'rodou e perdeu validade')}
+    ${kpi('Nunca rodaram',AUD.nuncaRodaram,'sem recibo nenhum')}
+  </div>
+  <div class="card" style="margin-bottom:16px;border-style:dashed">
+    <h3>O que conta como verde</h3>
+    <p class="hint">Existir recibo não basta. Vale só se <b>status=green</b>, se a <b>branch for a que está em uso agora</b>,
+    se tiver menos de <b>${AUD.validadeMin} min</b> e se <b>ninguém editou depois</b>. Recibo velho é pior que recibo nenhum:
+    dá sensação de verde pra um código que mudou.</p></div>
+  ${cards}
+  ${g.eventos?`<div class="card" style="margin-top:16px"><h3>Governança (${g.eventos} tarefa(s) registrada(s))</h3>
+    ${linha('Commits no padrão','',(g.commitStdPct??'—')+'%',g.commitStdPct>=90?'b-ok':'b-warn')}
+    ${linha('Retrabalho de QA',`baseline ${g.reworkBaselinePct}%`,(g.reworkPct??'—')+'%',g.reworkPct<=g.reworkBaselinePct?'b-ok':'b-warn')}
+    ${linha('Documentação automática','',(g.docAutoPct??'—')+'%','')}
+    ${linha('Tempo economizado','estimado pelo baseline',(g.timeSavedHours??'—')+' h','')}</div>`
+   :`<div class="card" style="margin-top:16px"><p class="hint">Nenhuma tarefa registrada em métricas ainda.</p></div>`}`;
+ },
  redes:()=>{
   const c=REDES?.credenciais||{};
   const linhas=Object.keys(c).map(r=>{
@@ -560,9 +616,38 @@ const S={
     <b>A integração completa do TikTok é o bloco acima</b>, com OAuth e token renovado sozinho.</p></div>
   ${linhas}`;
  },
- relatorios:()=>head('Relatórios','Cruzamento entre vendas, atendimento e conteúdo.')+
-  vazio('relatorios','Sem base para relatar','Relatório aqui é derivado. O único dado real hoje é o funil do CRM.',
-   ['Conectar ao menos uma fonte além do CRM','Definir período e recorte','O cruzamento vem depois, com dado real']),
+ relatorios:()=>{
+  if(!REL) return head('Relatórios','Cruzamento entre vendas, catálogo e conteúdo.')+
+    vazio('relatorios','Backend sem a rota de relatórios','Atualize o backend para a versão com o VSpainel.',['Subir o backend novo','Recarregar']);
+  const r=REL;
+  const ori=r.origens.map(o=>`<tr>
+    <td><b>${esc(o.origem)}</b></td><td style="text-align:center">${o.leads}</td>
+    <td style="text-align:center">${o.ganhos}</td><td style="text-align:center">${o.perdidos}</td>
+    <td style="text-align:center">${o.conversao==null?'—':Math.round(o.conversao*100)+'%'}</td>
+    <td style="text-align:center">${o.receita==null?'—':esc(o.receita.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}))}</td>
+    <td><span class="badge ${o.amostraSuficiente?'b-ok':''}">${o.amostraSuficiente?'confiável':'amostra pequena'}</span></td></tr>`).join('');
+  const fun=r.funil.map(e=>linha(esc(e.etapa),`${e.chegaram} passaram · ${e.parados} parado(s) aqui`,
+    e.passagem==null?'fim do funil':Math.round(e.passagem*100)+'% avançam', e.passagem==null?'':(e.passagem>=0.5?'b-ok':'b-warn'))).join('');
+  return head('Relatórios','Cruzamento entre o funil do CRM, o catálogo e o conteúdo.')+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Ciclo médio',r.cicloMedioDias==null?'—':r.cicloMedioDias+' d','criação até fechar')}
+    ${kpi('Esquecidos',r.esquecidos.length,'abertos parados 7+ dias')}
+    ${kpi('Origens',r.origens.length,'canais com lead')}
+    ${kpi('Catálogo',r.catalogo?r.catalogo.produtos:'—',r.catalogo?`${r.catalogo.ativos} à venda`:'sem produto')}
+  </div>
+  ${ori?`<div class="card" style="margin-bottom:16px"><h3>De onde vem quem compra</h3>
+    <p class="hint">Origem sem nada fechado aparece como "—", não como 0% — matar um canal por amostra vazia é erro caro.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Origem</th><th>Leads</th><th>Ganhos</th><th>Perdidos</th><th>Conversão</th><th>Receita</th><th></th></tr></thead>
+    <tbody>${ori}</tbody></table></div></div>`:''}
+  ${fun?`<div class="card" style="margin-bottom:16px"><h3>Onde o funil perde gente</h3>
+    <p class="hint">Conta quem <b>passou</b> pela etapa, não quem está parado nela.</p>${fun}</div>`:''}
+  ${r.esquecidos.length?`<div class="card" style="margin-bottom:16px"><h3>Parados há mais de 7 dias</h3>
+    ${r.esquecidos.slice(0,10).map(l=>linha(esc(l.nome||l.id),esc(l.etapa),l.paradoDias+' dias','b-warn')).join('')}</div>`:''}
+  ${r.catalogo?`<div class="card" style="margin-bottom:16px"><h3>Catálogo pronto pra anunciar</h3>
+    ${Object.entries(r.catalogo.canais).map(([c,s])=>linha(esc(s.nome||c),`${s.prontos} de ${s.total} prontos`,s.faltando?s.faltando+' incompleto(s)':'tudo pronto',s.faltando?'b-warn':'b-ok')).join('')}</div>`:''}
+  <div class="card" style="border-style:dashed"><h3>O que NÃO entrou neste relatório</h3>
+    ${r.naoEntrou.map(x=>linha('•',' ',esc(x),'')).join('')}</div>`;
+ },
 
  'wa-integracao':()=>{const w=STATUS?.whatsapp||{};
   return head('WhatsApp · Integração','Conexão com a Cloud API da Meta. Enquanto o provider for <code>log</code>, nada sai do servidor.')+
@@ -660,6 +745,8 @@ async function carregar(){
     // O diagnostico do TikTok nao pode derrubar o painel inteiro se o backend for antigo.
     [ST,STATUS,IND,REDES,TK,EST]=await Promise.all([api('painel'),api('status'),api('indicacao'),api('redes'),
       api('tiktok').catch(()=>null),api('estoque').catch(()=>null)]);
+    // Telas novas: carregadas a parte pra uma falha nelas nao derrubar o painel todo.
+    [AUD,FIN,REL]=await Promise.all([api('auditor').catch(()=>null),api('financeiro').catch(()=>null),api('relatorios').catch(()=>null)]);
     document.getElementById('envDot').className='dot on';
     document.getElementById('envName').textContent='Backend online';
     document.getElementById('envSub').textContent=location.host;

@@ -23,6 +23,7 @@ import { testarConexao, CREDENCIAL } from '../engine/vsinfluence/coletor.mjs';
 import { diagnostico as tiktokDiagnostico } from '../engine/vstiktok/index.mjs';
 import { testar as tiktokTestar } from '../engine/vstiktok/conectar.mjs';
 import * as estoque from '../engine/vsestoque/index.mjs';
+import * as vspainel from '../engine/vspainel/index.mjs';
 import { reservarEvento } from './idempotencia.mjs';
 import { lerCorpoLimitado, criarRateLimit, ipDe, segredoIgual, CORPO_MAX_BYTES } from './limites.mjs';
 
@@ -307,6 +308,10 @@ const server = createServer(async (req, res) => {
     // guarda em ~/.qa-gate/vstiktok com arquivo 0600. O diagnostico ja sai mascarado.
     if (req.method === 'GET' && rota === '/crm/api/tiktok') { return json(res, 200, tiktokDiagnostico()); }
     if (req.method === 'GET' && rota === '/crm/api/estoque') { return json(res, 200, estoque.painel()); }
+    // Telas que eram casca: leem recibo do gate, dinheiro e cruzamento de dado real.
+    if (req.method === 'GET' && rota === '/crm/api/auditor') { return json(res, 200, await vspainel.painelAuditor()); }
+    if (req.method === 'GET' && rota === '/crm/api/financeiro') { return json(res, 200, await vspainel.painelFinanceiro()); }
+    if (req.method === 'GET' && rota === '/crm/api/relatorios') { return json(res, 200, await vspainel.painelRelatorios()); }
     if (req.method === 'GET' && rota === '/crm/api/estoque/historico') {
       return json(res, 200, { movimentos: estoque.historico(new URL(req.url, 'http://x').searchParams.get('sku')) });
     }
