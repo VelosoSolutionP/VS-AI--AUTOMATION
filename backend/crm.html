@@ -2,6 +2,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Veloso Solution — Console</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234f46e5'/%3E%3Ctext x='16' y='22' font-family='system-ui,sans-serif' font-size='15' font-weight='700' fill='%23fff' text-anchor='middle'%3EVS%3C/text%3E%3C/svg%3E">
 <style>
 /* Paleta monocromática: cinza neutro + tinta. Cor só quando SIGNIFICA algo —
    verde ok, âmbar atenção, vermelho erro. Nada decorativo. */
@@ -226,6 +227,77 @@ td{padding:11px 10px;border-top:1px solid var(--line)}
     border-radius:50%;background:currentColor;opacity:.5}
 }
 
+
+
+/* ── Vida no painel de entrada ───────────────────────────────────────────
+   A versão anterior era texto corrido com bolinha cinza na frente, num
+   retângulo preto com um vão enorme no meio. Aqui entram três coisas: um
+   fundo que respira, ícone de verdade em cada capacidade (bolinha não diz
+   nada) e a tira de produtos embaixo, que é o que ocupa o vazio com
+   informação em vez de espaço. */
+.entrar-marca{position:relative;overflow:hidden}
+
+/* Duas manchas de luz que derivam devagar. 22s e 28s de propósito: períodos
+   diferentes nunca sincronizam, então o movimento não vira um pulso óbvio. */
+.entrar-brilho{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.entrar-brilho::before,.entrar-brilho::after{content:'';position:absolute;border-radius:50%;filter:blur(72px)}
+.entrar-brilho::before{width:460px;height:460px;top:-140px;left:-120px;
+  background:radial-gradient(circle,rgba(99,102,241,.5),transparent 68%);animation:deriva1 22s ease-in-out infinite}
+.entrar-brilho::after{width:400px;height:400px;bottom:-130px;right:-90px;
+  background:radial-gradient(circle,rgba(13,148,136,.42),transparent 68%);animation:deriva2 28s ease-in-out infinite}
+@keyframes deriva1{0%,100%{transform:translate(0,0)}50%{transform:translate(60px,70px)}}
+@keyframes deriva2{0%,100%{transform:translate(0,0)}50%{transform:translate(-55px,-45px)}}
+/* Malha fina por cima: dá textura de console sem competir com o texto. */
+.entrar-grade{position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
+  background-size:52px 52px;
+  -webkit-mask-image:radial-gradient(120% 90% at 20% 15%,#000,transparent 72%);
+          mask-image:radial-gradient(120% 90% at 20% 15%,#000,transparent 72%)}
+/* Só o conteúdo sobe; as camadas de fundo levam aria-hidden e ficam de fora.
+   Com `> *` genérico, esta regra vinha depois e trocava o position:absolute
+   do brilho por relative — as manchas caíam no fluxo e o painel ficava preto
+   chapado, sem nada do fundo aparecer. */
+.entrar-marca > div:not([aria-hidden]){position:relative;z-index:1}
+@media (prefers-reduced-motion:reduce){
+  .entrar-brilho::before,.entrar-brilho::after{animation:none}
+}
+
+/* ---- capacidades: ícone, título e a linha que explica ---- */
+.entrar-caps{list-style:none;padding:0;margin:30px 0 0;display:grid;gap:3px}
+.entrar-caps li{display:flex;gap:13px;align-items:flex-start;padding:11px 12px;border-radius:11px;
+  transition:background .25s ease}
+.entrar-caps li:hover{background:rgba(255,255,255,.055)}
+.entrar-caps .ic{width:34px;height:34px;flex:0 0 34px;border-radius:10px;display:grid;place-items:center;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:var(--ct,#a5b4fc)}
+.entrar-caps .ic svg{width:16px;height:16px}
+.entrar-caps b{display:block;font-size:13.5px;font-weight:600;letter-spacing:-.01em;line-height:1.35}
+.entrar-caps small{display:block;font-size:12px;opacity:.58;line-height:1.45;margin-top:2px}
+
+/* ---- tira de produtos, no rodapé do painel ---- */
+.entrar-suite{margin-top:26px;padding-top:20px;border-top:1px solid rgba(255,255,255,.1)}
+.entrar-suite-t{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;opacity:.45;
+  font-weight:600;margin:0 0 13px}
+.entrar-prods{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px}
+.entrar-prods li{display:flex;align-items:center;gap:7px;padding:6px 11px 6px 7px;border-radius:100px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);font-size:12px;
+  transition:background .25s ease,border-color .25s ease}
+.entrar-prods li:hover{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.16)}
+.entrar-prods .pg{width:22px;height:22px;flex:none;border-radius:8px;display:grid;place-items:center;
+  background:var(--pc,#6366f1);color:#fff}
+.entrar-prods .pg svg{width:13px;height:13px}
+/* Ponto de estado: quem está pronto acende, quem não está fica apagado. */
+.entrar-prods .pt{width:6px;height:6px;border-radius:50%;background:#22c55e;flex:none;margin-left:2px}
+.entrar-prods .breve .pt{background:rgba(255,255,255,.28)}
+.entrar-prods .breve{opacity:.62}
+.entrar-prods .aqui{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.22);font-weight:600}
+
+@media (max-height:760px){
+  .entrar-caps li{padding:8px 12px}
+  .entrar-caps small{display:none}
+  .entrar-suite{margin-top:18px;padding-top:14px}
+}
+
 /* Enquanto o login está na tela, a navegação não aparece: nada de dado do painel
    piscando antes da autenticação. */
 body.sem-nav #side,body.sem-nav .topbar,body.sem-nav #ov{display:none!important}
@@ -332,7 +404,7 @@ const TITULO={};
 MENU.forEach(m=>{TITULO[m.id]=[m.nome];(m.filhos||[]).forEach(f=>TITULO[f.id]=[m.nome,f.nome]);});
 const PAI={}; MENU.forEach(m=>(m.filhos||[]).forEach(f=>PAI[f.id]=m.id));
 
-let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null,QG=null;
+let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null,QG=null,TKAPP=null;
 const TESTE={}; // resultado do ultimo teste por rede (so em memoria)
 const PROVA={}; // ultimo teste real das APIs do TikTok, por familia
 let rota=location.hash.slice(1)||'visao';
@@ -355,44 +427,67 @@ function toggleNav(v){document.getElementById('side').classList.toggle('open',v)
 
 const head=(t,p)=>`<div class="page-head"><h1>${esc(t)}</h1><p>${p}</p></div>`;
 
-/* O TikTok tem tres apps separados (login, anuncios e loja), cada um com autorizacao
-   propria — por isso ele aparece como bloco, e nao como mais uma linha de credencial. */
+/* O TikTok tem três apps separados (login, anúncios e loja), cada um com autorização
+   própria — por isso ele aparece como bloco, e não como mais uma linha de credencial. */
 const TK_NOME={open:'Login Kit / Display',business:'Business (Ads)',shop:'Shop (produtos)'};
 function tiktokCard(){
   if(!TK) return '';
-  const blocos=Object.entries(TK.familias).map(([f,s])=>{
-    const pv=PROVA[f];
-    const badge=!s.appConfigurado?`<span class="badge">falta ${esc(s.faltando.join(', '))}</span>`
-      :!s.autorizado?'<span class="badge b-warn">app pronto · conta não autorizada</span>'
+  const app=TKAPP;
+  const bloco=(f,nome,campos,ajuda)=>{
+    const s=TK.familias[f];
+    const badge=!s.appConfigurado?`<span class="badge">falta preencher</span>`
+      :!s.autorizado?'<span class="badge b-warn">app pronto · falta autorizar</span>'
       :s.expirado?'<span class="badge b-err">token vencido</span>'
       :`<span class="badge b-ok">conectado${s.venceEmMin!=null?' · vence em '+s.venceEmMin+' min':''}</span>`;
-    const cmd=!s.appConfigurado
-      ?`<p class="hint">No terminal: <code>vstiktok app ${esc(f)} ${esc(s.faltando.map(x=>x+'=...').join(' '))}</code></p>`
-      :!s.autorizado?`<p class="hint">No terminal: <code>vstiktok conectar ${esc(f)}</code> — ele sobe o túnel e abre a autorização.</p>`:'';
-    const provas=!pv?''
-      :pv.motivo?`<p class="hint">✖ ${esc(pv.motivo)}</p>`
-      :pv.provas.map(x=>linha(x.chamada,esc(x.detalhe),x.ok?'ok':'falhou',x.ok?'b-ok':'b-err')).join('');
-    const btn=s.autorizado?`<button class="btn" onclick="testarTiktok('${esc(f)}')">Testar contra a API</button>`:'';
-    return `<div class="card" style="margin-bottom:10px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-        <div><h3>TikTok · ${esc(TK_NOME[f]||f)}</h3><p class="hint">${esc(s.ajuda)}</p></div>${badge}</div>
-      ${s.conta?linha('Conta conectada','',s.conta,'b-ok'):''}
-      ${s.token?linha('Token guardado','só o miolo aparece mascarado',s.token,''):''}
-      ${cmd}${provas}${btn}</div>`;
-  }).join('');
+    return `<div class="card" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div><h3>TikTok · ${esc(nome)}</h3><p class="hint">${esc(ajuda)}</p></div>${badge}</div>
+      ${s.conta?linha('Conta conectada','',esc(s.conta),'b-ok'):''}
+      ${s.token?linha('Token','mascarado',esc(s.token),''):''}
+      ${!s.autorizado?`<div class="form-grid">
+        ${campos.map(c=>`<div class="field"><label>${esc(c[1])}</label>
+          <input id="tk-${esc(f)}-${esc(c[0])}" placeholder="${esc(c[2]||'')}" autocomplete="off"></div>`).join('')}
+        <button class="btn" onclick="salvarAppTiktok('${esc(f)}',${JSON.stringify(campos.map(c=>c[0])).replace(/"/g,'&quot;')})">Salvar credenciais</button>
+        ${s.appConfigurado?`<button class="btn btn-p" onclick="autorizarTiktok('${esc(f)}')">Conectar conta</button>`:''}
+      </div>`:`<button class="btn" onclick="autorizarTiktok('${esc(f)}')">Reconectar</button>`}
+      ${app?`<p class="hint" style="margin-top:10px">URL de retorno para colar no app:
+        <code>${esc(app.redirects[f])}</code></p>`:''}
+    </div>`;
+  };
   const pronto=Object.entries(TK.pronto).filter(([,v])=>v).map(([k])=>k);
   return `<div class="card" style="margin-bottom:16px"><h3>TikTok</h3>
     <p class="hint">São três apps separados na TikTok — login, anúncios e loja — cada um com autorização própria.</p>
     ${linha('Pronto pra','o que já dá pra fazer pela API',pronto.length?pronto.join(', '):'nada ainda',pronto.length?'b-ok':'b-warn')}
-    ${TK.lojaAtiva?linha('Loja ativa','shop_cipher',TK.lojaAtiva,'b-ok'):''}
-    ${TK.anuncianteAtivo?linha('Conta de anúncio ativa','advertiser_id',TK.anuncianteAtivo,'b-ok'):''}</div>
+    ${TK.lojaAtiva?linha('Loja ativa','shop_cipher',esc(TK.lojaAtiva),'b-ok'):''}
+    ${TK.anuncianteAtivo?linha('Conta de anúncio ativa','advertiser_id',esc(TK.anuncianteAtivo),'b-ok'):''}</div>
   <div class="card" style="margin-bottom:16px;border-style:dashed">
-    <h3>Aqui o token FICA gravado — e é diferente do resto desta tela</h3>
-    <p class="hint">OAuth só funciona guardando o token pra renovar depois. Ele mora em
-    <code>~/.qa-gate/vstiktok</code>, na sua máquina, com arquivo <code>0600</code>, e nunca é
-    enviado a este painel inteiro — o que você vê acima é mascarado. Este painel <b>lê e testa</b>;
-    quem grava credencial é a CLI.</p></div>
-  ${blocos}`;
+    <h3>Como ligar, em dois passos</h3>
+    <p class="hint">1. Crie o app em <b>developers.tiktok.com</b> e cole a URL de retorno que aparece em cada bloco abaixo —
+    ela é fixa, não muda mais.<br>2. Cole as credenciais aqui e clique em <b>Conectar conta</b>. O resto é com o painel.</p>
+    <p class="hint">Aqui o token <b>fica gravado</b> em <code>~/.qa-gate/vstiktok</code> com arquivo <code>0600</code>, porque
+    OAuth só funciona guardando o token para renovar. O que aparece nesta tela é mascarado.</p></div>
+  ${bloco('open','Login e conteúdo',[['clientKey','Client key','do app em developers.tiktok.com'],['clientSecret','Client secret','']],'publicar vídeo, ler perfil e métricas')}
+  ${bloco('business','Anúncios (Ads)',[['appId','App ID','de business-api.tiktok.com'],['secret','Secret','']],'campanhas, conjuntos e relatórios')}
+  ${bloco('shop','Loja (produtos)',[['appKey','App key','de partner.tiktokshop.com'],['appSecret','App secret',''],['serviceId','Service ID','do painel do app']],'catálogo, estoque e preço')}`;
+}
+
+async function salvarAppTiktok(familia,campos){
+  const cred={};
+  campos.forEach(c=>{cred[c]=(document.getElementById(`tk-${familia}-${c}`)||{}).value?.trim()||'';});
+  try{
+    await api('tiktok/app',{familia,cred});
+    flash('Credenciais salvas. Agora clique em "Conectar conta".','ok');
+    carregar();
+  }catch(e){flash(e.message,'err');}
+}
+
+async function autorizarTiktok(familia){
+  try{
+    const r=await api('tiktok/autorizar',{familia,publicar:familia==='open'});
+    // Abre a tela de consentimento da rede. A volta cai no /oauth/callback deste painel.
+    window.open(r.url,'_blank','noopener');
+    flash('Abri a autorização do TikTok em outra aba. Ao voltar, recarregue esta tela.','ok');
+  }catch(e){flash(e.message,'err');}
 }
 const kpi=(l,v,e)=>`<div class="kpi"><span>${esc(l)}</span><b>${esc(String(v))}</b><em>${esc(e)}</em></div>`;
 function vazio(icone,titulo,texto,passos){
@@ -895,27 +990,76 @@ function telaEntrar(){
   document.getElementById('view').innerHTML=`
   <div class="entrar">
     <div class="entrar-marca">
+      <div class="entrar-brilho" aria-hidden="true"></div>
+      <div class="entrar-grade" aria-hidden="true"></div>
+
       <div>
         <div class="brand-badge">VS</div>
         <h1>Veloso Solution</h1>
-        <p>Console de operação — CRM, estoque, conteúdo e Quebra-Galho num lugar só.</p>
-        <ul class="entrar-lista">
-          <li>Funil de vendas e indicações</li>
-          <li>Catálogo com saldo e exportação</li>
-          <li>Marketplace de serviços locais</li>
-          <li>Auditoria e governança</li>
+        <p>Console de operação. O que a empresa vende, atende, cobra e publica
+           — num lugar só, com trilha de auditoria.</p>
+
+        <ul class="entrar-caps">
+          <li style="--ct:#a5b4fc">
+            <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5h18l-7 8v6.5l-4 2v-8.5z"/></svg></span>
+            <div><b>Funil de vendas e indicações</b>
+              <small>Lead, etapa, ganho e perdido — com a origem de quem indicou.</small></div>
+          </li>
+          <li style="--ct:#5eead4">
+            <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9"/></svg></span>
+            <div><b>Catálogo, estoque e financeiro</b>
+              <small>Saldo por item, movimento e exportação para a contabilidade.</small></div>
+          </li>
+          <li style="--ct:#fdba74">
+            <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg></span>
+            <div><b>Quebra-Galho e WhatsApp</b>
+              <small>Pedido, proposta e atendimento no canal em que o cliente já está.</small></div>
+          </li>
+          <li style="--ct:#c4b5fd">
+            <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 6v6c0 4.6 3.1 7.8 7.5 9 4.4-1.2 7.5-4.4 7.5-9V6z"/><path d="m9 12 2.2 2.2L15.5 10"/></svg></span>
+            <div><b>Auditoria e governança</b>
+              <small>Quem fez, quando e sobre qual registro. Nada some sem rastro.</small></div>
+          </li>
         </ul>
       </div>
-      <small>Acesso restrito · dados de cliente</small>
+
+      <div>
+        <div class="entrar-suite">
+          <p class="entrar-suite-t">Suíte Veloso Solution</p>
+          <ul class="entrar-prods">
+            <li class="aqui" style="--pc:#4f46e5">
+              <span class="pg" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><rect x="7.5" y="7.5" width="9" height="9" rx="2.4"/></svg></span>
+              VS-IA<span class="pt" title="no ar"></span>
+            </li>
+            <li style="--pc:#0d9488">
+              <span class="pg" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="13" rx="3"/><path d="M2.5 10.5h19"/><circle cx="17.5" cy="15" r="1.3" fill="currentColor" stroke="none"/></svg></span>
+              Bolso Cheio<span class="pt" title="no ar"></span>
+            </li>
+            <li class="breve" style="--pc:#ea580c">
+              <span class="pg" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.8 6.4a4.4 4.4 0 0 1 5.9 5.9l-8.3 8.2a2.5 2.5 0 0 1-3.6-3.6l7.6-7.5"/><path d="m7.6 3.6 2.9 2.9-3.9 3.9-2.9-2.9z"/></svg></span>
+              Quebra-Galho<span class="pt" title="em desenvolvimento"></span>
+            </li>
+            <li class="breve" style="--pc:#c026d3">
+              <span class="pg" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="3.6"/><circle cx="17.2" cy="6.9" r="1.1" fill="currentColor" stroke="none"/></svg></span>
+              Instagram MCP<span class="pt" title="em desenvolvimento"></span>
+            </li>
+            <li class="breve" style="--pc:#db2777">
+              <span class="pg" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.6"/><circle cx="6" cy="18" r="2.6"/><path d="M8.3 7.6 20 18M8.3 16.4 20 6"/></svg></span>
+              Sistema p/ Salão<span class="pt" title="em desenvolvimento"></span>
+            </li>
+          </ul>
+        </div>
+        <small style="display:block;margin-top:18px">Acesso restrito · dados de cliente</small>
+      </div>
     </div>
 
     <div class="entrar-form">
       <div class="entrar-box">
-        <h2>Entrar no console</h2>
-        <p class="entrar-sub">Use a senha de acesso configurada no servidor.</p>
+        <h2 id="lgTitulo">Entrar no console</h2>
+        <p class="entrar-sub" id="lgSub">Use a senha de acesso do console.</p>
 
         <div class="field" style="margin-top:20px">
-          <label for="lgSenha">Senha de acesso</label>
+          <label for="lgSenha" id="lgRotulo">Senha de acesso</label>
           <div class="senha-wrap">
             <input id="lgSenha" type="password" autocomplete="current-password"
               placeholder="••••••••" aria-describedby="lgErro" autofocus>
@@ -925,14 +1069,24 @@ function telaEntrar(){
           <div id="lgCaps" class="campo-dica">Caps Lock está ligado.</div>
         </div>
 
+        <!-- Confirmação só aparece no primeiro acesso: pedir duas vezes uma
+             senha que a pessoa já tem é atrito sem motivo. -->
+        <div class="field" id="lgCampo2" style="margin-top:14px;display:none">
+          <label for="lgSenha2">Repita a senha</label>
+          <div class="senha-wrap">
+            <input id="lgSenha2" type="password" autocomplete="new-password" placeholder="••••••••">
+          </div>
+        </div>
+
         <button class="btn btn-p entrar-btn" id="lgBtn">Entrar</button>
 
-        <div class="entrar-ajuda">
+        <div class="entrar-ajuda" id="lgAjuda">
           <b>Não sabe a senha?</b>
-          <p>É o valor da variável <code>CRM_TOKEN</code> com que o servidor foi iniciado.
-          Quem subiu o console sabe qual é.</p>
+          <p>Quem definiu o acesso deste console sabe qual é. Se for uma instalação
+          nova, a primeira tela pede para você criar a sua.</p>
         </div>
       </div>
+
       <p class="entrar-rodape">Veloso Solution · ${new Date().getFullYear()}</p>
     </div>
   </div>`;
@@ -964,24 +1118,67 @@ function telaEntrar(){
   campo.addEventListener('keydown',verCaps);
   campo.addEventListener('input',limparErro);
 
-  const entrar=async()=>{
-    if(!campo.value){ return mostrarErro('Digite a senha de acesso.'); }
-    btn.disabled=true;btn.textContent='Entrando…';limparErro();
+  const campo2=document.getElementById('lgSenha2');
+  campo2.addEventListener('input',limparErro);
+
+  /* Primeiro acesso: o console nunca teve senha. Em vez de pedir uma senha
+     que ninguém tem como saber, ele pede para o dono criar a dele. É a
+     diferença entre um produto licenciado e um script de linha de comando. */
+  let criando=false;
+  const virarCriacao=()=>{
+    criando=true;
+    document.getElementById('lgTitulo').textContent='Criar o acesso';
+    document.getElementById('lgSub').textContent=
+      'Este console ainda não tem senha. Defina a sua — ela fica só nesta instalação.';
+    document.getElementById('lgRotulo').textContent='Nova senha (mínimo 8 caracteres)';
+    document.getElementById('lgCampo2').style.display='';
+    campo.setAttribute('autocomplete','new-password');
+    btn.textContent='Criar e entrar';
+    document.getElementById('lgAjuda').innerHTML=
+      '<b>Só você define esta senha.</b><p>Ela não é enviada a lugar nenhum: fica guardada '+
+      'nesta máquina, com hash. Para trocar depois, use Configurações dentro do console.</p>';
+  };
+
+  const abrirPainel=(senha)=>{
+    TOKEN=senha;
+    sessionStorage.setItem('crm_token',TOKEN);
+    document.body.classList.remove('sem-nav');
+    carregar();
+  };
+
+  const enviar=async()=>{
+    if(!campo.value){ return mostrarErro(criando?'Escolha uma senha.':'Digite a senha de acesso.'); }
+    if(criando){
+      if(campo.value.length<8){ return mostrarErro('A senha precisa de pelo menos 8 caracteres.'); }
+      if(campo.value!==campo2.value){
+        erro.textContent='As duas senhas não são iguais.';
+        erro.classList.add('on');campo2.classList.add('erro');campo2.focus();
+        return;
+      }
+    }
+    btn.disabled=true;btn.textContent=criando?'Criando…':'Entrando…';limparErro();
     try{
-      const r=await api('entrar',{senha:campo.value});
-      TOKEN=campo.value;
-      sessionStorage.setItem('crm_token',TOKEN);
-      document.body.classList.remove('sem-nav');
-      if(r.semSenha){ setTimeout(()=>flash(r.aviso,'err'),400); }
-      carregar();
+      if(criando){ await api('criar-acesso',{senha:campo.value}); }
+      else{ await api('entrar',{senha:campo.value}); }
+      abrirPainel(campo.value);
     }catch(e){
-      btn.disabled=false;btn.textContent='Entrar';
-      mostrarErro(e.message==='senha incorreta'?'Senha incorreta. Confira com quem subiu o console.':e.message);
+      btn.disabled=false;btn.textContent=criando?'Criar e entrar':'Entrar';
+      // O servidor avisa quando a instalação ainda não tem senha; a tela vira
+      // criação em vez de repetir "senha incorreta" para sempre.
+      if(e.message==='primeiro acesso'){ virarCriacao();btn.disabled=false;return campo.focus(); }
+      mostrarErro(e.message==='senha incorreta'
+        ? 'Senha incorreta. Se esta instalação é nova, recarregue para criar a sua.'
+        : e.message);
     }
   };
-  btn.onclick=entrar;
-  campo.onkeydown=(e)=>{if(e.key==='Enter')entrar();};
+  btn.onclick=enviar;
+  campo.onkeydown=(e)=>{if(e.key==='Enter')enviar();};
+  campo2.onkeydown=(e)=>{if(e.key==='Enter')enviar();};
   campo.focus();
+
+  // Pergunta o estado antes de mostrar a tela errada por meio segundo.
+  fetch('/crm/api/auth').then(r=>r.json()).then(d=>{ if(d && d.precisaCriar){ virarCriacao(); } })
+    .catch(()=>{});
 }
 
 async function carregar(){
@@ -992,6 +1189,8 @@ async function carregar(){
     // O Quebra-Galho é outro processo: se estiver fora do ar, a tela dele avisa —
     // e o resto do painel continua funcionando normalmente.
     QG=await api('quebragalho').catch(()=>null);
+    TKAPP=await api('tiktok/app').catch(()=>null);
+    if(TKAPP&&TKAPP.diagnostico) TK=TKAPP.diagnostico;
     // Telas novas: carregadas a parte pra uma falha nelas nao derrubar o painel todo.
     [AUD,FIN,REL,CTA]=await Promise.all([api('auditor').catch(()=>null),api('financeiro').catch(()=>null),
       api('relatorios').catch(()=>null),api('conta').catch(()=>null)]);
@@ -1105,11 +1304,18 @@ function sairDoPainel(){
   TOKEN='';sessionStorage.removeItem('crm_token');telaEntrar();
 }
 
-/** Decide entre login e dashboard antes de qualquer requisicao de dado. */
+/** Decide entre criar acesso, login e dashboard antes de qualquer dado. */
 (async function porta(){
-  let exige=true;
-  try{ exige=(await api('auth')).exigeSenha; }catch{ /* backend antigo: pede assim mesmo */ }
-  if(!exige){ document.body.classList.remove('sem-nav'); return carregar(); }
+  let est={exigeSenha:true};
+  try{ est=await api('auth'); }catch{ /* backend antigo: pede senha assim mesmo */ }
+
+  /* Instalacao nova: vai para a tela, que se vira em "criar acesso". Antes
+     daqui saia direto para o dashboard — a regra velha era "sem CRM_TOKEN,
+     painel aberto". Hoje o servidor bloqueia, entao seguir em frente so
+     renderizava um painel que responde 403 em tudo. */
+  if(est.precisaCriar){ return telaEntrar(); }
+
+  if(!est.exigeSenha){ document.body.classList.remove('sem-nav'); return carregar(); }
   if(TOKEN){
     try{ await api('entrar',{senha:TOKEN}); document.body.classList.remove('sem-nav'); return carregar(); }
     catch{ /* token velho: cai na tela de entrada */ }

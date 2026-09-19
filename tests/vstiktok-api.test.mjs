@@ -58,9 +58,12 @@ test('open: code "ok" é sucesso e os dados saem de data', () => {
 });
 
 test('open: endpoint de token erra no padrao OAuth (error como string)', () => {
+  // O que este teste guarda e a LEITURA do formato (error/error_description como
+  // string na raiz, fora do padrao do resto da TikTok). A frase e a de reconectar:
+  // nesse ponto do fluxo nao existe token nenhum pra renovar.
   const r = interpretar('open', 400, { error: 'invalid_grant', error_description: 'authorization code expired' });
   assert.equal(r.ok, false);
-  assert.match(r.motivo, /expirada/);
+  assert.match(r.motivo, /Conectar conta/);
 });
 
 test('open: token bom devolve os campos da raiz, sem exigir data', () => {
@@ -85,6 +88,28 @@ test('erro de sign do Shop vira frase acionavel, nao codigo cru', () => {
 
 test('app nao auditado é explicado, nao vira "resposta inesperada"', () => {
   assert.match(explicarErro('open', 200, 'unaudited_client', 'app not audited'), /nao auditado/);
+});
+
+/* A resposta ABAIXO e a que a TikTok devolve de verdade quando o code do OAuth ja
+   foi usado (conferido contra open.tiktokapis.com em 19/09/2026). Ela diz "expired",
+   e o mapeamento generico mandava "renove o token" — token que ainda nem existe
+   nesse ponto do fluxo. O teste existe pra essa frase nao voltar a ser generica. */
+test('code de OAuth queimado manda reconectar, nao renovar token', () => {
+  const m = explicarErro('open', 200, 'invalid_grant', 'Authorization code is expired.');
+  assert.match(m, /Conectar conta/);
+  assert.doesNotMatch(m, /renove o token/);
+});
+
+test('client key/secret errados sao ditos pelo nome', () => {
+  assert.match(explicarErro('open', 200, 'invalid_client', 'Client key or secret is incorrect.'), /client key ou client secret/i);
+});
+
+test('redirect_uri diferente do cadastrado aponta pra URL da tela', () => {
+  assert.match(explicarErro('open', 200, 'invalid_request', 'Redirect_uri mismatch.'), /URL de retorno/i);
+});
+
+test('token de API expirado continua mandando renovar', () => {
+  assert.match(explicarErro('open', 401, 'access_token_invalid', 'access token is expired'), /renove o token/);
 });
 
 test('so o que é transitorio é retentavel', () => {

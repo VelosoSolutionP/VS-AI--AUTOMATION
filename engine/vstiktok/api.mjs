@@ -69,6 +69,19 @@ export function assinarShop({ caminho, query = {}, corpo = null, appSecret, mult
  */
 export function explicarErro(familia, status, code, mensagem = '') {
   const txt = `${code ?? ''} ${mensagem ?? ''}`;
+  // Vem ANTES do "expirou" generico de proposito: a troca do OAuth falha com
+  // "Authorization code is expired", e mandar renovar o token nesse momento manda
+  // a pessoa procurar um token que ainda nem existe. O que ela precisa e clicar
+  // em conectar de novo — o code da TikTok vale uma vez so e por pouco tempo.
+  if (/invalid_grant|authorization.{0,3}code/i.test(txt)) {
+    return 'o codigo de autorizacao nao vale mais — clique em "Conectar conta" de novo (ele expira em segundos e so pode ser usado uma vez)';
+  }
+  if (/invalid_client|client.{0,3}key|client.{0,3}secret/i.test(txt)) {
+    return 'client key ou client secret errados — confira o que foi colado do app da TikTok';
+  }
+  if (/redirect.{0,3}uri/i.test(txt)) {
+    return 'a URL de retorno nao bate com a cadastrada no app da TikTok — cole exatamente a que aparece nesta tela';
+  }
   if (/expired|expire/i.test(txt)) {
     return 'credencial expirada — renove o token (o access_token do TikTok dura pouco)';
   }

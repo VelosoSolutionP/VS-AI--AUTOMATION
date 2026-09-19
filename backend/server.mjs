@@ -18,6 +18,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { issueLicense } from '../license/issue.mjs';
 import { sendLicense } from './whatsapp.mjs';
+import * as acesso from './acesso.mjs';
 import * as crm from '../engine/vscrm/index.mjs';
 import { testarConexao, CREDENCIAL } from '../engine/vsinfluence/coletor.mjs';
 import { diagnostico as tiktokDiagnostico } from '../engine/vstiktok/index.mjs';
@@ -25,6 +26,7 @@ import { testar as tiktokTestar } from '../engine/vstiktok/conectar.mjs';
 import * as estoque from '../engine/vsestoque/index.mjs';
 import * as vspainel from '../engine/vspainel/index.mjs';
 import { painelQuebraGalho, QG_URL } from './quebragalho.mjs';
+import * as tk from '../engine/vstiktok/index.mjs';
 import { reservarEvento } from './idempotencia.mjs';
 import { lerCorpoLimitado, criarRateLimit, ipDe, segredoIgual, CORPO_MAX_BYTES } from './limites.mjs';
 
@@ -285,6 +287,41 @@ const server = createServer(async (req, res) => {
     return json(res, 200, { received: true, issued: false });
   }
 
+  /**
+   * Retorno do OAuth das redes sociais. Fica FORA do /crm de proposito: quem chega
+   * aqui e o navegador redirecionado pela rede, sem o header de sessao do painel.
+   * O `state` e conferido dentro de `concluirAutorizacao` — e o que impede alguem
+   * mandar um `code` forjado.
+   */
+  if (req.url.split('?')[0].startsWith('/oauth/callback/')) {
+    const u = new URL(req.url, 'http://x');
+    const familia = u.pathname.split('/')[3] || '';
+    const code = u.searchParams.get('code') || u.searchParams.get('auth_code');
+    const erro = u.searchParams.get('error');
+    const pagina = (titulo, texto, ok) => {
+      res.writeHead(ok ? 200 : 400, { 'content-type': 'text/html; charset=utf-8' });
+      res.end(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>${titulo}</title></head>
+<body style="font-family:system-ui,sans-serif;background:#fafafa;color:#18181b;display:grid;place-items:center;height:100vh;margin:0">
+<div style="max-width:30rem;padding:2rem;text-align:center">
+<div style="font-size:2.6rem;color:${ok ? '#15803d' : '#b91c1c'}">${ok ? '✓' : '✖'}</div>
+<h1 style="font-size:1.2rem;margin:.6rem 0">${titulo}</h1>
+<p style="color:#52525b;line-height:1.55">${texto}</p>
+<p style="margin-top:1.4rem"><a href="/crm#redes" style="color:#18181b">Voltar ao painel</a></p>
+</div></body></html>`);
+    };
+
+    if (erro) { return pagina('A rede recusou', `Motivo: ${erro}. Nada foi salvo.`, false); }
+    if (!code) { return pagina('Retorno sem código', 'A rede voltou sem o código de autorização.', false); }
+    try {
+      const r = await tk.concluirAutorizacao(familia, code, { state: u.searchParams.get('state') });
+      if (!r.ok) { return pagina('Não consegui concluir', r.motivo, false); }
+      return pagina('Conta conectada', `A conta do TikTok (${familia}) está ligada ao painel. Pode fechar esta aba.`, true);
+    } catch (e) {
+      return pagina('Erro ao concluir', e.message, false);
+    }
+  }
+
   // ---- VScrm (opt-in: CRM_ENABLED=1) ----
   if (CRM_ENABLED && req.url.split('?')[0].startsWith('/crm')) {
     const rota = req.url.split('?')[0];
@@ -304,21 +341,57 @@ const server = createServer(async (req, res) => {
      * CRM_TOKEN nao esta configurado em vez de deixar o painel aberto em silencio.
      */
     if (req.method === 'GET' && rota === '/crm/api/auth') {
-      return json(res, 200, { exigeSenha: Boolean(CRM_TOKEN) });
+      return json(res, 200, acesso.estado());
     }
+
+    /* Primeiro acesso. Quem comprou a licenca abre o console e define a
+       propria senha aqui — sem terminal, sem variavel de ambiente, sem
+       ninguem ter que "passar" credencial. So funciona enquanto nao houver
+       senha: depois disso a rota fecha, senao qualquer um com a URL
+       trocaria a senha de um console ja configurado. */
+    if (req.method === 'POST' && rota === '/crm/api/criar-acesso') {
+      const b = await readBody(req);
+      if (corpoEstourou(res, b)) { return; }
+      let d; try { d = JSON.parse(b.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
+      try {
+        acesso.criar(d.senha);
+        console.log(`[${new Date().toISOString()}] senha do console definida no primeiro acesso`);
+        return json(res, 201, { ok: true });
+      } catch (e) {
+        return json(res, e.code || 400, { erro: e.message });
+      }
+    }
+
     if (req.method === 'POST' && rota === '/crm/api/entrar') {
       const b = await readBody(req);
       if (corpoEstourou(res, b)) { return; }
       let d; try { d = JSON.parse(b.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
-      if (!CRM_TOKEN) {
-        return json(res, 200, { ok: true, semSenha: true,
-          aviso: 'CRM_TOKEN nao esta configurado — este painel esta aberto a quem tiver a URL' });
+      if (acesso.precisaCriar()) {
+        return json(res, 409, { erro: 'primeiro acesso', precisaCriar: true });
       }
-      if (!segredoIgual(d.senha, CRM_TOKEN)) { return json(res, 401, { erro: 'senha incorreta' }); }
+      if (!acesso.confere(d.senha)) { return json(res, 401, { erro: 'senha incorreta' }); }
       return json(res, 200, { ok: true });
     }
-    if (CRM_TOKEN && !segredoIgual(req.headers['x-crm-token'], CRM_TOKEN)) {
-      return json(res, 403, { erro: 'CRM_TOKEN ausente ou invalido' });
+
+    /* Troca de senha, ja de dentro do console e com a atual na mao. */
+    if (req.method === 'POST' && rota === '/crm/api/trocar-senha') {
+      if (!acesso.confere(req.headers['x-crm-token'])) {
+        return json(res, 403, { erro: 'sessao invalida' });
+      }
+      const b = await readBody(req);
+      if (corpoEstourou(res, b)) { return; }
+      let d; try { d = JSON.parse(b.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
+      try { acesso.trocar(d.atual, d.nova); return json(res, 200, { ok: true }); }
+      catch (e) { return json(res, e.code || 400, { erro: e.message }); }
+    }
+
+    /* Daqui para baixo e dado de cliente. Sem senha definida, o console fica
+       fechado: antes, CRM_TOKEN vazio liberava o painel inteiro em silencio
+       para quem tivesse a URL. */
+    if (!acesso.confere(req.headers['x-crm-token'])) {
+      return json(res, 403, acesso.precisaCriar()
+        ? { erro: 'console sem senha definida', precisaCriar: true }
+        : { erro: 'senha ausente ou invalida' });
     }
     if (req.method === 'GET' && rota === '/crm/api/painel') { return json(res, 200, crm.painel()); }
     if (req.method === 'GET' && rota === '/crm/api/status') { return json(res, 200, crm.statusIntegracoes()); }
@@ -339,6 +412,16 @@ const server = createServer(async (req, res) => {
     // por HTTP — nao por import. Assim ele aparece aqui dentro sem que um vire
     // dependencia de compilacao do outro, e fora do ar vira aviso, nao tela quebrada.
     if (req.method === 'GET' && rota === '/crm/api/quebragalho') { return json(res, 200, await painelQuebraGalho()); }
+    if (req.method === 'GET' && rota === '/crm/api/tiktok/app') {
+      // O redirect e FIXO e derivado do dominio do painel — nao ha o que o usuario
+      // digitar errado, e ele so cola esse valor uma vez no painel do TikTok.
+      const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
+      return json(res, 200, {
+        diagnostico: tk.diagnostico(),
+        redirects: ['open', 'business', 'shop'].reduce((a, f) => ({ ...a, [f]: `${origem}/oauth/callback/${f}` }), {}),
+        origem,
+      });
+    }
     if (req.method === 'GET' && rota === '/crm/api/estoque/historico') {
       return json(res, 200, { movimentos: estoque.historico(new URL(req.url, 'http://x').searchParams.get('sku')) });
     }
@@ -379,6 +462,20 @@ const server = createServer(async (req, res) => {
       let r;
       switch (rota) {
         case '/crm/api/perfil': r = vspainel.salvarPerfil(d); break;
+        case '/crm/api/tiktok/app': {
+          const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
+          r = tk.salvarCredencial(d.familia, { ...d.cred, redirectUri: `${origem}/oauth/callback/${d.familia}` });
+          break;
+        }
+        case '/crm/api/tiktok/autorizar': {
+          const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
+          r = tk.iniciarAutorizacao(d.familia, {
+            redirectUri: `${origem}/oauth/callback/${d.familia}`,
+            escopos: d.publicar ? [...tk.auth.ESCOPOS_PADRAO, tk.auth.ESCOPOS.publicar, tk.auth.ESCOPOS.enviar] : undefined,
+            serviceId: d.serviceId,
+          });
+          break;
+        }
         case '/crm/api/estoque/produto': r = estoque.criar(d); break;
         case '/crm/api/estoque/editar': r = estoque.editar(d.sku, d.mudancas || {}); break;
         case '/crm/api/estoque/movimentar': r = estoque.movimentar(d.sku, d); break;
