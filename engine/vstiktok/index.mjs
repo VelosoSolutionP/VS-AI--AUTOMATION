@@ -56,6 +56,53 @@ export function salvarConfig(mudancas = {}) {
   return novo;
 }
 
+/* ---------------- verificação de domínio ---------------- */
+
+/**
+ * Antes de aceitar a URL de retorno, a TikTok manda PROVAR que o dominio e seu:
+ * ela da um arquivo `tiktok<numeros>.txt` pra colocar na raiz do site. Quem nao
+ * tem acesso ao servidor trava aqui — e esse e justamente o perfil de quem compra
+ * o console. Entao o proprio painel serve o arquivo: a pessoa cola nome e
+ * conteudo na tela e a URL passa a responder.
+ *
+ * O nome e restrito a um arquivo .txt sem caminho de proposito: isto vira uma rota
+ * publica na raiz, e aceitar barra ou ".." deixaria escolher qualquer endereco do
+ * painel — inclusive sombrear rota de verdade.
+ */
+const VERIFICACAO = 'verificacao';
+const NOME_VALIDO = /^[A-Za-z0-9._-]{1,64}\.txt$/;
+
+export function getVerificacao() {
+  return load(VERIFICACAO, null);
+}
+
+export function salvarVerificacao({ arquivo, conteudo } = {}) {
+  const nome = String(arquivo || '').trim().replace(/^\/+/, '');
+  const texto = String(conteudo ?? '').trim();
+  if (!nome) { return { ok: false, motivo: 'informe o nome do arquivo que a TikTok pediu (ex.: tiktok1a2b3c.txt)' }; }
+  if (!NOME_VALIDO.test(nome)) { return { ok: false, motivo: `nome invalido: "${arquivo}" — use so o nome do arquivo .txt, sem barra nem caminho` }; }
+  if (!texto) { return { ok: false, motivo: 'cole tambem o conteudo do arquivo' }; }
+  save(VERIFICACAO, { arquivo: nome, conteudo: texto, em: new Date().toISOString() });
+  return { ok: true, arquivo: nome };
+}
+
+export function limparVerificacao() {
+  save(VERIFICACAO, null);
+  return { ok: true };
+}
+
+/**
+ * Resolve um pedido HTTP de raiz. Devolve null quando nao e o arquivo cadastrado —
+ * quem chama segue o roteamento normal.
+ */
+export function servirVerificacao(caminho) {
+  const v = getVerificacao();
+  if (!v?.arquivo) { return null; }
+  const pedido = String(caminho || '').split('?')[0].replace(/^\/+/, '');
+  if (pedido !== v.arquivo) { return null; }
+  return { conteudo: v.conteudo, tipo: 'text/plain; charset=utf-8' };
+}
+
 /* ---------------- autorização ---------------- */
 
 /** Monta a URL da tela de consentimento. `state` é gerado aqui e guardado pra conferência. */

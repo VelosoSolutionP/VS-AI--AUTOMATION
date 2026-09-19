@@ -460,6 +460,20 @@ function tiktokCard(){
     ${linha('Pronto pra','o que já dá pra fazer pela API',pronto.length?pronto.join(', '):'nada ainda',pronto.length?'b-ok':'b-warn')}
     ${TK.lojaAtiva?linha('Loja ativa','shop_cipher',esc(TK.lojaAtiva),'b-ok'):''}
     ${TK.anuncianteAtivo?linha('Conta de anúncio ativa','advertiser_id',esc(TK.anuncianteAtivo),'b-ok'):''}</div>
+  ${app?`<div class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div><h3>Verificação de domínio</h3>
+        <p class="hint">A TikTok só aceita a URL de retorno depois de provar que o domínio é seu.
+        Ela dá um arquivo <code>tiktok....txt</code> pra colocar na raiz do site — cole aqui e o painel serve sozinho.</p></div>
+      ${app.verificacao?'<span class="badge b-ok">no ar</span>':'<span class="badge">ainda não</span>'}</div>
+    ${app.verificacao?linha('Respondendo em','clique em Verificar no painel da TikTok',
+      esc(app.origem+'/'+app.verificacao.arquivo),'b-ok'):''}
+    <div class="form-grid">
+      <div class="field"><label>Nome do arquivo</label><input id="tk-verif-arq" placeholder="tiktok1a2b3c4d.txt" value="${esc(app.verificacao?.arquivo||'')}" autocomplete="off"></div>
+      <div class="field"><label>Conteúdo do arquivo</label><input id="tk-verif-txt" placeholder="tiktok-developers-site-verification=..." value="${esc(app.verificacao?.conteudo||'')}" autocomplete="off"></div>
+      <button class="btn btn-s" onclick="salvarVerificacaoTiktok()">Publicar arquivo</button>
+      ${app.verificacao?'<button class="btn btn-s" onclick="salvarVerificacaoTiktok(true)">Tirar do ar</button>':''}
+    </div></div>`:''}
   <div class="card" style="margin-bottom:16px;border-style:dashed">
     <h3>Como ligar, em dois passos</h3>
     <p class="hint">1. Crie o app em <b>developers.tiktok.com</b> e cole a URL de retorno que aparece em cada bloco abaixo —
@@ -469,6 +483,16 @@ function tiktokCard(){
   ${bloco('open','Login e conteúdo',[['clientKey','Client key','do app em developers.tiktok.com'],['clientSecret','Client secret','']],'publicar vídeo, ler perfil e métricas')}
   ${bloco('business','Anúncios (Ads)',[['appId','App ID','de business-api.tiktok.com'],['secret','Secret','']],'campanhas, conjuntos e relatórios')}
   ${bloco('shop','Loja (produtos)',[['appKey','App key','de partner.tiktokshop.com'],['appSecret','App secret',''],['serviceId','Service ID','do painel do app']],'catálogo, estoque e preço')}`;
+}
+
+async function salvarVerificacaoTiktok(limpar){
+  const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
+  try{
+    const r=await api('tiktok/verificacao',limpar?{limpar:true}:{arquivo:v('tk-verif-arq'),conteudo:v('tk-verif-txt')});
+    if(r.ok===false) return flash(r.motivo,'err');
+    flash(limpar?'Arquivo tirado do ar.':'Arquivo publicado. Agora clique em Verificar no painel da TikTok.','ok');
+    carregar();
+  }catch(e){flash(e.message,'err');}
 }
 
 async function salvarAppTiktok(familia,campos){

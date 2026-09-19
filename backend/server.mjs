@@ -310,6 +310,17 @@ const server = createServer(async (req, res) => {
    * O `state` e conferido dentro de `concluirAutorizacao` — e o que impede alguem
    * mandar um `code` forjado.
    */
+  /* Arquivo de verificacao de dominio da TikTok. Fica na RAIZ porque e la que ela
+     procura, e antes do resto do roteamento porque o nome vem deles — nao da pra
+     reservar um prefixo nosso. So responde o arquivo exatamente cadastrado. */
+  if (req.method === 'GET' && /^\/[A-Za-z0-9._-]{1,64}\.txt$/.test(req.url.split('?')[0])) {
+    const v = tk.servirVerificacao(req.url);
+    if (v) {
+      res.writeHead(200, { 'content-type': v.tipo });
+      return res.end(v.conteudo);
+    }
+  }
+
   if (req.url.split('?')[0].startsWith('/oauth/callback/')) {
     const u = new URL(req.url, 'http://x');
     const familia = u.pathname.split('/')[3] || '';
@@ -437,6 +448,7 @@ const server = createServer(async (req, res) => {
         diagnostico: tk.diagnostico(),
         redirects: ['open', 'business', 'shop'].reduce((a, f) => ({ ...a, [f]: `${origem}/oauth/callback/${f}` }), {}),
         origem,
+        verificacao: tk.getVerificacao(),
       });
     }
     if (req.method === 'GET' && rota === '/crm/api/pagamentos') {
@@ -487,6 +499,9 @@ const server = createServer(async (req, res) => {
       let r;
       switch (rota) {
         case '/crm/api/perfil': r = vspainel.salvarPerfil(d); break;
+        case '/crm/api/tiktok/verificacao':
+          r = d.limpar ? tk.limparVerificacao() : tk.salvarVerificacao(d);
+          break;
         case '/crm/api/tiktok/app': {
           const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
           r = tk.salvarCredencial(d.familia, { ...d.cred, redirectUri: `${origem}/oauth/callback/${d.familia}` });
