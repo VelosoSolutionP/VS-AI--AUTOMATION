@@ -5,12 +5,13 @@
  * Se o gate não rodar (app fora do ar / não validável), BLOQUEIA — sem gate, sem commit.
  *
  * Backend puro (sem UI staged) -> libera (gate browser não se aplica).
- * Requer qa-gate.config.json no repo. Sem config -> avisa, não bloqueia (nada a validar).
+ * Requer vs-gate-config.json no repo (qa-gate.config.json ainda vale, pra nao quebrar
+ * quem ja tinha). Sem config -> avisa, nao bloqueia (nada a validar).
  */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
-import { runGate } from '../engine/core.mjs';
+import { runGate, acharConfig, NOMES_CONFIG } from '../engine/core.mjs';
 import { notify, projectLabel } from '../engine/notify-whatsapp.mjs';
 import { reportBlock, clearBlock, readMarkers } from '../engine/help-state.mjs';
 import { recordTask } from '../engine/metrics.mjs';
@@ -133,13 +134,13 @@ if (isMergeContext(cmd, repo)) { allow('[VS-AUD-006] merge/promoção de ambient
   }
 }
 
-const cfg = join(repo, 'qa-gate.config.json');
+const cfg = acharConfig(repo);
 if (!existsSync(cfg)) {
   // Sem config de UI (repo backend/sem gate browser): ainda assim gera COMPROVANTE
   // no WhatsApp do commit (rastreabilidade), pra backend não ficar sem recibo.
   await gateSignal(repo, 'green', 'commit backend — gate de UI nao configurado; validado por sintaxe/testes');
   logDelivered(repo, cmd);
-  allow('[VS-AUD-000] sem qa-gate.config.json — gate browser não configurado neste repo. Comprovante de commit enviado.');
+  allow(`[VS-AUD-000] sem ${NOMES_CONFIG[0]} — gate browser não configurado neste repo. Comprovante de commit enviado.`);
 }
 
 let r;
@@ -170,7 +171,7 @@ if (r.status === 'blocked' || r.status === 'error') {
     if (n.kind === 'playwright') { return '• LIB FALTANDO: playwright não instalado. VOCÊ resolve: `npm i -D playwright` e depois `npx playwright install chromium`. Re-tente o commit.'; }
     if (n.kind === 'flow') {
       const files = (n.uiFiles || []).slice(0, 8).join(', ');
-      return `• FLOW FALTANDO: você tocou UI (${files}) e NENHUM flow no qa-gate.config.json cobre. VOCÊ resolve: adicione um flow apontando a rota afetada — mode "form" (cadastro/edição: injeta bug + exige msg amigável) ou mode "read" (lista/visualização: expectSelector+expectMinCount). NÃO é mudar regra de negócio, é dar cobertura à ferramenta.`;
+      return `• FLOW FALTANDO: você tocou UI (${files}) e NENHUM flow no vs-gate-config.json cobre. VOCÊ resolve: adicione um flow apontando a rota afetada — mode "form" (cadastro/edição: injeta bug + exige msg amigável) ou mode "read" (lista/visualização: expectSelector+expectMinCount). NÃO é mudar regra de negócio, é dar cobertura à ferramenta.`;
     }
     if (n.kind === 'app-up') {
       const passos = [];

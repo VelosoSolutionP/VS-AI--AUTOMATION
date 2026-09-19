@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { join } from 'node:path';
-import { checkApp, ensureUp, simulateFlows, runGate, loadConfig, targetsFor } from '../engine/core.mjs';
+import { checkApp, ensureUp, simulateFlows, runGate, loadConfig, targetsFor, acharConfig } from '../engine/core.mjs';
 import { validateTask } from '../engine/requirements.mjs';
 import { loadCompanyConfig } from '../engine/company-config.mjs';
 import { makeTracker } from '../engine/vsqa/tracker/index.mjs';
@@ -98,7 +98,7 @@ server.tool('qa_check_app',
 
 /* ---- qa_list_flows (livre) ---- */
 server.tool('qa_list_flows',
-  'Lista os fluxos configurados no qa-gate.config.json do projeto.',
+  'Lista os fluxos configurados no vs-gate-config.json do projeto (qa-gate.config.json legado tambem vale).',
   { configPath: z.string() },
   async ({ configPath }) => {
     const cfg = loadConfig(configPath);
@@ -110,7 +110,7 @@ server.tool('qa_list_flows',
 server.tool('qa_simulate',
   'Simula UM fluxo em browser real: injeta bug (submit vazio) e exige mensagem amigável + console limpo. ALVO: front | mobile | (vazio=ambos). Retorna status + screenshot inline por alvo. Use pra DIAGNOSTICAR bug de CRUD/validação: reproduz o erro real.',
   {
-    configPath: z.string().describe('caminho do qa-gate.config.json'),
+    configPath: z.string().describe('caminho do vs-gate-config.json, ou a pasta do repo pra resolver sozinho'),
     path: z.string().describe('rota do fluxo, ex: /medico/pacientes/36/editar'),
     alvo: z.enum(['front', 'mobile']).optional().describe('vazio = roda front E mobile'),
     mode: z.enum(['form', 'read']).optional().describe('form=injeta bug via submit + exige msg amigavel (default). read=lista/visualiza sem submit, exige conteudo renderizado'),
@@ -156,7 +156,7 @@ server.tool('qa_run_gate',
   },
   async ({ repo, configPath, summary, backend, frontend, mobile }) => {
     requireLicense();
-    const cfg = configPath || `${repo}/qa-gate.config.json`;
+    const cfg = configPath || acharConfig(repo);
     const r = await runGate(repo, cfg);
     // RECIBO VERDE: prova determinística p/ o git-guard liberar o commit (front/back).
     // Só grava no verde; qualquer edição posterior invalida (git-guard compara com o
@@ -231,7 +231,7 @@ server.tool('vsqa_test_task',
   {
     issueId: z.union([z.string(), z.number()]),
     repo: z.string(),
-    configPath: z.string().describe('qa-gate.config.json do projeto (alvo do browser)'),
+    configPath: z.string().describe('vs-gate-config.json do projeto (alvo do browser), ou a pasta do repo'),
     alvo: z.enum(['front', 'mobile']).optional(),
     scenario: z.any().optional().describe('cenário já mapeado (do vsqa_scenario, com path/seletores preenchidos)'),
     humanInLoop: z.boolean().optional(),

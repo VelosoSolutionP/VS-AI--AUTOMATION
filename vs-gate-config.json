@@ -1,0 +1,43 @@
+{
+  "_leia": "Config do QA-Gate deste repo. A SENHA NAO MORA AQUI: o gate le de QA_GATE_PASSWORD no ambiente. Arquivo de config vai pro git; senha nao.",
+  "baseUrl": "http://127.0.0.1:8787",
+  "healthPath": "/crm",
+  "uiGlobs": ["backend/*.html"],
+  "sessionTtlMin": 20,
+  "login": {
+    "path": "/crm",
+    "emailSel": false,
+    "passSel": "#lgSenha",
+    "submitSel": "#lgBtn",
+    "successSelector": "#side",
+    "waitMs": 4000
+  },
+  "flows": [
+    {
+      "name": "dashboard abre depois do login",
+      "path": "/crm#visao",
+      "mode": "read",
+      "expectSelector": "#side",
+      "expectMinCount": 1,
+      "expectText": "Visão geral"
+    },
+    {
+      "name": "conexoes: o bloco do TikTok renderiza",
+      "path": "/crm#redes",
+      "mode": "read",
+      "expectText": "TikTok · Login e conteúdo"
+    },
+    {
+      "name": "recebimento: a integracao do Asaas aparece",
+      "path": "/crm#pl-recebimento",
+      "mode": "read",
+      "expectText": "Integração com o Asaas"
+    },
+    {
+      "name": "estoque: cadastro de produto na tela",
+      "path": "/crm#estoque",
+      "mode": "read",
+      "expectText": "Novo produto"
+    }
+  ]
+}

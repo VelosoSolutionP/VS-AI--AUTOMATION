@@ -6,7 +6,7 @@
  *       Lê a US no tracker e grava o CENÁRIO-rascunho num JSON pra você mapear
  *       path/seletores de cada passo. Livre (não executa browser).
  *
- *   vsqa run <issueId> [--repo .] [--config qa-gate.config.json] [--alvo front|mobile]
+ *   vsqa run <issueId> [--repo .] [--config vs-gate-config.json] [--alvo front|mobile]
  *                      [--scenario arquivo] [--auto] [--no-tasks]
  *       Carrega o cenário mapeado (--scenario ou .vsqa/<id>.scenario.json),
  *       confere se o app está no ar, roda o cenário no browser e dá o veredito.
@@ -15,7 +15,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { loadCompanyConfig } from '../company-config.mjs';
-import { loadConfig, targetsFor, checkApp, ensureUp } from '../core.mjs';
+import { loadConfig, targetsFor, checkApp, ensureUp, acharConfig, NOMES_CONFIG } from '../core.mjs';
 import { makeTracker } from './tracker/index.mjs';
 import { normalizeIssue } from './reader.mjs';
 import { buildScenario, validateScenario } from './scenario.mjs';
@@ -69,7 +69,7 @@ async function cmdScenario(args) {
 
 async function cmdRun(args) {
   const id = args._[1];
-  if (!id) { die('uso: vsqa run <issueId> [--config qa-gate.config.json] [--alvo front] [--scenario arquivo] [--auto]'); }
+  if (!id) { die('uso: vsqa run <issueId> [--config vs-gate-config.json] [--alvo front] [--scenario arquivo] [--auto]'); }
   const repo = args.repo || process.cwd();
   const company = loadCompanyConfig(repo);
   const tracker = makeTracker(company);
@@ -84,9 +84,9 @@ async function cmdRun(args) {
     die('cenário incompleto:\n' + check.missing.map((m) => '  - ' + m).join('\n'));
   }
 
-  const cfgPath = args.config || join(repo, 'qa-gate.config.json');
+  const cfgPath = args.config || acharConfig(repo);
   const cfg = loadConfig(cfgPath);
-  if (!cfg) { die('sem qa-gate.config.json em ' + cfgPath); }
+  if (!cfg) { die(`sem ${NOMES_CONFIG[0]} em ` + cfgPath); }
   const [tgt] = targetsFor(cfg, args.alvo);
   if (!tgt) { die('nenhum alvo no config'); }
   const target = tgt.tcfg;

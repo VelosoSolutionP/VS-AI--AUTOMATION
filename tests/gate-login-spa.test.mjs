@@ -85,3 +85,25 @@ test('login classico (com redirect) continua passando sem successSelector', asyn
   }, [{ ...fluxo, path: '/painel' }], { repo: 'classico-' + Date.now() });
   assert.equal(r.status, 'green', r.errors?.join('; '));
 });
+
+/**
+ * Rota em ancora. Ir de /app pra /app#lista e navegacao no MESMO documento: o
+ * Playwright devolve `null` porque nao houve requisicao. O gate lia isso como
+ * "HTTP sem resposta" e reprovava — ou seja, reprovava TODA rota de SPA, que e
+ * exatamente como o console da Veloso roteia (#estoque, #redes, #pl-recebimento).
+ */
+test('rota em ancora (#) nao e lida como "sem resposta"', async () => {
+  const [r] = await simulateFlows({
+    baseUrl: base,
+    login: { path: '/app', emailSel: false, passSel: '#pass', submitSel: '#ok', password: SENHA, successSelector: '#menu', waitMs: 800 },
+  }, [{ ...fluxo, name: 'rota em ancora', path: '/app#lista' }], { repo: 'hash-ok-' + Date.now() });
+  assert.equal(r.status, 'green', r.errors?.join('; '));
+});
+
+test('rota que nao existe de verdade continua reprovando', async () => {
+  const [r] = await simulateFlows({
+    baseUrl: base,
+    login: { path: '/app', emailSel: false, passSel: '#pass', submitSel: '#ok', password: SENHA, successSelector: '#menu', waitMs: 800 },
+  }, [{ name: 'seletor ausente', path: '/app#lista', mode: 'read', expectSelector: '.nao-existe-nessa-tela', expectMinCount: 1 }], { repo: 'hash-red-' + Date.now() });
+  assert.equal(r.status, 'red', 'o conserto nao pode virar passe livre');
+});
