@@ -10,6 +10,7 @@
 import { auditar, reposConfigurados, docPendente } from './auditor.mjs';
 import { consolidar } from './financeiro.mjs';
 import { montar } from './relatorios.mjs';
+import { perfil, configuracao, plano, salvarPerfil } from './perfil.mjs';
 
 /** Roda um carregador e devolve o padrão se o módulo não estiver em uso. */
 async function tentar(fn, padrao = null) {
@@ -84,4 +85,9 @@ export async function painelRelatorios(opts = {}) {
   }, opts.agora || Date.now());
 }
 
-export { auditar, consolidar, montar, reposConfigurados };
+/** Tela de Perfil / Configurações / Plano: tudo que vem do company.json e da licença. */
+export async function painelConta() {
+  return { perfil: perfil(), configuracao: configuracao(), plano: await plano() };
+}
+
+export { auditar, consolidar, montar, reposConfigurados, perfil, configuracao, plano, salvarPerfil };

@@ -312,6 +312,7 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && rota === '/crm/api/auditor') { return json(res, 200, await vspainel.painelAuditor()); }
     if (req.method === 'GET' && rota === '/crm/api/financeiro') { return json(res, 200, await vspainel.painelFinanceiro()); }
     if (req.method === 'GET' && rota === '/crm/api/relatorios') { return json(res, 200, await vspainel.painelRelatorios()); }
+    if (req.method === 'GET' && rota === '/crm/api/conta') { return json(res, 200, await vspainel.painelConta()); }
     if (req.method === 'GET' && rota === '/crm/api/estoque/historico') {
       return json(res, 200, { movimentos: estoque.historico(new URL(req.url, 'http://x').searchParams.get('sku')) });
     }
@@ -351,6 +352,7 @@ const server = createServer(async (req, res) => {
       let d; try { d = JSON.parse(b.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
       let r;
       switch (rota) {
+        case '/crm/api/perfil': r = vspainel.salvarPerfil(d); break;
         case '/crm/api/estoque/produto': r = estoque.criar(d); break;
         case '/crm/api/estoque/editar': r = estoque.editar(d.sku, d.mudancas || {}); break;
         case '/crm/api/estoque/movimentar': r = estoque.movimentar(d.sku, d); break;

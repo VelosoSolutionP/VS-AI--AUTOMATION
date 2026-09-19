@@ -278,7 +278,7 @@ const TITULO={};
 MENU.forEach(m=>{TITULO[m.id]=[m.nome];(m.filhos||[]).forEach(f=>TITULO[f.id]=[m.nome,f.nome]);});
 const PAI={}; MENU.forEach(m=>(m.filhos||[]).forEach(f=>PAI[f.id]=m.id));
 
-let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null;
+let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null;
 const TESTE={}; // resultado do ultimo teste por rede (so em memoria)
 const PROVA={}; // ultimo teste real das APIs do TikTok, por familia
 let rota=location.hash.slice(1)||'visao';
@@ -320,16 +320,16 @@ function tiktokCard(){
     return `<div class="card" style="margin-bottom:10px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
         <div><h3>TikTok · ${esc(TK_NOME[f]||f)}</h3><p class="hint">${esc(s.ajuda)}</p></div>${badge}</div>
-      ${s.conta?linha('Conta conectada','',esc(s.conta),'b-ok'):''}
-      ${s.token?linha('Token guardado','só o miolo aparece mascarado',esc(s.token),''):''}
+      ${s.conta?linha('Conta conectada','',s.conta,'b-ok'):''}
+      ${s.token?linha('Token guardado','só o miolo aparece mascarado',s.token,''):''}
       ${cmd}${provas}${btn}</div>`;
   }).join('');
   const pronto=Object.entries(TK.pronto).filter(([,v])=>v).map(([k])=>k);
   return `<div class="card" style="margin-bottom:16px"><h3>TikTok</h3>
     <p class="hint">São três apps separados na TikTok — login, anúncios e loja — cada um com autorização própria.</p>
     ${linha('Pronto pra','o que já dá pra fazer pela API',pronto.length?pronto.join(', '):'nada ainda',pronto.length?'b-ok':'b-warn')}
-    ${TK.lojaAtiva?linha('Loja ativa','shop_cipher',esc(TK.lojaAtiva),'b-ok'):''}
-    ${TK.anuncianteAtivo?linha('Conta de anúncio ativa','advertiser_id',esc(TK.anuncianteAtivo),'b-ok'):''}</div>
+    ${TK.lojaAtiva?linha('Loja ativa','shop_cipher',TK.lojaAtiva,'b-ok'):''}
+    ${TK.anuncianteAtivo?linha('Conta de anúncio ativa','advertiser_id',TK.anuncianteAtivo,'b-ok'):''}</div>
   <div class="card" style="margin-bottom:16px;border-style:dashed">
     <h3>Aqui o token FICA gravado — e é diferente do resto desta tela</h3>
     <p class="hint">OAuth só funciona guardando o token pra renovar depois. Ele mora em
@@ -492,7 +492,7 @@ const S={
     ${kpi('Sem saldo',p.semEstoque,'ativos que não dá pra entregar')}
   </div>
   ${p.alertas.length?`<div class="card" style="margin-bottom:16px"><h3>Precisa de atenção</h3>
-    ${p.alertas.map(a=>linha(esc(a.nome||a.sku),esc(a.sku),a.nivel==='acabou'?'acabou':`baixo: ${a.livre}`,a.nivel==='acabou'?'b-err':'b-warn')).join('')}</div>`:''}
+    ${p.alertas.map(a=>linha(a.nome||a.sku,esc(a.sku),a.nivel==='acabou'?'acabou':`baixo: ${a.livre}`,a.nivel==='acabou'?'b-err':'b-warn')).join('')}</div>`:''}
 
   <div class="card" style="margin-bottom:16px"><h3>Novo produto</h3>
     <div class="form-grid">
@@ -534,12 +534,12 @@ const S={
     ${kpi('Estoque parado',f.estoqueParado,'ativo, não receita')}
   </div>
   <div class="card" style="margin-bottom:16px"><h3>De onde vem cada número</h3>${fontes}
-    ${linha('Total reconhecido','vendas fechadas + conteúdo — o pipeline NÃO entra',esc(f.totalReconhecido),'b-ok')}
-    ${linha('Perdido','leads marcados como perdidos',esc(f.perdido),'')}
+    ${linha('Total reconhecido','vendas fechadas + conteúdo — o pipeline NÃO entra',f.totalReconhecido,'b-ok')}
+    ${linha('Perdido','leads marcados como perdidos',f.perdido,'')}
     ${linha('Conversão','ganhos ÷ fechados',f.conversao==null?'—':Math.round(f.conversao*100)+'%',f.conversao==null?'':'b-ok')}</div>
   <div class="card" style="border-style:dashed"><h3>O que estes números NÃO são</h3>
     <p class="hint">Isto é consolidado operacional, não fechamento contábil. Nada aqui foi confirmado contra banco.</p>
-    ${f.lacunas.map(l=>linha('•',' ',esc(l),'b-warn')).join('')||'<p class="hint">Sem lacunas: todas as fontes estão preenchidas.</p>'}</div>`;
+    ${f.lacunas.map(l=>linha('•',' ',l,'b-warn')).join('')||'<p class="hint">Sem lacunas: todas as fontes estão preenchidas.</p>'}</div>`;
  },
  bot:()=>head('Bot','O atendimento automático — visão geral, fora do WhatsApp.')+
   vazio('bot','Nenhum canal de bot ativo','O WhatsApp é o primeiro canal previsto e está parado na pendência da sua conta Meta.',
@@ -552,8 +552,8 @@ const S={
     if(!i.existe) return `<div class="card" style="margin-bottom:10px"><h3>${esc(i.nome||i.repo)}</h3>
       <p class="hint">✖ ${esc(i.motivo)}</p><p class="hint"><code>${esc(i.repo)}</code></p></div>`;
     const recs=Object.entries(i.recibos).map(([stack,r])=>{
-      if(!r.existe) return linha(esc(stack),'nenhum recibo gravado','nunca rodou','');
-      return linha(esc(stack), r.valido?`gravado há ${r.idadeMin} min na branch ${esc(r.branch||'—')}`:esc(r.motivo),
+      if(!r.existe) return linha(stack,'nenhum recibo gravado','nunca rodou','');
+      return linha(stack, r.valido?`gravado há ${r.idadeMin} min na branch ${esc(r.branch||'—')}`:esc(r.motivo),
         r.valido?'verde':'não vale', r.valido?'b-ok':'b-err');
     }).join('');
     return `<div class="card" style="margin-bottom:10px">
@@ -626,7 +626,7 @@ const S={
     <td style="text-align:center">${o.conversao==null?'—':Math.round(o.conversao*100)+'%'}</td>
     <td style="text-align:center">${o.receita==null?'—':esc(o.receita.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}))}</td>
     <td><span class="badge ${o.amostraSuficiente?'b-ok':''}">${o.amostraSuficiente?'confiável':'amostra pequena'}</span></td></tr>`).join('');
-  const fun=r.funil.map(e=>linha(esc(e.etapa),`${e.chegaram} passaram · ${e.parados} parado(s) aqui`,
+  const fun=r.funil.map(e=>linha(e.etapa,`${e.chegaram} passaram · ${e.parados} parado(s) aqui`,
     e.passagem==null?'fim do funil':Math.round(e.passagem*100)+'% avançam', e.passagem==null?'':(e.passagem>=0.5?'b-ok':'b-warn'))).join('');
   return head('Relatórios','Cruzamento entre o funil do CRM, o catálogo e o conteúdo.')+
   `<div class="grid g-kpi" style="margin-bottom:16px">
@@ -642,11 +642,11 @@ const S={
   ${fun?`<div class="card" style="margin-bottom:16px"><h3>Onde o funil perde gente</h3>
     <p class="hint">Conta quem <b>passou</b> pela etapa, não quem está parado nela.</p>${fun}</div>`:''}
   ${r.esquecidos.length?`<div class="card" style="margin-bottom:16px"><h3>Parados há mais de 7 dias</h3>
-    ${r.esquecidos.slice(0,10).map(l=>linha(esc(l.nome||l.id),esc(l.etapa),l.paradoDias+' dias','b-warn')).join('')}</div>`:''}
+    ${r.esquecidos.slice(0,10).map(l=>linha(l.nome||l.id,esc(l.etapa),l.paradoDias+' dias','b-warn')).join('')}</div>`:''}
   ${r.catalogo?`<div class="card" style="margin-bottom:16px"><h3>Catálogo pronto pra anunciar</h3>
-    ${Object.entries(r.catalogo.canais).map(([c,s])=>linha(esc(s.nome||c),`${s.prontos} de ${s.total} prontos`,s.faltando?s.faltando+' incompleto(s)':'tudo pronto',s.faltando?'b-warn':'b-ok')).join('')}</div>`:''}
+    ${Object.entries(r.catalogo.canais).map(([c,s])=>linha(s.nome||c,`${s.prontos} de ${s.total} prontos`,s.faltando?s.faltando+' incompleto(s)':'tudo pronto',s.faltando?'b-warn':'b-ok')).join('')}</div>`:''}
   <div class="card" style="border-style:dashed"><h3>O que NÃO entrou neste relatório</h3>
-    ${r.naoEntrou.map(x=>linha('•',' ',esc(x),'')).join('')}</div>`;
+    ${r.naoEntrou.map(x=>linha('•',' ',x,'')).join('')}</div>`;
  },
 
  'wa-integracao':()=>{const w=STATUS?.whatsapp||{};
@@ -677,9 +677,29 @@ const S={
   vazio('auditor','Nada para auditar ainda','O CRM já guarda trilha por lead: criação, etapa, qualificação com os motivos do score, e cada interação.',
    ['A trilha já existe no histórico de cada lead','O auditor mostra por conversa, não por lead','Score vem com os motivos — nada de caixa-preta']),
 
- 'pl-consumo':()=>head('Plano e acesso · Consumo','Quanto do seu pacote já foi usado no período.')+
-  vazio('consumo','Sem medidor de consumo','Não existe ainda a noção de pacote e saldo nesta instalação. A licença hoje é por plano e validade (<code>trial</code>, <code>mensal</code>, <code>pequena</code>, <code>medio</code>, <code>grande</code>), sem contador de uso.',
-   ['Definir o que é consumido: conversa, mensagem ou lead','Contador por período, preso à chave da licença','Aviso quando faltar pouco, antes de travar']),
+ 'pl-consumo':()=>{
+  if(!CTA) return head('Plano e acesso','Licença e validade.')+
+    vazio('plano','Backend sem a rota de conta','Atualize o backend.',['Subir o backend novo','Recarregar']);
+  const l=CTA.plano;
+  if(!l.disponivel) return head('Plano e acesso','Licença e validade.')+
+    `<div class="card"><h3>Sem módulo de licença</h3><p class="hint">${esc(l.motivo)}</p>
+     <p class="hint">Esta instalação roda a governança offline, sem checagem de chave.</p></div>`;
+  const badge=l.valida?'b-ok':'b-err';
+  const venc=l.diasRestantes==null?null:(l.diasRestantes<0?'venceu há '+Math.abs(l.diasRestantes)+' dia(s)':'faltam '+l.diasRestantes+' dia(s)');
+  return head('Plano e acesso','O que a licença desta máquina autoriza, agora.')+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Licença',l.valida?'válida':'inválida',l.valida?'assinatura conferida':'não autoriza uso')}
+    ${kpi('Plano',l.plano||'—','o que foi contratado')}
+    ${kpi('Validade',venc||'—',l.expiraEm?l.expiraEm.slice(0,10):'sem data')}
+  </div>
+  <div class="card" style="margin-bottom:16px"><h3>Detalhe</h3>
+    ${linha('Situação',l.valida?'a assinatura bate com a chave pública':esc(l.motivo||''),l.valida?'válida':'inválida',badge)}
+    ${l.email?linha('Licenciado para','',l.email,''):''}
+    ${l.token?linha('Token','mascarado de propósito',l.token,''):''}
+    ${l.comoResolver?linha('Como resolver','',l.comoResolver,'b-warn'):''}</div>
+  <div class="card" style="border-style:dashed"><h3>Compra e recebimento</h3>
+    <p class="hint">A compra ainda não passa por este painel. O backend expõe <code>/checkout</code> e emite a licença pelo webhook do Stripe; ligar isso à tela é trabalho separado, e o módulo de pagamento novo (<code>engine/vspagamentos</code>) já cobre Pix e cartão via Asaas quando vocês decidirem migrar.</p></div>`;
+ },
  'pl-comprar':()=>head('Plano e acesso · Comprar acesso','Estender o pacote quando o consumo acabar.')+
   vazio('plano','Compra ainda não ligada a este painel','Existe o <code>/checkout</code> do Stripe no backend, que hoje serve à venda de licença — não a recarga de pacote.',
    ['Ter o medidor de consumo primeiro','Criar os pacotes de recarga e seus preços','Ligar ao checkout, com a chave estendida na confirmação']),
@@ -696,21 +716,52 @@ const S={
  politica:()=>head('Política de uso','Regras de uso, dados e privacidade.')+
   vazio('politica','Política ainda não escrita','A suíte já trata dado sensível com cuidado — telemetria desligada sem consentimento, lead fora do repositório, chave privada só no servidor. Isso precisa virar texto público.',
    ['Escrever a política a partir do que o código já faz','Versionar e marcar a data de vigência','Exibir aqui e no site, com aceite registrado']),
- config:()=>head('Configurações','Ajustes desta instalação.')+
-  `<div class="card" style="margin-bottom:16px"><h3>Aparência</h3>
-    <p class="hint" style="margin-bottom:10px">O tema fica guardado só neste navegador.</p>
-    <div class="acts"><button class="btn btn-s" onclick="setTema('light')">Claro</button><button class="btn btn-s" onclick="setTema('dark')">Escuro</button></div></div>
-   <div class="card" style="margin-bottom:16px"><h3>Funil do CRM</h3>
-    <p class="hint" style="margin-bottom:10px">Origem atual: <b>${esc(STATUS?.crm?.funilOrigem||'não definido')}</b>. Uma etapa por linha.</p>
-    <textarea id="funilTxt" rows="6">${esc((ST.funil||[]).join('\n'))}</textarea>
-    <div style="margin-top:10px"><button class="btn btn-p" onclick="salvarFunil()">Salvar funil</button></div></div>
-   <div class="card"><h3>Onde ficam os dados</h3>
-    ${linha('Leads e parceiros','~/.qa-gate/vscrm/','fora do repo','b-ok')}
-    ${linha('Config da empresa','~/.qa-gate/company.json','local','b-ok')}
-    ${linha('Acesso ao painel','CRM_ENABLED + CRM_TOKEN',TOKEN?'com token':'sem token','')}</div>`,
- perfil:()=>head('Perfil','Seus dados e os da empresa.')+
-  vazio('perfil','Perfil ainda não preenchido','Os dados de empresa (nome, o que vende, proposta de valor, tom de voz, cliente ideal) vêm da entrevista da suíte — e ela não rodou nesta máquina. Por isso o VSvendas responde que falta perfil.',
-   ['Rodar a entrevista do set <code>empresa</code>','O perfil passa a alimentar bot, anúncio e follow-up','Aqui você revisa e edita sem repetir a entrevista']),
+ config:()=>{
+  if(!CTA) return head('Configurações','Como a suíte avisa e o que ela integra.')+
+    vazio('config','Backend sem a rota de conta','Atualize o backend.',['Subir o backend novo','Recarregar']);
+  const c=CTA.configuracao;
+  const alerta=c.incoerentes.length?`<div class="card" style="margin-bottom:16px;border-style:dashed"><h3>Ligado, mas não funciona</h3>
+    <p class="hint">Estes canais estão marcados como ativos e não têm credencial completa. A suíte acha que avisa e não avisa — é o pior estado possível.</p>
+    ${c.incoerentes.map(n=>linha(n,'','sem credencial','b-err')).join('')}</div>`:'';
+  const canais=c.canais.map(x=>linha(x.nome,
+    `${esc(x.provider||'—')} · ${Object.entries(x.credenciais).map(([k,v])=>esc(k)+(v?' ✓':' ✖')).join(' · ')}`,
+    x.pronto?'funcionando':(x.ligado?'incompleto':'desligado'),
+    x.pronto?'b-ok':(x.ligado?'b-err':''))).join('');
+  const integ=c.integracoes.length
+    ? c.integracoes.map(i=>linha(i.id,esc(i.detalhe||''),i.ligado?'ligada':'desligada',i.ligado?'b-ok':'')).join('')
+    : '<p class="hint">Nenhuma integração declarada.</p>';
+  return head('Configurações','Canais de aviso e integrações — com o que falta pra cada um funcionar.')+
+  alerta+
+  `<div class="card" style="margin-bottom:16px"><h3>Canais de aviso</h3>${canais}</div>
+  <div class="card" style="margin-bottom:16px"><h3>Integrações</h3>${integ}</div>
+  <div class="card"><h3>Governança</h3>
+    ${linha('Tipos aceitos','',String(c.padroes.tiposAceitos),'')}
+    ${linha('Documentação obrigatória','',c.padroes.docObrigatoria?'sim':'não',c.padroes.docObrigatoria?'b-ok':'')}
+    ${linha('Subagentes','',c.padroes.agentesPermitidos?'permitidos':'bloqueados','')}
+    <p class="hint">Tudo isso vem de <code>${esc(c.caminho)}</code>.</p></div>`;
+ },
+ perfil:()=>{
+  if(!CTA) return head('Perfil','Quem assina o trabalho e como a suíte identifica você.')+
+    vazio('perfil','Backend sem a rota de conta','Atualize o backend para a versão com o VSpainel.',['Subir o backend novo','Recarregar']);
+  const p=CTA.perfil;
+  return head('Perfil','O que a entrevista preencheu e o que a suíte usa disso.')+
+  `<div class="card" style="margin-bottom:16px"><h3>Identificação</h3>
+    ${p.campos.map(c=>linha(c.rotulo,esc(c.usadoEm),c.ok?c.valor:'não preenchido',c.ok?'b-ok':'b-warn')).join('')}
+    ${p.exemploBranch?linha('Branch que isso gera','resultado do padrão, não a regra',p.exemploBranch,'b-ok'):''}</div>
+  <div class="card" style="margin-bottom:16px"><h3>Ajustar</h3>
+    <div class="form-grid">
+      <div class="field"><label>Autor</label><input id="pfAutor" value="${esc(p.campos[0].valor||'')}" placeholder="fabiano.veloso"></div>
+      <div class="field"><label>Nome do projeto</label><input id="pfProjeto" value="${esc(p.campos[1].valor||'')}" placeholder="aparece no recibo e no aviso"></div>
+      <button class="btn btn-p" onclick="salvarPerfil()">Salvar</button>
+    </div>
+    <p class="hint">Só estes dois. Padrão de branch, escopo de commit e tipos aceitos governam os hooks — mudar por uma tela web quebraria o guard no meio do trabalho de alguém. Edite <code>${esc(p.caminho)}</code> direto.</p></div>
+  <div class="card"><h3>Regras em vigor</h3>
+    ${linha('Tipos aceitos','branch e commit',p.tipos.join(', ')||'—','')}
+    ${linha('Documentação','após o push',p.documentacao.obrigatoria?'obrigatória ('+(p.documentacao.modelo||'—')+')':'opcional',p.documentacao.obrigatoria?'b-ok':'')}
+    ${linha('Push','git push',p.push.setUpstream?'define upstream':'manual','')}
+    ${linha('Subagentes','execução paralela',p.agentes.permitidos?'permitidos':'bloqueados',p.agentes.permitidos?'':'b-warn')}
+    ${linha('Arquivo','fonte de tudo acima',p.caminho,'')}</div>`;
+ },
 };
 const TELAS={visao:telaVisao,crm:telaCrm,indicacao:telaIndicacao,whats:S['wa-integracao'],plano:S['pl-consumo'],...S};
 
@@ -746,7 +797,8 @@ async function carregar(){
     [ST,STATUS,IND,REDES,TK,EST]=await Promise.all([api('painel'),api('status'),api('indicacao'),api('redes'),
       api('tiktok').catch(()=>null),api('estoque').catch(()=>null)]);
     // Telas novas: carregadas a parte pra uma falha nelas nao derrubar o painel todo.
-    [AUD,FIN,REL]=await Promise.all([api('auditor').catch(()=>null),api('financeiro').catch(()=>null),api('relatorios').catch(()=>null)]);
+    [AUD,FIN,REL,CTA]=await Promise.all([api('auditor').catch(()=>null),api('financeiro').catch(()=>null),
+      api('relatorios').catch(()=>null),api('conta').catch(()=>null)]);
     document.getElementById('envDot').className='dot on';
     document.getElementById('envName').textContent='Backend online';
     document.getElementById('envSub').textContent=location.host;
@@ -793,6 +845,13 @@ async function testarRede(rede){
   }catch(e){TESTE[rede]={ok:false,motivo:e.message};flash(e.message,'err');}
   render();
   campos.forEach(f=>{const el=document.getElementById(`rc-${rede}-${f}`);if(el)el.value=cred[f];});
+}
+async function salvarPerfil(){
+  try{
+    await api('perfil',{autor:document.getElementById('pfAutor').value.trim(),
+      projectName:document.getElementById('pfProjeto').value.trim()});
+    flash('Perfil salvo.','ok');carregar();
+  }catch(e){flash(e.message,'err');}
 }
 async function criarProduto(){
   const v=(id)=>document.getElementById(id).value.trim();
