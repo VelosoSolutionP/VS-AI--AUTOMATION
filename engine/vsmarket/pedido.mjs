@@ -96,7 +96,11 @@ export function normalizarPedido(e = {}) {
     pedido: {
       id: 'ped_' + randomBytes(6).toString('hex'),
       clienteId: e.clienteId || null,
-      clienteNome: txt(e.clienteNome) || null,
+      // Só o PRIMEIRO nome fica no pedido. O telefone mora no cadastro do cliente e
+      // não acompanha o pedido: o profissional não precisa dele para orçar, e soltar
+      // contato antes da contratação é o caminho para o negócio sair da plataforma
+      // (§38) — além de coleta desnecessária (§39).
+      clienteNome: txt(e.clienteNome).split(' ')[0] || null,
       categoria,
       descricao,
       lat: coord.coordenada.lat,

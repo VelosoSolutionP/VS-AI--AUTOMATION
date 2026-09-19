@@ -254,9 +254,9 @@ function telaHome() {
 function escolherCat(id) { S.rascunho.categoria = id; ir('local'); }
 
 function telaCategoria() {
-  casca(topo('Passo 1 de 4', 'home') + `<div class="tela">
+  casca(topo('Passo 1 de 5', 'home') + `<div class="tela">
     <div id="aviso" class="aviso"></div>
-    <div class="passos"><div class="passo on"></div><div class="passo"></div><div class="passo"></div><div class="passo"></div></div>
+    <div class="passos"><div class="passo on"></div><div class="passo"></div><div class="passo"></div><div class="passo"></div><div class="passo"></div></div>
     <h2>Do que você precisa?</h2>
     <p class="dim" style="margin:6px 0 16px">Escolha a área do serviço.</p>
     <div class="cats">${S.cats.map(c => `<div class="cat ${S.rascunho.categoria === c.id ? 'on' : ''}" onclick="escolherCat('${esc(c.id)}')">
@@ -266,9 +266,9 @@ function telaCategoria() {
 }
 
 function telaLocal() {
-  casca(topo('Passo 2 de 4', 'categoria') + `<div class="tela">
+  casca(topo('Passo 2 de 5', 'categoria') + `<div class="tela">
     <div id="aviso" class="aviso"></div>
-    <div class="passos"><div class="passo on"></div><div class="passo on"></div><div class="passo"></div><div class="passo"></div></div>
+    <div class="passos"><div class="passo on"></div><div class="passo on"></div><div class="passo"></div><div class="passo"></div><div class="passo"></div></div>
     <h2>Onde é o serviço?</h2>
     <p class="dim" style="margin:6px 0 12px">Toque no mapa ou use sua localização.</p>
     <button class="btn" onclick="usarGps()">📍 Usar minha localização</button>
@@ -318,9 +318,9 @@ function salvarLocal() {
 
 function telaDescricao() {
   const cat = S.cats.find(c => c.id === S.rascunho.categoria);
-  casca(topo('Passo 3 de 4', 'local') + `<div class="tela">
+  casca(topo('Passo 3 de 5', 'local') + `<div class="tela">
     <div id="aviso" class="aviso"></div>
-    <div class="passos"><div class="passo on"></div><div class="passo on"></div><div class="passo on"></div><div class="passo"></div></div>
+    <div class="passos"><div class="passo on"></div><div class="passo on"></div><div class="passo on"></div><div class="passo"></div><div class="passo"></div></div>
     <h2>Conte o que está acontecendo</h2>
     <p class="dim" style="margin:6px 0 14px">Quanto mais detalhe, melhor o orçamento.</p>
     <div class="campo"><textarea id="fDesc" placeholder="Ex.: ${esc((cat?.exemplos || ['A tomada do quarto parou de funcionar'])[0])}…">${esc(S.rascunho.descricao || '')}</textarea></div>
@@ -333,7 +333,7 @@ function telaDescricao() {
         <option value="esta_semana" selected>Esta semana</option>
         <option value="sem_pressa">Sem pressa</option>
       </select></div>
-    <button class="btn btn-p" onclick="criarPedido()">Pedir orçamento</button>
+    <button class="btn btn-p" onclick="irParaContato()">Continuar</button>
     <p class="dim3" style="text-align:center;margin-top:10px">É grátis. Você só paga se contratar.</p>
   </div>`);
 }
@@ -342,11 +342,49 @@ function fotoFake() {
   $('fotos').textContent = S.rascunho.fotos.length + ' foto(s) anexada(s)';
 }
 
-async function criarPedido() {
-  S.rascunho.descricao = $('fDesc').value.trim();
+function irParaContato() {
+  const d = $('fDesc').value.trim();
+  if (d.length < 15) { return fala('Conte um pouco mais do que precisa — sem isso ninguém consegue orçar.', 'er'); }
+  S.rascunho.descricao = d;
   S.rascunho.urgencia = $('fUrg').value;
+  ir('contato');
+}
+
+/**
+ * Identificação no FIM do fluxo. Pedir cadastro na entrada mataria a conversão: a
+ * pessoa está com um problema, não querendo criar conta. Aqui ela já descreveu tudo
+ * e tem motivo para terminar — e sem contato não há como avisar das propostas.
+ */
+function telaContato() {
+  casca(topo('Passo 4 de 5', 'descricao') + `<div class="tela">
+    <div id="aviso" class="aviso"></div>
+    <div class="passos"><div class="passo on"></div><div class="passo on"></div><div class="passo on"></div><div class="passo on"></div><div class="passo"></div></div>
+    <h2>Pra quem avisamos?</h2>
+    <p class="dim" style="margin:6px 0 16px">As propostas chegam pra você por aqui. Só isso, nada de cadastro longo.</p>
+    <div class="campo"><label>Seu nome</label><input id="ctNome" placeholder="Maria" value="${esc(S.contato?.nome || '')}"></div>
+    <div class="campo"><label>Telefone com DDD</label><input id="ctTel" inputmode="tel" placeholder="(31) 99999-0000" value="${esc(S.contato?.telefone || '')}"></div>
+    <div class="campo"><label style="text-transform:none;display:flex;gap:9px;align-items:flex-start;color:var(--tinta);font-size:14px">
+      <input type="checkbox" id="ctTermos" style="width:auto;margin-top:3px;flex:none">
+      <span>Li e aceito os termos de uso do Quebra-Galho.</span></label></div>
+    <button class="btn btn-p" onclick="criarPedido()">Pedir orçamento</button>
+    <div class="cartao" style="margin-top:14px;border-style:dashed">
+      <p class="dim">Seu telefone <b>não vai junto com o pedido</b>. O profissional vê seu primeiro nome e o bairro — o contato só aparece depois que você contrata.</p>
+    </div>
+  </div>`);
+}
+
+async function criarPedido() {
+  S.contato = { nome: $('ctNome').value.trim(), telefone: $('ctTel').value.trim(), aceitouTermos: $('ctTermos').checked };
+  if (!S.contato.nome) { return fala('Como podemos te chamar?', 'er'); }
+  if (!S.contato.aceitouTermos) { return fala('Precisamos do aceite dos termos para registrar o pedido.', 'er'); }
   try {
-    const r = await api('pedidos', { ...S.rascunho, clienteNome: 'Você' });
+    const r = await api('pedidos', {
+      ...S.rascunho, ...S.contato,
+      endereco: S.rascunho.endereco ? {
+        logradouro: S.rascunho.endereco, bairro: S.rascunho.bairro, cidade: S.rascunho.cidade,
+        lat: S.rascunho.lat, lng: S.rascunho.lng,
+      } : null,
+    });
     S.pedido = r.pedido;
     S.ultimoPedido = r.pedido.id;
     sessionStorage.setItem('qg_pedido', r.pedido.id);
@@ -392,9 +430,9 @@ function telaPropostas() {
     </div>
   </div>`).join('');
 
-  casca(topo('Passo 4 de 4', 'home') + `<div class="tela">
+  casca(topo('Passo 5 de 5', 'home') + `<div class="tela">
     <div id="aviso" class="aviso"></div>
-    <div class="passos"><div class="passo on"></div><div class="passo on"></div><div class="passo on"></div><div class="passo on"></div></div>
+    <div class="passos"><div class="passo on"></div><div class="passo on"></div><div class="passo on"></div><div class="passo on"></div><div class="passo on"></div></div>
     <h2>${S.cards.length} proposta(s) para você</h2>
     <p class="dim" style="margin:6px 0 16px">Compare preço, avaliação e o que está incluído.</p>
     ${S.cards.length ? cards : `<div class="vazio"><span class="ic">⏳</span>
@@ -917,7 +955,7 @@ function telaAdmin() {
 /* ═══ router ═══ */
 const TELAS = {
   home: telaHome, categoria: telaCategoria, local: telaLocal, descricao: telaDescricao,
-  procurando: telaProcurando, propostas: telaPropostas, aviso: telaAviso, aceite: telaAceite,
+  contato: telaContato, procurando: telaProcurando, propostas: telaPropostas, aviso: telaAviso, aceite: telaAceite,
   expirou: telaExpirou, escopo: telaEscopo, pagamento: telaPagamento, os: telaOS,
   contestar: telaContestar, login: () => telaLogin(false), 'admin-login': () => telaLogin(true),
   cadastro: telaCadastro, 'cadastro-ok': telaCadastroOk,

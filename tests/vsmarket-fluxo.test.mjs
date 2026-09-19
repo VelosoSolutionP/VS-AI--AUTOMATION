@@ -319,3 +319,55 @@ test('prestador nao convidado nao consegue propor', () => {
   assert.equal(r.ok, false);
   assert.ok(r.erros.some((e) => /não foi convidado/.test(e)));
 });
+
+/* ── identificação do cliente: contato no FIM, e privacidade ── */
+
+test('pedido SEM telefone é recusado — sem contato nao ha como avisar das propostas', () => {
+  const r = vs.fluxo.identificarCliente({ nome: 'Maria', clientes: [] }, () => ({ ok: true }));
+  assert.equal(r.ok, false);
+  assert.ok(r.erros.some((e) => /telefone/.test(e)));
+});
+
+test('telefone repetido REUSA o cliente, em qualquer formato', () => {
+  const existentes = [{ id: 'c1', nome: 'Maria', telefone: '5531999990000' }];
+  for (const t of ['31999990000', '(31) 99999-0000', '+55 31 99999-0000']) {
+    const r = vs.fluxo.identificarCliente({ nome: 'Maria', telefone: t, clientes: existentes }, () => {
+      throw new Error('nao deveria criar outro cliente');
+    });
+    assert.equal(r.reusado, true, 'falhou com ' + t);
+    assert.equal(r.cliente.id, 'c1');
+  }
+});
+
+test('telefone novo cria cliente, passando pela validacao real', () => {
+  let recebido = null;
+  const r = vs.fluxo.identificarCliente(
+    { nome: 'Joana', telefone: '31988887777', aceitouTermos: true, clientes: [] },
+    (x) => { recebido = x; return { ok: true, cliente: { id: 'novo', nome: 'Joana' } }; },
+  );
+  assert.equal(r.ok, true);
+  assert.equal(r.reusado, false);
+  assert.equal(recebido.aceitouTermos, true, 'o aceite dos termos tem que chegar no cadastro');
+});
+
+test('o pedido guarda SO o primeiro nome — sobrenome e telefone ficam no cadastro', () => {
+  const { pedido } = vs.fluxo.ped.normalizarPedido({
+    categoria: 'eletrica', descricao: 'A tomada do quarto parou de funcionar de vez',
+    lat: -19.92, lng: -43.93, cidade: 'BH', clienteNome: 'Maria Souza Oliveira',
+  });
+  assert.equal(pedido.clienteNome, 'Maria');
+});
+
+test('o resumo que o PRESTADOR ve nao carrega contato — o negocio nao sai da plataforma', () => {
+  const { pedido } = vs.fluxo.ped.normalizarPedido({
+    categoria: 'eletrica', descricao: 'A tomada do quarto parou de funcionar de vez',
+    lat: -19.92, lng: -43.93, cidade: 'BH', bairro: 'Centro', clienteNome: 'Maria Souza',
+  });
+  const r = vs.fluxo.ped.resumo({ ...pedido, clienteId: 'c1' });
+  const txt = JSON.stringify(r).toLowerCase();
+  assert.ok(!/telefone|whats|\d{10,}/.test(txt), 'vazou contato no resumo');
+  assert.ok(!txt.includes('souza'), 'vazou sobrenome');
+  // mas o que ele PRECISA para orcar continua ali
+  assert.equal(r.bairro, 'Centro');
+  assert.ok(r.descricao.length > 10);
+});

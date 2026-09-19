@@ -328,12 +328,17 @@ const server = createServer(async (req, res) => {
         return json(res, r.ok ? 200 : 400, r.ok ? r : { erro: r.erros.join('; ') });
       }
       if (rota === '/api/pedidos') {
-        const r = vs.fluxo.criarPedido(d, vs.prestadores());
+        // O pedido so e publicado com alguem para avisar. Identificacao acontece
+        // AQUI, no fim do fluxo — nao na entrada, que mataria a conversao.
+        const ident = vs.fluxo.identificarCliente({ ...d, clientes: vs.clientes() }, (x) => vs.criarCliente(x, 'pedido'));
+        if (!ident.ok) { return json(res, 400, { erro: ident.erros.join('; '), erros: ident.erros }); }
+        const entrada = { ...d, clienteId: ident.cliente.id, clienteNome: ident.cliente.nome };
+        const r = vs.fluxo.criarPedido(entrada, vs.prestadores());
         if (!r.ok) { return json(res, 400, { erro: r.erros.join('; '), erros: r.erros, avisos: r.avisos }); }
         // Em demonstracao os convidados respondem na hora, pelo mesmo caminho validado.
         // Com VSMARKET_DEMO=0 o pedido fica esperando proposta de gente de verdade.
         if (process.env.VSMARKET_DEMO !== '0') { vs.fluxo.simularPropostas(r.pedido.id, vs.prestadores(), vs.categorias()); }
-        return json(res, 200, r);
+        return json(res, 200, { ...r, cliente: { id: ident.cliente.id, nome: ident.cliente.nome, reusado: ident.reusado } });
       }
       if (rota === '/api/propostas') {
         const r = vs.fluxo.enviarProposta(d);

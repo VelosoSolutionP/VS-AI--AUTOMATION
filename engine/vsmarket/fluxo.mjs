@@ -37,6 +37,37 @@ const gravarPedido = (p) => { const t = pedidos(); const i = t.findIndex((x) => 
 const gravarProposta = (p) => { const t = propostas(); const i = t.findIndex((x) => x.id === p.id); if (i < 0) { t.push(p); } else { t[i] = p; } save(PROPOSTAS, t); return p; };
 const gravarOrdem = (o) => { const t = ordens(); const i = t.findIndex((x) => x.id === o.id); if (i < 0) { t.push(o); } else { t[i] = o; } save(ORDENS, t); return o; };
 
+/* ---------------- 0. quem está pedindo ---------------- */
+
+/**
+ * Identifica o cliente NO MOMENTO do pedido, não antes.
+ *
+ * Pedir cadastro na entrada mata a conversão: a pessoa está com um problema, não
+ * querendo criar conta. Mas publicar o pedido sem contato é pior — chegam três
+ * propostas e não há como avisar ninguém. Então o contato é pedido no fim, quando a
+ * pessoa já descreveu o problema e tem motivo para terminar.
+ *
+ * Coleta mínima (§3): nome e telefone. Sem documento, sem e-mail obrigatório.
+ * Telefone repetido REUSA o cliente em vez de duplicar — é a mesma pessoa pedindo
+ * de novo, e o histórico dela importa.
+ */
+export function identificarCliente(e = {}, criarClienteFn) {
+  const tel = String(e.telefone || '').replace(/\D/g, '');
+  if (!tel) { return { ok: false, erros: ['informe um telefone para receber as propostas'] }; }
+
+  const { clientes } = e;
+  const existente = (clientes || []).find((c) => String(c.telefone).replace(/\D/g, '').endsWith(tel.slice(-11)));
+  if (existente) { return { ok: true, cliente: existente, reusado: true }; }
+
+  const r = criarClienteFn({
+    nome: e.nome, telefone: e.telefone, email: e.email,
+    aceitouTermos: e.aceitouTermos,
+    enderecos: e.endereco ? [e.endereco] : [],
+  });
+  if (!r.ok) { return { ok: false, erros: r.erros }; }
+  return { ok: true, cliente: r.cliente, reusado: false };
+}
+
 /* ---------------- 1. pedido ---------------- */
 
 /**
