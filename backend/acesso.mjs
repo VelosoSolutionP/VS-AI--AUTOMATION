@@ -100,6 +100,23 @@ export function confere(senha) {
   return esperado.length === veio.length && timingSafeEqual(esperado, veio);
 }
 
+/**
+ * Define a senha SEM exigir a atual. É o caminho de "perdi o acesso": quem tem
+ * conta no servidor já pode ler o arquivo e trocar na unha, então travar isso
+ * não protegeria nada — só obrigaria a fazer errado. Por isso mora numa função
+ * separada de `criar` (que guarda o primeiro acesso pela rede) e NÃO tem rota
+ * HTTP: só entra por quem está na máquina, pelo `backend/senha-console.mjs`.
+ */
+export function definir(senha) {
+  const s = String(senha ?? '');
+  if (s.length < MIN_SENHA) {
+    throw Object.assign(new Error(`a senha precisa de pelo menos ${MIN_SENHA} caracteres`), { code: 422 });
+  }
+  const sal = randomBytes(16).toString('hex');
+  gravar({ v: 1, sal, hash: derivar(s, sal).toString('hex'), criado_em: new Date().toISOString() });
+  return true;
+}
+
 /** Troca a senha de dentro do console, com a atual na mão. */
 export function trocar(atual, nova) {
   if (!confere(atual)) { throw Object.assign(new Error('senha atual incorreta'), { code: 401 }); }
