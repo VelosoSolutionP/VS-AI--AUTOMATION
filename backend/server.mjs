@@ -329,7 +329,7 @@ const server = createServer(async (req, res) => {
   /* Arquivo de verificacao de dominio da TikTok. Fica na RAIZ porque e la que ela
      procura, e antes do resto do roteamento porque o nome vem deles — nao da pra
      reservar um prefixo nosso. So responde o arquivo exatamente cadastrado. */
-  if (req.method === 'GET' && /^\/[A-Za-z0-9._-]{1,64}\.txt$/.test(req.url.split('?')[0])) {
+  if (req.method === 'GET' && /^(\/[A-Za-z0-9._-]{1,64}){0,6}\/[A-Za-z0-9._-]{1,64}\.txt$/.test(req.url.split('?')[0])) {
     const v = tk.servirVerificacao(req.url);
     if (v) {
       res.writeHead(200, { 'content-type': v.tipo });

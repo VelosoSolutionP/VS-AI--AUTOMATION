@@ -99,7 +99,13 @@ export function servirVerificacao(caminho) {
   const v = getVerificacao();
   if (!v?.arquivo) { return null; }
   const pedido = String(caminho || '').split('?')[0].replace(/^\/+/, '');
-  if (pedido !== v.arquivo) { return null; }
+  // A TikTok verifica a "propriedade", que pode ser o dominio OU um caminho:
+  // cadastrando .../oauth/callback/open/ ela procura o arquivo DENTRO dele, nao
+  // na raiz. Como o nome do arquivo e unico e vem deles, responder em qualquer
+  // caminho que TERMINE nesse nome cobre os dois casos sem abrir nada: continua
+  // sendo um nome so, e so ele.
+  const ultimo = pedido.split('/').pop();
+  if (pedido !== v.arquivo && ultimo !== v.arquivo) { return null; }
   return { conteudo: v.conteudo, tipo: 'text/plain; charset=utf-8' };
 }
 

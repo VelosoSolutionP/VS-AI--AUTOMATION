@@ -57,3 +57,17 @@ test('limpar tira a rota do ar', () => {
   tk.limparVerificacao();
   assert.equal(tk.servirVerificacao('/tiktokQQ.txt'), null);
 });
+
+/* A TikTok verifica a "propriedade", que pode ser um CAMINHO e nao so o dominio:
+   cadastrando .../oauth/callback/open/ ela procura o arquivo dentro dele. */
+test('o arquivo responde tambem dentro de um caminho', () => {
+  tk.salvarVerificacao({ arquivo: 'tiktokCaminho1.txt', conteudo: 'assinatura=1' });
+  assert.equal(tk.servirVerificacao('/tiktokCaminho1.txt').conteudo, 'assinatura=1');
+  assert.equal(tk.servirVerificacao('/oauth/callback/open/tiktokCaminho1.txt').conteudo, 'assinatura=1');
+  assert.equal(tk.servirVerificacao('/qualquer/coisa/tiktokCaminho1.txt').conteudo, 'assinatura=1');
+});
+
+test('outro nome dentro de caminho continua sem resposta — nao virou curinga', () => {
+  assert.equal(tk.servirVerificacao('/oauth/callback/open/outro.txt'), null);
+  assert.equal(tk.servirVerificacao('/oauth/callback/open/'), null);
+});
