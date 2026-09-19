@@ -60,10 +60,21 @@ test('traducao extrai id do evento, da cobranca e os valores em centavos', () =>
 
 /* ---------------- máquina de estados ---------------- */
 
-test('nao da pra pular de CRIADO direto pra DISPONIVEL', () => {
-  const r = podeIr('CRIADO', 'DISPONIVEL');
-  assert.equal(r.ok, false);
-  assert.match(r.motivo, /não dá pra ir de CRIADO para DISPONIVEL/);
+/* Este teste ja afirmou o CONTRARIO — que CRIADO -> DISPONIVEL era pulo proibido.
+   Rodando contra o sandbox do Asaas (19/09/2026) o PAYMENT_RECEIVED de um Pix
+   chegou com a cobranca ainda em CRIADO, e a recusa deixou um pagamento RECEBIDO
+   marcado como "aguardando". O Pix confirma e liquida no mesmo instante: esse
+   caminho e normal, nao anomalia. */
+test('Pix pode ir de CRIADO direto pra DISPONIVEL — confirma e liquida junto', () => {
+  assert.equal(podeIr('CRIADO', 'DISPONIVEL').ok, true);
+  assert.equal(podeIr('PENDENTE', 'DISPONIVEL').ok, true);
+});
+
+test('o que continua proibido e andar pra TRAS ou sair de estado final', () => {
+  assert.equal(podeIr('DISPONIVEL', 'CRIADO').ok, false);
+  assert.equal(podeIr('CONFIRMADO', 'PENDENTE').ok, false);
+  assert.equal(podeIr('ESTORNADO', 'CONFIRMADO').ok, false);
+  assert.equal(podeIr('CANCELADO', 'DISPONIVEL').ok, false);
 });
 
 test('CONFIRMADO -> DISPONIVEL é o caminho legitimo', () => {

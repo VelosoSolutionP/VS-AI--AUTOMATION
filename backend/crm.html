@@ -404,7 +404,7 @@ const TITULO={};
 MENU.forEach(m=>{TITULO[m.id]=[m.nome];(m.filhos||[]).forEach(f=>TITULO[f.id]=[m.nome,f.nome]);});
 const PAI={}; MENU.forEach(m=>(m.filhos||[]).forEach(f=>PAI[f.id]=m.id));
 
-let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null,QG=null,TKAPP=null;
+let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null,QG=null,TKAPP=null,PAG=null;
 const TESTE={}; // resultado do ultimo teste por rede (so em memoria)
 const PROVA={}; // ultimo teste real das APIs do TikTok, por familia
 let rota=location.hash.slice(1)||'visao';
@@ -489,6 +489,55 @@ async function autorizarTiktok(familia){
     flash('Abri a autorização do TikTok em outra aba. Ao voltar, recarregue esta tela.','ok');
   }catch(e){flash(e.message,'err');}
 }
+/* Valor digitado por gente: "R$ 1.299,90", "1299,90", "1299.90". O que NAO pode
+   e virar 0 calado — cobranca de zero passa reto e so aparece no extrato. */
+function centavosDe(bruto){
+  const t=String(bruto||'').replace(/[^\d,.-]/g,'').trim();
+  if(!t) return null;
+  const norm=t.includes(',')?t.replace(/\./g,'').replace(',','.'):t;
+  const n=Number(norm);
+  if(!Number.isFinite(n)||n<=0) return null;
+  return Math.round(n*100);
+}
+
+async function salvarPagamentos(){
+  const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
+  const m={ambiente:v('pgAmb'),modelo:v('pgModelo')};
+  if(v('pgChave')) m.apiKey=v('pgChave');
+  if(v('pgToken')) m.webhookToken=v('pgToken');
+  try{
+    const r=await api('pagamentos/config',m);
+    if(r.erros?.length) return flash(r.erros.join(' · '),'err');
+    flash('Integração salva.','ok'); carregar();
+  }catch(e){flash(e.message,'err');}
+}
+
+async function cobrarAgora(){
+  const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
+  const centavos=centavosDe(v('pgValor'));
+  if(!centavos) return flash('Informe um valor maior que zero.','err');
+  const alvo=document.getElementById('pgResultado');
+  alvo.innerHTML='<p class="hint">Emitindo no Asaas…</p>';
+  try{
+    const r=await api('pagamentos/cobrar',{nome:v('pgNome'),cpfCnpj:v('pgDoc'),email:v('pgEmail'),
+      valorCentavos:centavos,metodo:v('pgMetodo'),vencimento:v('pgVenc')||undefined,descricao:v('pgDesc'),referencia:v('pgDesc')});
+    alvo.innerHTML=`<div class="card" style="margin-top:14px;border-style:dashed">
+      <h3>Cobrança emitida</h3>
+      ${linha('Valor','',brl(r.pagamento.valorCentavos/100),'b-ok')}
+      ${linha('Pagador',r.clienteReusado?'cliente ja existia no Asaas':'cliente novo criado',v('pgNome'),'')}
+      ${r.pagamento.linkPagamento?`<p class="hint" style="margin-top:10px"><a class="btn btn-p" href="${esc(r.pagamento.linkPagamento)}" target="_blank" rel="noopener">Abrir a página de pagamento</a></p>`:''}
+      ${r.pix?`<div style="margin-top:14px;display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+        ${r.pix.imagemBase64?`<img alt="QR do Pix" style="width:168px;height:168px;border-radius:8px" src="data:image/png;base64,${esc(r.pix.imagemBase64)}">`:''}
+        <div style="flex:1;min-width:220px"><label>Pix copia e cola</label>
+          <textarea rows="4" readonly onclick="this.select()" style="width:100%">${esc(r.pix.payload)}</textarea>
+          <p class="hint">Quem está no celular não aponta a câmera pra própria tela — por isso o copia e cola.</p></div>
+      </div>`:''}
+      ${r.pixErro?`<p class="hint">Cobrança criada, mas o QR não veio: ${esc(r.pixErro)}</p>`:''}
+    </div>`;
+    flash('Cobrança emitida no Asaas.','ok');
+  }catch(e){ alvo.innerHTML=''; flash(e.message,'err'); }
+}
+
 const kpi=(l,v,e)=>`<div class="kpi"><span>${esc(l)}</span><b>${esc(String(v))}</b><em>${esc(e)}</em></div>`;
 function vazio(icone,titulo,texto,passos){
   return `<div class="empty"><div class="ico">${ico(icone)}</div><h3>${esc(titulo)}</h3><p>${texto}</p>
@@ -886,13 +935,79 @@ const S={
  'pl-comprar':()=>head('Plano e acesso · Comprar acesso','Estender o pacote quando o consumo acabar.')+
   vazio('plano','Compra ainda não ligada a este painel','Existe o <code>/checkout</code> do Stripe no backend, que hoje serve à venda de licença — não a recarga de pacote.',
    ['Ter o medidor de consumo primeiro','Criar os pacotes de recarga e seus preços','Ligar ao checkout, com a chave estendida na confirmação']),
- 'pl-recebimento':()=>head('Plano e acesso · Recebimento','Como você paga: cartão ou PIX.')+
-  `<div class="card" style="margin-bottom:16px"><h3>Meios disponíveis hoje</h3>
-    ${linha('Cartão','via Stripe Checkout','configurável','')}
-    ${linha('PIX','cobrança instantânea','não implementado','')}
-    ${linha('Assinatura recorrente','renovação automática','não implementado','')}</div>`+
-  vazio('plano','PIX ainda não existe no backend','O caminho de pagamento hoje é o Stripe (cartão). PIX exige provedor próprio — Stripe no Brasil, ou PSP nacional como Asaas, Pagar.me ou Mercado Pago.',
-   ['Escolher o provedor de PIX','Webhook de confirmação, igual ao do Stripe','Aí o painel mostra os dois meios de verdade']),
+ 'pl-recebimento':()=>{
+  if(!PAG) return head('Plano e acesso · Recebimento','Receber por Pix e cartão.')+
+    vazio('plano','Backend sem a rota de recebimento','Atualize o backend para a versão com o módulo de pagamentos.',['Subir o backend novo','Recarregar']);
+  const i=PAG.painel.integracao;
+  const pend=PAG.painel.aguardando, prob=PAG.painel.problemas;
+  const estado=(e)=>({CRIADO:'aguardando',PENDENTE:'aguardando',CONFIRMADO:'pago',DISPONIVEL:'disponível',
+    ESTORNADO:'estornado',CANCELADO:'cancelado',CHARGEBACK:'chargeback',CHARGEBACK_DISPUTA:'em disputa'}[e]||e);
+  const cor=(e)=>['CONFIRMADO','DISPONIVEL'].includes(e)?'b-ok':['CHARGEBACK','CHARGEBACK_DISPUTA','ESTORNADO'].includes(e)?'b-err':'b-warn';
+
+  const lista=PAG.pagamentos.length
+    ? `<table class="tbl"><thead><tr><th>Quando</th><th>Descrição</th><th>Forma</th>
+        <th style="text-align:right">Valor</th><th style="text-align:center">Situação</th><th></th></tr></thead><tbody>
+       ${PAG.pagamentos.map(p=>`<tr>
+        <td>${esc(String(p.criadoEm||'').slice(0,16).replace('T',' '))}</td>
+        <td>${esc(p.referencia||p.descricao||p.id)}</td>
+        <td>${esc(p.metodo==='PIX'?'Pix':p.metodo==='CREDIT_CARD'?'Cartão':p.metodo||'—')}</td>
+        <td style="text-align:right">${esc(brl(p.valorCentavos/100))}</td>
+        <td style="text-align:center"><span class="badge ${cor(p.estado)}">${esc(estado(p.estado))}</span></td>
+        <td style="text-align:right">${p.linkPagamento?`<a class="btn btn-s btn-xs" href="${esc(p.linkPagamento)}" target="_blank" rel="noopener">abrir</a>`:''}</td>
+       </tr>`).join('')}</tbody></table>`
+    : '<p class="hint">Nenhuma cobrança emitida ainda.</p>';
+
+  return head('Plano e acesso · Recebimento','Cobrar por Pix ou cartão, e ver o que entrou — pelo Asaas.')+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Aguardando',pend,'emitidas e não pagas')}
+    ${kpi('Confirmado',brl(PAG.painel.confirmadosCentavos/100),'pago, ainda não liberado')}
+    ${kpi('Disponível',brl(PAG.painel.disponiveisCentavos/100),'liberado pra sacar')}
+    ${kpi('Problemas',prob,'chargeback ou estorno')}
+  </div>`+
+  (i.pronto?'':`<div class="card" style="margin-bottom:16px;border-style:dashed">
+    <h3>Falta pra poder cobrar</h3>
+    ${i.faltando.map(f=>linha(f,'','falta','b-err')).join('')}</div>`)+
+  `<div class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <div><h3>Integração com o Asaas</h3><p class="hint">A chave entra aqui e não sai mais: a tela só mostra mascarada.</p></div>
+      <span class="badge ${i.pronto?'b-ok':'b-warn'}">${i.pronto?'pronta':'incompleta'}</span>
+      <span class="badge ${i.emProducao?'b-err':''}">${i.emProducao?'PRODUÇÃO — move dinheiro de verdade':'sandbox'}</span></div>
+    ${i.apiKey?linha('Chave de API','mascarada de propósito',esc(i.apiKey),'b-ok'):''}
+    ${i.webhookToken?linha('Token do webhook','mascarado',esc(i.webhookToken),'b-ok'):''}
+    ${linha('Modelo',i.divideComTerceiro?'divide com prestador':'a empresa recebe o valor inteiro',esc(i.modelo),'')}
+    <div class="form-grid" style="margin-top:12px">
+      <div class="field"><label>Chave de API do Asaas</label><input id="pgChave" placeholder="$aact_..." autocomplete="off"></div>
+      <div class="field"><label>Token do webhook <small>(mín. 32 caracteres)</small></label><input id="pgToken" placeholder="invente um e repita no painel do Asaas" autocomplete="off"></div>
+      <div class="field"><label>Ambiente</label><select id="pgAmb">
+        <option value="sandbox"${i.ambiente==='sandbox'?' selected':''}>sandbox (não move dinheiro)</option>
+        <option value="producao"${i.ambiente==='producao'?' selected':''}>produção</option></select></div>
+      <div class="field"><label>Modelo</label><select id="pgModelo">
+        <option value="direto"${i.modelo==='direto'?' selected':''}>direto — você recebe tudo</option>
+        <option value="split"${i.modelo==='split'?' selected':''}>split — divide com prestador</option></select></div>
+      <button class="btn btn-s" onclick="salvarPagamentos()">Salvar integração</button>
+    </div>
+    <p class="hint" style="margin-top:10px">No painel do Asaas, em <b>Integrações → Webhooks</b>, cadastre esta URL e
+      o mesmo token acima:<br><code>${esc(PAG.urlWebhook)}</code></p></div>
+
+  <div class="card" style="margin-bottom:16px"><h3>Nova cobrança</h3>
+    <p class="hint">O Asaas exige nome e CPF/CNPJ do pagador — cobrança sem documento é recusada por eles na criação.</p>
+    <div class="form-grid">
+      <div class="field"><label>Nome do pagador *</label><input id="pgNome" placeholder="Maria Souza"></div>
+      <div class="field"><label>CPF ou CNPJ *</label><input id="pgDoc" placeholder="000.000.000-00"></div>
+      <div class="field"><label>E-mail</label><input id="pgEmail" placeholder="opcional"></div>
+      <div class="field"><label>Valor *</label><input id="pgValor" placeholder="R$ 199,90"></div>
+      <div class="field"><label>Forma</label><select id="pgMetodo">
+        <option value="PIX">Pix</option><option value="CREDIT_CARD">Cartão</option><option value="BOLETO">Boleto</option></select></div>
+      <div class="field"><label>Vencimento</label><input id="pgVenc" type="date"></div>
+      <div class="field" style="grid-column:1/-1"><label>Descrição</label><input id="pgDesc" placeholder="Mensalidade do console — setembro"></div>
+      <button class="btn btn-p" onclick="cobrarAgora()">Emitir cobrança</button>
+    </div>
+    <div id="pgResultado"></div></div>
+
+  <div class="card"><h3>Cobranças emitidas</h3>
+    <p class="hint">A situação muda sozinha quando o Asaas avisa no webhook — não é preciso conferir na mão.</p>
+    ${lista}</div>`;
+ },
  contrato:()=>head('Contrato','O que você assinou e o que está valendo.')+
   vazio('contrato','Nenhum contrato registrado','Não existe documento de contrato nesta instalação. A relação hoje é a chave de licença assinada (Ed25519) com plano e validade.',
    ['Escrever o contrato do produto','Guardar a versão aceita por cliente, com data','Mostrar aqui com histórico de versões']),
@@ -1190,6 +1305,7 @@ async function carregar(){
     // e o resto do painel continua funcionando normalmente.
     QG=await api('quebragalho').catch(()=>null);
     TKAPP=await api('tiktok/app').catch(()=>null);
+    PAG=await api('pagamentos').catch(()=>null);
     if(TKAPP&&TKAPP.diagnostico) TK=TKAPP.diagnostico;
     // Telas novas: carregadas a parte pra uma falha nelas nao derrubar o painel todo.
     [AUD,FIN,REL,CTA]=await Promise.all([api('auditor').catch(()=>null),api('financeiro').catch(()=>null),

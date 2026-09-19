@@ -28,6 +28,7 @@ import * as vspainel from '../engine/vspainel/index.mjs';
 import { painelQuebraGalho, QG_URL } from './quebragalho.mjs';
 import * as tk from '../engine/vstiktok/index.mjs';
 import { reservarEvento } from './idempotencia.mjs';
+import * as pagar from '../engine/vspagamentos/index.mjs';
 import { lerCorpoLimitado, criarRateLimit, ipDe, segredoIgual, CORPO_MAX_BYTES } from './limites.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -256,6 +257,22 @@ const server = createServer(async (req, res) => {
     return json(res, 200, { token, plan: 'trial', ...entregaResumo(entrega) });
   }
 
+  /**
+   * Webhook do Asaas. Publico de proposito — quem chama e o servidor deles.
+   * A trava e o token estatico no header `asaas-access-token` (eles NAO assinam
+   * o corpo como o Stripe), conferido em tempo constante dentro do modulo.
+   * Responde 200 tambem na reentrega: 4xx repetido faz a fila do Asaas PAUSAR
+   * depois de 15 falhas, e ai nenhum pagamento e confirmado.
+   */
+  if (req.method === 'POST' && req.url === '/webhook/asaas') {
+    const buf = await readBody(req);
+    if (corpoEstourou(res, buf)) { return; }
+    let evento; try { evento = JSON.parse(buf.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
+    const r = pagar.processarWebhook(req.headers, evento);
+    console.log(`[asaas] ${evento.event || '?'} ${evento.payment?.id || ''} -> ${r.ok ? r.estado : 'recusado: ' + r.motivo}`);
+    return json(res, r.http || (r.ok ? 200 : 400), r);
+  }
+
   if (req.method === 'POST' && req.url === '/webhook') {
     const buf = await readBody(req);
     if (corpoEstourou(res, buf)) { return; }
@@ -422,6 +439,14 @@ const server = createServer(async (req, res) => {
         origem,
       });
     }
+    if (req.method === 'GET' && rota === '/crm/api/pagamentos') {
+      const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
+      return json(res, 200, {
+        painel: pagar.painel(),
+        pagamentos: pagar.listar().slice(-40).reverse(),
+        urlWebhook: `${origem}/webhook/asaas`,
+      });
+    }
     if (req.method === 'GET' && rota === '/crm/api/estoque/historico') {
       return json(res, 200, { movimentos: estoque.historico(new URL(req.url, 'http://x').searchParams.get('sku')) });
     }
@@ -474,6 +499,28 @@ const server = createServer(async (req, res) => {
             escopos: d.publicar ? [...tk.auth.ESCOPOS_PADRAO, tk.auth.ESCOPOS.publicar, tk.auth.ESCOPOS.enviar] : undefined,
             serviceId: d.serviceId,
           });
+          break;
+        }
+        /* A chave do Asaas ENTRA por aqui e nunca mais sai: o diagnostico so
+           devolve mascarado. Guardar e inevitavel — cobranca e chamada autenticada. */
+        case '/crm/api/pagamentos/config': r = pagar.configurar(d); break;
+        case '/crm/api/pagamentos/cobrar': {
+          // Cliente primeiro: o Asaas recusa cobranca sem `customer`, e o
+          // documento e obrigatorio do lado dele.
+          const c = await pagar.garantirCliente({ nome: d.nome, cpfCnpj: d.cpfCnpj, email: d.email, telefone: d.telefone });
+          if (!c.ok) { r = { ok: false, erro: c.motivo }; break; }
+          const cob = await pagar.cobrar({
+            clienteId: c.clienteId,
+            metodo: d.metodo,
+            valorCentavos: Number(d.valorCentavos),
+            vencimento: d.vencimento,
+            descricao: d.descricao,
+            referencia: d.referencia,
+          });
+          if (!cob.ok) { r = { ok: false, erro: cob.motivo }; break; }
+          // Pix so tem QR depois de criada a cobranca — por isso vem aqui, nao antes.
+          const qr = String(d.metodo).toUpperCase() === 'PIX' ? await pagar.qrPix(cob.pagamento.id) : null;
+          r = { ...cob, clienteReusado: c.reusado, pix: qr?.ok ? qr.pix : null, pixErro: qr && !qr.ok ? qr.motivo : null };
           break;
         }
         case '/crm/api/estoque/produto': r = estoque.criar(d); break;

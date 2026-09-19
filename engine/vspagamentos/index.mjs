@@ -30,11 +30,24 @@ import { criarGateway, validarWebhook } from './asaas.mjs';
 import { calcularSplit, paraAsaas, conferir } from './split.mjs';
 import { traduzirEvento, transitar, LIBERA_REPASSE } from './estados.mjs';
 
+const inteiroPositivo = (v) => Number.isInteger(Number(v)) && Number(v) > 0;
+
 const CONFIG = 'config';
 const PAGAMENTOS = 'pagamentos';
 const EVENTOS = 'eventos';
+const RECUSADOS = 'recusados';
 
-export const MODELOS = ['split', 'custodia'];
+/**
+ * `direto` é o caso sem terceiro: a própria empresa cobra do próprio cliente
+ * (mensalidade, licença, serviço dela). Não existe prestador, logo não existe
+ * percentual nem base de split — exigir isso obrigava a inventar um sócio pra
+ * poder emitir um Pix, e número inventado em cobrança é o começo de conciliação
+ * errada. Split e custódia continuam como estavam.
+ */
+export const MODELOS = ['split', 'custodia', 'direto'];
+
+/** O modelo divide o valor com alguém de fora? */
+export const divideComTerceiro = (modelo) => modelo !== 'direto';
 
 export { calcularSplit, paraAsaas, conferir, traduzirEvento, criarGateway };
 
@@ -80,12 +93,15 @@ export function diagnostico() {
   const faltando = [];
   if (!c.apiKey) { faltando.push('apiKey do Asaas'); }
   if (!c.webhookToken) { faltando.push('token do webhook (sem ele o endpoint aceita evento forjado)'); }
-  if (c.percentualPrestador == null) { faltando.push('percentual do prestador (BDR-01)'); }
-  if (!c.baseSplit) { faltando.push('base do split: quem absorve a taxa do gateway'); }
+  if (divideComTerceiro(c.modelo || 'split')) {
+    if (c.percentualPrestador == null) { faltando.push('percentual do prestador (BDR-01)'); }
+    if (!c.baseSplit) { faltando.push('base do split: quem absorve a taxa do gateway'); }
+  }
   return {
     ambiente: c.ambiente || 'sandbox',
     modelo: c.modelo || 'split',
     custodia: c.modelo === 'custodia',
+    divideComTerceiro: divideComTerceiro(c.modelo || 'split'),
     percentualPrestador: c.percentualPrestador ?? null,
     baseSplit: c.baseSplit ?? null,
     apiKey: c.apiKey ? mascarar(c.apiKey) : null,
@@ -117,12 +133,17 @@ export async function cobrar(e = {}, opts = {}) {
   const d = diagnostico();
   if (!d.pronto) { return { ok: false, motivo: 'integração incompleta: ' + d.faltando.join('; ') }; }
 
-  const calc = calcularSplit({
-    brutoCentavos: e.valorCentavos,
-    percentualPrestador: c.percentualPrestador,
-    base: c.baseSplit,
-    politicaVersao: c.politicaVersao,
-  });
+  // No modelo direto o valor inteiro é da própria empresa: não há rateio a
+  // calcular nem a gravar. `split: null` diz isso — diferente de um split zerado,
+  // que sugeriria um repasse de zero pra alguém.
+  const calc = divideComTerceiro(c.modelo)
+    ? calcularSplit({
+      brutoCentavos: e.valorCentavos,
+      percentualPrestador: c.percentualPrestador,
+      base: c.baseSplit,
+      politicaVersao: c.politicaVersao,
+    })
+    : { ok: inteiroPositivo(e.valorCentavos), split: null, avisos: [], motivo: `valor inválido: "${e.valorCentavos}" (centavos, inteiro > 0)` };
   if (!calc.ok) { return { ok: false, motivo: calc.motivo }; }
 
   let splitAsaas;
@@ -152,6 +173,8 @@ export async function cobrar(e = {}, opts = {}) {
     metodo: String(e.metodo || '').toUpperCase(),
     valorCentavos: e.valorCentavos,
     referencia: e.referencia || null,
+    vencimento: r.dados?.dueDate || e.vencimento || null,
+    descricao: e.descricao || null,
     walletIdPrestador: e.walletIdPrestador || null,
     split: calc.split,
     // Link de pagamento (Pix/cartão) vem do gateway — não é construído por nós.
@@ -163,6 +186,38 @@ export async function cobrar(e = {}, opts = {}) {
   };
   save(PAGAMENTOS, [...listar(), pagamento]);
   return { ok: true, pagamento, avisos: calc.avisos };
+}
+
+/**
+ * Garante um cliente no Asaas a partir do documento: reusa o que já existe em vez
+ * de criar um novo a cada cobrança. Cliente duplicado não quebra o pagamento, mas
+ * transforma o extrato deles em lixo — e é lá que se confere o que entrou.
+ */
+export async function garantirCliente(e = {}, opts = {}) {
+  const g = gateway(opts);
+  const achado = await g.buscarClientePorDocumento(e.cpfCnpj);
+  if (achado.ok && achado.dados?.data?.length) {
+    return { ok: true, clienteId: achado.dados.data[0].id, reusado: true };
+  }
+  const novo = await g.criarCliente(e);
+  if (!novo.ok) { return novo; }
+  return { ok: true, clienteId: novo.dados?.id, reusado: false };
+}
+
+/**
+ * QR do Pix de uma cobrança já criada. Guarda no pagamento local pra tela não ter
+ * que bater no Asaas toda vez que alguém reabre a página.
+ */
+export async function qrPix(id, opts = {}) {
+  const pg = obter(id);
+  if (!pg) { return { ok: false, motivo: 'pagamento não encontrado' }; }
+  if (pg.pix?.payload) { return { ok: true, pix: pg.pix, doCache: true }; }
+  const r = await gateway(opts).qrPix(id);
+  if (!r.ok) { return r; }
+  const pix = { payload: r.dados?.payload || null, imagemBase64: r.dados?.encodedImage || null, expiraEm: r.dados?.expirationDate || null };
+  if (!pix.payload) { return { ok: false, motivo: 'o Asaas respondeu sem o copia-e-cola do Pix' }; }
+  save(PAGAMENTOS, listar().map((p) => (p.id === id ? { ...p, pix } : p)));
+  return { ok: true, pix, doCache: false };
 }
 
 /**
@@ -206,9 +261,18 @@ export function processarWebhook(headers = {}, corpo = {}, opts = {}) {
 
   const t = transitar(todos[i], ev.estado, { origem: ev.evento, quando: opts.quando });
   if (t.erro) {
-    // Transição impossível é sinal de problema real — não engole.
-    save(EVENTOS, { ...vistos, [ev.eventoId]: { em: new Date().toISOString(), evento: ev.evento, recusado: t.erro } });
-    return { ok: false, http: 200, motivo: t.erro, pagamento: todos[i] };
+    /* NAO marca como processado. O Asaas reentrega justamente pra consertar
+       ordem trocada; gravar em `vistos` fazia a reentrega voltar como
+       "duplicado" e o evento morria ali — pagamento recebido preso em CRIADO
+       pra sempre, sem segunda chance. Fica registrado em `recusados` pra tela
+       poder mostrar, e responde 200 porque 4xx repetido PAUSA a fila deles
+       depois de 15 falhas, e ai nenhum pagamento e confirmado. */
+    const recusados = load(RECUSADOS, []);
+    save(RECUSADOS, [...recusados.slice(-199), {
+      em: new Date().toISOString(), eventoId: ev.eventoId, evento: ev.evento,
+      cobrancaId: ev.cobrancaId, estadoAtual: todos[i].estado, estadoPedido: ev.estado, motivo: t.erro,
+    }]);
+    return { ok: false, http: 200, motivo: t.erro, pagamento: todos[i], podeReentregar: true };
   }
 
   // O líquido só é conhecido quando o gateway informa — aí o split fecha de verdade.
@@ -236,6 +300,9 @@ export function processarWebhook(headers = {}, corpo = {}, opts = {}) {
  */
 export function podeRepassar(pagamento, opts = {}) {
   if (!pagamento) { return { ok: false, motivo: 'pagamento não encontrado' }; }
+  // Sem esta linha o recebimento direto cairia na frase de "split não fechado",
+  // mandando procurar um rateio que nunca existiu.
+  if (pagamento.modelo === 'direto') { return { ok: false, motivo: 'recebimento direto: o valor já é da empresa, não há terceiro pra repassar' }; }
   if (pagamento.repassado) { return { ok: false, motivo: 'este pagamento já foi repassado' }; }
   if (!LIBERA_REPASSE.includes(pagamento.estado)) {
     return {
@@ -291,6 +358,9 @@ export function painel() {
     disponiveisCentavos: soma((p) => p.estado === 'DISPONIVEL'),
     aRepassar: todos.filter((p) => podeRepassar(p).ok).length,
     problemas: todos.filter((p) => ['CHARGEBACK', 'CHARGEBACK_DISPUTA', 'ESTORNADO'].includes(p.estado)).length,
+    // Evento que o Asaas mandou e nao coube no estado atual. Fica visivel porque
+    // e exatamente o caso em que o dinheiro entrou e a tela pode nao saber.
+    recusados: load(RECUSADOS, []).slice(-10).reverse(),
     integracao: diagnostico(),
   };
 }

@@ -26,6 +26,13 @@ export const COBRANCAS = ['PIX', 'CREDIT_CARD', 'DEBIT_CARD', 'BOLETO', 'UNDEFIN
 
 const centavosParaReais = (c) => Number((Number(c) / 100).toFixed(2));
 
+/** Data de hoje no formato do Asaas (YYYY-MM-DD), no fuso de quem roda o servidor. */
+const hoje = () => {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+
 /**
  * Compara o token do webhook sem vazar tempo. `timingSafeEqual` exige buffers do
  * mesmo tamanho, então o tamanho é conferido antes — e um tamanho diferente já é
@@ -123,7 +130,11 @@ export function criarGateway(cfg = {}) {
         customer: e.clienteId,
         billingType: metodo,
         value: centavosParaReais(e.valorCentavos),
-        dueDate: e.vencimento,
+        // O Asaas RECUSA cobranca sem `dueDate` — inclusive Pix, que na pratica
+        // e pra pagar agora. Sem esse default, quem nao preenche a data leva
+        // "O parametro dueDate deve ser informado" e nao sabe o que fazer.
+        // Hoje e o unico default honesto: vencer no ato do que foi pedido agora.
+        dueDate: e.vencimento || hoje(),
         description: e.descricao,
         externalReference: e.referencia,
       };
@@ -133,6 +144,40 @@ export function criarGateway(cfg = {}) {
 
     consultarCobranca(id) {
       return chamar('GET', `/payments/${encodeURIComponent(id)}`);
+    },
+
+    /**
+     * Cliente do Asaas. Toda cobrança exige um: o `customer` do payload é o id
+     * daqui. O CPF/CNPJ é obrigatório do lado deles — cobrança sem documento é
+     * recusada na criação, não depois.
+     */
+    criarCliente(e = {}) {
+      const falta = ['nome', 'cpfCnpj'].filter((c) => !String(e[c] || '').trim());
+      if (falta.length) { return Promise.resolve({ ok: false, motivo: 'falta preencher: ' + falta.join(', ') }); }
+      return chamar('POST', '/customers', {
+        name: e.nome,
+        cpfCnpj: String(e.cpfCnpj).replace(/\D/g, ''),
+        email: e.email || undefined,
+        mobilePhone: e.telefone || undefined,
+        externalReference: e.referencia || undefined,
+      });
+    },
+
+    /** Procura cliente já cadastrado pelo documento — evita duplicar a cada cobrança. */
+    buscarClientePorDocumento(cpfCnpj) {
+      const d = String(cpfCnpj || '').replace(/\D/g, '');
+      if (!d) { return Promise.resolve({ ok: false, motivo: 'documento vazio' }); }
+      return chamar('GET', `/customers?cpfCnpj=${encodeURIComponent(d)}`);
+    },
+
+    /**
+     * QR do Pix de uma cobrança. Vem só DEPOIS de criada — o Asaas gera o
+     * payload junto com o pagamento, não antes. `encodedImage` é PNG em base64
+     * e `payload` é o copia-e-cola; a tela precisa dos dois, porque quem está no
+     * celular não consegue apontar a câmera pra própria tela.
+     */
+    qrPix(id) {
+      return chamar('GET', `/payments/${encodeURIComponent(id)}/pixQrCode`);
     },
 
     /** Estorno. Atenção: estornar cobrança com split estorna os repasses junto. */

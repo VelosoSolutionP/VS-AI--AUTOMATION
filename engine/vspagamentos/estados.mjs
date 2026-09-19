@@ -41,8 +41,13 @@ export const FINAIS = ['ESTORNADO', 'CANCELADO'];
  * lugar.
  */
 export const TRANSICOES = {
-  CRIADO: ['PENDENTE', 'CONFIRMADO', 'VENCIDO', 'CANCELADO'],
-  PENDENTE: ['CONFIRMADO', 'VENCIDO', 'CANCELADO'],
+  // DISPONIVEL direto de CRIADO/PENDENTE nao e atalho: e o caminho NORMAL do Pix,
+  // que confirma e liquida no mesmo instante — o PAYMENT_RECEIVED pode ser o
+  // primeiro evento que chega sobre essa cobranca. Recusar isso deixava pagamento
+  // recebido marcado como "aguardando" pra sempre, que e a pior mentira possivel
+  // numa tela de recebimento. Conferido contra o sandbox do Asaas em 19/09/2026.
+  CRIADO: ['PENDENTE', 'CONFIRMADO', 'DISPONIVEL', 'VENCIDO', 'CANCELADO'],
+  PENDENTE: ['CONFIRMADO', 'DISPONIVEL', 'VENCIDO', 'CANCELADO'],
   CONFIRMADO: ['DISPONIVEL', 'ESTORNADO', 'ESTORNADO_PARCIAL', 'CHARGEBACK'],
   DISPONIVEL: ['ESTORNADO', 'ESTORNADO_PARCIAL', 'CHARGEBACK'],
   ESTORNADO_PARCIAL: ['ESTORNADO', 'CHARGEBACK', 'DISPONIVEL'],
