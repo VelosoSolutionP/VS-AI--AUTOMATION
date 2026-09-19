@@ -15,7 +15,7 @@ import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import * as vs from '../engine/vsmarket/index.mjs';
 import { save as salvar } from '../engine/vsmarket/store.mjs';
 import { criarSimulado } from './gateway-simulado.mjs';
@@ -37,6 +37,13 @@ const GATEWAY = process.env.ASAAS_API_KEY
       webhookToken: process.env.ASAAS_WEBHOOK_TOKEN,
     })
   : criarSimulado();
+
+/**
+ * Token de integracao servico-a-servico. O painel do Bolso Cheio le AGREGADOS daqui
+ * (GMV, contagens) e nada mais: nome, telefone e endereco de cliente NAO atravessam
+ * a fronteira entre produtos sem base legal e consentimento (§31, §39).
+ */
+const QG_INTEGRACAO_TOKEN = process.env.QG_INTEGRACAO_TOKEN || '';
 
 /** Comissão configurável. Sem variável, cai na hipótese comercial de 80%. */
 const PCT_PRESTADOR = Number(process.env.QG_PERCENTUAL_PRESTADOR || 80);
@@ -81,6 +88,14 @@ function barradoLogin(ip) {
 }
 
 const ipDe = (req) => (req.socket?.remoteAddress || 'desconhecido');
+
+/** Comparacao em tempo constante — tamanho diferente ja e resposta negativa. */
+function tokenIgual(recebido, esperado) {
+  const a = Buffer.from(String(recebido || ''), 'utf8');
+  const b = Buffer.from(String(esperado || ''), 'utf8');
+  if (!b.length || a.length !== b.length) { return false; }
+  return timingSafeEqual(a, b);
+}
 
 /** Primeiro admin: senha ALEATÓRIA impressa uma vez. Nunca senha padrão no código. */
 function bootstrap() {
@@ -182,6 +197,31 @@ const server = createServer(async (req, res) => {
     if (b.invalido) { return json(res, 400, { erro: 'payload invalido' }); }
     const r = vs.fluxo.aplicarEventoPagamento(GATEWAY.traduzirEvento(b.dados));
     return json(res, r.http || 200, r);
+  }
+
+  /**
+   * Resumo para integracao. Fica FORA da sessao de usuario: quem chama e outro
+   * SERVICO, nao uma pessoa. So agregados — nenhum dado pessoal atravessa.
+   */
+  if (rota === '/api/integracao/resumo' && req.method === 'GET') {
+    if (!QG_INTEGRACAO_TOKEN) {
+      return json(res, 503, { erro: 'QG_INTEGRACAO_TOKEN nao configurado neste servidor — integracao desligada' });
+    }
+    if (!tokenIgual(req.headers['x-qg-token'], QG_INTEGRACAO_TOKEN)) {
+      return json(res, 401, { erro: 'token de integracao invalido' });
+    }
+    const est = vs.estado();
+    return json(res, 200, {
+      numeros: vs.fluxo.numeros(),
+      regiao: est.regiao,
+      categorias: est.categorias.length,
+      prestadores: {
+        total: est.prestadores.length,
+        ativos: est.prestadores.filter((p) => p.status === 'ACTIVE').length,
+        emAnalise: est.prestadores.filter((p) => ['PENDING', 'UNDER_REVIEW'].includes(p.status)).length,
+      },
+      clientes: est.clientes.length,
+    });
   }
 
   if (!rota.startsWith('/api/')) { return json(res, 404, { erro: 'rota desconhecida' }); }

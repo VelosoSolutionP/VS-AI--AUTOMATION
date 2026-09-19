@@ -180,6 +180,12 @@ td{padding:11px 10px;border-top:1px solid var(--line)}
   .top-right .pill:first-child{display:none}
   .page-head h1{font-size:19px}
 }
+
+/* Enquanto o login está na tela, a navegação não aparece: nada de dado do painel
+   piscando antes da autenticação. */
+body.sem-nav #side,body.sem-nav .topbar,body.sem-nav #ov{display:none!important}
+body.sem-nav #view{margin-left:0!important;padding:0!important}
+body.sem-nav main,body.sem-nav .main{margin-left:0!important}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
@@ -231,6 +237,7 @@ const I={
  bot:'<rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4"/><circle cx="12" cy="3" r="1.3"/><path d="M9 13.5h.01M15 13.5h.01M9.5 17h5"/>',
  auditor:'<path d="M9 11.5l2 2 4-4.5"/><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/>',
  redes:'<circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.6 10.7 15.4 6.5M8.6 13.3l6.8 4.2"/>',
+ quebragalho:'<path d="M14.5 4.5a3.5 3.5 0 0 0-4.6 4.4L4 14.8V20h5.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.4 2.4-2.2-2.2z"/>',
  relatorios:'<path d="M5 21V10M12 21V4M19 21v-7"/><path d="M3 21h18"/>',
  crm:'<path d="M16 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="3.5"/><path d="M17 11h5M19.5 8.5v5"/>',
  whats:'<path d="M3.5 20.5 5 16a8.2 8.2 0 1 1 3 3z"/><path d="M8.8 9.2c0 3.3 2.7 6 6 6 .9 0 1.4-.4 1.4-1.2 0-.5-1.6-1.4-2-1.4-.5 0-.7.8-1.2.8-.8 0-2.4-1.6-2.4-2.4 0-.5.8-.7.8-1.2 0-.4-.9-2-1.4-2-.8 0-1.2.5-1.2 1.4z"/>',
@@ -256,6 +263,7 @@ const GRUPOS=[
    {id:'auditor',nome:'Auditor',icone:'auditor'},
    {id:'redes',nome:'Conexões com redes sociais',icone:'redes'},
    {id:'relatorios',nome:'Relatórios',icone:'relatorios'},
+   {id:'quebragalho',nome:'Quebra-Galho',icone:'quebragalho'},
    {id:'crm',nome:'Integração CRM',icone:'crm'},
    {id:'whats',nome:'WhatsApp',icone:'whats',filhos:[
      {id:'wa-integracao',nome:'Integração'},{id:'wa-consumo',nome:'Consumo'},{id:'wa-bot',nome:'Bot'},
@@ -278,7 +286,7 @@ const TITULO={};
 MENU.forEach(m=>{TITULO[m.id]=[m.nome];(m.filhos||[]).forEach(f=>TITULO[f.id]=[m.nome,f.nome]);});
 const PAI={}; MENU.forEach(m=>(m.filhos||[]).forEach(f=>PAI[f.id]=m.id));
 
-let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null;
+let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null,QG=null;
 const TESTE={}; // resultado do ultimo teste por rede (so em memoria)
 const PROVA={}; // ultimo teste real das APIs do TikTok, por familia
 let rota=location.hash.slice(1)||'visao';
@@ -287,7 +295,9 @@ const abertos=new Set(PAI[rota]?[PAI[rota]]:[]);
 const esc=(s)=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const brl=(v)=>v==null?'—':v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:2});
 function flash(t,tipo){const m=document.getElementById('msg');m.className='msg '+tipo;m.textContent=t;if(tipo==='ok')setTimeout(()=>m.className='msg',3200);}
-const TOKEN=new URLSearchParams(location.search).get('t')||'';
+// O ?t= da URL continua funcionando (link direto), mas a sessao tem prioridade:
+// token em querystring acaba em log de acesso e em historico de navegador.
+let TOKEN=sessionStorage.getItem('crm_token')||new URLSearchParams(location.search).get('t')||'';
 async function api(r,body){
   const res=await fetch('/crm/api/'+r,{method:body?'POST':'GET',
     headers:{'content-type':'application/json',...(TOKEN?{'x-crm-token':TOKEN}:{})},body:body?JSON.stringify(body):undefined});
@@ -616,6 +626,38 @@ const S={
     <b>A integração completa do TikTok é o bloco acima</b>, com OAuth e token renovado sozinho.</p></div>
   ${linhas}`;
  },
+ quebragalho:()=>{
+  if(!QG) return head('Quebra-Galho','Marketplace de serviços locais — BH e Grande BH.')+
+    vazio('quebragalho','Backend sem a rota do Quebra-Galho','Atualize o backend para a versão com a ponte.',['Subir o backend novo','Recarregar']);
+  if(!QG.disponivel) return head('Quebra-Galho','Marketplace de serviços locais — BH e Grande BH.')+
+    `<div class="card" style="margin-bottom:16px"><h3>O Quebra-Galho não respondeu</h3>
+      <p class="hint">${esc(QG.motivo)}. Ele roda em processo separado, então isto não afeta o resto do painel.</p>
+      ${linha('Endereço','onde o painel procura',esc(QG.url),'')}
+      ${QG.comoResolver?`<p class="hint" style="margin-top:10px">${esc(QG.comoResolver)}</p>`:''}</div>`;
+  const n=QG.numeros, p=QG.prestadores||{};
+  return head('Quebra-Galho','Marketplace de serviços locais — BH e Grande BH.')+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Pedidos hoje',n.pedidosHoje,`${n.pedidosTotal} no total`)}
+    ${kpi('Em andamento',n.emAndamento,`${n.concluidos} concluído(s)`)}
+    ${kpi('GMV',brl(n.gmvCentavos/100),'volume transacionado')}
+    ${kpi('Receita',brl(n.receitaCentavos/100),'comissão da plataforma')}
+  </div>
+  <div class="card" style="margin-bottom:16px"><h3>Operação</h3>
+    ${linha('Profissionais',`${p.emAnalise||0} em análise`,`${p.ativos||0} ativo(s)`,p.ativos?'b-ok':'b-warn')}
+    ${linha('Clientes','cadastrados no marketplace',String(QG.clientes??'—'),'')}
+    ${linha('Propostas','enviadas pelos profissionais',String(n.propostas),'')}
+    ${linha('Avaliações','após serviço concluído',String(n.avaliacoes),'')}
+    ${linha('Contestações','abertas agora',String(n.contestacoesAbertas),n.contestacoesAbertas?'b-err':'b-ok')}
+    ${linha('Cancelamentos','no período',String(n.cancelados),n.cancelados?'b-warn':'')}
+    ${QG.regiao?linha('Região atendida',`raio de ${QG.regiao.raioKm} km`,esc(QG.regiao.nome),''):''}
+    ${QG.categorias!=null?linha('Categorias','cadastráveis',String(QG.categorias),''):''}
+  </div>
+  <div class="card">
+    <h3>Abrir o Quebra-Galho</h3>
+    <p class="hint">É um produto separado, com login e dados próprios. O painel lê os números por API — nenhum dos dois depende do outro para subir.</p>
+    <a class="btn btn-p" href="${esc(QG.url)}" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;text-decoration:none">Abrir em nova aba</a>
+  </div>`;
+ },
  relatorios:()=>{
   if(!REL) return head('Relatórios','Cruzamento entre vendas, catálogo e conteúdo.')+
     vazio('relatorios','Backend sem a rota de relatórios','Atualize o backend para a versão com o VSpainel.',['Subir o backend novo','Recarregar']);
@@ -791,11 +833,60 @@ function toggleSub(id){abertos.has(id)?abertos.delete(id):abertos.add(id);render
 addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h&&h!==rota){rota=h;render();}});
 
 /* ---------- ações ---------- */
+/**
+ * Porta de entrada. O dashboard NAO desenha antes de alguem provar que pode ve-lo:
+ * ele mostra nome e telefone de cliente, funil e faturamento. Antes, bastava ter a
+ * URL.
+ */
+function telaEntrar(aviso){
+  document.getElementById('side')?.classList.remove('open');
+  document.body.classList.add('sem-nav');
+  document.getElementById('view').innerHTML=`
+  <div style="max-width:380px;margin:12vh auto;padding:0 16px">
+    <div style="display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:22px">
+      <div class="brand-badge">VS</div>
+      <div><b style="font-size:16px">Veloso Solution</b>
+        <div class="hint" style="margin:0">Console</div></div>
+    </div>
+    <div class="card">
+      <h3>Entrar</h3>
+      <p class="hint" style="margin:6px 0 14px">Este painel mostra dados de cliente. O acesso é restrito.</p>
+      <div class="field"><label>Senha de acesso</label>
+        <input id="lgSenha" type="password" autocomplete="current-password" placeholder="CRM_TOKEN"></div>
+      <button class="btn btn-p" id="lgBtn" style="width:100%;margin-top:4px">Entrar</button>
+      ${aviso?`<p class="hint" style="margin-top:12px;color:var(--err)">${esc(aviso)}</p>`:''}
+    </div>
+    <p class="hint" style="text-align:center;margin-top:14px">A senha é a variável <code>CRM_TOKEN</code> do servidor.</p>
+  </div>`;
+  const entrar=async()=>{
+    const b=document.getElementById('lgBtn');
+    b.disabled=true;b.textContent='Entrando…';
+    try{
+      const r=await api('entrar',{senha:document.getElementById('lgSenha').value});
+      TOKEN=document.getElementById('lgSenha').value;
+      sessionStorage.setItem('crm_token',TOKEN);
+      document.body.classList.remove('sem-nav');
+      if(r.semSenha){ setTimeout(()=>flash(r.aviso,'err'),400); }
+      carregar();
+    }catch(e){
+      b.disabled=false;b.textContent='Entrar';
+      telaEntrar(e.message);
+      document.getElementById('lgSenha').focus();
+    }
+  };
+  document.getElementById('lgBtn').onclick=entrar;
+  document.getElementById('lgSenha').onkeydown=(e)=>{if(e.key==='Enter')entrar();};
+  document.getElementById('lgSenha').focus();
+}
+
 async function carregar(){
   try{
     // O diagnostico do TikTok nao pode derrubar o painel inteiro se o backend for antigo.
     [ST,STATUS,IND,REDES,TK,EST]=await Promise.all([api('painel'),api('status'),api('indicacao'),api('redes'),
       api('tiktok').catch(()=>null),api('estoque').catch(()=>null)]);
+    // O Quebra-Galho é outro processo: se estiver fora do ar, a tela dele avisa —
+    // e o resto do painel continua funcionando normalmente.
+    QG=await api('quebragalho').catch(()=>null);
     // Telas novas: carregadas a parte pra uma falha nelas nao derrubar o painel todo.
     [AUD,FIN,REL,CTA]=await Promise.all([api('auditor').catch(()=>null),api('financeiro').catch(()=>null),
       api('relatorios').catch(()=>null),api('conta').catch(()=>null)]);
@@ -905,5 +996,19 @@ async function testarTiktok(familia){
 }
 function copiar(t){navigator.clipboard?.writeText(t).then(()=>flash('Link copiado.','ok'),()=>flash('Copie manualmente: '+t,'err'));}
 
-carregar();
+function sairDoPainel(){
+  TOKEN='';sessionStorage.removeItem('crm_token');telaEntrar();
+}
+
+/** Decide entre login e dashboard antes de qualquer requisicao de dado. */
+(async function porta(){
+  let exige=true;
+  try{ exige=(await api('auth')).exigeSenha; }catch{ /* backend antigo: pede assim mesmo */ }
+  if(!exige){ document.body.classList.remove('sem-nav'); return carregar(); }
+  if(TOKEN){
+    try{ await api('entrar',{senha:TOKEN}); document.body.classList.remove('sem-nav'); return carregar(); }
+    catch{ /* token velho: cai na tela de entrada */ }
+  }
+  telaEntrar();
+})();
 </script>

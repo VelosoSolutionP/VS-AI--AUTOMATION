@@ -24,6 +24,7 @@ import { diagnostico as tiktokDiagnostico } from '../engine/vstiktok/index.mjs';
 import { testar as tiktokTestar } from '../engine/vstiktok/conectar.mjs';
 import * as estoque from '../engine/vsestoque/index.mjs';
 import * as vspainel from '../engine/vspainel/index.mjs';
+import { painelQuebraGalho, QG_URL } from './quebragalho.mjs';
 import { reservarEvento } from './idempotencia.mjs';
 import { lerCorpoLimitado, criarRateLimit, ipDe, segredoIgual, CORPO_MAX_BYTES } from './limites.mjs';
 
@@ -295,6 +296,27 @@ const server = createServer(async (req, res) => {
     }
     // O token do painel chega no header; o ?t= da URL só alimenta o header no front.
     if (barrado(res, LIM_CRM, req, '/crm')) { return; }
+
+    /**
+     * Login do painel. Existe para o dashboard NAO aparecer antes de alguem provar
+     * que pode ve-lo — sem isso, qualquer um com a URL via nome e telefone de cliente.
+     * A comparacao e em tempo constante (segredoIgual), e a rota diz quando o
+     * CRM_TOKEN nao esta configurado em vez de deixar o painel aberto em silencio.
+     */
+    if (req.method === 'GET' && rota === '/crm/api/auth') {
+      return json(res, 200, { exigeSenha: Boolean(CRM_TOKEN) });
+    }
+    if (req.method === 'POST' && rota === '/crm/api/entrar') {
+      const b = await readBody(req);
+      if (corpoEstourou(res, b)) { return; }
+      let d; try { d = JSON.parse(b.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
+      if (!CRM_TOKEN) {
+        return json(res, 200, { ok: true, semSenha: true,
+          aviso: 'CRM_TOKEN nao esta configurado — este painel esta aberto a quem tiver a URL' });
+      }
+      if (!segredoIgual(d.senha, CRM_TOKEN)) { return json(res, 401, { erro: 'senha incorreta' }); }
+      return json(res, 200, { ok: true });
+    }
     if (CRM_TOKEN && !segredoIgual(req.headers['x-crm-token'], CRM_TOKEN)) {
       return json(res, 403, { erro: 'CRM_TOKEN ausente ou invalido' });
     }
@@ -313,6 +335,10 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && rota === '/crm/api/financeiro') { return json(res, 200, await vspainel.painelFinanceiro()); }
     if (req.method === 'GET' && rota === '/crm/api/relatorios') { return json(res, 200, await vspainel.painelRelatorios()); }
     if (req.method === 'GET' && rota === '/crm/api/conta') { return json(res, 200, await vspainel.painelConta()); }
+    // O Quebra-Galho é produto separado, com servidor proprio. O painel fala com ele
+    // por HTTP — nao por import. Assim ele aparece aqui dentro sem que um vire
+    // dependencia de compilacao do outro, e fora do ar vira aviso, nao tela quebrada.
+    if (req.method === 'GET' && rota === '/crm/api/quebragalho') { return json(res, 200, await painelQuebraGalho()); }
     if (req.method === 'GET' && rota === '/crm/api/estoque/historico') {
       return json(res, 200, { movimentos: estoque.historico(new URL(req.url, 'http://x').searchParams.get('sku')) });
     }
