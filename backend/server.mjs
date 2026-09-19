@@ -43,6 +43,10 @@ const ADMIN_TOKEN = process.env.ADMIN_TOKEN || ''; // emissão admin on-demand (
 // telefone de cliente — publicar sem querer seria vazamento. Ligar exige CRM_ENABLED=1
 // e, se CRM_TOKEN estiver setado, o token em toda chamada.
 const CRM_ENABLED = process.env.CRM_ENABLED === '1';
+const HOST_PAINEL = (() => {
+  try { return new URL(process.env.PAINEL_URL || 'https://painel.velososolution.com.br').hostname.toLowerCase(); }
+  catch { return ''; }
+})();
 const CRM_TOKEN = process.env.CRM_TOKEN || '';
 
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://velososolution.online';
@@ -138,6 +142,18 @@ function entregaResumo(entrega) {
 
 const server = createServer(async (req, res) => {
   if (req.method === 'GET' && req.url === '/health') { return json(res, 200, { ok: true }); }
+
+  /**
+   * No host do PAINEL, a raiz e o console — nao a pagina de venda do QA-Gate.
+   * O mesmo processo serve os dois, e quem digita "painel.velososolution.com.br"
+   * esperando o CRM caia na landing page e conclui, com razao, que o console nao
+   * carregou. O host vem de PAINEL_URL pra isto nao virar regra escondida no codigo.
+   */
+  if (req.method === 'GET' && req.url === '/' && CRM_ENABLED && HOST_PAINEL
+      && String(req.headers.host || '').split(':')[0].toLowerCase() === HOST_PAINEL) {
+    res.writeHead(302, { location: '/crm' });
+    return res.end();
+  }
 
   if (req.method === 'GET' && (req.url === '/' || req.url.split('?')[0] === '/comprar')) {
     try {
