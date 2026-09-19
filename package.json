@@ -37,6 +37,7 @@
   "files": [
     "engine/",
     "mcp/server.mjs",
+    "mcp/server-dev.mjs",
     "catalog/",
     "hooks/",
     "license/license.mjs",
