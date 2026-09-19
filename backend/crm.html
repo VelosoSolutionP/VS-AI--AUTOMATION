@@ -447,9 +447,9 @@ function tiktokCard(){
       ${!s.autorizado?`<div class="form-grid">
         ${campos.map(c=>`<div class="field"><label>${esc(c[1])}</label>
           <input id="tk-${esc(f)}-${esc(c[0])}" placeholder="${esc(c[2]||'')}" autocomplete="off"></div>`).join('')}
-        <button class="btn" onclick="salvarAppTiktok('${esc(f)}',${JSON.stringify(campos.map(c=>c[0])).replace(/"/g,'&quot;')})">Salvar credenciais</button>
+        <button class="btn btn-s" onclick="salvarAppTiktok('${esc(f)}',${JSON.stringify(campos.map(c=>c[0])).replace(/"/g,'&quot;')})">Salvar credenciais</button>
         ${s.appConfigurado?`<button class="btn btn-p" onclick="autorizarTiktok('${esc(f)}')">Conectar conta</button>`:''}
-      </div>`:`<button class="btn" onclick="autorizarTiktok('${esc(f)}')">Reconectar</button>`}
+      </div>`:`<button class="btn btn-s" onclick="autorizarTiktok('${esc(f)}')">Reconectar</button>`}
       ${app?`<p class="hint" style="margin-top:10px">URL de retorno para colar no app:
         <code>${esc(app.redirects[f])}</code></p>`:''}
     </div>`;
@@ -625,10 +625,10 @@ const S={
     <td style="text-align:center"><b>${x.disponivel}</b></td>
     <td><span class="badge ${!x.ativo?'':x.disponibilidade==='in_stock'?'b-ok':'b-warn'}">${!x.ativo?'inativo':x.disponibilidade==='in_stock'?'à venda':'sem saldo'}</span></td>
     <td style="white-space:nowrap">
-      <button class="btn" onclick="movEstoque('${esc(x.sku)}','entrada')">+</button>
-      <button class="btn" onclick="movEstoque('${esc(x.sku)}','saida')">−</button>
-      <button class="btn" onclick="movEstoque('${esc(x.sku)}','reserva')">reservar</button>
-      <button class="btn" onclick="movEstoque('${esc(x.sku)}','vender')">vender</button>
+      <button class="btn btn-s btn-xs" onclick="movEstoque('${esc(x.sku)}','entrada')">+</button>
+      <button class="btn btn-s btn-xs" onclick="movEstoque('${esc(x.sku)}','saida')">−</button>
+      <button class="btn btn-s btn-xs" onclick="movEstoque('${esc(x.sku)}','reserva')">reservar</button>
+      <button class="btn btn-s btn-xs" onclick="movEstoque('${esc(x.sku)}','vender')">vender</button>
     </td></tr>`).join('');
 
   const canais=Object.entries(p.canais).map(([c,s])=>`<div class="stat-row">
