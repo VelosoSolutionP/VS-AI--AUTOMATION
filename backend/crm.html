@@ -181,10 +181,56 @@ td{padding:11px 10px;border-top:1px solid var(--line)}
   .page-head h1{font-size:19px}
 }
 
+
+/* ── Entrada do console ──────────────────────────────────────────────────
+   Painel de marca à esquerda, formulário à direita — o padrão que todo mundo
+   já reconhece. No celular a marca encolhe e o formulário vem primeiro: quem
+   abre no telefone quer entrar, não ler sobre o produto. */
+.entrar{display:grid;grid-template-columns:1fr;min-height:100vh}
+.entrar-marca{display:none}
+.entrar-form{display:flex;flex-direction:column;justify-content:center;align-items:center;padding:28px 18px}
+.entrar-box{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--r);padding:26px 24px;box-shadow:var(--shadow-2)}
+.entrar-box h2{font-size:19px;margin:0;letter-spacing:-.02em}
+.entrar-sub{font-size:13.5px;color:var(--muted);margin:6px 0 0;line-height:1.5}
+.entrar .senha-wrap{position:relative}
+.entrar .senha-wrap input{width:100%;padding-right:74px;height:46px;font-size:15px}
+.entrar .senha-wrap input.erro{border-color:var(--err)}
+.olho{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;
+  color:var(--muted);font:inherit;font-size:12px;font-weight:600;cursor:pointer;padding:6px 8px;border-radius:6px}
+.olho:hover{background:var(--raised);color:var(--fg)}
+.campo-erro,.campo-dica{display:none;font-size:12.5px;margin-top:7px;font-weight:500}
+.campo-erro.on{display:block;color:var(--err)}
+.campo-dica.on{display:block;color:var(--warn)}
+.entrar-btn{width:100%;height:46px;font-size:14.5px;margin-top:18px}
+.entrar-btn:disabled{opacity:.6;cursor:progress}
+.entrar-ajuda{margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+.entrar-ajuda b{font-size:12.5px;display:block;margin-bottom:4px}
+.entrar-ajuda p{font-size:12.5px;color:var(--muted);line-height:1.55;margin:0}
+.entrar-rodape{margin-top:22px;font-size:12px;color:var(--dim)}
+@media (min-width:900px){
+  .entrar{grid-template-columns:1.05fr 1fr}
+  /* O painel de marca é escuro nos DOIS temas. Usar --ink faria ele inverter no
+     modo escuro e virar uma placa branca gigante ao lado do formulário escuro. */
+  .entrar-marca{display:flex;flex-direction:column;justify-content:space-between;
+    padding:44px 40px;background:#141417;color:#fafafa}
+  .entrar-marca h1{font-size:27px;margin:20px 0 10px;letter-spacing:-.03em}
+  .entrar-marca p{font-size:14.5px;opacity:.72;max-width:34ch;line-height:1.6;margin:0}
+  .entrar-marca small{font-size:12px;opacity:.5}
+  .entrar-marca .brand-badge{background:#fafafa;color:#141417;
+    width:46px;height:46px;border-radius:13px;display:grid;place-items:center;
+    font-size:16px;font-weight:800;letter-spacing:-.04em;line-height:1}
+  .entrar-lista{list-style:none;padding:0;margin:26px 0 0;font-size:13.5px}
+  .entrar-lista li{padding:7px 0 7px 22px;position:relative;opacity:.78}
+  .entrar-lista li::before{content:'';position:absolute;left:0;top:14px;width:8px;height:8px;
+    border-radius:50%;background:currentColor;opacity:.5}
+}
+
 /* Enquanto o login está na tela, a navegação não aparece: nada de dado do painel
    piscando antes da autenticação. */
 body.sem-nav #side,body.sem-nav .topbar,body.sem-nav #ov{display:none!important}
-body.sem-nav #view{margin-left:0!important;padding:0!important}
+body.sem-nav #view{margin:0!important;padding:0!important;max-width:none!important}
+body.sem-nav .content{padding:0!important;max-width:none!important}
 body.sem-nav main,body.sem-nav .main{margin-left:0!important}
 </style>
 
@@ -834,49 +880,108 @@ addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h&&h!==rota
 
 /* ---------- ações ---------- */
 /**
- * Porta de entrada. O dashboard NAO desenha antes de alguem provar que pode ve-lo:
- * ele mostra nome e telefone de cliente, funil e faturamento. Antes, bastava ter a
- * URL.
+ * Porta de entrada do console. O dashboard NAO desenha antes de alguem provar que
+ * pode ve-lo: ele mostra nome e telefone de cliente, funil e faturamento.
+ *
+ * Duas coisas que a primeira versao errava e que aparecem aqui:
+ *  - nao dizia QUAL senha usar. "Senha de acesso" sem contexto faz a pessoa tentar
+ *    o que lembra e desistir. Agora a tela nomeia a variavel do servidor.
+ *  - erro sumia junto com o campo, porque eu redesenhava a tela inteira. Agora o
+ *    erro aparece NO campo e o que a pessoa digitou continua la.
  */
-function telaEntrar(aviso){
+function telaEntrar(){
   document.getElementById('side')?.classList.remove('open');
   document.body.classList.add('sem-nav');
   document.getElementById('view').innerHTML=`
-  <div style="max-width:380px;margin:12vh auto;padding:0 16px">
-    <div style="display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:22px">
-      <div class="brand-badge">VS</div>
-      <div><b style="font-size:16px">Veloso Solution</b>
-        <div class="hint" style="margin:0">Console</div></div>
+  <div class="entrar">
+    <div class="entrar-marca">
+      <div>
+        <div class="brand-badge">VS</div>
+        <h1>Veloso Solution</h1>
+        <p>Console de operação — CRM, estoque, conteúdo e Quebra-Galho num lugar só.</p>
+        <ul class="entrar-lista">
+          <li>Funil de vendas e indicações</li>
+          <li>Catálogo com saldo e exportação</li>
+          <li>Marketplace de serviços locais</li>
+          <li>Auditoria e governança</li>
+        </ul>
+      </div>
+      <small>Acesso restrito · dados de cliente</small>
     </div>
-    <div class="card">
-      <h3>Entrar</h3>
-      <p class="hint" style="margin:6px 0 14px">Este painel mostra dados de cliente. O acesso é restrito.</p>
-      <div class="field"><label>Senha de acesso</label>
-        <input id="lgSenha" type="password" autocomplete="current-password" placeholder="CRM_TOKEN"></div>
-      <button class="btn btn-p" id="lgBtn" style="width:100%;margin-top:4px">Entrar</button>
-      ${aviso?`<p class="hint" style="margin-top:12px;color:var(--err)">${esc(aviso)}</p>`:''}
+
+    <div class="entrar-form">
+      <div class="entrar-box">
+        <h2>Entrar no console</h2>
+        <p class="entrar-sub">Use a senha de acesso configurada no servidor.</p>
+
+        <div class="field" style="margin-top:20px">
+          <label for="lgSenha">Senha de acesso</label>
+          <div class="senha-wrap">
+            <input id="lgSenha" type="password" autocomplete="current-password"
+              placeholder="••••••••" aria-describedby="lgErro" autofocus>
+            <button type="button" id="lgOlho" class="olho" aria-label="Mostrar senha">ver</button>
+          </div>
+          <div id="lgErro" class="campo-erro" role="alert"></div>
+          <div id="lgCaps" class="campo-dica">Caps Lock está ligado.</div>
+        </div>
+
+        <button class="btn btn-p entrar-btn" id="lgBtn">Entrar</button>
+
+        <div class="entrar-ajuda">
+          <b>Não sabe a senha?</b>
+          <p>É o valor da variável <code>CRM_TOKEN</code> com que o servidor foi iniciado.
+          Quem subiu o console sabe qual é.</p>
+        </div>
+      </div>
+      <p class="entrar-rodape">Veloso Solution · ${new Date().getFullYear()}</p>
     </div>
-    <p class="hint" style="text-align:center;margin-top:14px">A senha é a variável <code>CRM_TOKEN</code> do servidor.</p>
   </div>`;
+
+  const campo=document.getElementById('lgSenha');
+  const btn=document.getElementById('lgBtn');
+  const erro=document.getElementById('lgErro');
+  const caps=document.getElementById('lgCaps');
+
+  const mostrarErro=(m)=>{
+    erro.textContent=m;
+    erro.classList.add('on');
+    campo.classList.add('erro');
+    campo.focus();
+    campo.select();
+  };
+  const limparErro=()=>{erro.classList.remove('on');campo.classList.remove('erro');};
+
+  document.getElementById('lgOlho').onclick=()=>{
+    const ver=campo.type==='password';
+    campo.type=ver?'text':'password';
+    document.getElementById('lgOlho').textContent=ver?'ocultar':'ver';
+    campo.focus();
+  };
+
+  // Caps Lock ligado é a causa silenciosa mais comum de "a senha não funciona".
+  const verCaps=(e)=>{ caps.classList.toggle('on', e.getModifierState && e.getModifierState('CapsLock')); };
+  campo.addEventListener('keyup',verCaps);
+  campo.addEventListener('keydown',verCaps);
+  campo.addEventListener('input',limparErro);
+
   const entrar=async()=>{
-    const b=document.getElementById('lgBtn');
-    b.disabled=true;b.textContent='Entrando…';
+    if(!campo.value){ return mostrarErro('Digite a senha de acesso.'); }
+    btn.disabled=true;btn.textContent='Entrando…';limparErro();
     try{
-      const r=await api('entrar',{senha:document.getElementById('lgSenha').value});
-      TOKEN=document.getElementById('lgSenha').value;
+      const r=await api('entrar',{senha:campo.value});
+      TOKEN=campo.value;
       sessionStorage.setItem('crm_token',TOKEN);
       document.body.classList.remove('sem-nav');
       if(r.semSenha){ setTimeout(()=>flash(r.aviso,'err'),400); }
       carregar();
     }catch(e){
-      b.disabled=false;b.textContent='Entrar';
-      telaEntrar(e.message);
-      document.getElementById('lgSenha').focus();
+      btn.disabled=false;btn.textContent='Entrar';
+      mostrarErro(e.message==='senha incorreta'?'Senha incorreta. Confira com quem subiu o console.':e.message);
     }
   };
-  document.getElementById('lgBtn').onclick=entrar;
-  document.getElementById('lgSenha').onkeydown=(e)=>{if(e.key==='Enter')entrar();};
-  document.getElementById('lgSenha').focus();
+  btn.onclick=entrar;
+  campo.onkeydown=(e)=>{if(e.key==='Enter')entrar();};
+  campo.focus();
 }
 
 async function carregar(){
