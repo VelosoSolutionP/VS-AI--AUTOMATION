@@ -361,6 +361,15 @@ const server = createServer(async (req, res) => {
     };
 
     if (erro) { return pagina('A rede recusou', `Motivo: ${erro}. Nada foi salvo.`, false); }
+    /* Visita SECA (sem code, sem erro, sem state) nao e um retorno falhado: e o
+       verificador da rede conferindo se a URL existe, ou alguem abrindo o link na
+       mao. Respondia 400, e pro verificador da TikTok 400 significa "essa URL nao
+       presta" — a verificacao de propriedade falhava por causa do nosso codigo de
+       status, com a pagina certa na tela. */
+    if (!code && !u.search) {
+      return pagina('URL de retorno do TikTok', 'Esta página existe para receber a volta da autorização. '
+        + 'Não há nada a fazer aqui — a conexão começa no painel, em Conexões com redes sociais.', true);
+    }
     if (!code) { return pagina('Retorno sem código', 'A rede voltou sem o código de autorização.', false); }
     try {
       const r = await tk.concluirAutorizacao(familia, code, { state: u.searchParams.get('state') });
