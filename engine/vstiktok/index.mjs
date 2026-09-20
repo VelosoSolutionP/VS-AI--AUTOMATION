@@ -203,6 +203,14 @@ export function diagnostico(agora = Date.now()) {
       venceEmMin: venceEm,
       podeRenovar: Boolean(tk?.refreshToken),
       conta: tk?.openId || tk?.sellerName || null,
+      /* A chave PUBLICA fica visivel (mascarada) de proposito: quando a
+         autorizacao falha, a primeira pergunta e "qual chave esta gravada aqui?"
+         — e nao poder responder isso na tela custa uma rodada inteira. */
+      chave: (() => {
+        const c = creds[familia] || {};
+        const v = c.clientKey || c.appId || c.appKey || null;
+        return v ? mascarar(v) : null;
+      })(),
       token: tk?.accessToken ? mascarar(tk.accessToken) : null,
     };
   }

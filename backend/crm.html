@@ -501,6 +501,7 @@ function tiktokCard(){
     return `<div class="card" style="margin-bottom:12px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
         <div><h3>TikTok · ${esc(nome)}</h3><p class="hint">${esc(ajuda)}</p></div>${badge}</div>
+      ${s.chave?linha('Chave gravada aqui','compare com a do app, na aba certa (Sandbox ou Production)',esc(s.chave),'b-ok'):''}
       ${s.conta?linha('Conta conectada','',esc(s.conta),'b-ok'):''}
       ${s.token?linha('Token','mascarado',esc(s.token),''):''}
       ${f==='open'?`<div style="margin:6px 0 10px">
