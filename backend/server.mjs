@@ -31,6 +31,7 @@ import { reservarEvento } from './idempotencia.mjs';
 import * as pagar from '../engine/vspagamentos/index.mjs';
 import * as fin from '../engine/vsfinanceiro/index.mjs';
 import * as bot from '../engine/vsbot/index.mjs';
+import * as docs from '../engine/vsdocumentos/index.mjs';
 import * as midia from './midia.mjs';
 import { pagina as paginaVitrine } from './vitrine.mjs';
 import { lerCorpoLimitado, criarRateLimit, ipDe, segredoIgual, CORPO_MAX_BYTES } from './limites.mjs';
@@ -540,6 +541,7 @@ const server = createServer(async (req, res) => {
        parado). O livro-caixa e outra coisa e ganha nome proprio — duas rotas com
        o mesmo caminho fazem a segunda nunca responder, calada. */
     if (req.method === 'GET' && rota === '/crm/api/bot') { return json(res, 200, bot.painel()); }
+    if (req.method === 'GET' && rota === '/crm/api/documentos') { return json(res, 200, docs.painel()); }
     if (req.method === 'GET' && rota === '/crm/api/caixa') {
       const u = new URL(req.url, 'http://x');
       return json(res, 200, fin.painel({ de: u.searchParams.get('de'), ate: u.searchParams.get('ate') }));
@@ -683,6 +685,11 @@ const server = createServer(async (req, res) => {
           });
           break;
         }
+        case '/crm/api/documentos/rascunho': r = docs.salvarRascunho(d.tipo, d.texto, { vigenteDe: d.vigenteDe }); break;
+        case '/crm/api/documentos/publicar': r = docs.publicar(d.tipo, { vigenteDe: d.vigenteDe }); break;
+        case '/crm/api/documentos/descartar': r = docs.descartarRascunho(d.tipo); break;
+        case '/crm/api/documentos/aceite': r = docs.registrarAceite(d.tipo, d.quem || {}); break;
+        case '/crm/api/documentos/conferir': r = docs.conferirAceite(d.id); break;
         case '/crm/api/bot/config': r = bot.salvarConfig(d); break;
         case '/crm/api/bot/regra': r = bot.salvarRegra(d); break;
         case '/crm/api/bot/regra-excluir': r = bot.excluirRegra(d.id); break;
