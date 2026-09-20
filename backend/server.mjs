@@ -48,6 +48,20 @@ const ADMIN_TOKEN = process.env.ADMIN_TOKEN || ''; // emissão admin on-demand (
 // telefone de cliente — publicar sem querer seria vazamento. Ligar exige CRM_ENABLED=1
 // e, se CRM_TOKEN estiver setado, o token em toda chamada.
 const CRM_ENABLED = process.env.CRM_ENABLED === '1';
+/**
+ * Base das URLs de retorno do OAuth. Pode ser DIFERENTE do endereco do painel:
+ * a TikTok so aceita redirect dentro de uma propriedade verificada, e a que esta
+ * verificada aqui e o dominio raiz — nao o subdominio do painel. Fica gravada no
+ * store pra sobreviver a reinicio sem depender de variavel de ambiente.
+ */
+function baseRedirect() {
+  try {
+    const c = tk.getConfig();
+    if (c?.redirectBase) { return String(c.redirectBase).replace(/\/+$/, ''); }
+  } catch { /* store indisponivel: cai no padrao */ }
+  return (process.env.TIKTOK_REDIRECT_BASE || process.env.PAINEL_URL || 'https://painel.velososolution.com.br').replace(/\/+$/, '');
+}
+
 const HOST_PAINEL = (() => {
   try { return new URL(process.env.PAINEL_URL || 'https://painel.velososolution.com.br').hostname.toLowerCase(); }
   catch { return ''; }
@@ -510,7 +524,7 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && rota === '/crm/api/tiktok/app') {
       // O redirect e FIXO e derivado do dominio do painel — nao ha o que o usuario
       // digitar errado, e ele so cola esse valor uma vez no painel do TikTok.
-      const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
+      const origem = baseRedirect();
       return json(res, 200, {
         diagnostico: tk.diagnostico(),
         redirects: ['open', 'business', 'shop'].reduce((a, f) => ({ ...a, [f]: `${origem}/oauth/callback/${f}` }), {}),
@@ -643,12 +657,25 @@ const server = createServer(async (req, res) => {
           r = d.limpar ? tk.limparVerificacao() : tk.salvarVerificacao(d);
           break;
         case '/crm/api/tiktok/app': {
-          const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
-          r = tk.salvarCredencial(d.familia, { ...d.cred, redirectUri: `${origem}/oauth/callback/${d.familia}` });
+          r = tk.salvarCredencial(d.familia, { ...d.cred, redirectUri: `${baseRedirect()}/oauth/callback/${d.familia}` });
+          break;
+        }
+        /* Onde a rede vai devolver a pessoa. So aceita o que RESPONDE de verdade:
+           salvar um endereco que nao existe faria a autorizacao falhar la na
+           frente, longe de quem digitou. */
+        case '/crm/api/tiktok/redirect-base': {
+          const base = String(d.base || '').trim().replace(/\/+$/, '');
+          if (!/^https:\/\/[a-z0-9.-]+$/i.test(base)) { r = { ok: false, motivo: 'informe um endereco https, so o dominio' }; break; }
+          try {
+            const teste = await fetch(`${base}/oauth/callback/open`, { redirect: 'manual' });
+            if (!teste.ok) { r = { ok: false, motivo: `${base}/oauth/callback/open respondeu ${teste.status} — esse endereco nao serve` }; break; }
+          } catch (e) { r = { ok: false, motivo: `nao consegui alcancar ${base}: ${e.message}` }; break; }
+          tk.salvarConfig({ redirectBase: base });
+          r = { ok: true, base };
           break;
         }
         case '/crm/api/tiktok/autorizar': {
-          const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
+          const origem = baseRedirect();
           /* Pede o MINIMO por padrao. Escopo que o app ainda nao teve aprovado
              derruba a autorizacao inteira com "access_denied" — e o erro nao diz
              qual escopo foi, entao quem pede tudo de uma vez fica sem saber se o

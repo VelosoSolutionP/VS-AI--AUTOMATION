@@ -538,7 +538,8 @@ function tiktokCard(){
         </div>
         <div id="tkPubResultado"></div></div>`:''}
       ${app?`<p class="hint" style="margin-top:10px">URL de retorno para colar no app:
-        <code>${esc(app.redirects[f])}</code></p>`:''}
+        <code>${esc(app.redirects[f])}</code>
+        <button class="btn btn-s btn-xs" style="margin-left:6px" onclick="copiar('${esc(app.redirects[f])}')">copiar</button></p>`:''}
     </div>`;
   };
   const pronto=Object.entries(TK.pronto).filter(([,v])=>v).map(([k])=>k);
@@ -561,6 +562,18 @@ function tiktokCard(){
       <button class="btn btn-s" onclick="salvarVerificacaoTiktok()">Publicar arquivo</button>
       ${app.verificacao?'<button class="btn btn-s" onclick="salvarVerificacaoTiktok(true)">Tirar do ar</button>':''}
     </div></div>`:''}
+  ${app?`<div class="card" style="margin-bottom:16px">
+    <h3>Domínio de retorno</h3>
+    <p class="hint">A TikTok só aceita URL de retorno dentro de um domínio <b>verificado</b> no app.
+      Se você verificou o domínio raiz, use ele aqui — o subdomínio do painel seria outra propriedade,
+      e teria que ser verificado de novo.</p>
+    <div class="form-grid" style="margin-top:10px">
+      <div class="field" style="grid-column:1/-1"><label>Endereço base</label>
+        <input id="tkBase" value="${esc(app.origem)}" placeholder="https://velososolution.com.br"></div>
+      <button class="btn btn-s" onclick="salvarBaseRedirect()">Usar este</button>
+    </div>
+    <p class="hint" style="margin-top:8px">Antes de salvar eu testo se esse endereço responde de verdade —
+      guardar um que não existe faria a autorização falhar lá na frente, longe de quem digitou.</p></div>`:''}
   <div class="card" style="margin-bottom:16px;border-style:dashed">
     <h3>Como ligar, em dois passos</h3>
     <p class="hint">1. Crie o app em <b>developers.tiktok.com</b> e cole a URL de retorno que aparece em cada bloco abaixo —
@@ -604,6 +617,16 @@ async function verStatusTiktok(id){
   try{
     const r=await api('tiktok/publicacao?id='+encodeURIComponent(id));
     flash('Situação: '+(r.dados?.status||r.motivo||'sem resposta'), r.ok?'ok':'err');
+  }catch(e){flash(e.message,'err');}
+}
+
+async function salvarBaseRedirect(){
+  const base=(document.getElementById('tkBase')||{}).value?.trim()||'';
+  try{
+    const r=await api('tiktok/redirect-base',{base});
+    if(r.ok===false) return flash(r.motivo,'err');
+    await carregar();
+    flash('Pronto. Use as URLs de retorno novas no painel da TikTok.','ok');
   }catch(e){flash(e.message,'err');}
 }
 
