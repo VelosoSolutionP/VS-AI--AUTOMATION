@@ -4,226 +4,427 @@
 <title>Veloso Solution — Console</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234f46e5'/%3E%3Ctext x='16' y='22' font-family='system-ui,sans-serif' font-size='15' font-weight='700' fill='%23fff' text-anchor='middle'%3EVS%3C/text%3E%3C/svg%3E">
 <style>
-/* Paleta monocromática: cinza neutro + tinta. Cor só quando SIGNIFICA algo —
-   verde ok, âmbar atenção, vermelho erro. Nada decorativo. */
+/* ── Sistema visual do console ────────────────────────────────────────────
+   Antes era grafite em tudo: correto, mas plano — a tela inteira tinha o mesmo
+   peso e nada puxava o olho. Agora existe UMA tinta de marca (índigo, a mesma
+   do favicon e do painel de entrada) que marca o que é ação e o que está ativo,
+   mais uma régua de tons (teal/violeta/âmbar/rosa) que só os indicadores usam,
+   pra um número não parecer o outro. Cor de estado (ok/atenção/erro) continua
+   significando estado, nunca decoração.
+
+   Profundidade é em três degraus e só isso: repouso (sh-1), card (sh-2) e o que
+   flutua por cima (sh-3). Sem borda grossa, sem sombra dura. */
 :root{
-  --bg:#fafafa; --panel:#fff; --raised:#f4f4f5; --line:#e4e4e7; --line-2:#d4d4d8;
-  --fg:#18181b; --muted:#52525b; --dim:#a1a1aa;
-  --ink:#18181b; --ink-fg:#fff;
-  --ok:#15803d; --ok-bg:#f0fdf4; --ok-line:#bbf7d0;
-  --warn:#b45309; --warn-bg:#fffbeb; --warn-line:#fde68a;
-  --err:#b91c1c; --err-bg:#fef2f2; --err-line:#fecaca;
-  --r:10px; --r-sm:7px; --sidebar:248px;
-  --shadow:0 1px 2px rgba(0,0,0,.05); --shadow-2:0 1px 3px rgba(0,0,0,.08),0 8px 24px -12px rgba(0,0,0,.12);
+  --bg:#f7f7f9; --panel:#fff; --panel-2:#fcfcfd; --raised:#f4f4f6; --line:#e6e6eb; --line-2:#d3d3dc;
+  --fg:#16161c; --muted:#56565f; --dim:#9a9aa6;
+  --ink:#16161c; --ink-fg:#fff;
+
+  /* Tinta da marca */
+  --ac:#4f46e5; --ac-2:#6366f1; --ac-3:#818cf8; --ac-fg:#fff;
+  --ac-soft:#eef1ff; --ac-line:#c9cffb; --ac-glow:rgba(79,70,229,.32);
+
+  /* Régua de tons — só indicadores e chips de seção */
+  --t1:#4f46e5; --t1-bg:#eef1ff; --t2:#0d9488; --t2-bg:#e9f8f5;
+  --t3:#7c3aed; --t3-bg:#f3edff; --t4:#c2410c; --t4-bg:#fff1e9;
+  --t5:#be123c; --t5-bg:#ffeef2; --t6:#0369a1; --t6-bg:#e9f4fd;
+
+  --ok:#15803d; --ok-bg:#effaf2; --ok-line:#b7e9c6;
+  --warn:#b45309; --warn-bg:#fdf7e8; --warn-line:#f4dfa3;
+  --err:#b91c1c; --err-bg:#fdf1f1; --err-line:#f6c7c7;
+
+  --r:14px; --r-sm:10px; --r-xs:8px; --sidebar:252px;
+  --sh-1:0 1px 2px rgba(20,20,35,.05);
+  --sh-2:0 1px 2px rgba(20,20,35,.05), 0 6px 16px -10px rgba(20,20,35,.2);
+  --sh-3:0 2px 6px -2px rgba(20,20,35,.1), 0 18px 40px -18px rgba(20,20,35,.32);
+  --sh-ac:0 1px 2px rgba(20,20,35,.14), 0 8px 18px -10px var(--ac-glow);
+  --shadow:var(--sh-1); --shadow-2:var(--sh-3); /* nomes antigos, ainda usados na entrada */
   color-scheme:light;
 }
 /* aninhar @media dentro da regra depende de CSS Nesting; versao plana funciona em todo lugar */
 @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
-  --bg:#09090b; --panel:#131316; --raised:#1c1c20; --line:#27272a; --line-2:#3f3f46;
-  --fg:#fafafa; --muted:#a1a1aa; --dim:#71717a;
-  --ink:#fafafa; --ink-fg:#18181b;
-  --ok:#4ade80; --ok-bg:rgba(34,197,94,.1); --ok-line:rgba(34,197,94,.28);
-  --warn:#fbbf24; --warn-bg:rgba(245,158,11,.1); --warn-line:rgba(245,158,11,.28);
-  --err:#f87171; --err-bg:rgba(239,68,68,.1); --err-line:rgba(239,68,68,.28);
-  --shadow:0 1px 2px rgba(0,0,0,.4); --shadow-2:0 1px 3px rgba(0,0,0,.5),0 8px 24px -12px rgba(0,0,0,.7);
+  --bg:#0a0a0d; --panel:#131318; --panel-2:#16161c; --raised:#1d1d24; --line:#292930; --line-2:#3d3d46;
+  --fg:#f7f7f9; --muted:#a3a3ae; --dim:#71717e;
+  --ink:#f7f7f9; --ink-fg:#16161c;
+  --ac:#7c7cf5; --ac-2:#8f8cf8; --ac-3:#a5a2fb; --ac-fg:#fff;
+  --ac-soft:rgba(124,124,245,.14); --ac-line:rgba(124,124,245,.32); --ac-glow:rgba(99,102,241,.45);
+  --t1:#a5b4fc; --t1-bg:rgba(129,140,248,.14); --t2:#5eead4; --t2-bg:rgba(45,212,191,.13);
+  --t3:#c4b5fd; --t3-bg:rgba(167,139,250,.14); --t4:#fdba74; --t4-bg:rgba(251,146,60,.13);
+  --t5:#fda4af; --t5-bg:rgba(251,113,133,.13); --t6:#7dd3fc; --t6-bg:rgba(56,189,248,.13);
+  --ok:#4ade80; --ok-bg:rgba(34,197,94,.12); --ok-line:rgba(34,197,94,.3);
+  --warn:#fbbf24; --warn-bg:rgba(245,158,11,.12); --warn-line:rgba(245,158,11,.3);
+  --err:#f87171; --err-bg:rgba(239,68,68,.12); --err-line:rgba(239,68,68,.3);
+  --sh-1:0 1px 2px rgba(0,0,0,.45);
+  --sh-2:0 1px 2px rgba(0,0,0,.5), 0 6px 16px -10px rgba(0,0,0,.8);
+  --sh-3:0 2px 6px -2px rgba(0,0,0,.6), 0 18px 40px -18px rgba(0,0,0,.9);
+  --sh-ac:0 1px 2px rgba(0,0,0,.5), 0 8px 18px -10px var(--ac-glow);
   color-scheme:dark;
 }}
 :root[data-theme="dark"]{
-  --bg:#09090b; --panel:#131316; --raised:#1c1c20; --line:#27272a; --line-2:#3f3f46;
-  --fg:#fafafa; --muted:#a1a1aa; --dim:#71717a;
-  --ink:#fafafa; --ink-fg:#18181b;
-  --ok:#4ade80; --ok-bg:rgba(34,197,94,.1); --ok-line:rgba(34,197,94,.28);
-  --warn:#fbbf24; --warn-bg:rgba(245,158,11,.1); --warn-line:rgba(245,158,11,.28);
-  --err:#f87171; --err-bg:rgba(239,68,68,.1); --err-line:rgba(239,68,68,.28);
-  --shadow:0 1px 2px rgba(0,0,0,.4); --shadow-2:0 1px 3px rgba(0,0,0,.5),0 8px 24px -12px rgba(0,0,0,.7);
+  --bg:#0a0a0d; --panel:#131318; --panel-2:#16161c; --raised:#1d1d24; --line:#292930; --line-2:#3d3d46;
+  --fg:#f7f7f9; --muted:#a3a3ae; --dim:#71717e;
+  --ink:#f7f7f9; --ink-fg:#16161c;
+  --ac:#7c7cf5; --ac-2:#8f8cf8; --ac-3:#a5a2fb; --ac-fg:#fff;
+  --ac-soft:rgba(124,124,245,.14); --ac-line:rgba(124,124,245,.32); --ac-glow:rgba(99,102,241,.45);
+  --t1:#a5b4fc; --t1-bg:rgba(129,140,248,.14); --t2:#5eead4; --t2-bg:rgba(45,212,191,.13);
+  --t3:#c4b5fd; --t3-bg:rgba(167,139,250,.14); --t4:#fdba74; --t4-bg:rgba(251,146,60,.13);
+  --t5:#fda4af; --t5-bg:rgba(251,113,133,.13); --t6:#7dd3fc; --t6-bg:rgba(56,189,248,.13);
+  --ok:#4ade80; --ok-bg:rgba(34,197,94,.12); --ok-line:rgba(34,197,94,.3);
+  --warn:#fbbf24; --warn-bg:rgba(245,158,11,.12); --warn-line:rgba(245,158,11,.3);
+  --err:#f87171; --err-bg:rgba(239,68,68,.12); --err-line:rgba(239,68,68,.3);
+  --sh-1:0 1px 2px rgba(0,0,0,.45);
+  --sh-2:0 1px 2px rgba(0,0,0,.5), 0 6px 16px -10px rgba(0,0,0,.8);
+  --sh-3:0 2px 6px -2px rgba(0,0,0,.6), 0 18px 40px -18px rgba(0,0,0,.9);
+  --sh-ac:0 1px 2px rgba(0,0,0,.5), 0 8px 18px -10px var(--ac-glow);
   color-scheme:dark;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--fg);font:14px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Inter,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+body{background:var(--bg);color:var(--fg);font:14px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Inter,Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;letter-spacing:-.005em}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer;background:none;border:0}
-code{font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--raised);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+code{font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--raised);border:1px solid var(--line);border-radius:6px;padding:1px 5px}
 ::-webkit-scrollbar{width:9px;height:9px}
 ::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:9px}
+::-webkit-scrollbar-thumb:hover{background:var(--dim)}
 ::-webkit-scrollbar-track{background:transparent}
+::selection{background:var(--ac-soft);color:var(--ac)}
+a{color:var(--ac);text-underline-offset:2px}
+a:hover{text-decoration:none}
 
 .shell{display:flex;min-height:100vh}
+
+/* ── Barra lateral ─────────────────────────────────────────────────────── */
 aside{width:var(--sidebar);flex:0 0 var(--sidebar);background:var(--panel);border-right:1px solid var(--line);
   display:flex;flex-direction:column;position:sticky;top:0;height:100vh;padding-top:env(safe-area-inset-top,0px)}
-.brand{display:flex;align-items:center;gap:10px;padding:18px 16px;border-bottom:1px solid var(--line)}
-.mark{width:30px;height:30px;border-radius:8px;flex:0 0 30px;display:grid;place-items:center;font-weight:700;font-size:12px;
-  background:var(--ink);color:var(--ink-fg)}
-.brand b{display:block;font-size:13px;line-height:1.3;letter-spacing:-.1px}
+.brand{display:flex;align-items:center;gap:11px;padding:17px 16px;border-bottom:1px solid var(--line)}
+.mark{width:32px;height:32px;border-radius:10px;flex:0 0 32px;display:grid;place-items:center;font-weight:750;font-size:12px;
+  letter-spacing:-.03em;background:linear-gradient(145deg,var(--ac-2),var(--ac));color:var(--ac-fg);
+  box-shadow:var(--sh-ac)}
+.brand b{display:block;font-size:13.5px;line-height:1.3;letter-spacing:-.015em}
 .brand span{display:block;font-size:11px;color:var(--dim)}
-nav{flex:1;overflow-y:auto;padding:8px}
-.sec-label{font-size:10px;letter-spacing:.7px;text-transform:uppercase;color:var(--dim);padding:14px 9px 6px;font-weight:600}
-.nav-item{display:flex;align-items:center;gap:9px;width:100%;padding:7.5px 9px;border-radius:var(--r-sm);
-  color:var(--muted);font-size:13.5px;text-align:left;transition:background .12s,color .12s}
+nav{flex:1;overflow-y:auto;padding:10px 10px 4px}
+.sec-label{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);padding:15px 9px 6px;font-weight:700}
+/* O item ativo ganha tinta + uma barra na borda esquerda: em menu comprido,
+   a barra é o que se acha de relance, a cor confirma. */
+.nav-item{position:relative;display:flex;align-items:center;gap:10px;width:100%;padding:8px 9px;border-radius:var(--r-sm);
+  color:var(--muted);font-size:13.5px;text-align:left;transition:background .14s,color .14s}
 .nav-item:hover{background:var(--raised);color:var(--fg)}
-.nav-item svg{width:16px;height:16px;flex:0 0 16px;opacity:.7}
-.nav-item.active{background:var(--raised);color:var(--fg);font-weight:600}
-.nav-item.active svg{opacity:1}
-.chev{margin-left:auto;transition:transform .16s;opacity:.5}
+.nav-item svg{width:16px;height:16px;flex:0 0 16px;opacity:.65;transition:opacity .14s,color .14s}
+.nav-item:hover svg{opacity:.9}
+.nav-item.active{background:var(--ac-soft);color:var(--ac);font-weight:650}
+.nav-item.active svg{opacity:1;color:var(--ac)}
+.nav-item.active::before{content:'';position:absolute;left:-10px;top:7px;bottom:7px;width:3px;
+  border-radius:0 3px 3px 0;background:var(--ac)}
+.chev{margin-left:auto;transition:transform .18s;opacity:.45}
 .nav-item[aria-expanded="true"] .chev{transform:rotate(90deg)}
-.submenu{overflow:hidden;max-height:0;transition:max-height .2s ease}
+.submenu{overflow:hidden;max-height:0;transition:max-height .22s ease}
 .submenu.open{max-height:340px}
 .sub-item{display:block;width:100%;padding:6.5px 9px 6.5px 34px;border-radius:var(--r-sm);color:var(--dim);
-  font-size:13px;text-align:left;position:relative}
-.sub-item::before{content:'';position:absolute;left:18px;top:2px;bottom:2px;width:1px;background:var(--line)}
+  font-size:12.8px;text-align:left;position:relative;transition:color .14s,background .14s}
+.sub-item::before{content:'';position:absolute;left:18px;top:2px;bottom:2px;width:1.5px;background:var(--line);border-radius:2px}
 .sub-item:hover{color:var(--fg);background:var(--raised)}
-.sub-item.active{color:var(--fg);font-weight:600}
-.sub-item.active::before{background:var(--fg);width:1.5px}
-.side-foot{padding:10px;border-top:1px solid var(--line);display:grid;gap:8px}
-.env{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--r-sm);background:var(--raised)}
-.dot{width:6px;height:6px;border-radius:50%;flex:0 0 6px;background:var(--dim)}
-.dot.on{background:var(--ok)}
+.sub-item.active{color:var(--ac);font-weight:650}
+.sub-item.active::before{background:var(--ac)}
+.side-foot{padding:10px;border-top:1px solid var(--line);display:grid;gap:8px;background:var(--panel-2)}
+.env{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:var(--r-sm);background:var(--raised);
+  border:1px solid var(--line)}
+.dot{width:7px;height:7px;border-radius:50%;flex:0 0 7px;background:var(--dim)}
+.dot.on{background:var(--ok);box-shadow:0 0 0 3px var(--ok-bg)}
 .env small{font-size:11px;color:var(--dim);line-height:1.3}
-.env b{display:block;color:var(--fg);font-size:11.5px;font-weight:600}
-.theme{display:flex;gap:3px;padding:3px;background:var(--raised);border-radius:var(--r-sm)}
-.theme button{flex:1;padding:5px;border-radius:5px;font-size:11.5px;color:var(--dim);display:flex;align-items:center;justify-content:center;gap:5px}
+.env b{display:block;color:var(--fg);font-size:11.5px;font-weight:650}
+.theme{display:flex;gap:3px;padding:3px;background:var(--raised);border:1px solid var(--line);border-radius:var(--r-sm)}
+.theme button{flex:1;padding:6px;border-radius:7px;font-size:11.5px;color:var(--dim);display:flex;align-items:center;
+  justify-content:center;gap:6px;transition:background .14s,color .14s}
 .theme button svg{width:13px;height:13px}
-.theme button.on{background:var(--panel);color:var(--fg);font-weight:600;box-shadow:var(--shadow)}
+.theme button:hover{color:var(--fg)}
+.theme button.on{background:var(--panel);color:var(--fg);font-weight:650;box-shadow:var(--sh-1)}
 
+/* ── Topo e área de conteúdo ───────────────────────────────────────────── */
 main{flex:1;min-width:0;display:flex;flex-direction:column}
-.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:12px 24px;
-  padding-top:calc(12px + env(safe-area-inset-top,0px));background:var(--bg);border-bottom:1px solid var(--line)}
-.burger{display:none;padding:6px;border-radius:6px;border:1px solid var(--line);color:var(--muted)}
-.crumb{font-size:12.5px;color:var(--dim);display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.crumb b{color:var(--fg);font-weight:600;overflow:hidden;text-overflow:ellipsis}
-.crumb i{opacity:.5;font-style:normal}
+/* O topo fica translúcido com desfoque: a tela rola por baixo dele e continua
+   legível, sem virar uma tarja opaca cortando o conteúdo. */
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:11px 26px;
+  padding-top:calc(11px + env(safe-area-inset-top,0px));border-bottom:1px solid var(--line);
+  background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(12px) saturate(1.6);
+  -webkit-backdrop-filter:blur(12px) saturate(1.6)}
+.burger{display:none;padding:7px;border-radius:var(--r-xs);border:1px solid var(--line);color:var(--muted);background:var(--panel)}
+.crumb{font-size:12.5px;color:var(--dim);display:flex;align-items:center;gap:7px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crumb b{color:var(--fg);font-weight:650;overflow:hidden;text-overflow:ellipsis}
+.crumb i{opacity:.45;font-style:normal}
 .top-right{margin-left:auto;display:flex;align-items:center;gap:8px}
-.pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;padding:4px 10px;border-radius:99px;
-  border:1px solid var(--line);background:var(--panel);color:var(--muted);white-space:nowrap}
-.content{padding:24px;max-width:1440px;width:100%;margin:0 auto;flex:1}
-.page-head{margin-bottom:20px}
-.page-head h1{font-size:21px;letter-spacing:-.4px;font-weight:650;line-height:1.25}
-.page-head p{color:var(--muted);font-size:13.5px;margin-top:4px;max-width:72ch}
+.pill{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:550;padding:5px 11px;border-radius:99px;
+  border:1px solid var(--line);background:var(--panel);color:var(--muted);white-space:nowrap;box-shadow:var(--sh-1)}
+.content{padding:26px;max-width:1440px;width:100%;margin:0 auto;flex:1}
 
-.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:17px;box-shadow:var(--shadow)}
-.card h3{font-size:13.5px;font-weight:650;margin-bottom:3px}
-.card .hint{color:var(--dim);font-size:12.5px}
-.grid{display:grid;gap:12px}
-.g-kpi{grid-template-columns:repeat(auto-fit,minmax(165px,1fr))}
-.g-2{grid-template-columns:repeat(auto-fit,minmax(290px,1fr))}
-.kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow)}
-.kpi span{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim);font-weight:600}
-.kpi b{display:block;font-size:25px;font-weight:650;letter-spacing:-.8px;margin-top:4px;font-variant-numeric:tabular-nums}
-.kpi em{font-style:normal;font-size:12px;color:var(--muted)}
+/* Cabeçalho de página: sobrancelha em tinta, título grande, texto de apoio.
+   A sobrancelha existe pra dizer ONDE a pessoa está sem ela reler o menu. */
+.page-head{margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--line);
+  display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.page-head .ph-txt{min-width:0;flex:1}
+.page-head .eyebrow{display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ac);margin-bottom:7px}
+.page-head .eyebrow::before{content:'';width:14px;height:2px;border-radius:2px;background:var(--ac)}
+.page-head h1{font-size:25px;letter-spacing:-.03em;font-weight:680;line-height:1.2}
+.page-head p{color:var(--muted);font-size:13.5px;margin-top:6px;max-width:74ch;line-height:1.55}
+.page-head .ph-acts{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
 
-.empty{text-align:center;padding:42px 22px;border:1px dashed var(--line-2);border-radius:var(--r);background:var(--panel)}
-.empty .ico{width:44px;height:44px;border-radius:12px;margin:0 auto 13px;display:grid;place-items:center;
-  background:var(--raised);border:1px solid var(--line);color:var(--muted)}
-.empty .ico svg{width:21px;height:21px}
-.empty h3{font-size:14.5px;margin-bottom:5px;font-weight:650}
-.empty p{color:var(--muted);font-size:13px;max-width:54ch;margin:0 auto 15px}
-.steps{text-align:left;max-width:530px;margin:0 auto;display:grid;gap:7px}
-.step{display:flex;gap:10px;align-items:flex-start;background:var(--raised);border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 12px}
-.step .n{width:19px;height:19px;flex:0 0 19px;border-radius:5px;display:grid;place-items:center;font-size:10.5px;font-weight:700;
-  background:var(--ink);color:var(--ink-fg)}
-.step div{font-size:12.5px;color:var(--muted);line-height:1.5}
+/* ── Cartões ───────────────────────────────────────────────────────────── */
+.card{background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--line);
+  border-radius:var(--r);padding:18px;box-shadow:var(--sh-2)}
+.card h3{font-size:14px;font-weight:680;margin-bottom:3px;letter-spacing:-.015em;display:flex;align-items:center;gap:9px}
+.card .hint{color:var(--dim);font-size:12.5px;line-height:1.5}
+/* Chip de ícone: identifica o bloco de longe e é onde entra o tom. */
+.chip{width:30px;height:30px;flex:0 0 30px;border-radius:9px;display:grid;place-items:center;
+  background:var(--ct-bg,var(--t1-bg));color:var(--ct,var(--t1));border:1px solid transparent}
+.chip svg{width:16px;height:16px}
+.card-h{display:flex;align-items:flex-start;gap:11px;margin:-2px 0 14px}
+.card-h .card-h-t{min-width:0;flex:1}
+.card-h h3{margin-bottom:2px}
+.card-h .card-h-a{margin-left:auto;display:flex;gap:6px;align-items:center}
+.grid{display:grid;gap:14px}
+.g-kpi{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.g-2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
 
-.stat-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+/* Indicador: rótulo, número grande e a linha que explica de onde ele vem.
+   A faixa de tom no topo é o que faz quatro deles lado a lado pararem de
+   parecer a mesma caixa repetida quatro vezes. */
+.kpi{position:relative;overflow:hidden;background:linear-gradient(180deg,var(--panel),var(--panel-2));
+  border:1px solid var(--line);border-radius:var(--r);padding:16px 17px;box-shadow:var(--sh-2);
+  transition:box-shadow .18s,transform .18s}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--kt,var(--t1)),transparent 88%)}
+.kpi:hover{box-shadow:var(--sh-3);transform:translateY(-2px)}
+.kpi-top{display:flex;align-items:center;gap:9px;margin-bottom:11px}
+.kpi span{font-size:10.5px;text-transform:uppercase;letter-spacing:.075em;color:var(--dim);font-weight:700}
+.kpi .chip{width:28px;height:28px;flex:0 0 28px;border-radius:8px;margin-left:auto;
+  background:var(--kt-bg,var(--t1-bg));color:var(--kt,var(--t1))}
+.kpi .chip svg{width:15px;height:15px}
+.kpi b{display:block;font-size:28px;font-weight:680;letter-spacing:-.035em;line-height:1.1;font-variant-numeric:tabular-nums}
+.kpi em{font-style:normal;font-size:12px;color:var(--muted);display:block;margin-top:5px;line-height:1.4}
+
+/* ── Estado vazio ──────────────────────────────────────────────────────── */
+.empty{text-align:center;padding:46px 24px;border:1px solid var(--line);border-radius:var(--r);
+  background:radial-gradient(120% 90% at 50% 0%,var(--ac-soft),transparent 62%),var(--panel);box-shadow:var(--sh-2)}
+.empty .ico{width:52px;height:52px;border-radius:15px;margin:0 auto 15px;display:grid;place-items:center;
+  background:linear-gradient(145deg,var(--ac-2),var(--ac));color:var(--ac-fg);box-shadow:var(--sh-ac)}
+.empty .ico svg{width:24px;height:24px}
+.empty h3{font-size:16px;margin-bottom:6px;font-weight:680;letter-spacing:-.02em}
+.empty p{color:var(--muted);font-size:13px;max-width:56ch;margin:0 auto 18px;line-height:1.6}
+.steps{text-align:left;max-width:540px;margin:0 auto;display:grid;gap:8px}
+.step{display:flex;gap:11px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--r-sm);padding:11px 13px;box-shadow:var(--sh-1)}
+.step .n{width:21px;height:21px;flex:0 0 21px;border-radius:7px;display:grid;place-items:center;font-size:10.5px;font-weight:750;
+  background:var(--ac-soft);color:var(--ac);border:1px solid var(--ac-line)}
+.step div{font-size:12.5px;color:var(--muted);line-height:1.55}
+
+/* ── Linha de estado ───────────────────────────────────────────────────── */
+.stat-row{display:flex;align-items:center;gap:12px;padding:11px 8px;margin:0 -8px;border-bottom:1px solid var(--line);
+  border-radius:var(--r-xs);transition:background .14s}
+.stat-row:hover{background:var(--raised)}
 .stat-row:last-child{border-bottom:0}
-.stat-row .lbl{font-size:13px;min-width:0}
-.stat-row .lbl small{display:block;color:var(--dim);font-size:11.5px;margin-top:1px}
-.badge{margin-left:auto;font-size:11px;font-weight:600;padding:3px 9px;border-radius:99px;white-space:nowrap;border:1px solid var(--line);color:var(--muted);background:var(--raised)}
+.stat-row .lbl{font-size:13px;min-width:0;font-weight:550}
+.stat-row .lbl small{display:block;color:var(--dim);font-size:11.5px;margin-top:2px;font-weight:400}
+.stat-row .btn,.stat-row .acoes{margin-left:auto}
+.badge{margin-left:auto;font-size:11px;font-weight:650;padding:4px 10px;border-radius:99px;white-space:nowrap;
+  border:1px solid var(--line);color:var(--muted);background:var(--raised)}
 .b-ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-line)}
 .b-warn{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-line)}
 .b-err{background:var(--err-bg);color:var(--err);border-color:var(--err-line)}
+.b-ac{background:var(--ac-soft);color:var(--ac);border-color:var(--ac-line)}
 
-.board{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;align-items:flex-start}
-.col{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);min-width:262px;flex:1 0 262px;padding:12px;box-shadow:var(--shadow)}
-.col-h{display:flex;align-items:baseline;gap:7px;margin-bottom:10px}
-.col-h h3{font-size:12.5px;font-weight:650}
-.col-h .n{font-size:11px;color:var(--dim);background:var(--raised);border-radius:99px;padding:1px 7px}
-.col-h .v{margin-left:auto;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
-.lead{background:var(--raised);border:1px solid var(--line);border-radius:var(--r-sm);padding:11px;margin-bottom:8px}
-.lead:hover{border-color:var(--line-2)}
-.lead .nm{font-weight:650;font-size:13.5px}
-.lead .meta{color:var(--dim);font-size:12px;margin:2px 0 8px;word-break:break-word}
-.tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px}
-.tag{font-size:10px;font-weight:600;padding:2px 7px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--panel)}
+/* ── Funil ─────────────────────────────────────────────────────────────── */
+.board{display:flex;gap:14px;overflow-x:auto;padding-bottom:10px;align-items:flex-start}
+.col{background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--line);border-radius:var(--r);
+  min-width:272px;flex:1 0 272px;padding:13px;box-shadow:var(--sh-2)}
+.col-h{display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.col-h h3{font-size:12.5px;font-weight:680;letter-spacing:-.01em}
+.col-h .n{font-size:11px;font-weight:650;color:var(--ac);background:var(--ac-soft);border:1px solid var(--ac-line);
+  border-radius:99px;padding:1px 8px}
+.col-h .v{margin-left:auto;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;font-weight:600}
+.lead{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px;
+  margin-bottom:9px;box-shadow:var(--sh-1);transition:box-shadow .16s,transform .16s,border-color .16s}
+.lead:hover{border-color:var(--line-2);box-shadow:var(--sh-2);transform:translateY(-1px)}
+.lead .nm{font-weight:680;font-size:13.5px;letter-spacing:-.01em}
+.lead .meta{color:var(--dim);font-size:12px;margin:3px 0 9px;word-break:break-word}
+.tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+.tag{font-size:10px;font-weight:650;padding:2.5px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--raised)}
 .t-quente{background:var(--err-bg);color:var(--err);border-color:var(--err-line)}
 .t-morno{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-line)}
 .t-frio{background:var(--raised);color:var(--muted)}
-.acts{display:flex;gap:6px;flex-wrap:wrap}
-select,input,textarea{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);padding:7.5px 9px;width:100%;transition:border-color .12s,box-shadow .12s}
-select:focus,input:focus,textarea:focus{outline:0;border-color:var(--fg);box-shadow:0 0 0 3px var(--raised)}
-select{flex:1;min-width:104px;font-size:12.5px;padding:5.5px 7px}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:7.5px 14px;border-radius:var(--r-sm);font-size:13px;font-weight:600;transition:opacity .12s,background .12s}
-.btn-p{background:var(--ink);color:var(--ink-fg)}
-.btn-p:hover{opacity:.85}
-.btn-s{border:1px solid var(--line);background:var(--panel);color:var(--muted)}
-.btn-s:hover{color:var(--fg);border-color:var(--line-2)}
-.btn-xs{padding:4.5px 9px;font-size:11.5px}
-.btn-ok{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-line)}
-.btn-no{background:var(--panel);color:var(--dim);border:1px solid var(--line)}
-.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;align-items:end}
-.field label{display:block;font-size:11px;color:var(--dim);margin-bottom:4px;font-weight:600}
-.msg{padding:10px 13px;border-radius:var(--r-sm);margin-bottom:14px;font-size:13px;display:none}
+.acts{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+
+/* ── Campos ────────────────────────────────────────────────────────────── */
+select,input,textarea{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);padding:8.5px 11px;width:100%;
+  transition:border-color .14s,box-shadow .14s;box-shadow:var(--sh-1)}
+select:hover,input:hover,textarea:hover{border-color:var(--line-2)}
+select:focus,input:focus,textarea:focus{outline:0;border-color:var(--ac);box-shadow:0 0 0 3.5px var(--ac-soft)}
+select{flex:1;min-width:104px;font-size:12.5px;padding:6.5px 9px}
+::placeholder{color:var(--dim)}
+
+/* ── Botão: UM modelo, variações por tom e tamanho ─────────────────────────
+   Todo botão de texto nasce daqui e todo botão leva ícone — o ícone é o que
+   permite achar "Salvar" numa tela cheia sem ler botão por botão. No JS existe
+   o atalho `botao({t,ic,v,on})`, que monta exatamente esta marcação.
+
+     v:'p'  ação principal da tela (tinta cheia) — uma por tela
+     v:'s'  ação secundária (contorno)
+     v:'g'  ação discreta, sem peso visual
+     v:'ok' confirma   v:'dan' destrói   v:'no' recusa
+     sz:'xs' em linha de tabela/card   sz:'lg' formulário de entrada         */
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  padding:9px 15px;border-radius:var(--r-sm);font-size:13px;font-weight:650;letter-spacing:-.012em;
+  border:1px solid transparent;white-space:nowrap;
+  transition:transform .12s,box-shadow .18s,background .18s,border-color .18s,color .18s,opacity .18s}
+.btn svg{width:15px;height:15px;flex:0 0 15px}
+a.btn{text-decoration:none}
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.btn:disabled,.btn[disabled]{opacity:.5;pointer-events:none;box-shadow:none}
+.btn-p{background:linear-gradient(180deg,var(--ac-2),var(--ac));color:var(--ac-fg);
+  box-shadow:var(--sh-ac),inset 0 1px 0 rgba(255,255,255,.2)}
+.btn-p:hover{transform:translateY(-1px);box-shadow:0 2px 4px rgba(20,20,35,.16),0 12px 24px -10px var(--ac-glow),inset 0 1px 0 rgba(255,255,255,.26)}
+.btn-p:active{transform:translateY(0)}
+.btn-s{background:var(--panel);border-color:var(--line);color:var(--fg);box-shadow:var(--sh-1)}
+.btn-s:hover{border-color:var(--ac-line);color:var(--ac);background:var(--ac-soft);box-shadow:var(--sh-2)}
+.btn-g{background:none;color:var(--muted)}
+.btn-g:hover{background:var(--raised);color:var(--fg)}
+.btn-ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-line)}
+.btn-ok:hover{background:var(--ok);color:#fff;border-color:transparent;box-shadow:var(--sh-2)}
+.btn-dan{background:var(--panel);color:var(--err);border-color:var(--err-line)}
+.btn-dan:hover{background:var(--err);color:#fff;border-color:transparent;box-shadow:var(--sh-2)}
+.btn-no{background:var(--panel);color:var(--dim);border-color:var(--line)}
+.btn-no:hover{color:var(--err);border-color:var(--err-line);background:var(--err-bg)}
+.btn-xs{padding:5.5px 10px;font-size:11.5px;border-radius:var(--r-xs);gap:5px}
+.btn-xs svg{width:13px;height:13px;flex:0 0 13px}
+.btn-lg{padding:12px 20px;font-size:14.5px;border-radius:12px}
+.btn-lg svg{width:17px;height:17px;flex:0 0 17px}
+.btn-block{width:100%}
+
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:13px;align-items:end}
+.form-grid > .btn{justify-self:start;align-self:end}
+.field label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:6px;font-weight:650}
+.msg{padding:12px 15px;border-radius:var(--r-sm);margin-bottom:16px;font-size:13px;display:none;font-weight:550;box-shadow:var(--sh-1)}
 .msg.err{display:block;background:var(--err-bg);border:1px solid var(--err-line);color:var(--err)}
 .msg.ok{display:block;background:var(--ok-bg);border:1px solid var(--ok-line);color:var(--ok)}
-.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:29}
+.overlay{display:none;position:fixed;inset:0;background:rgba(10,10,16,.45);backdrop-filter:blur(2px);z-index:29}
+
+/* ── Tabela ────────────────────────────────────────────────────────────── */
 table{width:100%;border-collapse:collapse;font-size:13px}
-th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);padding:0 10px 8px;font-weight:600}
-td{padding:11px 10px;border-top:1px solid var(--line)}
-.linkbox{display:flex;gap:7px;align-items:center;background:var(--raised);border:1px solid var(--line);border-radius:var(--r-sm);padding:5px 5px 5px 11px}
+th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);
+  padding:10px;font-weight:700;background:var(--raised);border-bottom:1px solid var(--line)}
+th:first-child{border-radius:var(--r-xs) 0 0 0}
+th:last-child{border-radius:0 var(--r-xs) 0 0}
+td{padding:12px 10px;border-top:1px solid var(--line)}
+tbody tr{transition:background .14s}
+tbody tr:hover{background:var(--raised)}
+tbody tr:first-child td{border-top:0}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel)}
+.linkbox{display:flex;gap:8px;align-items:center;background:var(--raised);border:1px solid var(--line);
+  border-radius:var(--r-sm);padding:5px 5px 5px 12px}
 .linkbox span{flex:1;font:12px ui-monospace,Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tbl-wrap{overflow-x:auto}
+
 /* Modal. `dialog` nativo daria o backdrop de graca, mas nao fecha no Esc do jeito
    que a gente quer nem centraliza igual em navegador antigo — dois divs resolvem. */
-.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:40;padding:20px;overflow-y:auto}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(10,10,16,.55);backdrop-filter:blur(3px);
+  z-index:40;padding:20px;overflow-y:auto}
 .modal-bg.show{display:block}
-.modal{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);max-width:760px;margin:40px auto;
-  box-shadow:0 20px 60px rgba(0,0,0,.3)}
-.modal-h{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--line)}
-.modal-h h3{flex:1;margin:0}
-.modal-b{padding:20px}
-.modal-f{display:flex;gap:8px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--line)}
-.x{background:none;border:0;color:var(--dim);font-size:20px;line-height:1;cursor:pointer;padding:0 4px}
-.x:hover{color:var(--fg)}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:760px;margin:44px auto;
+  box-shadow:var(--sh-3);animation:sobe .18s ease}
+@keyframes sobe{from{opacity:0;transform:translateY(8px) scale(.99)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.modal{animation:none}}
+.modal-h{display:flex;align-items:center;gap:11px;padding:17px 22px;border-bottom:1px solid var(--line)}
+.modal-h h3{flex:1;margin:0;font-size:15.5px;font-weight:680;letter-spacing:-.02em}
+.modal-b{padding:22px}
+.modal-f{display:flex;gap:9px;justify-content:flex-end;padding:15px 22px;border-top:1px solid var(--line);background:var(--panel-2);
+  border-radius:0 0 15px 15px}
+.x{background:none;border:0;color:var(--dim);font-size:20px;line-height:1;cursor:pointer;padding:2px 7px;border-radius:var(--r-xs);
+  transition:background .14s,color .14s}
+.x:hover{color:var(--fg);background:var(--raised)}
+
 /* Barra acima da tabela: busca a esquerda, acao primaria a direita. */
-.tbl-bar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
-.tbl-bar input{flex:1;min-width:180px}
-.acoes{display:flex;gap:2px;justify-content:flex-end}
-.bi{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:7px;border:1px solid transparent;
-  background:none;color:var(--muted);cursor:pointer;transition:background .12s,color .12s}
+.tbl-bar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.tbl-bar input{flex:1;min-width:190px}
+.acoes{display:flex;gap:3px;justify-content:flex-end}
+/* Botao so de icone. `title` e `aria-label` sao obrigatorios: icone sem nome
+   e adivinhacao pra quem chega hoje e barreira pra leitor de tela. */
+.bi{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:var(--r-xs);border:1px solid transparent;
+  background:none;color:var(--muted);cursor:pointer;transition:background .14s,color .14s,border-color .14s}
 .bi svg{width:16px;height:16px}
-.bi:hover{background:var(--line);color:var(--fg)}
-.bi.dan:hover{background:var(--err-bg);color:var(--err)}
-.bi.pri{color:var(--fg)}
-.bi.pri:hover{background:var(--ok-bg);color:var(--ok)}
-.bi[disabled]{opacity:.35;cursor:default}
-.bi[disabled]:hover{background:none;color:var(--muted)}
-.thumb{width:40px;height:40px;border-radius:6px;object-fit:cover;display:block;background:var(--line)}
-.thumb.vazia{background:var(--line)}
+.bi:hover{background:var(--ac-soft);color:var(--ac);border-color:var(--ac-line)}
+.bi.dan:hover{background:var(--err-bg);color:var(--err);border-color:var(--err-line)}
+.bi.pri:hover{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-line)}
+.bi:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
+.bi[disabled]{opacity:.3;cursor:default}
+.bi[disabled]:hover{background:none;color:var(--muted);border-color:transparent}
+.thumb{width:42px;height:42px;border-radius:var(--r-xs);object-fit:cover;display:block;background:var(--raised);
+  border:1px solid var(--line)}
+.thumb.vazia{background:var(--raised)}
 .th-ord{background:none;border:0;padding:0;font:inherit;color:inherit;letter-spacing:inherit;
-  text-transform:inherit;cursor:pointer}
-.th-ord:hover{color:var(--fg)}
-.pag{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;flex-wrap:wrap}
-.fotos{display:flex;gap:8px;flex-wrap:wrap;min-height:4px}
-.fotos .ft{position:relative;width:76px;height:76px;border-radius:9px;overflow:hidden;
-  border:1px solid var(--line);background:var(--bg)}
+  text-transform:inherit;cursor:pointer;transition:color .14s}
+.th-ord:hover{color:var(--ac)}
+.pag{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;flex-wrap:wrap}
+.fotos{display:flex;gap:9px;flex-wrap:wrap;min-height:4px}
+.fotos .ft{position:relative;width:78px;height:78px;border-radius:11px;overflow:hidden;
+  border:1px solid var(--line);background:var(--bg);box-shadow:var(--sh-1)}
 .fotos .ft img{width:100%;height:100%;object-fit:cover;display:block}
-.fotos .ft .x{position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:6px;
-  background:rgba(0,0,0,.6);color:#fff;border:0;font-size:13px;line-height:1;cursor:pointer;padding:0}
-.fotos .ft .capa{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.62);color:#fff;
-  font-size:9.5px;text-align:center;padding:2px;text-transform:uppercase;letter-spacing:.4px}
+.fotos .ft .x{position:absolute;top:3px;right:3px;width:21px;height:21px;border-radius:7px;
+  background:rgba(0,0,0,.62);color:#fff;border:0;font-size:13px;line-height:1;cursor:pointer;padding:0}
+.fotos .ft .capa{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.66);color:#fff;
+  font-size:9.5px;text-align:center;padding:2.5px;text-transform:uppercase;letter-spacing:.06em;font-weight:650}
 .fotos .subindo{display:grid;place-items:center;color:var(--dim);font-size:11px}
-@media(max-width:640px){.modal{margin:0}.modal-b{padding:14px}}
+@media(max-width:640px){.modal{margin:0;border-radius:14px}.modal-b{padding:16px}}
+
+.notas{list-style:none;display:grid;gap:9px;margin:2px 0 0;padding:0}
+.notas li{position:relative;padding-left:20px;font-size:13px;color:var(--muted);line-height:1.5}
+.notas li::before{content:'';position:absolute;left:5px;top:8px;width:6px;height:6px;border-radius:50%;
+  background:var(--ac);opacity:.55}
+
+/* ── Atalhos da visão geral ────────────────────────────────────────────── */
+.atalhos{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:9px}
+.atalho{display:flex;align-items:center;gap:11px;padding:11px 13px;width:100%;text-align:left;
+  border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel);box-shadow:var(--sh-1);
+  color:var(--fg);transition:border-color .16s,box-shadow .16s,transform .16s,background .16s}
+.atalho:hover{border-color:var(--ac-line);background:var(--ac-soft);box-shadow:var(--sh-2);transform:translateY(-1px)}
+.atalho .at-t{flex:1;min-width:0}
+.atalho b{display:block;font-size:13px;font-weight:650;letter-spacing:-.01em}
+.atalho small{display:block;font-size:11.5px;color:var(--dim);margin-top:1px}
+.atalho > svg{width:15px;height:15px;flex:0 0 15px;color:var(--dim);transition:transform .16s,color .16s}
+.atalho:hover > svg{color:var(--ac);transform:translateX(2px)}
+
+/* ── Distribuição do funil ─────────────────────────────────────────────────
+   Uma barra por etapa, largura proporcional. O funil em coluna já mostra os
+   leads; isto mostra ONDE eles estão empilhados, que é a pergunta de quem abre
+   o CRM de manhã. Sem lead nenhum a barra não aparece. */
+.funil-barra{display:flex;height:10px;border-radius:99px;overflow:hidden;background:var(--raised);gap:2px;margin:2px 0 14px}
+.funil-barra i{display:block;height:100%;border-radius:99px;transition:opacity .16s}
+.funil-barra i:hover{opacity:.75}
+.funil-leg{display:flex;flex-wrap:wrap;gap:7px 16px}
+.funil-leg div{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+.funil-leg .pt{width:9px;height:9px;border-radius:3px;flex:none}
+.funil-leg b{color:var(--fg);font-weight:650;font-variant-numeric:tabular-nums}
+.funil-leg small{color:var(--dim);font-size:11.5px}
 
 @media(max-width:900px){
-  aside{position:fixed;left:0;top:0;z-index:30;transform:translateX(-100%);transition:transform .2s ease;box-shadow:var(--shadow-2)}
+  aside{position:fixed;left:0;top:0;z-index:30;transform:translateX(-100%);transition:transform .22s ease;box-shadow:var(--sh-3)}
   aside.open{transform:none}
   .overlay.show{display:block}
   .burger{display:grid;place-items:center}
   .content,.topbar{padding-left:16px;padding-right:16px}
   .crumb .pai{display:none}
   .top-right .pill:first-child{display:none}
-  .page-head h1{font-size:19px}
+  .page-head h1{font-size:21px}
+  /* No telefone os indicadores vao a DOIS por linha: um por linha empurrava o
+     conteudo da tela pra baixo da dobra so pra mostrar quatro numeros. */
+  .g-kpi{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .kpi{padding:13px}
+  .kpi b{font-size:22px}
+  .kpi em{font-size:11.5px}
+  .kpi span{font-size:10px}
+  .kpi .chip{width:24px;height:24px;flex:0 0 24px;border-radius:7px}
+  .kpi .chip svg{width:13px;height:13px}
+  .page-head{padding-bottom:15px;margin-bottom:18px}
+  .kpi b{font-size:25px}
 }
-
-
 /* ── Entrada do console ──────────────────────────────────────────────────
    Painel de marca à esquerda, formulário à direita — o padrão que todo mundo
    já reconhece. No celular a marca encolhe e o formulário vem primeiro: quem
@@ -427,6 +628,33 @@ const I={
  mais:'<path d="M12 5v14M5 12h14"/>',
  menos:'<path d="M5 12h14"/>',
  reservar:'<path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
+ // Acoes. Todo botao de texto leva um destes: e o icone que deixa achar "Salvar"
+ // numa tela cheia sem ler botao por botao.
+ salvar:'<path d="M5 13l4 4L19 7"/>',
+ check:'<circle cx="12" cy="12" r="9"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/>',
+ fechar:'<path d="M18 6 6 18M6 6l12 12"/>',
+ atualizar:'<path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/>',
+ publicar:'<path d="M12 16V4"/><path d="M8 8l4-4 4 4"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/>',
+ baixar:'<path d="M12 4v12"/><path d="M8 12l4 4 4-4"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/>',
+ importar:'<path d="M12 3v10"/><path d="M8.5 9.5 12 13l3.5-3.5"/><rect x="3" y="15" width="18" height="6" rx="2"/>',
+ exportar:'<path d="M12 13V3"/><path d="M8.5 6.5 12 3l3.5 3.5"/><rect x="3" y="15" width="18" height="6" rx="2"/>',
+ testar:'<circle cx="12" cy="12" r="9"/><path d="M10 8.5 16 12l-6 3.5z"/>',
+ enviar:'<path d="M21.5 3 2.5 10.5l7.5 2.8 2.8 7.7z"/><path d="M21.5 3 10 13.3"/>',
+ entrar:'<path d="M14 3h4.5A1.5 1.5 0 0 1 20 4.5v15a1.5 1.5 0 0 1-1.5 1.5H14"/><path d="M10 8l4 4-4 4"/><path d="M14 12H3"/>',
+ sair:'<path d="M10 3H5.5A1.5 1.5 0 0 0 4 4.5v15A1.5 1.5 0 0 0 5.5 21H10"/><path d="M17 8l4 4-4 4"/><path d="M21 12H10"/>',
+ limpar:'<path d="M3 6h18"/><path d="M19 6l-1 14H6L5 6"/><path d="M9 3h6"/>',
+ gerar:'<path d="M12 3 9.5 9.5 3 12l6.5 2.5L12 21l2.5-6.5L21 12l-6.5-2.5z"/><path d="M19 3v4M21 5h-4"/>',
+ registrar:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2.8h6V4"/><path d="M9 13l2 2 4-4.5"/>',
+ copiar:'<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4.5A1.5 1.5 0 0 1 3 13.5v-9A1.5 1.5 0 0 1 4.5 3h9A1.5 1.5 0 0 1 15 4.5V5"/>',
+ ant:'<path d="M15 5l-7 7 7 7"/>',
+ prox:'<path d="M9 5l7 7-7 7"/>',
+ seta:'<path d="M5 12h13"/><path d="M13 6l6 6-6 6"/>',
+ alerta:'<path d="M12 3 2.5 20h19z"/><path d="M12 9.5v4M12 17h.01"/>',
+ relogio:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.2 2"/>',
+ power:'<path d="M12 3v9"/><path d="M6.6 6.6a8 8 0 1 0 10.8 0"/>',
+ versao:'<path d="M12 3 3 7.5 12 12l9-4.5z"/><path d="M3 12.5 12 17l9-4.5M3 17 12 21.5 21 17"/>',
+ caixa:'<rect x="2.5" y="6" width="19" height="13" rx="2"/><path d="M2.5 11h19"/><path d="M7 15.5h4"/>',
+ usuario:'<circle cx="12" cy="8" r="3.6"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>',
 };
 const ico=(k)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${I[k]||''}</svg>`;
 
@@ -484,7 +712,12 @@ async function api(r,body){
 }
 function toggleNav(v){document.getElementById('side').classList.toggle('open',v);document.getElementById('ov').classList.toggle('show',v);}
 
-const head=(t,p)=>`<div class="page-head"><h1>${esc(t)}</h1><p>${p}</p></div>`;
+/* Sobrancelha = a seção do menu em que a rota vive. Dita de graça em toda tela
+   onde a pessoa está, sem ela ter que reler a barra lateral. */
+const SECAO={}; GRUPOS.forEach(g=>g.itens.forEach(m=>{SECAO[m.id]=g.secao;(m.filhos||[]).forEach(f=>SECAO[f.id]=g.secao);}));
+const head=(t,p,acts)=>`<div class="page-head"><div class="ph-txt">`+
+  `<div class="eyebrow">${esc(SECAO[rota]||"Console")}</div><h1>${esc(t)}</h1><p>${p}</p></div>`+
+  `${acts?`<div class="ph-acts">${acts}</div>`:""}</div>`;
 
 /* O TikTok tem três apps separados (login, anúncios e loja), cada um com autorização
    própria — por isso ele aparece como bloco, e não como mais uma linha de credencial. */
@@ -499,8 +732,7 @@ function tiktokCard(){
       :s.expirado?'<span class="badge b-err">token vencido</span>'
       :`<span class="badge b-ok">conectado${s.venceEmMin!=null?' · vence em '+s.venceEmMin+' min':''}</span>`;
     return `<div class="card" style="margin-bottom:12px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-        <div><h3>TikTok · ${esc(nome)}</h3><p class="hint">${esc(ajuda)}</p></div>${badge}</div>
+      ${cardH('redes',`TikTok · ${nome}`,esc(ajuda),3,badge)}
       ${s.chave?linha('Chave gravada aqui','compare com a do app, na aba certa (Sandbox ou Production)',esc(s.chave),'b-ok'):''}
       ${s.conta?linha('Conta conectada','',esc(s.conta),'b-ok'):''}
       ${s.token?linha('Token','mascarado',esc(s.token),''):''}
@@ -518,9 +750,9 @@ function tiktokCard(){
       ${!s.autorizado?`<div class="form-grid">
         ${campos.map(c=>`<div class="field"><label>${esc(c[1])}</label>
           <input id="tk-${esc(f)}-${esc(c[0])}" placeholder="${esc(c[2]||'')}" autocomplete="off"></div>`).join('')}
-        <button class="btn btn-s" onclick="salvarAppTiktok('${esc(f)}',${JSON.stringify(campos.map(c=>c[0])).replace(/"/g,'&quot;')})">Salvar credenciais</button>
-        ${s.appConfigurado?`<button class="btn btn-p" onclick="autorizarTiktok('${esc(f)}')">Conectar conta</button>`:''}
-      </div>`:`<button class="btn btn-s" onclick="autorizarTiktok('${esc(f)}')">Reconectar</button>`}
+        <button class="btn btn-s" onclick="salvarAppTiktok('${esc(f)}',${JSON.stringify(campos.map(c=>c[0])).replace(/"/g,'&quot;')})">${ico('salvar')}Salvar credenciais</button>
+        ${s.appConfigurado?`<button class="btn btn-p" onclick="autorizarTiktok('${esc(f)}')">${ico('integra')}Conectar conta</button>`:''}
+      </div>`:`<button class="btn btn-s" onclick="autorizarTiktok('${esc(f)}')">${ico('atualizar')}Reconectar</button>`}
       ${f==='open'&&s.autorizado?`<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
         <h3 style="font-size:14px">Publicar vídeo</h3>
         <p class="hint">O arquivo fica hospedado neste painel e a TikTok busca ele aqui — por isso o domínio
@@ -535,50 +767,44 @@ function tiktokCard(){
             <option value="FOLLOWER_OF_CREATOR">Meus seguidores</option>
             <option value="MUTUAL_FOLLOW_FRIENDS">Amigos</option>
             <option value="PUBLIC_TO_EVERYONE">Todo mundo</option></select></div>
-          <button class="btn btn-p" onclick="publicarNoTiktok()">Publicar</button>
+          <button class="btn btn-p" onclick="publicarNoTiktok()">${ico('publicar')}Publicar</button>
         </div>
         <div id="tkPubResultado"></div></div>`:''}
       ${app?`<p class="hint" style="margin-top:10px">URL de retorno para colar no app:
         <code>${esc(app.redirects[f])}</code>
-        <button class="btn btn-s btn-xs" style="margin-left:6px" onclick="copiar('${esc(app.redirects[f])}')">copiar</button></p>`:''}
+        <button class="btn btn-s btn-xs" style="margin-left:6px" onclick="copiar('${esc(app.redirects[f])}')">${ico('copiar')}copiar</button></p>`:''}
     </div>`;
   };
   const pronto=Object.entries(TK.pronto).filter(([,v])=>v).map(([k])=>k);
-  return `<div class="card" style="margin-bottom:16px"><h3>TikTok</h3>
-    <p class="hint">São três apps separados na TikTok — login, anúncios e loja — cada um com autorização própria.</p>
+  return `<div class="card" style="margin-bottom:16px">
+    ${cardH('redes',`TikTok`,`São três apps separados na TikTok — login, anúncios e loja — cada um com autorização própria.`,3)}
     ${linha('Pronto pra','o que já dá pra fazer pela API',pronto.length?pronto.join(', '):'nada ainda',pronto.length?'b-ok':'b-warn')}
     ${TK.lojaAtiva?linha('Loja ativa','shop_cipher',esc(TK.lojaAtiva),'b-ok'):''}
     ${TK.anuncianteAtivo?linha('Conta de anúncio ativa','advertiser_id',esc(TK.anuncianteAtivo),'b-ok'):''}</div>
   ${app?`<div class="card" style="margin-bottom:16px">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-      <div><h3>Verificação de domínio</h3>
-        <p class="hint">A TikTok só aceita a URL de retorno depois de provar que o domínio é seu.
-        Ela dá um arquivo <code>tiktok....txt</code> pra colocar na raiz do site — cole aqui e o painel serve sozinho.</p></div>
-      ${app.verificacao?'<span class="badge b-ok">no ar</span>':'<span class="badge">ainda não</span>'}</div>
+    ${cardH('auditor',`Verificação de domínio`,
+      `A TikTok só aceita a URL de retorno depois de provar que o domínio é seu.
+       Ela dá um arquivo <code>tiktok....txt</code> pra colocar na raiz do site — cole aqui e o painel serve sozinho.`,
+      6, app.verificacao?'<span class="badge b-ok">no ar</span>':'<span class="badge">ainda não</span>')}
     ${app.verificacao?linha('Respondendo em','clique em Verificar no painel da TikTok',
       esc(app.origem+'/'+app.verificacao.arquivo),'b-ok'):''}
     <div class="form-grid">
       <div class="field"><label>Nome do arquivo</label><input id="tk-verif-arq" placeholder="tiktok1a2b3c4d.txt" value="${esc(app.verificacao?.arquivo||'')}" autocomplete="off"></div>
       <div class="field"><label>Conteúdo do arquivo</label><input id="tk-verif-txt" placeholder="tiktok-developers-site-verification=..." value="${esc(app.verificacao?.conteudo||'')}" autocomplete="off"></div>
-      <button class="btn btn-s" onclick="salvarVerificacaoTiktok()">Publicar arquivo</button>
-      ${app.verificacao?'<button class="btn btn-s" onclick="salvarVerificacaoTiktok(true)">Tirar do ar</button>':''}
+      <button class="btn btn-s" onclick="salvarVerificacaoTiktok()">${ico('publicar')}Publicar arquivo</button>
+      ${app.verificacao?`<button class="btn btn-s" onclick="salvarVerificacaoTiktok(true)">${ico('power')}Tirar do ar</button>`:''}
     </div></div>`:''}
   ${app?`<div class="card" style="margin-bottom:16px">
-    <h3>Domínio de retorno</h3>
-    <p class="hint">A TikTok só aceita URL de retorno dentro de um domínio <b>verificado</b> no app.
-      Se você verificou o domínio raiz, use ele aqui — o subdomínio do painel seria outra propriedade,
-      e teria que ser verificado de novo.</p>
+    ${cardH('redes',`Domínio de retorno`,`A TikTok só aceita URL de retorno dentro de um domínio <b>verificado</b> no app. Se você verificou o domínio raiz, use ele aqui — o subdomínio do painel seria outra propriedade, e teria que ser verificado de novo.`,3)}
     <div class="form-grid" style="margin-top:10px">
       <div class="field" style="grid-column:1/-1"><label>Endereço base</label>
         <input id="tkBase" value="${esc(app.origem)}" placeholder="https://velososolution.com.br"></div>
-      <button class="btn btn-s" onclick="salvarBaseRedirect()">Usar este</button>
+      <button class="btn btn-s" onclick="salvarBaseRedirect()">${ico('check')}Usar este</button>
     </div>
     <p class="hint" style="margin-top:8px">Antes de salvar eu testo se esse endereço responde de verdade —
       guardar um que não existe faria a autorização falhar lá na frente, longe de quem digitou.</p></div>`:''}
   <div class="card" style="margin-bottom:16px;border-style:dashed">
-    <h3>Como ligar, em dois passos</h3>
-    <p class="hint">1. Crie o app em <b>developers.tiktok.com</b> e cole a URL de retorno que aparece em cada bloco abaixo —
-    ela é fixa, não muda mais.<br>2. Cole as credenciais aqui e clique em <b>Conectar conta</b>. O resto é com o painel.</p>
+    ${cardH('seta',`Como ligar, em dois passos`,`1. Crie o app em <b>developers.tiktok.com</b> e cole a URL de retorno que aparece em cada bloco abaixo — ela é fixa, não muda mais.<br>2. Cole as credenciais aqui e clique em <b>Conectar conta</b>. O resto é com o painel.`,1)}
     <p class="hint">Aqui o token <b>fica gravado</b> em <code>~/.qa-gate/vstiktok</code> com arquivo <code>0600</code>, porque
     OAuth só funciona guardando o token para renovar. O que aparece nesta tela é mascarado.</p></div>
   ${bloco('open','Login e conteúdo',[['clientKey','Client key','do app em developers.tiktok.com'],['clientSecret','Client secret','']],'publicar vídeo, ler perfil e métricas')}
@@ -604,12 +830,11 @@ async function publicarNoTiktok(){
     alvo.innerHTML='<p class="hint">Arquivo no ar. Mandando pra TikTok…</p>';
     const r=await api('tiktok/publicar',{videoUrl:uj.url,titulo,privacidade:priv});
     alvo.innerHTML=`<div class="card" style="margin-top:12px;border-style:dashed">
-      <h3>Enviado pra TikTok</h3>
-      ${linha('Arquivo','hospedado neste painel',(uj.bytes/1048576).toFixed(1)+' MB','b-ok')}
+    ${cardH('redes',`Enviado pra TikTok`,``,3)}${linha('Arquivo','hospedado neste painel',(uj.bytes/1048576).toFixed(1)+' MB','b-ok')}
       ${linha('Quem vê','',priv==='SELF_ONLY'?'só você (privado)':priv,'')}
       ${r.publishId?linha('Id da publicação','a TikTok ainda processa o vídeo',esc(r.publishId),'b-warn'):''}
       ${(r.avisos||[]).map(a=>`<p class="hint">⚠ ${esc(a)}</p>`).join('')}
-      ${r.publishId?`<button class="btn btn-s" onclick="verStatusTiktok('${esc(r.publishId)}')">Ver situação</button>`:''}</div>`;
+      ${r.publishId?`<button class="btn btn-s" onclick="verStatusTiktok('${esc(r.publishId)}')">${ico('ver')}Ver situação</button>`:''}</div>`;
     flash('Vídeo enviado. A TikTok processa em alguns segundos.','ok');
   }catch(e){ alvo.innerHTML=''; flash(e.message,'err'); }
 }
@@ -699,8 +924,8 @@ function novaCobranca(){
        <div class="field" style="grid-column:1/-1"><label>Descrição</label>
          <input id="pgDesc" placeholder="Mensalidade do console — setembro"></div>
      </div>`,
-    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
-     <button class="btn btn-p" onclick="cobrarAgora()">Emitir cobrança</button>`);
+    `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Cancelar</button>
+     <button class="btn btn-p" onclick="cobrarAgora()">${ico('financeiro')}Emitir cobrança</button>`);
 }
 
 /* Mostra o Pix de uma cobrança já emitida. Sem isto, quem fechasse a tela depois
@@ -718,8 +943,8 @@ function verPix(id){
          <textarea rows="4" readonly onclick="this.select()" style="width:100%">${esc(c.pix.payload)}</textarea>
          <p class="hint">Quem está no celular não aponta a câmera pra própria tela — por isso o copia e cola.</p></div>
      </div>`,
-    `<button class="btn btn-s" onclick="fecharModal()">Fechar</button>
-     ${c.linkPagamento?`<a class="btn btn-p" href="${esc(c.linkPagamento)}" target="_blank" rel="noopener">Abrir a página</a>`:''}`);
+    `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Fechar</button>
+     ${c.linkPagamento?`<a class="btn btn-p" href="${esc(c.linkPagamento)}" target="_blank" rel="noopener">${ico('comprar')}Abrir a página</a>`:''}`);
 }
 
 async function cobrarAgora(){
@@ -733,10 +958,9 @@ async function cobrarAgora(){
     const r=await api('pagamentos/cobrar',{nome:v('pgNome'),cpfCnpj:v('pgDoc'),email:v('pgEmail'),
       valorCentavos:centavos,metodo:v('pgMetodo'),vencimento:v('pgVenc')||undefined,descricao:v('pgDesc'),referencia:v('pgDesc')});
     alvo.innerHTML=`<div class="card" style="margin-top:14px;border-style:dashed">
-      <h3>Cobrança emitida</h3>
-      ${linha('Valor','',brl(r.pagamento.valorCentavos/100),'b-ok')}
+    ${cardH('financeiro',`Cobrança emitida`,``,2)}${linha('Valor','',brl(r.pagamento.valorCentavos/100),'b-ok')}
       ${linha('Pagador',r.clienteReusado?'cliente ja existia no Asaas':'cliente novo criado',v('pgNome'),'')}
-      ${r.pagamento.linkPagamento?`<p class="hint" style="margin-top:10px"><a class="btn btn-p" href="${esc(r.pagamento.linkPagamento)}" target="_blank" rel="noopener">Abrir a página de pagamento</a></p>`:''}
+      ${r.pagamento.linkPagamento?`<p class="hint" style="margin-top:10px"><a class="btn btn-p" href="${esc(r.pagamento.linkPagamento)}" target="_blank" rel="noopener">${ico('comprar')}Abrir a página de pagamento</a></p>`:''}
       ${r.pix?`<div style="margin-top:14px;display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
         ${r.pix.imagemBase64?`<img alt="QR do Pix" style="width:168px;height:168px;border-radius:8px" src="data:image/png;base64,${esc(r.pix.imagemBase64)}">`:''}
         <div style="flex:1;min-width:220px"><label>Pix copia e cola</label>
@@ -747,7 +971,7 @@ async function cobrarAgora(){
     </div>`;
     document.getElementById('modalT').textContent='Cobrança emitida';
     document.getElementById('modalF').innerHTML=
-      `<button class="btn btn-p" onclick="fecharModal();carregar()">Fechar</button>`;
+      `<button class="btn btn-p" onclick="fecharModal();carregar()">${ico('fechar')}Fechar</button>`;
     flash('Cobrança emitida no Asaas.','ok');
   }catch(e){
     // Volta o formulario com o que foi digitado: perder os dados por causa de um
@@ -757,7 +981,78 @@ async function cobrarAgora(){
   }
 }
 
-const kpi=(l,v,e)=>`<div class="kpi"><span>${esc(l)}</span><b>${esc(String(v))}</b><em>${esc(e)}</em></div>`;
+/* Tom e ícone do indicador saem do que ele MEDE, não da ordem em que aparece:
+   assim "Ganhos" é o mesmo verde-azulado em toda tela do console, e quem já viu
+   uma vez reconhece na outra. Quem quiser fugir da regra passa tom/ícone na mão.
+   A primeira regra que casar vence — por isso as mais específicas vêm antes. */
+const TONS=[
+  [/perdid|problema|sem saldo|esquecid|vencid|saiu|chargeback|invalid/i, 5,'alerta'],
+  /* Casos em que a regra geral juntava 3 ou 4 indicadores da MESMA tela no mesmo
+     tom — quatro caixas iguais outra vez. Cada um destes veio de olhar a tela. */
+  [/com verde|verde valido|em vigor|licenca/i, 2,'check'],
+  [/\bversao|\bversoes/i, 3,'versao'],
+  [/aceite/i, 1,'registrar'],
+  [/rascunho/i, 4,'editar'],
+  [/validade/i, 4,'relogio'],
+  [/enviad/i, 1,'enviar'],
+  [/recebid|disponivel/i, 6,'baixar'],
+  [/\bestado\b/i, 4,'power'],
+  [/saldo do mes/i, 6,'caixa'],
+  [/entrou/i, 2,'mais'],
+  [/numa venda/i, 4,'gerar'],
+  [/\bconversa\b/i, 2,'whats'],
+  [/repositorio|recibo/i, 6,'auditor'],
+  [/nunca rodaram|nunca rodou/i, 4,'relogio'],
+  [/a pagar|comiss|pago|fatur/i, 2,'financeiro'],
+  [/ganho|receita|confirmad|disponivel|saldo|entrou|vendeu|viraram venda/i, 2,'financeiro'],
+  [/venda|ticket/i, 3,'consumo'],
+  [/parceir/i, 1,'indicacao'],
+  [/indicad/i, 3,'crm'],
+  [/convers|ticket|ciclo|gmv|custo|valor parado/i, 3,'consumo'],
+  [/aguardand|pendente|em andamento/i, 4,'relogio'],
+  [/lead|abert|pipeline|pedido/i, 1,'crm'],
+  [/unidade|reservad|lote/i, 6,'caixa'],
+  [/produto|estoque|catalogo/i, 4,'estoque'],
+  [/chamam gente|handoff|humano/i, 3,'usuario'],
+  [/canal|whatsapp/i, 2,'whats'],
+  [/bot|motor|regra|estado|automa/i, 6,'bot'],
+  [/mensage|enviad|recebid|interac|whats|conversa/i, 2,'whats'],
+  [/evento|qualific|trilha|auditor/i, 6,'auditor'],
+  [/licenca|plano|validade|\bvers(ao|oes|ão|ões)|aceite|rascunho|em vigor|contrato/i, 3,'contrato'],
+  [/origem|origens|rede|conex/i, 6,'redes'],
+];
+const semAcento=(t)=>String(t).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+const tomDoIndicador=(l)=>(TONS.find(([re])=>re.test(semAcento(l)))||[null,1,'visao']).slice(1);
+/* Indicador: rótulo, número e a linha que explica de onde ele vem. */
+const kpi=(l,v,e,tom,icone)=>{
+  const [t,ic]=tomDoIndicador(l);
+  tom=tom||t; icone=icone===undefined?ic:icone;
+  return `<div class="kpi" style="--kt:var(--t${tom});--kt-bg:var(--t${tom}-bg)">`+
+    `<div class="kpi-top"><span>${esc(l)}</span>${icone?`<div class="chip">${ico(icone)}</div>`:""}</div>`+
+    `<b>${esc(String(v))}</b><em>${esc(e)}</em></div>`;
+};
+/* ── Modelo de botão ───────────────────────────────────────────────────────
+   UM lugar monta todo botão de texto do console. Tela nova usa isto e já nasce
+   com ícone, altura, raio e tom iguais aos do resto — foi a falta disso que fez
+   a plataforma virar uma coleção de botões parecidos, mas nenhum igual.
+
+     botao({t:'Salvar', ic:'salvar', v:'p', on:'salvar()'})
+
+   t  texto (obrigatório)      ic ícone do conjunto `I` (obrigatório na prática)
+   v  p | s | g | ok | dan | no        sz xs | lg        on conteúdo do onclick
+   off desabilita              tit  title/tooltip        extra classes a mais  */
+function botao({t,ic,v='s',sz,on,id,tit,off,extra}){
+  return `<button class="btn btn-${v}${sz?' btn-'+sz:''}${extra?' '+extra:''}"`+
+    `${id?` id="${id}"`:''}${on?` onclick="${on}"`:''}${tit?` title="${esc(tit)}"`:''}`+
+    `${off?' disabled':''}>${ic?ico(ic):''}<span>${esc(t)}</span></button>`;
+}
+/* Cabeçalho de cartão: chip de ícone + título + apoio + ações à direita.
+   O chip é o que diferencia um bloco do outro quando a tela tem seis cartões. */
+const cardH=(icone,titulo,dica,tom,acts)=>
+  `<div class="card-h"><div class="chip" style="--ct:var(--t${tom||1});--ct-bg:var(--t${tom||1}-bg)">${ico(icone)}</div>`+
+  `<div class="card-h-t"><h3>${esc(titulo)}</h3>${dica?`<p class="hint">${dica}</p>`:''}</div>`+
+  `${acts?`<div class="card-h-a">${acts}</div>`:''}</div>`;
+
 function vazio(icone,titulo,texto,passos){
   return `<div class="empty"><div class="ico">${ico(icone)}</div><h3>${esc(titulo)}</h3><p>${texto}</p>
    ${passos?`<div class="steps">${passos.map((p,i)=>`<div class="step"><div class="n">${i+1}</div><div>${p}</div></div>`).join('')}</div>`:''}</div>`;
@@ -766,6 +1061,11 @@ function vazio(icone,titulo,texto,passos){
    e adivinhacao pra quem chega hoje e barreira pra leitor de tela. */
 const bi=(icone,rotulo,onclick,classe='')=>
   `<button class="bi ${classe}" title="${esc(rotulo)}" aria-label="${esc(rotulo)}" onclick="${onclick}">${ico(icone)}</button>`;
+
+/* Lista de ressalvas — texto corrido, nao par rotulo/estado. Antes isto era
+   `linha('•',' ',texto)`: a frase ia parar dentro do badge, espremida na ponta
+   direita, e a coluna da esquerda ficava com uma bolinha sozinha. */
+const notas=(lista)=>`<ul class="notas">${lista.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`;
 
 const linha=(l,s,b,c)=>`<div class="stat-row"><div class="lbl">${esc(l)}${s?`<small>${s}</small>`:''}</div><span class="badge ${c||''}">${esc(b)}</span></div>`;
 
@@ -859,15 +1159,13 @@ function mostrarPendencias(produto,avisos){
   if(!alvo) return;
   if(!avisos||!avisos.length){ alvo.innerHTML=''; return; }
   alvo.innerHTML=`<div class="card" style="margin-bottom:16px;border-style:dashed">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-      <div><h3>Salvo — mas ainda não sai nos feeds</h3>
-        <p class="hint">${esc(produto?.nome||'')} está no catálogo e no seu estoque.
-        Pra aparecer no Google, Meta ou TikTok, falta:</p></div>
-      <span class="badge b-ok">cadastrado</span></div>
+    ${cardH('alerta',`Salvo — mas ainda não sai nos feeds`,
+      `${esc(produto?.nome||'')} está no catálogo e no seu estoque.
+       Pra aparecer no Google, Meta ou TikTok, falta:`,5,'<span class="badge b-ok">cadastrado</span>')}
     ${avisos.map(a=>linha(esc(String(a).split('—')[0].trim()),esc((String(a).split('—')[1]||'').trim()),'falta','b-warn')).join('')}
     <div style="margin-top:10px;display:flex;gap:8px">
-      ${produto?.sku?`<button class="btn btn-s" onclick="editarProduto('${esc(produto.sku)}')">Completar agora</button>`:''}
-      <button class="btn btn-s" onclick="document.getElementById('ePendencias').innerHTML=''">Depois</button></div></div>`;
+      ${produto?.sku?`<button class="btn btn-s" onclick="editarProduto('${esc(produto.sku)}')">${ico('seta')}Completar agora</button>`:''}
+      <button class="btn btn-s" onclick="document.getElementById('ePendencias').innerHTML=''">${ico('relogio')}Depois</button></div></div>`;
 }
 
 function formProduto(p){
@@ -895,7 +1193,7 @@ function formProduto(p){
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
         <input type="file" id="eArquivos" accept="image/jpeg,image/png,image/webp" multiple
           onchange="subirFotos(this)" style="flex:1;min-width:200px">
-        <button type="button" class="btn btn-s" onclick="colarUrlFoto()">Colar URL</button>
+        <button type="button" class="btn btn-s" onclick="colarUrlFoto()">${ico('copiar')}Colar URL</button>
       </div>
       <p class="hint" style="margin-top:6px">Escolha as fotos do seu computador — elas ficam hospedadas
         aqui. A primeira é a que aparece na vitrine e nos feeds. Até 12 MB cada.</p></div>
@@ -970,8 +1268,8 @@ async function subirFotos(input){
 function novoProduto(){
   EDITANDO=null;
   abrirModal('Novo produto',formProduto(null),
-    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
-     <button class="btn btn-p" onclick="salvarProduto()">Cadastrar</button>`);
+    `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Cancelar</button>
+     <button class="btn btn-p" onclick="salvarProduto()">${ico('salvar')}Cadastrar</button>`);
 }
 
 async function editarProduto(sku){
@@ -979,8 +1277,8 @@ async function editarProduto(sku){
     const r=await api('estoque/produto?sku='+encodeURIComponent(sku));
     EDITANDO=sku;
     abrirModal('Editar '+r.produto.sku,formProduto(r.produto),
-      `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
-       <button class="btn btn-p" onclick="salvarProduto()">Salvar alterações</button>`);
+      `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Cancelar</button>
+       <button class="btn btn-p" onclick="salvarProduto()">${ico('salvar')}Salvar alterações</button>`);
   }catch(e){flash(e.message,'err');}
 }
 
@@ -1008,8 +1306,8 @@ async function verProduto(sku){
       ${mov?`<div class="tbl-wrap" style="margin-top:14px"><table><thead><tr><th>Quando</th><th>Movimento</th>
         <th style="text-align:right">Qtd</th><th style="text-align:right">Saldo</th></tr></thead><tbody>${mov}</tbody></table></div>`
         :'<p class="hint" style="margin-top:12px">Sem movimento registrado.</p>'}`,
-      `<button class="btn btn-s" onclick="fecharModal()">Fechar</button>
-       <button class="btn btn-p" onclick="editarProduto('${esc(p.sku)}')">Editar</button>`);
+      `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Fechar</button>
+       <button class="btn btn-p" onclick="editarProduto('${esc(p.sku)}')">${ico('editar')}Editar</button>`);
   }catch(e){flash(e.message,'err');}
 }
 
@@ -1036,8 +1334,8 @@ async function comprarProduto(sku,nome){
        <div class="field" style="grid-column:1/-1"><label>Nota / referência</label>
          <input id="cNota" placeholder="número da nota, opcional"></div>
      </div>`,
-    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
-     <button class="btn btn-p" onclick="confirmarCompra('${esc(sku)}')">Dar entrada</button>`);
+    `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Cancelar</button>
+     <button class="btn btn-p" onclick="confirmarCompra('${esc(sku)}')">${ico('mais')}Dar entrada</button>`);
 }
 
 async function confirmarCompra(sku){
@@ -1056,13 +1354,13 @@ function abrirExportar(){
   const p=EST||{canais:{}};
   const canais=Object.entries(p.canais||{}).map(([c,st])=>`<div class="stat-row">
     <div class="lbl">${esc(st.nome)}<small>${st.prontos} de ${st.total} pronto(s)${st.faltando?` · ${st.faltando} incompleto(s)`:''}</small></div>
-    <button class="btn btn-s" ${st.prontos?'':'disabled'} onclick="baixarFeed('${esc(c)}')">Baixar</button></div>`).join('');
+    <button class="btn btn-s" ${st.prontos?'':'disabled'} onclick="baixarFeed('${esc(c)}')">${ico('baixar')}Baixar</button></div>`).join('');
   abrirModal('Exportar catálogo',
     `<p class="hint">Produto com campo faltando <b>não entra no arquivo</b>: o Google reprova o item calado
       e a Meta reprova o feed inteiro.</p>${canais}
      <p class="hint" style="margin-top:14px">Pra exportar só o que mudou num período, use
        <b>Lote de exportação</b> na própria tela.</p>`,
-    `<button class="btn btn-s" onclick="fecharModal()">Fechar</button>`);
+    `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Fechar</button>`);
 }
 
 function abrirImportar(){
@@ -1072,8 +1370,8 @@ function abrirImportar(){
       manual — o que estiver errado é recusado com o motivo, e o resto entra.</p>
      <div class="field" style="margin-top:12px"><label>Conteúdo</label>
        <textarea id="impTxt" rows="8" placeholder='[{"nome":"Camiseta","preco":"79,90","quantidade":10}]'></textarea></div>`,
-    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
-     <button class="btn btn-p" onclick="importarProdutos()">Importar</button>`);
+    `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Cancelar</button>
+     <button class="btn btn-p" onclick="importarProdutos()">${ico('importar')}Importar</button>`);
 }
 
 async function importarProdutos(){
@@ -1099,7 +1397,7 @@ async function importarProdutos(){
   if(erros.length) abrirModal('Importação concluída em parte',
     `${linha('Entraram','',String(entraram),'b-ok')}${linha('Recusados','',String(erros.length),'b-warn')}
      <div style="margin-top:12px">${erros.map(e=>`<p class="hint">• ${esc(e)}</p>`).join('')}</div>`,
-    `<button class="btn btn-p" onclick="fecharModal()">Entendi</button>`);
+    `<button class="btn btn-p" onclick="fecharModal()">${ico('check')}Entendi</button>`);
   else flash(`${entraram} produto(s) importado(s).`,'ok');
 }
 
@@ -1111,7 +1409,7 @@ async function venderProduto(sku,nome){
       return abrirModal('Enviado pro TikTok Shop',
         `<p class="hint"><b>${esc(nome)}</b> foi cadastrado na sua loja do TikTok.</p>
          ${r.produtoId?linha('Id na loja','',esc(r.produtoId),'b-ok'):''}`,
-        `<button class="btn btn-p" onclick="fecharModal()">Fechar</button>`);
+        `<button class="btn btn-p" onclick="fecharModal()">${ico('fechar')}Fechar</button>`);
     }
     // Ainda sem a loja ligada: diz o que falta e mostra o canal que JA funciona.
     await carregar();
@@ -1125,9 +1423,9 @@ async function venderProduto(sku,nome){
          ${linha('Sua loja','',esc(url),'b-ok')}
          ${LOTES&&LOTES.vitrineConfigurada?'':linha('Botão de compra','falta o WhatsApp da loja','não configurado','b-warn')}
        </div>`,
-      `<button class="btn btn-s" onclick="fecharModal()">Fechar</button>
-       <a class="btn btn-s" href="${esc(url)}" target="_blank" rel="noopener">Abrir minha loja</a>
-       <button class="btn btn-p" onclick="fecharModal();ir('redes')">Ligar o TikTok</button>`);
+      `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Fechar</button>
+       <a class="btn btn-s" href="${esc(url)}" target="_blank" rel="noopener">${ico('ver')}Abrir minha loja</a>
+       <button class="btn btn-p" onclick="fecharModal();ir('redes')">${ico('power')}Ligar o TikTok</button>`);
   }catch(e){flash(e.message,'err');}
 }
 
@@ -1267,10 +1565,10 @@ function tabelaProdutos(produtos){
   const nav=paginas>1?`<div class="pag">
     <span class="hint">${ini+1}–${ini+pagina.length} de ${total}</span>
     <div style="display:flex;gap:4px">
-      <button class="btn btn-s btn-xs" ${TAB.pagina<=1?'disabled':''} onclick="irPagina(${TAB.pagina-1})">anterior</button>
+      <button class="btn btn-s btn-xs" ${TAB.pagina<=1?'disabled':''} onclick="irPagina(${TAB.pagina-1})">${ico('ant')}anterior</button>
       ${Array.from({length:paginas},(_,i)=>i+1).filter(n=>Math.abs(n-TAB.pagina)<3||n===1||n===paginas)
         .map(n=>`<button class="btn btn-xs ${n===TAB.pagina?'btn-p':'btn-s'}" onclick="irPagina(${n})">${n}</button>`).join('')}
-      <button class="btn btn-s btn-xs" ${TAB.pagina>=paginas?'disabled':''} onclick="irPagina(${TAB.pagina+1})">próxima</button>
+      <button class="btn btn-s btn-xs" ${TAB.pagina>=paginas?'disabled':''} onclick="irPagina(${TAB.pagina+1})">próxima${ico('prox')}</button>
     </div></div>`:`<p class="hint" style="margin-top:10px">${total} produto(s)</p>`;
 
   return `<div class="tbl-wrap"><table id="tblProdutos"><thead><tr>${cab}<th></th></tr></thead>
@@ -1289,14 +1587,12 @@ function publicacoesHtml(){
     for(const c of it.canais) linhas.push({sku:it.sku,nome:it.nome,canal:c.nome,estado:c.estado,
       idExterno:c.idExterno,motivo:c.motivo,em:c.em});
   }
-  if(!linhas.length) return `<div class="card" style="margin-bottom:16px"><h3>Publicações</h3>
-    <p class="hint">Nenhum produto foi enviado pra canal nenhum ainda. Use o ícone 🛒 <b>Vender</b>
-      na linha do produto — ele vai pra sua vitrine e, quando a loja do TikTok estiver ligada, pra lá também.</p></div>`;
+  if(!linhas.length) return `<div class="card" style="margin-bottom:16px">
+    ${cardH('publicar',`Publicações`,`Nenhum produto foi enviado pra canal nenhum ainda. Use o ícone 🛒 <b>Vender</b> na linha do produto — ele vai pra sua vitrine e, quando a loja do TikTok estiver ligada, pra lá também.`,3)}</div>`;
   const falhas=linhas.filter(l=>l.estado!=='publicado').length;
   return `<div class="card" style="margin-bottom:16px">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-      <div><h3>Publicações</h3><p class="hint">Onde cada produto foi parar, e com que id do outro lado.</p></div>
-      ${falhas?`<span class="badge b-err">${falhas} com falha</span>`:'<span class="badge b-ok">tudo publicado</span>'}</div>
+    ${cardH('publicar',`Publicações`,`Onde cada produto foi parar, e com que id do outro lado.`,3,
+      falhas?`<span class="badge b-err">${falhas} com falha</span>`:'<span class="badge b-ok">tudo publicado</span>')}
     ${tabela({
       colunas:[
         {t:'Produto',cel:(l)=>`<b>${esc(l.nome)}</b><br><small class="hint">${esc(l.sku)}</small>`},
@@ -1361,8 +1657,8 @@ async function comprarPlano(id){
        <div class="field"><label>Forma</label><select id="cpMetodo">
          <option value="PIX">Pix</option><option value="CREDIT_CARD">Cartão</option><option value="BOLETO">Boleto</option></select></div>
      </div>`,
-    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
-     <button class="btn btn-p" onclick="gerarCobrancaPlano('${esc(id)}')">Gerar cobrança</button>`);
+    `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Cancelar</button>
+     <button class="btn btn-p" onclick="gerarCobrancaPlano('${esc(id)}')">${ico('gerar')}Gerar cobrança</button>`);
 }
 
 async function gerarCobrancaPlano(id){
@@ -1377,14 +1673,14 @@ async function gerarCobrancaPlano(id){
       valorCentavos:p.centavos,metodo:v('cpMetodo'),descricao:`Plano ${p.nome}`,referencia:`Plano ${p.nome}`});
     document.getElementById('modalT').textContent='Cobrança do plano '+p.nome;
     alvo.innerHTML=`${linha('Valor','',brl(r.pagamento.valorCentavos/100),'b-ok')}
-      ${r.pagamento.linkPagamento?`<p style="margin-top:12px"><a class="btn btn-p" href="${esc(r.pagamento.linkPagamento)}" target="_blank" rel="noopener">Abrir a página de pagamento</a></p>`:''}
+      ${r.pagamento.linkPagamento?`<p style="margin-top:12px"><a class="btn btn-p" href="${esc(r.pagamento.linkPagamento)}" target="_blank" rel="noopener">${ico('comprar')}Abrir a página de pagamento</a></p>`:''}
       ${r.pix?`<div style="margin-top:14px;display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
         ${r.pix.imagemBase64?`<img alt="QR do Pix" style="width:168px;height:168px;border-radius:8px" src="data:image/png;base64,${esc(r.pix.imagemBase64)}">`:''}
         <div style="flex:1;min-width:220px"><label>Pix copia e cola</label>
           <textarea rows="4" readonly onclick="this.select()" style="width:100%">${esc(r.pix.payload)}</textarea></div></div>`:''}
       <p class="hint" style="margin-top:12px">Quando o pagamento for confirmado, ele entra sozinho no
         livro-caixa e aparece em <b>Recebimento</b>.</p>`;
-    document.getElementById('modalF').innerHTML=`<button class="btn btn-p" onclick="fecharModal();carregar()">Fechar</button>`;
+    document.getElementById('modalF').innerHTML=`<button class="btn btn-p" onclick="fecharModal();carregar()">${ico('fechar')}Fechar</button>`;
     flash('Cobrança do plano emitida.','ok');
   }catch(e){ fecharModal(); flash(e.message,'err'); }
 }
@@ -1436,32 +1732,29 @@ function telaDocumento(tipo,titulo,sub){
   </div>
 
   ${v?`<div class="card" style="margin-bottom:16px">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-      <div><h3>Texto em vigor</h3><p class="hint">Versão ${v.versao} · ${v.tamanho} caracteres · impressão digital <code>${esc(v.hash)}</code></p></div>
-      <span class="badge b-ok">publicado</span></div>
+    ${cardH('contrato',`Texto em vigor`,
+      `Versão ${v.versao} · ${v.tamanho} caracteres · impressão digital <code>${esc(v.hash)}</code>`,3,
+      '<span class="badge b-ok">publicado</span>')}
     <div style="white-space:pre-wrap;font-size:14px;line-height:1.6;max-height:320px;overflow-y:auto;
       padding:12px;background:var(--bg);border-radius:8px">${esc(d.texto)}</div>
     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-s" onclick="editarDocumento('${tipo}')">Criar nova versão</button>
-      <button class="btn btn-p" onclick="aceitarDocumento('${tipo}')">Registrar aceite</button></div></div>`
+      <button class="btn btn-s" onclick="editarDocumento('${tipo}')">${ico('versao')}Criar nova versão</button>
+      <button class="btn btn-p" onclick="aceitarDocumento('${tipo}')">${ico('registrar')}Registrar aceite</button></div></div>`
    :`<div class="card" style="margin-bottom:16px;border-style:dashed">
-    <h3>Nada publicado ainda</h3>
-    <p class="hint">O texto é seu — ninguém pode escrever ${esc(titulo.toLowerCase())} por você.
-      O que o sistema faz é versionar, datar a vigência e registrar quem aceitou qual versão.</p>
-    <div style="margin-top:12px"><button class="btn btn-p" onclick="editarDocumento('${tipo}')">Escrever agora</button></div></div>`}
+    ${cardH('publicar',`Nada publicado ainda`,`O texto é seu — ninguém pode escrever ${esc(titulo.toLowerCase())} por você. O que o sistema faz é versionar, datar a vigência e registrar quem aceitou qual versão.`,3)}
+    <div style="margin-top:12px"><button class="btn btn-p" onclick="editarDocumento('${tipo}')">${ico('editar')}Escrever agora</button></div></div>`}
 
   ${r?`<div class="card" style="margin-bottom:16px;border-style:dashed">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-      <div><h3>Rascunho da versão ${r.versao}</h3>
-        <p class="hint">Alterado em ${esc(String(r.atualizadaEm).slice(0,16).replace('T',' '))} · ainda não vale pra ninguém</p></div>
-      <span class="badge b-warn">não publicado</span></div>
+    ${cardH('editar',`Rascunho da versão ${r.versao}`,
+      `Alterado em ${esc(String(r.atualizadaEm).slice(0,16).replace('T',' '))} · ainda não vale pra ninguém`,4,
+      '<span class="badge b-warn">não publicado</span>')}
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-s" onclick="editarDocumento('${tipo}')">Continuar editando</button>
-      <button class="btn btn-p" onclick="publicarDocumento('${tipo}')">Publicar</button>
-      <button class="btn btn-s" onclick="descartarDocumento('${tipo}')">Descartar</button></div></div>`:''}
+      <button class="btn btn-s" onclick="editarDocumento('${tipo}')">${ico('editar')}Continuar editando</button>
+      <button class="btn btn-p" onclick="publicarDocumento('${tipo}')">${ico('publicar')}Publicar</button>
+      <button class="btn btn-s" onclick="descartarDocumento('${tipo}')">${ico('excluir')}Descartar</button></div></div>`:''}
 
-  <div class="card" style="margin-bottom:16px"><h3>Histórico de versões</h3>
-    ${tabela({
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('contrato',`Histórico de versões`,``,3)}${tabela({
       vazio:'Nenhuma versão ainda.',
       colunas:[
         {t:'Versão',al:'center',cel:(x)=>`<b>${x.versao}</b>`},
@@ -1473,9 +1766,8 @@ function telaDocumento(tipo,titulo,sub){
       todos:d.versoes, itens:d.versoes,
     })}</div>
 
-  <div class="card"><h3>Aceites registrados</h3>
-    <p class="hint">Cada aceite guarda a versão <b>e a impressão digital</b> do texto. Se alguém alterar o
-      documento depois, a conferência denuncia — "aceitou a versão 2" não prova nada se a versão 2 puder ser reescrita.</p>
+  <div class="card">
+    ${cardH('contrato',`Aceites registrados`,`Cada aceite guarda a versão <b>e a impressão digital</b> do texto. Se alguém alterar o documento depois, a conferência denuncia — "aceitou a versão 2" não prova nada se a versão 2 puder ser reescrita.`,3)}
     ${tabela({
       vazio:'Ninguém aceitou ainda.',
       colunas:[
@@ -1498,8 +1790,8 @@ function editarDocumento(tipo){
        <input id="docVig" type="date" value="${esc(d.rascunho?.vigenteDe||new Date().toISOString().slice(0,10))}"></div>
      <div class="field" style="margin-top:10px"><label>Texto</label>
        <textarea id="docTxt" rows="16" placeholder="Cole ou escreva o texto...">${esc(d.texto||'')}</textarea></div>`,
-    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
-     <button class="btn btn-p" onclick="salvarDocumento('${tipo}')">Salvar rascunho</button>`);
+    `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Cancelar</button>
+     <button class="btn btn-p" onclick="salvarDocumento('${tipo}')">${ico('salvar')}Salvar rascunho</button>`);
 }
 
 async function salvarDocumento(tipo){
@@ -1537,8 +1829,8 @@ function aceitarDocumento(tipo){
        <div class="field" style="grid-column:1/-1"><label>CPF / CNPJ</label><input id="acDoc" placeholder="opcional"></div>
      </div>
      <p class="hint" style="margin-top:10px">Ao menos um dos três é obrigatório — aceite sem identificação não prova nada.</p>`,
-    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
-     <button class="btn btn-p" onclick="confirmarAceite('${tipo}')">Registrar</button>`);
+    `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Cancelar</button>
+     <button class="btn btn-p" onclick="confirmarAceite('${tipo}')">${ico('registrar')}Registrar</button>`);
 }
 
 async function confirmarAceite(tipo){
@@ -1629,8 +1921,8 @@ function formRegra(r){
 function novaRegra(){
   EDITANDO_REGRA=null;
   abrirModal('Nova regra',formRegra(null),
-    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
-     <button class="btn btn-p" onclick="salvarRegraBot()">Cadastrar</button>`);
+    `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Cancelar</button>
+     <button class="btn btn-p" onclick="salvarRegraBot()">${ico('salvar')}Cadastrar</button>`);
 }
 
 function editarRegra(id){
@@ -1638,8 +1930,8 @@ function editarRegra(id){
   if(!r) return flash('Regra não encontrada.','err');
   EDITANDO_REGRA=id;
   abrirModal('Editar regra',formRegra(r),
-    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
-     <button class="btn btn-p" onclick="salvarRegra()">Salvar</button>`);
+    `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Cancelar</button>
+     <button class="btn btn-p" onclick="salvarRegra()">${ico('salvar')}Salvar</button>`);
 }
 
 async function salvarRegraBot(){
@@ -1691,8 +1983,8 @@ async function salvarBot(){
 /* ---- livro-caixa ---- */
 
 function caixaHtml(){
-  if(!CAIXA) return `<div class="card" style="margin-bottom:16px"><h3>Livro-caixa</h3>
-    <p class="hint">Backend sem a rota do financeiro. Atualize o servidor.</p></div>`;
+  if(!CAIXA) return `<div class="card" style="margin-bottom:16px">
+    ${cardH('financeiro',`Livro-caixa`,`Backend sem a rota do financeiro. Atualize o servidor.`,2)}</div>`;
   const c=CAIXA, r=c.periodo;
   const cat=(l)=>esc(l.categoria||'—');
   return `<div class="grid g-kpi" style="margin:16px 0">
@@ -1701,14 +1993,14 @@ function caixaHtml(){
     ${kpi('Saldo do período',brl(r.saldoCentavos/100),r.saldoCentavos<0?'no vermelho':'no azul')}
     ${kpi('Saldo do mês',brl(c.mes.saldoCentavos/100),c.mes.referencia)}
   </div>
-  <div class="card" style="margin-bottom:16px"><h3>Livro-caixa</h3>
-    <div class="tbl-bar">
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('financeiro',`Livro-caixa`,``,2)}<div class="tbl-bar">
       <input id="fcBusca" value="${esc(BUSCA.caixa||'')}" placeholder="Buscar por descrição, categoria ou contato"
         oninput="buscarEm('caixa',this.value)">
       <input type="date" style="width:auto" value="${esc(PERIODO.de||'')}" onchange="PERIODO.de=this.value;carregar()" title="De">
       <input type="date" style="width:auto" value="${esc(PERIODO.ate||'')}" onchange="PERIODO.ate=this.value;carregar()" title="Até">
-      <button class="btn btn-s" onclick="PERIODO={de:'',ate:''};carregar()">Limpar período</button>
-      <button class="btn btn-p" onclick="novoLancamento()">+ Novo lançamento</button>
+      <button class="btn btn-s" onclick="PERIODO={de:'',ate:''};carregar()">${ico('limpar')}Limpar período</button>
+      <button class="btn btn-p" onclick="novoLancamento()">${ico('mais')}Novo lançamento</button>
     </div>
     ${tabela({
       vazio:'Nenhum lançamento — clique em <b>+ Novo lançamento</b>. Pagamento confirmado pelo Asaas entra aqui sozinho.',
@@ -1769,8 +2061,8 @@ function trocarCategorias(){
 function novoLancamento(){
   EDITANDO_LANC=null;
   abrirModal('Novo lançamento',formLancamento(null),
-    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
-     <button class="btn btn-p" onclick="salvarLancamento()">Lançar</button>`);
+    `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Cancelar</button>
+     <button class="btn btn-p" onclick="salvarLancamento()">${ico('mais')}Lançar</button>`);
 }
 
 function editarLancamento(id){
@@ -1778,8 +2070,8 @@ function editarLancamento(id){
   if(!l) return flash('Lançamento não encontrado.','err');
   EDITANDO_LANC=id;
   abrirModal('Editar lançamento',formLancamento(l),
-    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
-     <button class="btn btn-p" onclick="salvarLancamento()">Salvar</button>`);
+    `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Cancelar</button>
+     <button class="btn btn-p" onclick="salvarLancamento()">${ico('salvar')}Salvar</button>`);
 }
 
 async function salvarLancamento(){
@@ -1809,43 +2101,85 @@ async function excluirLancamento(id,desc){
 }
 
 /* ---------- telas ---------- */
+/* A tela de abertura tinha quatro números e duas listas soltas, terminando num
+   vão branco. Agora ela responde três perguntas em ordem: como está a operação
+   (números), o que está ligado (integrações × pendências) e pra onde ir agora
+   (atalhos). Os atalhos são as MESMAS rotas do menu — nenhuma tela nova. */
 function telaVisao(){
   const r=ST.resumo,w=STATUS?.whatsapp||{};
-  return head('Visão geral','O que está realmente ligado nesta instalação. Número que a suíte não tem aparece como “—”, nunca como zero.')+
+  const estados=[w.envia,!!(w.waToken&&w.waPhoneId),false/* webhook de entrada: ainda nao existe */,
+    !!STATUS?.notify?.enabled,!!STATUS?.crm?.funil,!!IND?.regra];
+  const ligadas=estados.filter(Boolean).length;
+  const atalho=(id,icone,titulo,apoio)=>
+    `<button class="atalho" onclick="ir('${id}')"><span class="chip">${ico(icone)}</span>`+
+    `<span class="at-t"><b>${esc(titulo)}</b><small>${esc(apoio)}</small></span>${ico('prox')}</button>`;
+  return head('Visão geral','O que está realmente ligado nesta instalação. Número que a suíte não tem aparece como “—”, nunca como zero.',
+      botao({t:'Atualizar',ic:'atualizar',v:'s',on:'carregar()'}))+
   `<div class="grid g-kpi" style="margin-bottom:16px">
     ${kpi('Leads abertos',r.abertos,ST.funil.length?ST.funil.length+' etapas no funil':'sem funil')}
     ${kpi('Ganhos',r.ganhos,'fechados no CRM')}
     ${kpi('Conversão',r.conversao==null?'—':Math.round(r.conversao*100)+'%',r.conversao==null?'nenhum lead fechado ainda':'ganhos ÷ fechados')}
     ${kpi('Bot no ar',w.envia?'sim':'não',w.envia?'Cloud API ativa':'provider = '+(w.provider||'log'))}</div>
-  <div class="grid g-2">
-    <div class="card"><h3>Integrações</h3><p class="hint" style="margin-bottom:6px">Estado real, lido do ambiente.</p>
+  <div class="grid g-2" style="margin-bottom:16px">
+    <div class="card">
+      ${cardH('integra','Integrações','Estado real, lido do ambiente.',2,`<span class="badge ${ligadas===estados.length?'b-ok':'b-warn'}">${ligadas} de ${estados.length}</span>`)}
       ${linha('WhatsApp Cloud API','provider '+(w.provider||'log'),w.envia?'enviando':'não envia',w.envia?'b-ok':'')}
       ${linha('Token da Meta','WA_TOKEN / WA_PHONE_ID',w.waToken&&w.waPhoneId?'presentes':'ausentes',w.waToken&&w.waPhoneId?'b-ok':'')}
       ${linha('Webhook de entrada','recebe mensagem do cliente','não existe','')}
       ${linha('Notificação do QA-Gate','CallMeBot',STATUS?.notify?.enabled?'ligada':'desligada',STATUS?.notify?.enabled?'b-ok':'')}
       ${linha('CRM','funil de '+(STATUS?.crm?.funilOrigem||'—'),STATUS?.crm?.funil?'ativo':'sem funil',STATUS?.crm?.funil?'b-ok':'b-warn')}
       ${linha('Indicação','regra de comissão',IND?.regra?'definida':'não definida',IND?.regra?'b-ok':'b-warn')}</div>
-    <div class="card"><h3>Sem fonte de dado ainda</h3><p class="hint" style="margin-bottom:6px">Telas prontas, esperando de onde puxar.</p>
+    <div class="card">
+      ${cardH('alerta','Sem fonte de dado ainda','Telas prontas, esperando de onde puxar.',4)}
       ${linha('Estoque','nenhuma fonte conectada','vazio','')}
       ${linha('Financeiro','nenhuma fonte conectada','vazio','')}
       ${linha('Auditor','sem execução registrada','vazio','')}
       ${linha('Redes sociais','sem conta ligada','vazio','')}
-      ${linha('Relatórios','dependem das fontes acima','vazio','')}</div></div>`;
+      ${linha('Relatórios','dependem das fontes acima','vazio','')}</div></div>
+  <div class="card">
+    ${cardH('seta','Pra onde ir agora','Os caminhos mais usados, sem passar pelo menu.',1)}
+    <div class="atalhos">
+      ${atalho('crm','crm','Trabalhar os leads',r.abertos?r.abertos+' em aberto no funil':'nenhum lead em aberto')}
+      ${atalho('estoque','estoque','Cadastrar produto','catálogo e publicação')}
+      ${atalho('redes','redes','Ligar uma rede',REDES?'conexões e credenciais':'nenhuma conta ligada')}
+      ${atalho('financeiro','financeiro','Ver o caixa','entradas e saídas do período')}
+      ${atalho('bot','bot','Ajustar o bot','regras de resposta')}
+      ${atalho('pl-recebimento','plano','Receber por Pix','chave do Asaas e cobranças')}
+    </div></div>`;
+}
+/* Barra de distribuição: quanto de cada etapa no total em aberto. Os tons giram
+   na régua --t1..--t6 pra duas etapas vizinhas nunca saírem da mesma cor. */
+function funilBarra(){
+  const et=ST.resumo.etapas.filter(e=>e.leads>0);
+  const total=et.reduce((s,e)=>s+e.leads,0);
+  if(!total) return '';
+  const tom=(i)=>`var(--t${(i%6)+1})`;
+  return `<div class="card" style="margin-bottom:16px">
+    ${cardH('visao','Onde os leads estão','Distribuição do que está em aberto, por etapa.',1,
+      `<span class="badge b-ac">${total} em aberto</span>`)}
+    <div class="funil-barra">${et.map((e,i)=>
+      `<i style="width:${(e.leads/total*100).toFixed(1)}%;background:${tom(i)}" title="${esc(e.etapa)}: ${e.leads}"></i>`).join('')}</div>
+    <div class="funil-leg">${et.map((e,i)=>
+      `<div><span class="pt" style="background:${tom(i)}"></span>${esc(e.etapa)} <b>${e.leads}</b>
+        <small>${Math.round(e.leads/total*100)}%${e.valor?' · '+brl(e.valor):''}</small></div>`).join('')}</div></div>`;
 }
 
 function telaCrm(){
   if(!ST.funil.length){
     return head('Integração CRM','O funil vem do seu processo — o CRM não inventa etapas.')+
-    `<div class="card"><h3>Defina o funil</h3><p class="hint" style="margin-bottom:11px">Uma etapa por linha, na ordem em que a venda anda.</p>
+    `<div class="card">
+    ${cardH('crm',`Defina o funil`,`Uma etapa por linha, na ordem em que a venda anda.`,1)}
       <textarea id="funilTxt" rows="6" placeholder="Novo lead&#10;Qualificado&#10;Proposta enviada&#10;Negociação&#10;Fechado"></textarea>
-      <div style="margin-top:10px"><button class="btn btn-p" onclick="salvarFunil()">Salvar funil</button></div></div>`;
+      <div style="margin-top:10px"><button class="btn btn-p" onclick="salvarFunil()">${ico('salvar')}Salvar funil</button></div></div>`;
   }
   const r=ST.resumo;
   return head('Integração CRM','Pipeline de vendas. O bot vai escrever aqui: cada mensagem vira interação, cada qualificação vira score auditável.')+
   `<div class="grid g-kpi" style="margin-bottom:16px">
     ${kpi('Abertos',r.abertos,'no funil')}${kpi('Ganhos',r.ganhos,'fechados')}${kpi('Perdidos',r.perdidos,'fechados')}
     ${kpi('Conversão',r.conversao==null?'—':Math.round(r.conversao*100)+'%',r.conversao==null?'sem fechamento ainda':'ganhos ÷ fechados')}</div>
-  <div class="card" style="margin-bottom:16px"><h3>Leads</h3>
+  ${VISAO_LEAD==='funil'?'':funilBarra()}
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('crm','Leads','Cada mensagem do bot vira interação; cada qualificação, um score auditável.',1)}
     <div class="tbl-bar">
       <input id="lBusca" value="${esc(BUSCA.lead||'')}" placeholder="Buscar por nome, telefone ou interesse"
         oninput="buscarEm('lead',this.value)">
@@ -1853,8 +2187,8 @@ function telaCrm(){
         <option value="tabela"${VISAO_LEAD==='tabela'?' selected':''}>Lista</option>
         <option value="funil"${VISAO_LEAD==='funil'?' selected':''}>Funil</option>
       </select>
-      <button class="btn btn-s" onclick="carregar()">Atualizar</button>
-      <button class="btn btn-p" onclick="novoLead()">+ Novo lead</button>
+      <button class="btn btn-s" onclick="carregar()">${ico('atualizar')}Atualizar</button>
+      <button class="btn btn-p" onclick="novoLead()">${ico('mais')}Novo lead</button>
     </div>
     ${VISAO_LEAD==='funil'
       ? `<div class="board">${ST.funil.map(colHtml).join('')}</div>`
@@ -1895,8 +2229,8 @@ function cardLead(l){
    <div class="meta">+${esc(l.telefone)}${l.interesse?' · '+esc(l.interesse):''} · ${brl(l.valor)}</div>
    ${tags?`<div class="tags">${tags}</div>`:''}
    <div class="acts"><select onchange="mover('${esc(l.id)}',this.value)">${ST.funil.map(e=>`<option${e===l.etapa?' selected':''}>${esc(e)}</option>`).join('')}</select>
-    <button class="btn btn-xs btn-ok" onclick="fechar('${esc(l.id)}','ganho')">Ganhou</button>
-    <button class="btn btn-xs btn-no" onclick="fechar('${esc(l.id)}','perdido')">Perdeu</button></div></div>`;
+    <button class="btn btn-xs btn-ok" onclick="fechar('${esc(l.id)}','ganho')">${ico('check')}Ganhou</button>
+    <button class="btn btn-xs btn-no" onclick="fechar('${esc(l.id)}','perdido')">${ico('fechar')}Perdeu</button></div></div>`;
 }
 
 /* ---- indicação (funcional) ---- */
@@ -1910,8 +2244,8 @@ function telaIndicacao(){
     ${kpi('A pagar',brl(r.aPagar),r.aPagar==null?'nenhum ganho lançado':'comissão acumulada')}
     ${kpi('Numa venda de R$ 1.000',ex.valor==null?'—':brl(ex.valor),ex.motivo||'pela regra atual')}</div>
 
-  <div class="card" style="margin-bottom:16px"><h3>Regra de comissão</h3>
-   <p class="hint" style="margin-bottom:12px">Vale para todos os parceiros. Mudança aqui não altera comissão já lançada.</p>
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('indicacao',`Regra de comissão`,`Vale para todos os parceiros. Mudança aqui não altera comissão já lançada.`,1)}
    <div class="form-grid">
      <div class="field"><label>Modelo</label><select id="iModelo" onchange="trocaModelo()">
        <option value="percentual"${g.modelo==='percentual'?' selected':''}>Percentual da venda</option>
@@ -1923,14 +2257,14 @@ function telaIndicacao(){
        <option value="sempre"${g.quando==='sempre'?' selected':''}>Toda venda do indicado</option></select></div>
      <div class="field"><label>Validade (dias)</label><input id="iVal" type="number" value="${g.validadeDias??''}" placeholder="90"></div>
      <div class="field" style="grid-column:1/-1"><label>Link base</label><input id="iLink" value="${esc(g.linkBase||'')}" placeholder="https://velososolution.online"></div>
-     <button class="btn btn-p" onclick="salvarRegra()">Salvar regra</button></div></div>
+     <button class="btn btn-p" onclick="salvarRegra()">${ico('salvar')}Salvar regra</button></div></div>
 
-  <div class="card"><h3>Parceiros</h3>
-   <div class="tbl-bar">
+  <div class="card">
+    ${cardH('indicacao',`Parceiros`,``,1)}<div class="tbl-bar">
      <input id="pBusca" value="${esc(BUSCA.parceiro||'')}" placeholder="Buscar por nome ou código"
        oninput="buscarEm('parceiro',this.value)">
-     <button class="btn btn-s" onclick="carregar()">Atualizar</button>
-     <button class="btn btn-p" onclick="novoParceiro()">+ Novo parceiro</button>
+     <button class="btn btn-s" onclick="carregar()">${ico('atualizar')}Atualizar</button>
+     <button class="btn btn-p" onclick="novoParceiro()">${ico('mais')}Novo parceiro</button>
    </div>
    ${tabela({
      vazio:'Nenhum parceiro cadastrado — clique em <b>+ Novo parceiro</b>.',
@@ -1961,8 +2295,8 @@ function novoParceiro(){
        <div class="field" style="grid-column:1/-1"><label>Código <small>(opcional)</small></label>
          <input id="pCod" placeholder="ana"></div>
      </div>`,
-    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
-     <button class="btn btn-p" onclick="criarParceiro()">Cadastrar</button>`);
+    `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Cancelar</button>
+     <button class="btn btn-p" onclick="criarParceiro()">${ico('salvar')}Cadastrar</button>`);
 }
 function trocaModelo(){
   const m=document.getElementById('iModelo').value;
@@ -1979,7 +2313,7 @@ const S={
   const p=EST;
   const canais=Object.entries(p.canais).map(([c,s])=>`<div class="stat-row">
     <div class="lbl">${esc(s.nome)}<small>${s.prontos} de ${s.total} produto(s) prontos${s.faltando?` · ${s.faltando} incompleto(s)`:''}</small></div>
-    <button class="btn ${s.prontos?'btn-p':''}" ${s.prontos?'':'disabled'} onclick="baixarFeed('${esc(c)}')">Baixar</button></div>`).join('');
+    <button class="btn ${s.prontos?'btn-p':''}" ${s.prontos?'':'disabled'} onclick="baixarFeed('${esc(c)}')">${ico('baixar')}Baixar</button></div>`).join('');
 
   return head('Estoque','Cadastro de produto, saldo com reserva e exportação para os canais de venda.')+
   `<div class="grid g-kpi" style="margin-bottom:16px">
@@ -1988,19 +2322,17 @@ const S={
     ${kpi('Valor parado',p.valorFormatado,'quantidade × preço')}
     ${kpi('Sem saldo',p.semEstoque,'ativos que não dá pra entregar')}
   </div>
-  ${p.alertas.length?`<div class="card" style="margin-bottom:16px"><h3>Precisa de atenção</h3>
-    ${p.alertas.map(a=>linha(a.nome||a.sku,esc(a.sku),a.nivel==='acabou'?'acabou':`baixo: ${a.livre}`,a.nivel==='acabou'?'b-err':'b-warn')).join('')}</div>`:''}
+  ${p.alertas.length?`<div class="card" style="margin-bottom:16px">
+    ${cardH('alerta',`Precisa de atenção`,``,5)}${p.alertas.map(a=>linha(a.nome||a.sku,esc(a.sku),a.nivel==='acabou'?'acabou':`baixo: ${a.livre}`,a.nivel==='acabou'?'b-err':'b-warn')).join('')}</div>`:''}
 
   <div id="ePendencias"></div>
 
-  <div class="card" style="margin-bottom:16px"><h3>Exportar para os canais</h3>
-    <p class="hint">Produto com campo faltando <b>não entra no arquivo</b>: o Google reprova o item calado e a Meta reprova o feed inteiro. Melhor saber aqui.</p>
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('exportar',`Exportar para os canais`,`Produto com campo faltando <b>não entra no arquivo</b>: o Google reprova o item calado e a Meta reprova o feed inteiro. Melhor saber aqui.`,2)}
     ${canais}</div>
 
-  <div class="card" style="margin-bottom:16px"><h3>Lote de exportação por período</h3>
-    <p class="hint">Recorta o catálogo pelo que <b>mudou</b> na janela de datas e congela o arquivo.
-      Quem recebe precisa saber o que mudou desde a última carga — e precisa poder reimportar
-      exatamente o mesmo arquivo se a importação falhar no meio. Sem data, entra o catálogo inteiro.</p>
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('exportar',`Lote de exportação por período`,`Recorta o catálogo pelo que <b>mudou</b> na janela de datas e congela o arquivo. Quem recebe precisa saber o que mudou desde a última carga — e precisa poder reimportar exatamente o mesmo arquivo se a importação falhar no meio. Sem data, entra o catálogo inteiro.`,6)}
     <div class="form-grid" style="margin-top:10px">
       <div class="field"><label>Data inicial</label><input id="loDe" type="date"></div>
       <div class="field"><label>Data final</label><input id="loAte" type="date"></div>
@@ -2009,7 +2341,7 @@ const S={
       <div class="field" style="justify-content:flex-end"><label for="loInativos"
         style="display:flex;align-items:center;gap:7px;font-weight:400;cursor:pointer;padding-bottom:9px">
         <input type="checkbox" id="loInativos" style="width:auto;margin:0"> Incluir inativos</label></div>
-      <button class="btn btn-p" onclick="gerarLote()">Gerar lote</button>
+      <button class="btn btn-p" onclick="gerarLote()">${ico('gerar')}Gerar lote</button>
     </div>
     ${LOTES?.lotes?.length?`<div class="tbl-wrap" style="margin-top:14px"><table>
       <thead><tr><th>Lote</th><th>Período</th><th>Formato</th><th style="text-align:center">No arquivo</th>
@@ -2022,24 +2354,24 @@ const S={
         <td style="text-align:center">${l.recusados.length?`<span class="badge b-warn" title="${esc(l.recusados.map(r=>r.sku+': '+r.faltando.join(', ')).join(' | '))}">${l.recusados.length}</span>`:'—'}</td>
         <td>${esc(String(l.criadoEm).slice(0,16).replace('T',' '))}</td>
         <td style="white-space:nowrap">
-          <button class="btn btn-s btn-xs" onclick="baixarLote('${esc(l.id)}')">baixar</button>
-          <button class="btn btn-s btn-xs" onclick="excluirLote('${esc(l.id)}')">excluir</button></td>
+          <button class="btn btn-s btn-xs" onclick="baixarLote('${esc(l.id)}')">${ico('baixar')}baixar</button>
+          <button class="btn btn-s btn-xs" onclick="excluirLote('${esc(l.id)}')">${ico('excluir')}excluir</button></td>
       </tr>`).join('')}</tbody></table></div>`
       :'<p class="hint" style="margin-top:12px">Nenhum lote gerado ainda.</p>'}</div>
 
   ${publicacoesHtml()}
 
-  <div class="card"><h3>Catálogo</h3>
-    <div class="tbl-bar">
+  <div class="card">
+    ${cardH('estoque',`Catálogo`,``,4)}<div class="tbl-bar">
       <input id="eBusca" value="${esc(TAB.busca)}" placeholder="Buscar por nome, código, marca ou categoria"
         oninput="buscarNaTabela(this.value)">
       <select onchange="porPagina(this.value)" title="Itens por página" style="width:auto">
         ${[10,20,50,100].map(n=>`<option value="${n}"${TAB.porPagina===n?' selected':''}>${n} por página</option>`).join('')}
       </select>
-      <button class="btn btn-s" onclick="carregar()" title="Atualizar">Atualizar</button>
-      <button class="btn btn-s" onclick="abrirImportar()" title="Importar produtos de um arquivo">Importar</button>
-      <button class="btn btn-s" onclick="abrirExportar()" title="Exportar o catálogo">Exportar</button>
-      <button class="btn btn-p" onclick="novoProduto()">+ Novo produto</button>
+      <button class="btn btn-s" onclick="carregar()" title="Atualizar">${ico('atualizar')}Atualizar</button>
+      <button class="btn btn-s" onclick="abrirImportar()" title="Importar produtos de um arquivo">${ico('importar')}Importar</button>
+      <button class="btn btn-s" onclick="abrirExportar()" title="Exportar o catálogo">${ico('exportar')}Exportar</button>
+      <button class="btn btn-p" onclick="novoProduto()">${ico('mais')}Novo produto</button>
     </div>
     ${tabelaProdutos(p.produtos)}
   </div>`;
@@ -2058,14 +2390,15 @@ const S={
     ${kpi('Ticket médio',f.ticketMedio,'só dos ganhos com valor')}
     ${kpi('Estoque parado',f.estoqueParado,'ativo, não receita')}
   </div>
-  <div class="card" style="margin-bottom:16px"><h3>De onde vem cada número</h3>${fontes}
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('relatorios',`De onde vem cada número`,``,2)}${fontes}
     ${linha('Total reconhecido','vendas fechadas + conteúdo — o pipeline NÃO entra',f.totalReconhecido,'b-ok')}
     ${linha('Perdido','leads marcados como perdidos',f.perdido,'')}
     ${linha('Conversão','ganhos ÷ fechados',f.conversao==null?'—':Math.round(f.conversao*100)+'%',f.conversao==null?'':'b-ok')}</div>
   ${caixaHtml()}
-  <div class="card" style="border-style:dashed"><h3>O que estes números NÃO são</h3>
-    <p class="hint">Isto é caixa operacional, não fechamento contábil. Nada aqui foi conciliado contra extrato bancário.</p>
-    ${f.lacunas.map(l=>linha('•',' ',l,'b-warn')).join('')||'<p class="hint">Sem lacunas: todas as fontes estão preenchidas.</p>'}</div>`;
+  <div class="card" style="border-style:dashed">
+    ${cardH('alerta',`O que estes números NÃO são`,`Isto é caixa operacional, não fechamento contábil. Nada aqui foi conciliado contra extrato bancário.`,5)}
+    ${f.lacunas.length?notas(f.lacunas):'<p class="hint">Sem lacunas: todas as fontes estão preenchidas.</p>'}</div>`;
  },
  bot:()=>{
   if(!BOT) return head('Bot','Atendimento automático: regras, respostas e quando chamar gente.')+
@@ -2079,23 +2412,22 @@ const S={
     ${kpi('Canal','nenhum','o WhatsApp entra depois')}
   </div>
   ${BOT.aviso?`<div class="card" style="margin-bottom:16px;border-style:dashed">
-    <h3>Atenção</h3>${linha('Bot ligado sem regra',esc(BOT.aviso),'corrigir','b-err')}</div>`:''}
+    ${cardH('alerta',`Atenção`,``,5)}${linha('Bot ligado sem regra',esc(BOT.aviso),'corrigir','b-err')}</div>`:''}
 
-  <div class="card" style="margin-bottom:16px"><h3>Testar a conversa</h3>
-    <p class="hint">Escreva como um cliente escreveria. O bot responde com as regras de verdade e com o
-      seu catálogo real — sem precisar de WhatsApp nem de token nenhum.</p>
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('whats',`Testar a conversa`,`Escreva como um cliente escreveria. O bot responde com as regras de verdade e com o seu catálogo real — sem precisar de WhatsApp nem de token nenhum.`,3)}
     <div class="tbl-bar" style="margin-top:12px">
       <input id="simTxt" placeholder="Ex.: qual o horário de vocês?" onkeydown="if(event.key==='Enter')simular()">
-      <button class="btn btn-p" onclick="simular()">Enviar</button>
-      <button class="btn btn-s" onclick="SIMULACAO=[];render()">Limpar</button>
+      <button class="btn btn-p" onclick="simular()">${ico('enviar')}Enviar</button>
+      <button class="btn btn-s" onclick="SIMULACAO=[];render()">${ico('limpar')}Limpar</button>
     </div>
     <div id="simSaida" style="margin-top:14px">${simulacaoHtml()}</div></div>
 
-  <div class="card" style="margin-bottom:16px"><h3>Regras</h3>
-    <div class="tbl-bar">
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('bot',`Regras`,``,6)}<div class="tbl-bar">
       <input id="brBusca" value="${esc(BUSCA.regra||'')}" placeholder="Buscar por termo ou resposta"
         oninput="buscarEm('regra',this.value)">
-      <button class="btn btn-p" onclick="novaRegra()">+ Nova regra</button>
+      <button class="btn btn-p" onclick="novaRegra()">${ico('mais')}Nova regra</button>
     </div>
     ${tabela({
       vazio:'Nenhuma regra ainda — clique em <b>+ Nova regra</b>. Sem regra, o bot só sabe dizer que não entendeu.',
@@ -2114,8 +2446,8 @@ const S={
       itens:BOT.regras.filter(r=>casa(BUSCA.regra,[r.nome,r.resposta,(r.termos||[]).join(' ')])),
     })}</div>
 
-  <div class="card"><h3>Como ele se comporta</h3>
-    <div class="form-grid">
+  <div class="card">
+    ${cardH('bot',`Como ele se comporta`,``,6)}<div class="form-grid">
       <div class="field"><label>Nome do atendente</label><input id="bcNome" value="${esc(c.nome)}"></div>
       <div class="field"><label>Falhas até chamar gente</label>
         <input id="bcFalhas" type="number" min="1" value="${esc(c.falhasAteHumano)}"></div>
@@ -2128,7 +2460,7 @@ const S={
         <input type="checkbox" id="bcAtivo" style="width:auto;margin:0"${c.ativo?' checked':''}> Bot ligado</label></div>
       <div class="field"><label style="display:flex;align-items:center;gap:7px;font-weight:400;cursor:pointer;padding-bottom:9px">
         <input type="checkbox" id="bcCat" style="width:auto;margin:0"${c.usarCatalogo?' checked':''}> Responder com o catálogo</label></div>
-      <button class="btn btn-p" onclick="salvarBot()">Salvar</button>
+      <button class="btn btn-p" onclick="salvarBot()">${ico('salvar')}Salvar</button>
     </div>
     <p class="hint" style="margin-top:10px">Use <code>{nome}</code>, <code>{empresa}</code> nas respostas — são trocados
       pelo valor real. Variável sem valor aparece como está, em vez de sumir.</p></div>`;
@@ -2138,17 +2470,16 @@ const S={
     vazio('auditor','Backend sem a rota de auditoria','Atualize o backend para a versão com o VSpainel.',['Subir o backend novo','Recarregar']);
   const sit={'verde':'b-ok','vencido':'b-warn','nunca rodou':''};
   const cards=AUD.itens.map(i=>{
-    if(!i.existe) return `<div class="card" style="margin-bottom:10px"><h3>${esc(i.nome||i.repo)}</h3>
-      <p class="hint">✖ ${esc(i.motivo)}</p><p class="hint"><code>${esc(i.repo)}</code></p></div>`;
+    if(!i.existe) return `<div class="card" style="margin-bottom:10px">
+      ${cardH('alerta',i.nome||i.repo,`✖ ${esc(i.motivo)}<br><code>${esc(i.repo)}</code>`,5)}</div>`;
     const recs=Object.entries(i.recibos).map(([stack,r])=>{
       if(!r.existe) return linha(stack,'nenhum recibo gravado','nunca rodou','');
       return linha(stack, r.valido?`gravado há ${r.idadeMin} min na branch ${esc(r.branch||'—')}`:esc(r.motivo),
         r.valido?'verde':'não vale', r.valido?'b-ok':'b-err');
     }).join('');
     return `<div class="card" style="margin-bottom:10px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-        <div><h3>${esc(i.nome)}</h3><p class="hint">branch <b>${esc(i.branch||'—')}</b></p></div>
-        <span class="badge ${sit[i.situacao]||''}">${esc(i.situacao)}</span></div>
+      ${cardH('auditor',i.nome,`branch <b>${esc(i.branch||'—')}</b>`,6,
+        `<span class="badge ${sit[i.situacao]||''}">${esc(i.situacao)}</span>`)}
       ${recs}
       ${i.docPendente?linha('Documentação pendente',`push feito na branch ${esc(i.docPendente.branch||'—')}`,'pendente','b-warn'):''}</div>`;
   }).join('');
@@ -2161,12 +2492,10 @@ const S={
     ${kpi('Nunca rodaram',AUD.nuncaRodaram,'sem recibo nenhum')}
   </div>
   <div class="card" style="margin-bottom:16px;border-style:dashed">
-    <h3>O que conta como verde</h3>
-    <p class="hint">Existir recibo não basta. Vale só se <b>status=green</b>, se a <b>branch for a que está em uso agora</b>,
-    se tiver menos de <b>${AUD.validadeMin} min</b> e se <b>ninguém editou depois</b>. Recibo velho é pior que recibo nenhum:
-    dá sensação de verde pra um código que mudou.</p></div>
+    ${cardH('auditor',`O que conta como verde`,`Existir recibo não basta. Vale só se <b>status=green</b>, se a <b>branch for a que está em uso agora</b>, se tiver menos de <b>${AUD.validadeMin} min</b> e se <b>ninguém editou depois</b>. Recibo velho é pior que recibo nenhum: dá sensação de verde pra um código que mudou.`,6)}</div>
   ${cards}
-  ${g.eventos?`<div class="card" style="margin-top:16px"><h3>Governança (${g.eventos} tarefa(s) registrada(s))</h3>
+  ${g.eventos?`<div class="card" style="margin-top:16px">
+    ${cardH('politica',`Governança`,`${g.eventos} tarefa(s) registrada(s) no período.`,3)}
     ${linha('Commits no padrão','',(g.commitStdPct??'—')+'%',g.commitStdPct>=90?'b-ok':'b-warn')}
     ${linha('Retrabalho de QA',`baseline ${g.reworkBaselinePct}%`,(g.reworkPct??'—')+'%',g.reworkPct<=g.reworkBaselinePct?'b-ok':'b-warn')}
     ${linha('Documentação automática','',(g.docAutoPct??'—')+'%','')}
@@ -2182,14 +2511,13 @@ const S={
       :res.ok?`<span class="badge b-ok">conectado${res.conta?' · '+esc(res.conta):''}</span>`
       :`<span class="badge b-err">${esc(res.motivo)}</span>`;
     return `<div class="card" style="margin-bottom:12px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-        <div><h3>${esc(c[r].nome)}</h3><p class="hint">${esc(c[r].ajuda)}</p></div>${badge}</div>
+      ${cardH('integra',c[r].nome,esc(c[r].ajuda),2,badge)}
       <div class="form-grid">${campos}
-        <button class="btn btn-p" onclick="testarRede('${esc(r)}')">Testar conexão</button></div></div>`;
+        <button class="btn btn-p" onclick="testarRede('${esc(r)}')">${ico('testar')}Testar conexão</button></div></div>`;
   }).join('');
   return head('Conexões com redes sociais','Cole a credencial e teste. A chamada sai daqui de verdade — se a rede responder, você vê o nome da conta; se recusar, vê o motivo.')+
-  `<div class="card" style="margin-bottom:16px"><h3>O que já existia no VSinfluence</h3>
-    ${linha('Formato de corte por rede','1080×1920 para TikTok, Reels e Shorts','pronto','b-ok')}
+  `<div class="card" style="margin-bottom:16px">
+    ${cardH('versao',`O que já existia no VSinfluence`,``,3)}${linha('Formato de corte por rede','1080×1920 para TikTok, Reels e Shorts','pronto','b-ok')}
     ${linha('Agenda de publicação','5 redes, varredura por cron','pronto','b-ok')}
     ${linha('Normalizador de métrica','YouTube, Instagram, TikTok e Facebook','pronto','b-ok')}
     ${linha('Chamada nas APIs','o coletor que faltava','novo','b-ok')}
@@ -2199,18 +2527,15 @@ const S={
     ${linha('Demais redes','YouTube, Instagram, Facebook: só leitura','ainda não','b-warn')}</div>
   ${tiktokCard()}
   <div class="card" style="margin-bottom:16px;border-style:dashed">
-    <h3>Teste rápido — a credencial abaixo não fica gravada</h3>
-    <p class="hint">Vale para os formulários desta seção: o token vai até este servidor, é usado na chamada e descartado.
-    Serve para conferir se uma credencial funciona, não para deixar a integração ligada.
-    <b>A integração completa do TikTok é o bloco acima</b>, com OAuth e token renovado sozinho.</p></div>
+    ${cardH('integra',`Teste rápido — a credencial abaixo não fica gravada`,`Vale para os formulários desta seção: o token vai até este servidor, é usado na chamada e descartado. Serve para conferir se uma credencial funciona, não para deixar a integração ligada. <b>A integração completa do TikTok é o bloco acima</b>, com OAuth e token renovado sozinho.`,2)}</div>
   ${linhas}`;
  },
  quebragalho:()=>{
   if(!QG) return head('Quebra-Galho','Marketplace de serviços locais — BH e Grande BH.')+
     vazio('quebragalho','Backend sem a rota do Quebra-Galho','Atualize o backend para a versão com a ponte.',['Subir o backend novo','Recarregar']);
   if(!QG.disponivel) return head('Quebra-Galho','Marketplace de serviços locais — BH e Grande BH.')+
-    `<div class="card" style="margin-bottom:16px"><h3>O Quebra-Galho não respondeu</h3>
-      <p class="hint">${esc(QG.motivo)}. Ele roda em processo separado, então isto não afeta o resto do painel.</p>
+    `<div class="card" style="margin-bottom:16px">
+    ${cardH('alerta',`O Quebra-Galho não respondeu`,`${esc(QG.motivo)}. Ele roda em processo separado, então isto não afeta o resto do painel.`,5)}
       ${linha('Endereço','onde o painel procura',esc(QG.url),'')}
       ${QG.comoResolver?`<p class="hint" style="margin-top:10px">${esc(QG.comoResolver)}</p>`:''}</div>`;
   const n=QG.numeros, p=QG.prestadores||{};
@@ -2221,8 +2546,8 @@ const S={
     ${kpi('GMV',brl(n.gmvCentavos/100),'volume transacionado')}
     ${kpi('Receita',brl(n.receitaCentavos/100),'comissão da plataforma')}
   </div>
-  <div class="card" style="margin-bottom:16px"><h3>Operação</h3>
-    ${linha('Profissionais',`${p.emAnalise||0} em análise`,`${p.ativos||0} ativo(s)`,p.ativos?'b-ok':'b-warn')}
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('visao',`Operação`,``,1)}${linha('Profissionais',`${p.emAnalise||0} em análise`,`${p.ativos||0} ativo(s)`,p.ativos?'b-ok':'b-warn')}
     ${linha('Clientes','cadastrados no marketplace',String(QG.clientes??'—'),'')}
     ${linha('Propostas','enviadas pelos profissionais',String(n.propostas),'')}
     ${linha('Avaliações','após serviço concluído',String(n.avaliacoes),'')}
@@ -2232,9 +2557,8 @@ const S={
     ${QG.categorias!=null?linha('Categorias','cadastráveis',String(QG.categorias),''):''}
   </div>
   <div class="card">
-    <h3>Abrir o Quebra-Galho</h3>
-    <p class="hint">É um produto separado, com login e dados próprios. O painel lê os números por API — nenhum dos dois depende do outro para subir.</p>
-    <a class="btn btn-p" href="${esc(QG.url)}" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;text-decoration:none">Abrir em nova aba</a>
+    ${cardH('quebragalho',`Abrir o Quebra-Galho`,`É um produto separado, com login e dados próprios. O painel lê os números por API — nenhum dos dois depende do outro para subir.`,6)}
+    <a class="btn btn-p" href="${esc(QG.url)}" target="_blank" rel="noopener" style="margin-top:10px">${ico('seta')}Abrir em nova aba</a>
   </div>`;
  },
  relatorios:()=>{
@@ -2256,24 +2580,24 @@ const S={
     ${kpi('Origens',r.origens.length,'canais com lead')}
     ${kpi('Catálogo',r.catalogo?r.catalogo.produtos:'—',r.catalogo?`${r.catalogo.ativos} à venda`:'sem produto')}
   </div>
-  ${ori?`<div class="card" style="margin-bottom:16px"><h3>De onde vem quem compra</h3>
-    <p class="hint">Origem sem nada fechado aparece como "—", não como 0% — matar um canal por amostra vazia é erro caro.</p>
+  ${ori?`<div class="card" style="margin-bottom:16px">
+    ${cardH('redes',`De onde vem quem compra`,`Origem sem nada fechado aparece como "—", não como 0% — matar um canal por amostra vazia é erro caro.`,3)}
     <div class="tbl-wrap"><table><thead><tr><th>Origem</th><th>Leads</th><th>Ganhos</th><th>Perdidos</th><th>Conversão</th><th>Receita</th><th></th></tr></thead>
     <tbody>${ori}</tbody></table></div></div>`:''}
-  ${fun?`<div class="card" style="margin-bottom:16px"><h3>Onde o funil perde gente</h3>
-    <p class="hint">Conta quem <b>passou</b> pela etapa, não quem está parado nela.</p>${fun}</div>`:''}
-  ${r.esquecidos.length?`<div class="card" style="margin-bottom:16px"><h3>Parados há mais de 7 dias</h3>
-    ${r.esquecidos.slice(0,10).map(l=>linha(l.nome||l.id,esc(l.etapa),l.paradoDias+' dias','b-warn')).join('')}</div>`:''}
-  ${r.catalogo?`<div class="card" style="margin-bottom:16px"><h3>Catálogo pronto pra anunciar</h3>
-    ${Object.entries(r.catalogo.canais).map(([c,s])=>linha(s.nome||c,`${s.prontos} de ${s.total} prontos`,s.faltando?s.faltando+' incompleto(s)':'tudo pronto',s.faltando?'b-warn':'b-ok')).join('')}</div>`:''}
-  <div class="card" style="border-style:dashed"><h3>O que NÃO entrou neste relatório</h3>
-    ${r.naoEntrou.map(x=>linha('•',' ',x,'')).join('')}</div>`;
+  ${fun?`<div class="card" style="margin-bottom:16px">
+    ${cardH('crm',`Onde o funil perde gente`,`Conta quem <b>passou</b> pela etapa, não quem está parado nela.`,1)}${fun}</div>`:''}
+  ${r.esquecidos.length?`<div class="card" style="margin-bottom:16px">
+    ${cardH('relogio',`Parados há mais de 7 dias`,``,5)}${r.esquecidos.slice(0,10).map(l=>linha(l.nome||l.id,esc(l.etapa),l.paradoDias+' dias','b-warn')).join('')}</div>`:''}
+  ${r.catalogo?`<div class="card" style="margin-bottom:16px">
+    ${cardH('estoque',`Catálogo pronto pra anunciar`,``,4)}${Object.entries(r.catalogo.canais).map(([c,s])=>linha(s.nome||c,`${s.prontos} de ${s.total} prontos`,s.faltando?s.faltando+' incompleto(s)':'tudo pronto',s.faltando?'b-warn':'b-ok')).join('')}</div>`:''}
+  <div class="card" style="border-style:dashed">
+    ${cardH('alerta',`O que NÃO entrou neste relatório`,``,5)}${notas(r.naoEntrou)}</div>`;
  },
 
  'wa-integracao':()=>{const w=STATUS?.whatsapp||{};
   return head('WhatsApp · Integração','Conexão com a Cloud API da Meta. Enquanto o provider for <code>log</code>, nada sai do servidor.')+
-  `<div class="card" style="margin-bottom:16px"><h3>Estado da conexão</h3>
-    ${linha('Provider','WHATSAPP_PROVIDER',w.provider||'log',w.envia?'b-ok':'b-warn')}
+  `<div class="card" style="margin-bottom:16px">
+    ${cardH('integra',`Estado da conexão`,``,2)}${linha('Provider','WHATSAPP_PROVIDER',w.provider||'log',w.envia?'b-ok':'b-warn')}
     ${linha('WA_TOKEN','token do app da Meta',w.waToken?'presente':'ausente',w.waToken?'b-ok':'')}
     ${linha('WA_PHONE_ID','id do número Business',w.waPhoneId?'presente':'ausente',w.waPhoneId?'b-ok':'')}
     ${linha('WA_TEMPLATE','exigido fora da janela de 24h',w.template?'configurado':'ausente',w.template?'b-ok':'b-warn')}
@@ -2294,13 +2618,11 @@ const S={
     ${kpi('Recebidas',inter.length-saida,w.envia?'pelo webhook':'sem canal de entrada')}
     ${kpi('Custo','—','só a fatura da Meta responde')}
   </div>
-  <div class="card" style="margin-bottom:16px"><h3>Por mês</h3>
-    ${meses.length?meses.map(([m,n])=>linha(m.split('-').reverse().join('/'),'mensagens',String(n),'b-ok')).join('')
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('financeiro',`Por mês`,``,2)}${meses.length?meses.map(([m,n])=>linha(m.split('-').reverse().join('/'),'mensagens',String(n),'b-ok')).join('')
       :'<p class="hint">Nenhuma mensagem registrada ainda. O contador enche sozinho conforme as conversas acontecem.</p>'}</div>
-  <div class="card" style="border-style:dashed"><h3>Por que o custo aparece como “—”</h3>
-    <p class="hint">A Meta cobra por <b>conversa</b>, não por mensagem, e o preço muda com a categoria
-      (atendimento, marketing, utilidade) e com o país. Estimar isso aqui seria inventar número:
-      o valor real está na fatura deles.</p>
+  <div class="card" style="border-style:dashed">
+    ${cardH('politica',`Por que o custo aparece como “—”`,`A Meta cobra por <b>conversa</b>, não por mensagem, e o preço muda com a categoria (atendimento, marketing, utilidade) e com o país. Estimar isso aqui seria inventar número: o valor real está na fatura deles.`,3)}
     ${linha('Canal de saída',esc(w.provider||'log'),w.envia?'enviando':'não envia',w.envia?'b-ok':'b-warn')}
     ${linha('Canal de entrada','webhook da Meta',w.envia?'depende da conta':'não existe','b-warn')}</div>`;
  },
@@ -2313,17 +2635,15 @@ const S={
     ${kpi('Canal WhatsApp','falta',(STATUS?.whatsapp?.envia)?'saída ok, entrada não':'conta Meta pendente')}
     ${kpi('Chamam gente',b?b.comHandoff:'—','passam pro humano')}
   </div>
-  <div class="card" style="margin-bottom:16px"><h3>O que já funciona</h3>
-    <p class="hint">O motor de atendimento existe e é testável agora: regras, prioridade, catálogo,
-      passagem pra humano e simulador de conversa. Nada disso espera a Meta.</p>
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('check',`O que já funciona`,`O motor de atendimento existe e é testável agora: regras, prioridade, catálogo, passagem pra humano e simulador de conversa. Nada disso espera a Meta.`,2)}
     ${linha('Regras de resposta','termo, prioridade e resposta',b&&b.total?`${b.total} cadastrada(s)`:'nenhuma ainda',b&&b.total?'b-ok':'b-warn')}
     ${linha('Passar pra uma pessoa','pedido explícito ou bot perdido','pronto','b-ok')}
     ${linha('Responder com o catálogo','usa os produtos da vitrine',b?.config?.usarCatalogo?'ligado':'desligado',b?.config?.usarCatalogo?'b-ok':'')}
     ${linha('Simulador','testa a conversa sem canal','pronto','b-ok')}
-    <div style="margin-top:12px"><button class="btn btn-p" onclick="ir('bot')">Abrir a tela do Bot</button></div></div>
-  <div class="card" style="border-style:dashed"><h3>O que falta, e é só canal</h3>
-    <p class="hint">Quando a conta Meta destravar, o trabalho é ligar a entrada e a saída no motor
-      que já está pronto — as regras não mudam.</p>
+    <div style="margin-top:12px"><button class="btn btn-p" onclick="ir('bot')">${ico('bot')}Abrir a tela do Bot</button></div></div>
+  <div class="card" style="border-style:dashed">
+    ${cardH('alerta',`O que falta, e é só canal`,`Quando a conta Meta destravar, o trabalho é ligar a entrada e a saída no motor que já está pronto — as regras não mudam.`,5)}
     ${linha('Webhook de entrada','recebe a mensagem do cliente e valida a assinatura','falta','b-warn')}
     ${linha('Envio pela Cloud API','leva a resposta de volta',(STATUS?.whatsapp?.envia)?'pronto':'falta',(STATUS?.whatsapp?.envia)?'b-ok':'b-warn')}
     ${linha('Gravar no lead','cada mensagem vira interação na trilha','pronto','b-ok')}</div>`;
@@ -2333,8 +2653,8 @@ const S={
   if(!c) return head('WhatsApp · Personalizar','Nome, tom de voz e as mensagens do bot.')+
     vazio('person','Backend sem a rota do bot','Atualize o servidor.',['Subir o backend novo','Recarregar']);
   return head('WhatsApp · Personalizar','Como o bot se apresenta e o que ele fala nas três horas que decidem tudo.')+
-  `<div class="card" style="margin-bottom:16px"><h3>Como ele se apresenta</h3>
-    <p class="hint">Vale em qualquer canal — WhatsApp, site ou o simulador aqui do painel.</p>
+  `<div class="card" style="margin-bottom:16px">
+    ${cardH('whats',`Como ele se apresenta`,`Vale em qualquer canal — WhatsApp, site ou o simulador aqui do painel.`,2)}
     <div class="form-grid" style="margin-top:12px">
       <div class="field"><label>Nome do atendente</label><input id="pzNome" value="${esc(c.nome)}"></div>
       <div class="field"><label>Falhas até chamar gente</label>
@@ -2343,23 +2663,21 @@ const S={
         <textarea id="pzPersona" rows="2">${esc(c.persona||'')}</textarea></div>
     </div></div>
 
-  <div class="card" style="margin-bottom:16px"><h3>As três mensagens que decidem tudo</h3>
-    <p class="hint">Saudação, “não entendi” e “vou chamar alguém”. São as que aparecem mais e as que
-      mais custam quando estão erradas.</p>
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('whats',`As três mensagens que decidem tudo`,`Saudação, “não entendi” e “vou chamar alguém”. São as que aparecem mais e as que mais custam quando estão erradas.`,2)}
     <div class="form-grid" style="margin-top:12px">
       <div class="field" style="grid-column:1/-1"><label>Saudação</label><input id="pzSaud" value="${esc(c.saudacao)}"></div>
       <div class="field" style="grid-column:1/-1"><label>Quando não entende</label><input id="pzFall" value="${esc(c.mensagemFallback)}"></div>
       <div class="field" style="grid-column:1/-1"><label>Ao passar pra uma pessoa</label><input id="pzHand" value="${esc(c.mensagemHandoff)}"></div>
       <div class="field" style="grid-column:1/-1"><label>Ao mandar o catálogo</label><input id="pzCat" value="${esc(c.mensagemCatalogo||'')}"></div>
-      <button class="btn btn-p" onclick="salvarPersonalizacao()">Salvar</button>
-      <button class="btn btn-s" onclick="ir('bot')">Testar no simulador</button>
+      <button class="btn btn-p" onclick="salvarPersonalizacao()">${ico('salvar')}Salvar</button>
+      <button class="btn btn-s" onclick="ir('bot')">${ico('testar')}Testar no simulador</button>
     </div>
     <p class="hint" style="margin-top:10px">Use <code>{nome}</code> e <code>{empresa}</code> — são trocados pelo valor real.
       Variável sem valor aparece como está, em vez de sumir.</p></div>
 
-  <div class="card" style="border-style:dashed"><h3>Foto e nome do número</h3>
-    <p class="hint">A foto e o nome que o cliente vê no topo da conversa <b>não são nossos</b>: vêm do
-      perfil da conta no WhatsApp Manager da Meta. Nada aqui muda isso — e prometer que muda seria mentira.</p>
+  <div class="card" style="border-style:dashed">
+    ${cardH('whats',`Foto e nome do número`,`A foto e o nome que o cliente vê no topo da conversa <b>não são nossos</b>: vêm do perfil da conta no WhatsApp Manager da Meta. Nada aqui muda isso — e prometer que muda seria mentira.`,2)}
     ${linha('Perfil do número','WhatsApp Manager da Meta','fora daqui','b-warn')}
     ${linha('Nome do atendente','aparece nas respostas do bot',esc(c.nome),'b-ok')}</div>`;
  },
@@ -2378,12 +2696,11 @@ const S={
     ${kpi('Viraram venda',ganhosComConversa,comConversa.size?`de ${comConversa.size} com conversa`:'nenhuma conversa ainda')}
     ${kpi('Conversão geral',fechados?Math.round(ST.leads.filter(l=>l.status==='ganho').length/fechados*100)+'%':'—',fechados?'ganhos ÷ fechados':'nenhum lead fechado')}
   </div>
-  <div class="card" style="margin-bottom:16px"><h3>Por etapa do funil</h3>
-    ${ST.resumo.etapas.map(e=>linha(e.etapa,`${e.leads} lead(s) aberto(s)`,e.valor==null?'—':brl(e.valor/1),e.leads?'b-ok':'')).join('')
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('crm',`Por etapa do funil`,``,1)}${ST.resumo.etapas.map(e=>linha(e.etapa,`${e.leads} lead(s) aberto(s)`,e.valor==null?'—':brl(e.valor/1),e.leads?'b-ok':'')).join('')
       ||'<p class="hint">Sem funil cadastrado.</p>'}</div>
-  <div class="card" style="border-style:dashed"><h3>O que ainda não dá pra medir</h3>
-    <p class="hint">Tempo de resposta e custo por conversa vêm da fatura da Meta: sem o canal ligado,
-      esses dois números não existem — e aparecem como <b>—</b>, nunca como zero.</p>
+  <div class="card" style="border-style:dashed">
+    ${cardH('alerta',`O que ainda não dá pra medir`,`Tempo de resposta e custo por conversa vêm da fatura da Meta: sem o canal ligado, esses dois números não existem — e aparecem como <b>—</b>, nunca como zero.`,5)}
     ${linha('Tempo médio de resposta','depende de mensagem com hora de chegada','—','b-warn')}
     ${linha('Custo por conversa','vem da categoria da conversa na fatura da Meta','—','b-warn')}</div>`;
  },
@@ -2396,11 +2713,11 @@ const S={
     ${kpi('Qualificações',eventos.filter(e=>e.tipo==='qualificado').length,'com motivo do score')}
     ${kpi('Leads com trilha',new Set(eventos.map(e=>e.lead)).size,'de '+(ST.leads.length||0))}
   </div>
-  <div class="card"><h3>Trilha</h3>
-    <div class="tbl-bar">
+  <div class="card">
+    ${cardH('auditor',`Trilha`,``,6)}<div class="tbl-bar">
       <input id="auBusca" value="${esc(BUSCA.auditor||'')}" placeholder="Buscar por lead, tipo ou texto"
         oninput="buscarEm('auditor',this.value)">
-      <button class="btn btn-s" onclick="carregar()">Atualizar</button>
+      <button class="btn btn-s" onclick="carregar()">${ico('atualizar')}Atualizar</button>
     </div>
     <p class="hint" style="margin-bottom:10px">Nada aqui é escrito à mão: cada linha foi gravada quando o
       evento aconteceu. Score vem com os motivos — nada de caixa-preta.</p>
@@ -2422,7 +2739,8 @@ const S={
     vazio('plano','Backend sem a rota de conta','Atualize o backend.',['Subir o backend novo','Recarregar']);
   const l=CTA.plano;
   if(!l.disponivel) return head('Plano e acesso','Licença e validade.')+
-    `<div class="card"><h3>Sem módulo de licença</h3><p class="hint">${esc(l.motivo)}</p>
+    `<div class="card">
+    ${cardH('plano',`Sem módulo de licença`,`${esc(l.motivo)}`,3)}
      <p class="hint">Esta instalação roda a governança offline, sem checagem de chave.</p></div>`;
   const badge=l.valida?'b-ok':'b-err';
   const venc=l.diasRestantes==null?null:(l.diasRestantes<0?'venceu há '+Math.abs(l.diasRestantes)+' dia(s)':'faltam '+l.diasRestantes+' dia(s)');
@@ -2432,34 +2750,30 @@ const S={
     ${kpi('Plano',l.plano||'—','o que foi contratado')}
     ${kpi('Validade',venc||'—',l.expiraEm?l.expiraEm.slice(0,10):'sem data')}
   </div>
-  <div class="card" style="margin-bottom:16px"><h3>Detalhe</h3>
-    ${linha('Situação',l.valida?'a assinatura bate com a chave pública':esc(l.motivo||''),l.valida?'válida':'inválida',badge)}
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('ver',`Detalhe`,``,1)}${linha('Situação',l.valida?'a assinatura bate com a chave pública':esc(l.motivo||''),l.valida?'válida':'inválida',badge)}
     ${l.email?linha('Licenciado para','',l.email,''):''}
     ${l.token?linha('Token','mascarado de propósito',l.token,''):''}
     ${l.comoResolver?linha('Como resolver','',l.comoResolver,'b-warn'):''}</div>
-  <div class="card" style="border-style:dashed"><h3>Compra e recebimento</h3>
-    <p class="hint">A compra ainda não passa por este painel. O backend expõe <code>/checkout</code> e emite a licença pelo webhook do Stripe; ligar isso à tela é trabalho separado, e o módulo de pagamento novo (<code>engine/vspagamentos</code>) já cobre Pix e cartão via Asaas quando vocês decidirem migrar.</p></div>`;
+  <div class="card" style="border-style:dashed">
+    ${cardH('financeiro',`Compra e recebimento`,`A compra ainda não passa por este painel. O backend expõe <code>/checkout</code> e emite a licença pelo webhook do Stripe; ligar isso à tela é trabalho separado, e o módulo de pagamento novo (<code>engine/vspagamentos</code>) já cobre Pix e cartão via Asaas quando vocês decidirem migrar.`,2)}</div>`;
  },
  'pl-comprar':()=>{
   const pronto=PAG?.painel?.integracao?.pronto;
   const cards=PLANOS.map(p=>`<div class="card" style="margin-bottom:12px">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-      <div><h3>${esc(p.nome)}</h3><p class="hint">${esc(p.descricao)}</p></div>
-      <span class="badge b-ok">${esc(brl(p.centavos/100))}${p.periodo?' / '+esc(p.periodo):''}</span></div>
+    ${cardH('plano',p.nome,esc(p.descricao),3,
+      `<span class="badge b-ok">${esc(brl(p.centavos/100))}${p.periodo?' / '+esc(p.periodo):''}</span>`)}
     ${p.inclui.map(i=>linha(i,'','incluso','b-ok')).join('')}
     <div style="margin-top:12px">
       <button class="btn btn-p" ${pronto?'':'disabled title="cadastre a chave do Asaas em Recebimento"'}
-        onclick="comprarPlano('${esc(p.id)}')">Gerar cobrança</button></div></div>`).join('');
+        onclick="comprarPlano('${esc(p.id)}')">${ico('gerar')}Gerar cobrança</button></div></div>`).join('');
   return head('Plano e acesso · Comprar acesso','Escolha o pacote e gere a cobrança — Pix na hora.')+
   (pronto?'':`<div class="card" style="margin-bottom:16px;border-style:dashed">
-    <h3>Falta ligar o recebimento</h3>
-    <p class="hint">Os pacotes estão prontos, mas a cobrança sai pelo Asaas e a chave ainda não foi
-      cadastrada. Faça isso em <b>Plano e acesso › Recebimento</b> e volte aqui.</p>
-    <div style="margin-top:10px"><button class="btn btn-s" onclick="ir('pl-recebimento')">Ir pro Recebimento</button></div></div>`)+
+    ${cardH('alerta',`Falta ligar o recebimento`,`Os pacotes estão prontos, mas a cobrança sai pelo Asaas e a chave ainda não foi cadastrada. Faça isso em <b>Plano e acesso › Recebimento</b> e volte aqui.`,5)}
+    <div style="margin-top:10px"><button class="btn btn-s" onclick="ir('pl-recebimento')">${ico('seta')}Ir pro Recebimento</button></div></div>`)+
   cards+
-  `<div class="card" style="border-style:dashed"><h3>Como funciona</h3>
-    <p class="hint">Gerar a cobrança cria um Pix de verdade no Asaas e registra a venda no livro-caixa
-      quando o pagamento for confirmado — pelo webhook, sem ninguém conferir na mão.</p>
+  `<div class="card" style="border-style:dashed">
+    ${cardH('politica',`Como funciona`,`Gerar a cobrança cria um Pix de verdade no Asaas e registra a venda no livro-caixa quando o pagamento for confirmado — pelo webhook, sem ninguém conferir na mão.`,3)}
     ${linha('Cobrança','Pix, cartão ou boleto',pronto?'pronto':'falta a chave',pronto?'b-ok':'b-warn')}
     ${linha('Baixa automática','webhook do Asaas confirma','pronto','b-ok')}
     ${linha('Entrada no caixa','lançada sozinha, sem duplicar','pronto','b-ok')}
@@ -2482,13 +2796,11 @@ const S={
     ${kpi('Problemas',prob,'chargeback ou estorno')}
   </div>`+
   (i.pronto?'':`<div class="card" style="margin-bottom:16px;border-style:dashed">
-    <h3>Falta pra poder cobrar</h3>
-    ${i.faltando.map(f=>linha(f,'','falta','b-err')).join('')}</div>`)+
+    ${cardH('alerta',`Falta pra poder cobrar`,``,5)}${i.faltando.map(f=>linha(f,'','falta','b-err')).join('')}</div>`)+
   `<div class="card" style="margin-bottom:16px">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-      <div><h3>Integração com o Asaas</h3><p class="hint">A chave entra aqui e não sai mais: a tela só mostra mascarada.</p></div>
-      <span class="badge ${i.pronto?'b-ok':'b-warn'}">${i.pronto?'pronta':'incompleta'}</span>
-      <span class="badge ${i.emProducao?'b-err':''}">${i.emProducao?'PRODUÇÃO — move dinheiro de verdade':'sandbox'}</span></div>
+    ${cardH('financeiro',`Integração com o Asaas`,`A chave entra aqui e não sai mais: a tela só mostra mascarada.`,2,
+      `<span class="badge ${i.pronto?'b-ok':'b-warn'}">${i.pronto?'pronta':'incompleta'}</span>
+       <span class="badge ${i.emProducao?'b-err':''}">${i.emProducao?'PRODUÇÃO — move dinheiro de verdade':'sandbox'}</span>`)}
     ${i.apiKey?linha('Chave de API','mascarada de propósito',esc(i.apiKey),'b-ok'):''}
     ${i.webhookToken?linha('Token do webhook','mascarado',esc(i.webhookToken),'b-ok'):''}
     ${linha('Modelo',i.divideComTerceiro?'divide com prestador':'a empresa recebe o valor inteiro',esc(i.modelo),'')}
@@ -2501,18 +2813,18 @@ const S={
       <div class="field"><label>Modelo</label><select id="pgModelo">
         <option value="direto"${i.modelo==='direto'?' selected':''}>direto — você recebe tudo</option>
         <option value="split"${i.modelo==='split'?' selected':''}>split — divide com prestador</option></select></div>
-      <button class="btn btn-s" onclick="salvarPagamentos()">Salvar integração</button>
+      <button class="btn btn-s" onclick="salvarPagamentos()">${ico('salvar')}Salvar integração</button>
     </div>
     <p class="hint" style="margin-top:10px">No painel do Asaas, em <b>Integrações → Webhooks</b>, cadastre esta URL e
       o mesmo token acima:<br><code>${esc(PAG.urlWebhook)}</code></p></div>
 
-  <div class="card"><h3>Cobranças</h3>
-    <div class="tbl-bar">
+  <div class="card">
+    ${cardH('financeiro',`Cobranças`,``,2)}<div class="tbl-bar">
       <input id="pgBusca" value="${esc(BUSCA.cobranca||'')}" placeholder="Buscar por descrição, valor ou situação"
         oninput="buscarEm('cobranca',this.value)">
-      <button class="btn btn-s" onclick="carregar()">Atualizar</button>
+      <button class="btn btn-s" onclick="carregar()">${ico('atualizar')}Atualizar</button>
       <button class="btn btn-p" ${i.pronto?'':'disabled title="cadastre a chave do Asaas primeiro"'}
-        onclick="novaCobranca()">+ Nova cobrança</button>
+        onclick="novaCobranca()">${ico('mais')}Nova cobrança</button>
     </div>
     <p class="hint" style="margin-bottom:10px">A situação muda sozinha quando o Asaas avisa no webhook — não é preciso conferir na mão.</p>
     ${tabela({
@@ -2539,8 +2851,8 @@ const S={
   if(!CTA) return head('Configurações','Como a suíte avisa e o que ela integra.')+
     vazio('config','Backend sem a rota de conta','Atualize o backend.',['Subir o backend novo','Recarregar']);
   const c=CTA.configuracao;
-  const alerta=c.incoerentes.length?`<div class="card" style="margin-bottom:16px;border-style:dashed"><h3>Ligado, mas não funciona</h3>
-    <p class="hint">Estes canais estão marcados como ativos e não têm credencial completa. A suíte acha que avisa e não avisa — é o pior estado possível.</p>
+  const alerta=c.incoerentes.length?`<div class="card" style="margin-bottom:16px;border-style:dashed">
+    ${cardH('alerta',`Ligado, mas não funciona`,`Estes canais estão marcados como ativos e não têm credencial completa. A suíte acha que avisa e não avisa — é o pior estado possível.`,5)}
     ${c.incoerentes.map(n=>linha(n,'','sem credencial','b-err')).join('')}</div>`:'';
   const canais=c.canais.map(x=>linha(x.nome,
     `${esc(x.provider||'—')} · ${Object.entries(x.credenciais).map(([k,v])=>esc(k)+(v?' ✓':' ✖')).join(' · ')}`,
@@ -2551,10 +2863,12 @@ const S={
     : '<p class="hint">Nenhuma integração declarada.</p>';
   return head('Configurações','Canais de aviso e integrações — com o que falta pra cada um funcionar.')+
   alerta+
-  `<div class="card" style="margin-bottom:16px"><h3>Canais de aviso</h3>${canais}</div>
-  <div class="card" style="margin-bottom:16px"><h3>Integrações</h3>${integ}</div>
-  <div class="card"><h3>Governança</h3>
-    ${linha('Tipos aceitos','',String(c.padroes.tiposAceitos),'')}
+  `<div class="card" style="margin-bottom:16px">
+    ${cardH('enviar',`Canais de aviso`,``,2)}${canais}</div>
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('integra',`Integrações`,``,2)}${integ}</div>
+  <div class="card">
+    ${cardH('politica',`Governança`,``,3)}${linha('Tipos aceitos','',String(c.padroes.tiposAceitos),'')}
     ${linha('Documentação obrigatória','',c.padroes.docObrigatoria?'sim':'não',c.padroes.docObrigatoria?'b-ok':'')}
     ${linha('Subagentes','',c.padroes.agentesPermitidos?'permitidos':'bloqueados','')}
     <p class="hint">Tudo isso vem de <code>${esc(c.caminho)}</code>.</p></div>`;
@@ -2564,18 +2878,18 @@ const S={
     vazio('perfil','Backend sem a rota de conta','Atualize o backend para a versão com o VSpainel.',['Subir o backend novo','Recarregar']);
   const p=CTA.perfil;
   return head('Perfil','O que a entrevista preencheu e o que a suíte usa disso.')+
-  `<div class="card" style="margin-bottom:16px"><h3>Identificação</h3>
-    ${p.campos.map(c=>linha(c.rotulo,esc(c.usadoEm),c.ok?c.valor:'não preenchido',c.ok?'b-ok':'b-warn')).join('')}
+  `<div class="card" style="margin-bottom:16px">
+    ${cardH('perfil',`Identificação`,``,1)}${p.campos.map(c=>linha(c.rotulo,esc(c.usadoEm),c.ok?c.valor:'não preenchido',c.ok?'b-ok':'b-warn')).join('')}
     ${p.exemploBranch?linha('Branch que isso gera','resultado do padrão, não a regra',p.exemploBranch,'b-ok'):''}</div>
-  <div class="card" style="margin-bottom:16px"><h3>Ajustar</h3>
-    <div class="form-grid">
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('config',`Ajustar`,``,6)}<div class="form-grid">
       <div class="field"><label>Autor</label><input id="pfAutor" value="${esc(p.campos[0].valor||'')}" placeholder="fabiano.veloso"></div>
       <div class="field"><label>Nome do projeto</label><input id="pfProjeto" value="${esc(p.campos[1].valor||'')}" placeholder="aparece no recibo e no aviso"></div>
-      <button class="btn btn-p" onclick="salvarPerfil()">Salvar</button>
+      <button class="btn btn-p" onclick="salvarPerfil()">${ico('salvar')}Salvar</button>
     </div>
     <p class="hint">Só estes dois. Padrão de branch, escopo de commit e tipos aceitos governam os hooks — mudar por uma tela web quebraria o guard no meio do trabalho de alguém. Edite <code>${esc(p.caminho)}</code> direto.</p></div>
-  <div class="card"><h3>Regras em vigor</h3>
-    ${linha('Tipos aceitos','branch e commit',p.tipos.join(', ')||'—','')}
+  <div class="card">
+    ${cardH('politica',`Regras em vigor`,``,6)}${linha('Tipos aceitos','branch e commit',p.tipos.join(', ')||'—','')}
     ${linha('Documentação','após o push',p.documentacao.obrigatoria?'obrigatória ('+(p.documentacao.modelo||'—')+')':'opcional',p.documentacao.obrigatoria?'b-ok':'')}
     ${linha('Push','git push',p.push.setUpstream?'define upstream':'manual','')}
     ${linha('Subagentes','execução paralela',p.agentes.permitidos?'permitidos':'bloqueados',p.agentes.permitidos?'':'b-warn')}
@@ -2714,7 +3028,7 @@ function telaEntrar(){
           </div>
         </div>
 
-        <button class="btn btn-p entrar-btn" id="lgBtn">Entrar</button>
+        <button class="btn btn-p entrar-btn" id="lgBtn">${ico('entrar')}Entrar</button>
 
         <div class="entrar-ajuda" id="lgAjuda">
           <b>Não sabe a senha?</b>
@@ -2859,8 +3173,8 @@ function novoLead(){
        <div class="field"><label>Interesse</label><input id="interesse" placeholder="Plano médio"></div>
        <div class="field"><label>Valor (R$)</label><input id="valor" type="number" step="any" placeholder="1490"></div>
      </div>`,
-    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
-     <button class="btn btn-p" onclick="criar()">Adicionar lead</button>`);
+    `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Cancelar</button>
+     <button class="btn btn-p" onclick="criar()">${ico('crm')}Adicionar lead</button>`);
 }
 
 async function criar(){
