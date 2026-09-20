@@ -201,6 +201,15 @@ td{padding:11px 10px;border-top:1px solid var(--line)}
   text-transform:inherit;cursor:pointer}
 .th-ord:hover{color:var(--fg)}
 .pag{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;flex-wrap:wrap}
+.fotos{display:flex;gap:8px;flex-wrap:wrap;min-height:4px}
+.fotos .ft{position:relative;width:76px;height:76px;border-radius:9px;overflow:hidden;
+  border:1px solid var(--line);background:var(--bg)}
+.fotos .ft img{width:100%;height:100%;object-fit:cover;display:block}
+.fotos .ft .x{position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:6px;
+  background:rgba(0,0,0,.6);color:#fff;border:0;font-size:13px;line-height:1;cursor:pointer;padding:0}
+.fotos .ft .capa{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.62);color:#fff;
+  font-size:9.5px;text-align:center;padding:2px;text-transform:uppercase;letter-spacing:.4px}
+.fotos .subindo{display:grid;place-items:center;color:var(--dim);font-size:11px}
 @media(max-width:640px){.modal{margin:0}.modal-b{padding:14px}}
 
 @media(max-width:900px){
@@ -797,7 +806,10 @@ function abrirModal(titulo,corpo,rodape){
   document.body.style.overflow='hidden';
   FECHAR_MODAL=(e)=>{if(e.key==='Escape')fecharModal();};
   document.addEventListener('keydown',FECHAR_MODAL);
-  setTimeout(()=>document.querySelector('#modalB input,#modalB textarea,#modalB select')?.focus(),60);
+  setTimeout(()=>{
+    document.querySelector('#modalB input:not([type=hidden]),#modalB textarea,#modalB select')?.focus();
+    if(document.getElementById('eFotos')) pintarFotos();
+  },60);
 }
 function fecharModal(){
   document.getElementById('modalBg').classList.remove('show');
@@ -853,13 +865,82 @@ function formProduto(p){
       <input id="eGtin" value="${val(p?.gtin)}" placeholder="código de barras"></div>
     <div class="field" style="grid-column:1/-1"><label>Link do produto</label>
       <input id="eLink" value="${val(p?.link)}" placeholder="https://sualoja.com/produto"></div>
-    <div class="field" style="grid-column:1/-1"><label>Imagens <small>(URLs separadas por vírgula)</small></label>
-      <input id="eImgs" value="${val((p?.imagens||[]).join(', '))}" placeholder="https://cdn/1.jpg, https://cdn/2.jpg"></div>
+    <div class="field" style="grid-column:1/-1"><label>Fotos do produto</label>
+      <input type="hidden" id="eImgs" value="${val((p?.imagens||[]).join(', '))}">
+      <div id="eFotos" class="fotos"></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+        <input type="file" id="eArquivos" accept="image/jpeg,image/png,image/webp" multiple
+          onchange="subirFotos(this)" style="flex:1;min-width:200px">
+        <button type="button" class="btn btn-s" onclick="colarUrlFoto()">Colar URL</button>
+      </div>
+      <p class="hint" style="margin-top:6px">Escolha as fotos do seu computador — elas ficam hospedadas
+        aqui. A primeira é a que aparece na vitrine e nos feeds. Até 12 MB cada.</p></div>
     <div class="field" style="grid-column:1/-1"><label>Descrição</label>
       <textarea id="eDesc" rows="2" placeholder="Usada nos anúncios">${val(p?.descricao)}</textarea></div>
   </div>
   <p class="hint" style="margin-top:10px">Só <b>nome</b> e <b>preço</b> são obrigatórios pra cadastrar.
     O resto é o que cada canal exige pra <b>exportar</b> — se faltar, o produto fica no estoque mas não entra no feed.</p>`;
+}
+
+/* ---- fotos do produto ---- */
+
+/* A lista real mora no input escondido: é ela que vai pro backend. As miniaturas
+   são só a leitura dela — assim não existe um segundo lugar pra divergir. */
+const fotosAtuais=()=>((document.getElementById('eImgs')||{}).value||'')
+  .split(',').map(x=>x.trim()).filter(Boolean);
+
+function pintarFotos(){
+  const alvo=document.getElementById('eFotos');
+  if(!alvo) return;
+  const fs=fotosAtuais();
+  alvo.innerHTML=fs.map((u,i)=>`<div class="ft">
+    <img src="${esc(u)}" alt="" onerror="this.parentNode.classList.add('semfoto');this.remove()">
+    <button type="button" class="x" title="Remover" aria-label="Remover foto" onclick="removerFoto(${i})">×</button>
+    ${i===0?'<span class="capa">capa</span>':''}</div>`).join('');
+}
+
+function definirFotos(lista){
+  const campo=document.getElementById('eImgs');
+  if(campo) campo.value=lista.join(', ');
+  pintarFotos();
+}
+
+function removerFoto(i){
+  const fs=fotosAtuais();
+  fs.splice(i,1);
+  definirFotos(fs);
+}
+
+function colarUrlFoto(){
+  const u=prompt('Cole o endereço da imagem (https://...)');
+  if(!u) return;
+  if(!/^https?:\/\//i.test(u.trim())) return flash('O endereço precisa começar com http:// ou https://','err');
+  definirFotos([...fotosAtuais(),u.trim()]);
+}
+
+async function subirFotos(input){
+  const arquivos=[...(input.files||[])];
+  if(!arquivos.length) return;
+  const alvo=document.getElementById('eFotos');
+  const antes=fotosAtuais();
+  // Mostra o espaço reservado antes de subir: upload sem retorno visual parece travado.
+  if(alvo) alvo.insertAdjacentHTML('beforeend',arquivos.map(()=>'<div class="ft subindo">enviando…</div>').join(''));
+  const novas=[]; const erros=[];
+  for(const f of arquivos){
+    try{
+      const r=await fetch('/crm/api/midia?tipo=imagem&nome='+encodeURIComponent(f.name),
+        {method:'POST',headers:{'content-type':f.type||'image/jpeg',...(TOKEN?{'x-crm-token':TOKEN}:{})},body:f});
+      const j=await r.json().catch(()=>({erro:'resposta inválida do servidor'}));
+      if(!r.ok||j.erro) throw new Error(j.erro||('HTTP '+r.status));
+      novas.push(j.url);
+    }catch(e){ erros.push(`${f.name}: ${e.message}`); }
+  }
+  input.value='';
+  definirFotos([...antes,...novas]);
+  // Falha parcial é o caso normal com vários arquivos: dizer só "enviado"
+  // esconderia o que ficou de fora.
+  if(erros.length) flash(`${novas.length} enviada(s). Falhou: ${erros.join('; ')}`,'err');
+  else if(novas.length) flash(`${novas.length} foto(s) enviada(s).`,'ok');
 }
 
 function novoProduto(){

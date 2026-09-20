@@ -16,13 +16,23 @@ import { homedir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 
 export const MAX_BYTES = Number(process.env.MIDIA_MAX_BYTES || 256 * 1024 * 1024);
+/* Foto tem teto proprio e bem menor: ninguem precisa de 256 MB de JPEG numa
+   vitrine, e aceitar isso e convidar o catalogo a ficar lento pro cliente. */
+export const MAX_IMAGEM_BYTES = Number(process.env.IMAGEM_MAX_BYTES || 12 * 1024 * 1024);
 
-/** Só o que a TikTok aceita. Extensão desconhecida vira .mp4, não vira caminho. */
+/** Extensão desconhecida NÃO vira caminho: cai no padrão do tipo pedido. */
 const TIPOS = {
   '.mp4': 'video/mp4',
   '.mov': 'video/quicktime',
   '.webm': 'video/webm',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
 };
+
+export const ehImagem = (nome) => String(TIPOS[String(nome || '').slice(String(nome).lastIndexOf('.')).toLowerCase()] || '').startsWith('image/');
 
 export function baseDir() {
   const d = process.env.VSMIDIA_DIR || join(homedir(), '.qa-gate', 'midia');
@@ -30,21 +40,22 @@ export function baseDir() {
   return d;
 }
 
-const extensaoDe = (nome) => {
-  const m = String(nome || '').toLowerCase().match(/\.(mp4|mov|webm)$/);
-  return m ? `.${m[1]}` : '.mp4';
+const extensaoDe = (nome, padrao = '.mp4') => {
+  const m = String(nome || '').toLowerCase().match(/\.(mp4|mov|webm|jpe?g|png|webp|gif)$/);
+  return m ? `.${m[1] === 'jpeg' ? 'jpeg' : m[1]}` : padrao;
 };
 
 /** Nome interno: id nosso + extensão conhecida. Nada do usuário entra no caminho. */
-export const novoNome = (nomeOriginal) => randomBytes(12).toString('hex') + extensaoDe(nomeOriginal);
+export const novoNome = (nomeOriginal, padrao) => randomBytes(12).toString('hex') + extensaoDe(nomeOriginal, padrao);
 
 /**
  * Grava o corpo da requisição em disco, em streaming.
  * @returns {Promise<{ok:boolean, arquivo?:string, bytes?:number, motivo?:string}>}
  */
-export function receber(req, nomeOriginal) {
+export function receber(req, nomeOriginal, opts = {}) {
   return new Promise((resolve) => {
-    const arquivo = novoNome(nomeOriginal);
+    const arquivo = novoNome(nomeOriginal, opts.padrao);
+    const teto = Number(opts.maxBytes) > 0 ? Number(opts.maxBytes) : MAX_BYTES;
     const destino = join(baseDir(), arquivo);
     const saida = createWriteStream(destino, { mode: 0o600 });
     let bytes = 0;
@@ -69,7 +80,7 @@ export function receber(req, nomeOriginal) {
       bytes += p.length;
       // Corta no ato: sem isto, um upload de 10 GB enche o disco antes de qualquer
       // validação, e o teto vira decoração.
-      if (bytes > MAX_BYTES) { falhar(`arquivo acima de ${Math.round(MAX_BYTES / 1024 / 1024)} MB`); req.destroy(); }
+      if (bytes > teto) { falhar(`arquivo acima de ${Math.round(teto / 1024 / 1024)} MB`); req.destroy(); }
     });
     req.on('error', () => falhar('a transferência foi interrompida'));
     saida.on('error', (e) => falhar('não consegui gravar: ' + e.message));
@@ -84,7 +95,7 @@ export function receber(req, nomeOriginal) {
 }
 
 /** Nome válido? Só o que este módulo gera. Fecha caminho e nome inventado. */
-export const nomeValido = (n) => /^[0-9a-f]{24}\.(mp4|mov|webm)$/.test(String(n || ''));
+export const nomeValido = (n) => /^[0-9a-f]{24}\.(mp4|mov|webm|jpe?g|png|webp|gif)$/.test(String(n || ''));
 
 /**
  * Serve o arquivo. Atende Range porque quem baixa é a TikTok, e servidor que

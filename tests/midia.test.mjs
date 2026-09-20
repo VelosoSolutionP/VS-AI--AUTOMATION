@@ -116,3 +116,42 @@ test('excluir so aceita nome valido', () => {
   assert.ok(achado, 'deveria haver arquivo listado');
   assert.equal(m.excluir(achado.arquivo).ok, true);
 });
+
+/* ---- imagem ---- */
+
+test('imagem tem teto proprio, bem menor que video', async () => {
+  const r = await m.receber(pedido(Buffer.alloc(5000, 1)), 'foto.jpg', { maxBytes: 1000, padrao: '.jpg' });
+  assert.equal(r.ok, false);
+  assert.match(r.motivo, /acima de/);
+});
+
+test('extensao de imagem e preservada, e o nome continua sendo nosso', async () => {
+  for (const [orig, esperado] of [['foto.JPG', '.jpg'], ['x.png', '.png'], ['y.webp', '.webp'], ['z.jpeg', '.jpeg']]) {
+    const r = await m.receber(pedido(Buffer.alloc(64, 2)), orig, { padrao: '.jpg' });
+    assert.equal(r.ok, true, r.motivo);
+    assert.ok(r.arquivo.endsWith(esperado), `${orig} virou ${r.arquivo}`);
+    assert.match(r.arquivo, /^[0-9a-f]{24}\./);
+  }
+});
+
+test('arquivo sem extensao conhecida cai no PADRAO pedido, nao vira caminho', async () => {
+  const r = await m.receber(pedido(Buffer.alloc(32, 3)), '../../etc/passwd', { padrao: '.jpg' });
+  assert.equal(r.ok, true);
+  assert.match(r.arquivo, /^[0-9a-f]{24}\.jpg$/);
+  assert.doesNotMatch(r.arquivo, /passwd|\.\./);
+});
+
+test('imagem e servida com o content-type certo', async () => {
+  const r = await m.receber(pedido(Buffer.alloc(120, 4)), 'capa.png', { padrao: '.jpg' });
+  const res = respostaFalsa();
+  assert.equal(m.servir({ headers: {} }, res, r.arquivo), true);
+  await res.pronto();
+  assert.equal(res.cabecalhos['content-type'], 'image/png');
+});
+
+test('ehImagem separa foto de video', () => {
+  assert.equal(m.ehImagem('a.png'), true);
+  assert.equal(m.ehImagem('a.jpeg'), true);
+  assert.equal(m.ehImagem('a.mp4'), false);
+  assert.equal(m.ehImagem('a.exe'), false);
+});

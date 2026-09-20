@@ -522,11 +522,18 @@ const server = createServer(async (req, res) => {
        direto pro disco em streaming, com teto proprio. */
     if (req.method === 'POST' && rota === '/crm/api/midia') {
       if (!acesso.confere(req.headers['x-crm-token'])) { return json(res, 403, { erro: 'senha ausente ou invalida' }); }
-      const nome = new URL(req.url, 'http://x').searchParams.get('nome') || '';
-      const r = await midia.receber(req, nome);
+      const u = new URL(req.url, 'http://x');
+      const nome = u.searchParams.get('nome') || '';
+      /* Foto e video entram pela mesma porta mas com tetos diferentes: 256 MB de
+         JPEG numa vitrine so serve pra deixar a loja lenta pro cliente. */
+      const imagem = u.searchParams.get('tipo') === 'imagem'
+        || String(req.headers['content-type'] || '').startsWith('image/');
+      const r = await midia.receber(req, nome, imagem
+        ? { padrao: '.jpg', maxBytes: midia.MAX_IMAGEM_BYTES }
+        : { padrao: '.mp4', maxBytes: midia.MAX_BYTES });
       if (!r.ok) { return json(res, 413, { erro: r.motivo }); }
       const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
-      return json(res, 201, { ...r, url: `${origem}/midia/${r.arquivo}` });
+      return json(res, 201, { ...r, imagem, url: `${origem}/midia/${r.arquivo}` });
     }
     if (req.method === 'GET' && rota === '/crm/api/midia') {
       if (!acesso.confere(req.headers['x-crm-token'])) { return json(res, 403, { erro: 'senha ausente ou invalida' }); }
