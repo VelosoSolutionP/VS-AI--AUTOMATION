@@ -169,6 +169,10 @@ export function normalizarProduto(e = {}, opts = {}) {
         quantidade: Number.isInteger(Number(v.quantidade)) ? Number(v.quantidade) : 0,
       })),
       ativo: e.ativo !== false,
+      /* Na vitrine = exposto na loja publica deste painel. E diferente de `ativo`:
+         ativo diz que o produto existe pra vender; vitrine diz que ele esta EXPOSTO.
+         Quem vende so por WhatsApp mantem o catalogo ativo e a vitrine vazia. */
+      naVitrine: e.naVitrine === true,
       criadoEm: e.criadoEm || agora,
       atualizadoEm: agora,
     },

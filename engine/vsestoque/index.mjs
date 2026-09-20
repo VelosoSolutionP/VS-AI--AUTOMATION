@@ -67,6 +67,25 @@ export function editar(sku, mudancas, opts = {}) {
 }
 
 /** Tira da vitrine sem apagar — é o que se usa pra parar de anunciar. */
+/** Poe ou tira da vitrine publica. */
+export function vitrine(sku, expor = true) { return editar(sku, { naVitrine: expor === true }); }
+
+/** O que a loja publica mostra: exposto, ativo e com saldo — nessa ordem. */
+export function daVitrine() {
+  return listar().filter((p) => p.naVitrine && p.ativo !== false).map((p) => ({
+    sku: p.sku,
+    nome: p.nome,
+    descricao: p.descricao,
+    marca: p.marca,
+    categoria: p.categoria,
+    precoCentavos: precoVigente(p),
+    precoDeCentavos: p.precoPromocionalCentavos != null ? p.precoCentavos : null,
+    imagem: p.imagens?.[0] || null,
+    disponivel: disponivel(p),
+    esgotado: disponivel(p) <= 0,
+  }));
+}
+
 export function inativar(sku) { return editar(sku, { ativo: false }); }
 export function reativar(sku) { return editar(sku, { ativo: true }); }
 
@@ -149,6 +168,7 @@ export function resumir(p) {
     disponibilidade: disponibilidade(p),
     imagens: p.imagens?.length || 0,
     ativo: p.ativo !== false,
+    naVitrine: p.naVitrine === true,
   };
 }
 

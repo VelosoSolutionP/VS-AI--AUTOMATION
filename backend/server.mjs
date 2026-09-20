@@ -30,6 +30,7 @@ import * as tk from '../engine/vstiktok/index.mjs';
 import { reservarEvento } from './idempotencia.mjs';
 import * as pagar from '../engine/vspagamentos/index.mjs';
 import * as midia from './midia.mjs';
+import { pagina as paginaVitrine } from './vitrine.mjs';
 import { lerCorpoLimitado, criarRateLimit, ipDe, segredoIgual, CORPO_MAX_BYTES } from './limites.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -338,6 +339,21 @@ const server = createServer(async (req, res) => {
     }
   }
 
+  /* Vitrine — loja PUBLICA. Sem sessao de proposito: quem abre e cliente final,
+     pelo link que o dono manda no WhatsApp. So produto marcado como exposto e
+     ativo aparece; esgotado aparece marcado, nao sumido — sumir da a impressao
+     de que a loja e menor do que e. */
+  if (req.method === 'GET' && (req.url === '/vitrine' || req.url.split('?')[0] === '/vitrine')) {
+    try {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=60' });
+      return res.end(paginaVitrine(estoque.daVitrine(), {
+        nome: process.env.VITRINE_NOME || 'Veloso Solution',
+        descricao: process.env.VITRINE_DESCRICAO,
+        whatsapp: process.env.VITRINE_WHATSAPP,
+      }));
+    } catch (e) { return json(res, 500, { erro: 'vitrine: ' + e.message }); }
+  }
+
   /* Arquivo de midia. Publico porque quem baixa e o servidor da TikTok, sem
      sessao nenhuma: o `PULL_FROM_URL` manda ELA buscar o video. O nome e gerado
      por nos e conferido antes de tocar no disco. */
@@ -527,7 +543,13 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { produto: p, historico: estoque.historico(sku, 20) });
     }
     if (req.method === 'GET' && rota === '/crm/api/estoque/lotes') {
-      return json(res, 200, { lotes: estoque.lotes(), canais: estoque.FORMATOS });
+      const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
+      return json(res, 200, {
+        lotes: estoque.lotes(),
+        canais: estoque.FORMATOS,
+        urlVitrine: `${origem}/vitrine`,
+        vitrineConfigurada: Boolean(process.env.VITRINE_WHATSAPP),
+      });
     }
     /* Download do lote: sai como ARQUIVO, com o conteudo CONGELADO no momento da
        criacao — regerar agora daria outro resultado, e ai "reimportar o lote 7"
@@ -645,6 +667,7 @@ const server = createServer(async (req, res) => {
         case '/crm/api/estoque/editar': r = estoque.editar(d.sku, d.mudancas || {}); break;
         case '/crm/api/estoque/movimentar': r = estoque.movimentar(d.sku, d); break;
         case '/crm/api/estoque/excluir': r = estoque.excluir(d.sku); break;
+        case '/crm/api/estoque/vitrine': r = estoque.vitrine(d.sku, d.expor !== false); break;
         case '/crm/api/estoque/lote': r = estoque.criarLote(d); break;
         case '/crm/api/estoque/lote-excluir': r = estoque.excluirLote(d.id); break;
         case '/crm/api/funil': r = crm.setFunil(d.etapas); break;

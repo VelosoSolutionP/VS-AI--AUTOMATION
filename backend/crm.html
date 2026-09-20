@@ -170,6 +170,23 @@ td{padding:11px 10px;border-top:1px solid var(--line)}
 .linkbox{display:flex;gap:7px;align-items:center;background:var(--raised);border:1px solid var(--line);border-radius:var(--r-sm);padding:5px 5px 5px 11px}
 .linkbox span{flex:1;font:12px ui-monospace,Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tbl-wrap{overflow-x:auto}
+/* Modal. `dialog` nativo daria o backdrop de graca, mas nao fecha no Esc do jeito
+   que a gente quer nem centraliza igual em navegador antigo — dois divs resolvem. */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:40;padding:20px;overflow-y:auto}
+.modal-bg.show{display:block}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);max-width:760px;margin:40px auto;
+  box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal-h{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--line)}
+.modal-h h3{flex:1;margin:0}
+.modal-b{padding:20px}
+.modal-f{display:flex;gap:8px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--line)}
+.x{background:none;border:0;color:var(--dim);font-size:20px;line-height:1;cursor:pointer;padding:0 4px}
+.x:hover{color:var(--fg)}
+/* Barra acima da tabela: busca a esquerda, acao primaria a direita. */
+.tbl-bar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.tbl-bar input{flex:1;min-width:180px}
+.acoes{display:flex;gap:4px;justify-content:flex-end}
+@media(max-width:640px){.modal{margin:0}.modal-b{padding:14px}}
 
 @media(max-width:900px){
   aside{position:fixed;left:0;top:0;z-index:30;transform:translateX(-100%);transition:transform .2s ease;box-shadow:var(--shadow-2)}
@@ -307,6 +324,14 @@ body.sem-nav main,body.sem-nav .main{margin-left:0!important}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
+<div class="modal-bg" id="modalBg" onclick="if(event.target===this)fecharModal()">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalT">
+    <div class="modal-h"><h3 id="modalT">—</h3>
+      <button class="x" onclick="fecharModal()" aria-label="Fechar">&times;</button></div>
+    <div class="modal-b" id="modalB"></div>
+    <div class="modal-f" id="modalF"></div>
+  </div>
+</div>
 <div class="shell">
   <aside id="side">
     <div class="brand"><div class="mark">VS</div><div><b>Veloso Solution</b><span>Console</span></div></div>
@@ -649,36 +674,7 @@ function lerFormProduto(){
   const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
   return {nome:v('eNome'),preco:v('ePreco'),precoPromocional:v('ePromo')||null,
     quantidade:Number(v('eQtd')||0),marca:v('eMarca'),categoria:v('eCat'),gtin:v('eGtin'),
-    link:v('eLink'),imagens:v('eImgs').split(',').map(s=>s.trim()).filter(Boolean),descricao:v('eDesc')};
-}
-function preencherFormProduto(p){
-  const s=(id,val)=>{const e=document.getElementById(id);if(e)e.value=val??'';};
-  s('eNome',p?.nome); s('ePreco',p?p.precoCentavos/100:''); s('ePromo',p?.precoPromocionalCentavos!=null?p.precoPromocionalCentavos/100:'');
-  s('eQtd',p?.quantidade??0); s('eMarca',p?.marca); s('eCat',p?.categoria); s('eGtin',p?.gtin);
-  s('eLink',p?.link); s('eImgs',(p?.imagens||[]).join(', ')); s('eDesc',p?.descricao);
-}
-
-async function editarProduto(sku){
-  try{
-    const r=await api('estoque/produto?sku='+encodeURIComponent(sku));
-    EDITANDO=sku;
-    preencherFormProduto(r.produto);
-    document.getElementById('eTitulo').textContent='Editando '+r.produto.sku;
-    document.getElementById('eBotao').textContent='Salvar alterações';
-    document.getElementById('eBotao').setAttribute('onclick','salvarProduto()');
-    document.getElementById('eCancelar').style.display='';
-    document.getElementById('eNome').scrollIntoView({behavior:'smooth',block:'center'});
-    document.getElementById('eNome').focus();
-  }catch(e){flash(e.message,'err');}
-}
-
-function cancelarEdicao(){
-  EDITANDO=null;
-  preencherFormProduto(null);
-  document.getElementById('eTitulo').textContent='Novo produto';
-  document.getElementById('eBotao').textContent='Cadastrar';
-  document.getElementById('eBotao').setAttribute('onclick','salvarProduto()');
-  document.getElementById('eCancelar').style.display='none';
+    link:v('eLink'),imagens:v('eImgs').split(',').map(x=>x.trim()).filter(Boolean),descricao:v('eDesc')};
 }
 
 async function salvarProduto(){
@@ -690,13 +686,110 @@ async function salvarProduto(){
       ? await api('estoque/editar',{sku:EDITANDO,mudancas:d})
       : await api('estoque/produto',d);
     if(r.erros?.length) return flash(r.erros.join(' · '),'err');
-    // Aviso nao impede salvar, mas impede EXPORTAR — a tela tem que dizer na hora,
-    // senao o produto some do feed depois e ninguem liga uma coisa na outra.
     const feito=EDITANDO?'Produto atualizado.':'Produto cadastrado.';
-    flash(r.avisos?.length?`${feito} Pendente pra exportar: ${r.avisos.join('; ')}`:feito,
-      r.avisos?.length?'err':'ok');
-    cancelarEdicao();
-    carregar();
+    EDITANDO=null;
+    fecharModal();
+    // `carregar()` REDESENHA a tela: mostrar aviso antes dele e desenhar num
+    // elemento que vai ser jogado fora no instante seguinte.
+    await carregar();
+    flash(feito,'ok');
+    mostrarPendencias(r.produto||{nome:d.nome},r.avisos||[]);
+  }catch(e){flash(e.message,'err');}
+}
+
+
+
+/* Um modal só, reaproveitado. Vários modais no HTML viram vários lugares pra
+   esquecer de fechar — e aí um fica por cima do outro sem ninguém perceber. */
+let FECHAR_MODAL=null;
+function abrirModal(titulo,corpo,rodape){
+  document.getElementById('modalT').textContent=titulo;
+  document.getElementById('modalB').innerHTML=corpo;
+  document.getElementById('modalF').innerHTML=rodape||'';
+  document.getElementById('modalBg').classList.add('show');
+  // Trava o fundo: sem isso a pagina atras rola junto e a pessoa perde o modal.
+  document.body.style.overflow='hidden';
+  FECHAR_MODAL=(e)=>{if(e.key==='Escape')fecharModal();};
+  document.addEventListener('keydown',FECHAR_MODAL);
+  setTimeout(()=>document.querySelector('#modalB input,#modalB textarea,#modalB select')?.focus(),60);
+}
+function fecharModal(){
+  document.getElementById('modalBg').classList.remove('show');
+  document.body.style.overflow='';
+  /* LIMPA o conteudo, nao so esconde. Modal escondido com formulario dentro deixa
+     os mesmos ids (#eNome, #ePreco) duplicados na pagina e botoes fantasmas
+     respondendo a clique — a tela passa a ter dois "Editar" pro mesmo produto. */
+  document.getElementById('modalB').innerHTML='';
+  document.getElementById('modalF').innerHTML='';
+  document.getElementById('modalT').textContent='';
+  if(FECHAR_MODAL){document.removeEventListener('keydown',FECHAR_MODAL);FECHAR_MODAL=null;}
+}
+
+
+
+
+const campoNum=(v)=>v==null?'':String(v);
+/* O que falta pro produto ENTRAR no feed dos canais. Fica na tela ate a pessoa
+   resolver ou fechar: nao e erro — e lista de pendencia, e por isso NAO vai no
+   aviso vermelho junto do "cadastrado". */
+function mostrarPendencias(produto,avisos){
+  const alvo=document.getElementById('ePendencias');
+  if(!alvo) return;
+  if(!avisos||!avisos.length){ alvo.innerHTML=''; return; }
+  alvo.innerHTML=`<div class="card" style="margin-bottom:16px;border-style:dashed">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div><h3>Salvo — mas ainda não sai nos feeds</h3>
+        <p class="hint">${esc(produto?.nome||'')} está no catálogo e no seu estoque.
+        Pra aparecer no Google, Meta ou TikTok, falta:</p></div>
+      <span class="badge b-ok">cadastrado</span></div>
+    ${avisos.map(a=>linha(esc(String(a).split('—')[0].trim()),esc((String(a).split('—')[1]||'').trim()),'falta','b-warn')).join('')}
+    <div style="margin-top:10px;display:flex;gap:8px">
+      ${produto?.sku?`<button class="btn btn-s" onclick="editarProduto('${esc(produto.sku)}')">Completar agora</button>`:''}
+      <button class="btn btn-s" onclick="document.getElementById('ePendencias').innerHTML=''">Depois</button></div></div>`;
+}
+
+function formProduto(p){
+  const val=(x)=>esc(x==null?'':String(x));
+  return `<div class="form-grid">
+    <div class="field" style="grid-column:1/-1"><label>Nome *</label>
+      <input id="eNome" value="${val(p?.nome)}" placeholder="Camiseta Veloso Preta"></div>
+    <div class="field"><label>Preço *</label>
+      <input id="ePreco" value="${p?campoNum(p.precoCentavos/100):''}" placeholder="R$ 79,90"></div>
+    <div class="field"><label>Preço promocional</label>
+      <input id="ePromo" value="${p?.precoPromocionalCentavos!=null?campoNum(p.precoPromocionalCentavos/100):''}" placeholder="opcional"></div>
+    <div class="field"><label>Quantidade</label>
+      <input id="eQtd" type="number" min="0" value="${campoNum(p?.quantidade??0)}"></div>
+    <div class="field"><label>Marca</label>
+      <input id="eMarca" value="${val(p?.marca)}" placeholder="exigida pelo Google"></div>
+    <div class="field"><label>Categoria</label>
+      <input id="eCat" value="${val(p?.categoria)}" placeholder="Vestuário"></div>
+    <div class="field"><label>GTIN / EAN</label>
+      <input id="eGtin" value="${val(p?.gtin)}" placeholder="código de barras"></div>
+    <div class="field" style="grid-column:1/-1"><label>Link do produto</label>
+      <input id="eLink" value="${val(p?.link)}" placeholder="https://sualoja.com/produto"></div>
+    <div class="field" style="grid-column:1/-1"><label>Imagens <small>(URLs separadas por vírgula)</small></label>
+      <input id="eImgs" value="${val((p?.imagens||[]).join(', '))}" placeholder="https://cdn/1.jpg, https://cdn/2.jpg"></div>
+    <div class="field" style="grid-column:1/-1"><label>Descrição</label>
+      <textarea id="eDesc" rows="2" placeholder="Usada nos anúncios">${val(p?.descricao)}</textarea></div>
+  </div>
+  <p class="hint" style="margin-top:10px">Só <b>nome</b> e <b>preço</b> são obrigatórios pra cadastrar.
+    O resto é o que cada canal exige pra <b>exportar</b> — se faltar, o produto fica no estoque mas não entra no feed.</p>`;
+}
+
+function novoProduto(){
+  EDITANDO=null;
+  abrirModal('Novo produto',formProduto(null),
+    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
+     <button class="btn btn-p" onclick="salvarProduto()">Cadastrar</button>`);
+}
+
+async function editarProduto(sku){
+  try{
+    const r=await api('estoque/produto?sku='+encodeURIComponent(sku));
+    EDITANDO=sku;
+    abrirModal('Editar '+r.produto.sku,formProduto(r.produto),
+      `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
+       <button class="btn btn-p" onclick="salvarProduto()">Salvar alterações</button>`);
   }catch(e){flash(e.message,'err');}
 }
 
@@ -707,42 +800,77 @@ async function verProduto(sku){
     const mov=(r.historico||[]).map(h=>`<tr><td>${esc(String(h.quando||'').slice(0,16).replace('T',' '))}</td>
       <td>${esc(h.tipo||'')}</td><td style="text-align:right">${h.quantidade??''}</td>
       <td style="text-align:right">${h.saldoDepois??''}</td></tr>`).join('');
-    document.getElementById('eDetalhe').innerHTML=`<div class="card" style="margin-bottom:16px;border-style:dashed">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-        <div><h3>${esc(p.nome)}</h3><p class="hint">${esc(p.sku)}</p></div>
-        <span class="badge ${p.ativo!==false?'b-ok':''}">${p.ativo!==false?'à venda':'inativo'}</span></div>
+    abrirModal(p.nome,
+      `${(p.imagens||[]).length?`<img src="${esc(p.imagens[0])}" alt="" style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;margin-bottom:14px" onerror="this.remove()">`:''}
+      ${linha('Código',' ',esc(p.sku),'')}
       ${linha('Preço',p.precoPromocionalCentavos!=null?'promocional em vigor':'',brl(p.precoCentavos/100),'')}
       ${p.precoPromocionalCentavos!=null?linha('Preço promocional','',brl(p.precoPromocionalCentavos/100),'b-ok'):''}
       ${linha('Quantidade','reservado: '+(p.reservado||0),String(p.quantidade??0),'')}
+      ${linha('Na vitrine','loja pública deste painel',p.naVitrine?'sim':'não',p.naVitrine?'b-ok':'')}
       ${p.marca?linha('Marca','',esc(p.marca),''):''}
       ${p.categoria?linha('Categoria','',esc(p.categoria),''):''}
       ${p.gtin?linha('GTIN / EAN','',esc(p.gtin),''):''}
       ${p.link?linha('Link','',esc(p.link),''):''}
-      ${linha('Imagens','',String((p.imagens||[]).length),'')}
       ${p.descricao?`<p class="hint" style="margin-top:10px">${esc(p.descricao)}</p>`:''}
       ${linha('Cadastrado em','',esc(String(p.criadoEm||'').slice(0,16).replace('T',' ')),'')}
       ${linha('Alterado em','conta pro lote por período',esc(String(p.atualizadoEm||'').slice(0,16).replace('T',' ')),'')}
-      ${mov?`<div class="tbl-wrap" style="margin-top:12px"><table><thead><tr><th>Quando</th><th>Movimento</th>
+      ${mov?`<div class="tbl-wrap" style="margin-top:14px"><table><thead><tr><th>Quando</th><th>Movimento</th>
         <th style="text-align:right">Qtd</th><th style="text-align:right">Saldo</th></tr></thead><tbody>${mov}</tbody></table></div>`
-        :'<p class="hint" style="margin-top:10px">Sem movimento registrado.</p>'}
-      <div style="margin-top:12px;display:flex;gap:8px">
-        <button class="btn btn-s" onclick="editarProduto('${esc(p.sku)}')">Editar</button>
-        <button class="btn btn-s" onclick="document.getElementById('eDetalhe').innerHTML=''">Fechar</button></div></div>`;
-    document.getElementById('eDetalhe').scrollIntoView({behavior:'smooth',block:'start'});
+        :'<p class="hint" style="margin-top:12px">Sem movimento registrado.</p>'}`,
+      `<button class="btn btn-s" onclick="fecharModal()">Fechar</button>
+       <button class="btn btn-p" onclick="editarProduto('${esc(p.sku)}')">Editar</button>`);
   }catch(e){flash(e.message,'err');}
 }
 
 async function excluirProduto(sku,nome){
   // Confirmação com o NOME, não só o código: sku é parecido entre si e apagar o
   // produto errado só aparece quando o feed sai sem ele.
-  if(!confirm(`Excluir "${nome}" (${sku})?\n\nIsso apaga o produto e o histórico de movimento dele. Não dá pra desfazer.\n\nSe for só parar de anunciar, use Editar e desmarque à venda.`)) return;
+  if(!confirm(`Excluir "${nome}" (${sku})?\n\nIsso apaga o produto e o histórico de movimento dele. Não dá pra desfazer.\n\nSe for só tirar da loja, use "tirar" em vez de excluir.`)) return;
   try{
     const r=await api('estoque/excluir',{sku});
     if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
     flash('Produto excluído.','ok');
-    if(EDITANDO===sku) cancelarEdicao();
-    document.getElementById('eDetalhe').innerHTML='';
+    if(EDITANDO===sku){EDITANDO=null;fecharModal();}
     carregar();
+  }catch(e){flash(e.message,'err');}
+}
+
+/* Busca na tabela, sem ida ao servidor: o catalogo ja esta na tela e um filtro
+   que faz requisicao a cada tecla trava em conexao ruim. */
+function filtrarCatalogo(termo){
+  const t=String(termo||'').toLowerCase().trim();
+  const linhas=document.querySelectorAll('#tblProdutos tbody tr');
+  let visiveis=0;
+  linhas.forEach(tr=>{
+    const bate=!t||tr.innerText.toLowerCase().includes(t);
+    tr.style.display=bate?'':'none';
+    if(bate)visiveis++;
+  });
+  const vazio=document.getElementById('eVazioBusca');
+  if(vazio) vazio.style.display=(linhas.length&&!visiveis)?'':'none';
+}
+
+async function venderProduto(sku,nome){
+  try{
+    const r=await api('estoque/vitrine',{sku,expor:true});
+    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
+    await carregar();
+    const url=(LOTES&&LOTES.urlVitrine)||'/vitrine';
+    abrirModal('Na vitrine',
+      `<p class="hint"><b>${esc(nome)}</b> está exposto na sua loja pública.</p>
+       ${linha('Link da loja','manda no WhatsApp, cola no Instagram',esc(url),'b-ok')}
+       ${LOTES&&LOTES.vitrineConfigurada?'':linha('Botão de compra','defina VITRINE_WHATSAPP no servidor pro cliente falar com você','não configurado','b-warn')}
+       <p class="hint" style="margin-top:12px">Pra sair da vitrine, clique em <b>tirar</b> na linha do produto.</p>`,
+      `<button class="btn btn-s" onclick="fecharModal()">Fechar</button>
+       <a class="btn btn-p" href="${esc(url)}" target="_blank" rel="noopener">Abrir a loja</a>`);
+  }catch(e){flash(e.message,'err');}
+}
+
+async function tirarDaVitrine(sku){
+  try{
+    const r=await api('estoque/vitrine',{sku,expor:false});
+    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
+    flash('Tirado da vitrine.','ok'); carregar();
   }catch(e){flash(e.message,'err');}
 }
 
@@ -907,16 +1035,20 @@ const S={
     <td style="text-align:center">${x.quantidade}</td>
     <td style="text-align:center">${x.reservado||'—'}</td>
     <td style="text-align:center"><b>${x.disponivel}</b></td>
-    <td><span class="badge ${!x.ativo?'':x.disponibilidade==='in_stock'?'b-ok':'b-warn'}">${!x.ativo?'inativo':x.disponibilidade==='in_stock'?'à venda':'sem saldo'}</span></td>
+    <td><span class="badge ${!x.ativo?'':x.disponibilidade==='in_stock'?'b-ok':'b-warn'}">${!x.ativo?'inativo':x.disponibilidade==='in_stock'?'à venda':'sem saldo'}</span>
+      ${x.naVitrine?'<br><span class="badge b-ok" style="margin-top:4px">na vitrine</span>':''}</td>
     <td style="white-space:nowrap">
-      <button class="btn btn-s btn-xs" title="entrada" onclick="movEstoque('${esc(x.sku)}','entrada')">+</button>
-      <button class="btn btn-s btn-xs" title="saida" onclick="movEstoque('${esc(x.sku)}','saida')">−</button>
-      <button class="btn btn-s btn-xs" onclick="movEstoque('${esc(x.sku)}','reserva')">reservar</button>
-      <button class="btn btn-s btn-xs" onclick="movEstoque('${esc(x.sku)}','vender')">vender</button>
-      <button class="btn btn-s btn-xs" onclick="verProduto('${esc(x.sku)}')">ver</button>
+      <button class="btn btn-s btn-xs" title="dar entrada" onclick="movEstoque('${esc(x.sku)}','entrada')">+</button>
+      <button class="btn btn-s btn-xs" title="dar baixa" onclick="movEstoque('${esc(x.sku)}','saida')">−</button>
+      <button class="btn btn-s btn-xs" onclick="movEstoque('${esc(x.sku)}','reserva')">reservar</button></td>
+    <td><div class="acoes">
+      <button class="btn btn-s btn-xs" onclick="verProduto('${esc(x.sku)}')">visualizar</button>
       <button class="btn btn-s btn-xs" onclick="editarProduto('${esc(x.sku)}')">editar</button>
+      ${x.naVitrine
+        ? `<button class="btn btn-s btn-xs" onclick="tirarDaVitrine('${esc(x.sku)}')">tirar</button>`
+        : `<button class="btn btn-p btn-xs" onclick="venderProduto('${esc(x.sku)}','${esc(x.nome).replace(/'/g,"\\'")}')">vender</button>`}
       <button class="btn btn-s btn-xs" onclick="excluirProduto('${esc(x.sku)}','${esc(x.nome).replace(/'/g,"\\'")}')">excluir</button>
-    </td></tr>`).join('');
+    </div></td></tr>`).join('');
 
   const canais=Object.entries(p.canais).map(([c,s])=>`<div class="stat-row">
     <div class="lbl">${esc(s.nome)}<small>${s.prontos} de ${s.total} produto(s) prontos${s.faltando?` · ${s.faltando} incompleto(s)`:''}</small></div>
@@ -932,24 +1064,7 @@ const S={
   ${p.alertas.length?`<div class="card" style="margin-bottom:16px"><h3>Precisa de atenção</h3>
     ${p.alertas.map(a=>linha(a.nome||a.sku,esc(a.sku),a.nivel==='acabou'?'acabou':`baixo: ${a.livre}`,a.nivel==='acabou'?'b-err':'b-warn')).join('')}</div>`:''}
 
-  <div id="eDetalhe"></div>
-
-  <div class="card" style="margin-bottom:16px"><h3 id="eTitulo">Novo produto</h3>
-    <div class="form-grid">
-      <div class="field"><label>Nome *</label><input id="eNome" placeholder="Camiseta Veloso Preta"></div>
-      <div class="field"><label>Preço *</label><input id="ePreco" placeholder="R$ 79,90"></div>
-      <div class="field"><label>Preço promocional</label><input id="ePromo" placeholder="opcional"></div>
-      <div class="field"><label>Quantidade</label><input id="eQtd" type="number" min="0" value="0"></div>
-      <div class="field"><label>Marca</label><input id="eMarca" placeholder="exigida pelo Google"></div>
-      <div class="field"><label>Categoria</label><input id="eCat" placeholder="Vestuário"></div>
-      <div class="field"><label>GTIN / EAN</label><input id="eGtin" placeholder="código de barras"></div>
-      <div class="field"><label>Link do produto</label><input id="eLink" placeholder="https://sualoja.com/produto"></div>
-      <div class="field" style="grid-column:1/-1"><label>Imagens (URLs separadas por vírgula)</label><input id="eImgs" placeholder="https://cdn/1.jpg, https://cdn/2.jpg"></div>
-      <div class="field" style="grid-column:1/-1"><label>Descrição</label><textarea id="eDesc" rows="2" placeholder="Usada nos anúncios"></textarea></div>
-      <button class="btn btn-p" id="eBotao" onclick="salvarProduto()">Cadastrar</button>
-      <button class="btn btn-s" id="eCancelar" style="display:none" onclick="cancelarEdicao()">Cancelar edição</button>
-    </div>
-    <p class="hint">Só nome e preço são obrigatórios pra cadastrar. O resto é o que cada canal exige pra <b>exportar</b> — a lista abaixo mostra quem já está pronto.</p></div>
+  <div id="ePendencias"></div>
 
   <div class="card" style="margin-bottom:16px"><h3>Exportar para os canais</h3>
     <p class="hint">Produto com campo faltando <b>não entra no arquivo</b>: o Google reprova o item calado e a Meta reprova o feed inteiro. Melhor saber aqui.</p>
@@ -964,8 +1079,9 @@ const S={
       <div class="field"><label>Data final</label><input id="loAte" type="date"></div>
       <div class="field"><label>Formato</label><select id="loCanal">
         ${(LOTES?.canais||['json']).map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select></div>
-      <div class="field"><label style="display:flex;align-items:center;gap:6px;font-weight:400">
-        <input type="checkbox" id="loInativos"> Incluir inativos</label></div>
+      <div class="field" style="justify-content:flex-end"><label for="loInativos"
+        style="display:flex;align-items:center;gap:7px;font-weight:400;cursor:pointer;padding-bottom:9px">
+        <input type="checkbox" id="loInativos" style="width:auto;margin:0"> Incluir inativos</label></div>
       <button class="btn btn-p" onclick="gerarLote()">Gerar lote</button>
     </div>
     ${LOTES?.lotes?.length?`<div class="tbl-wrap" style="margin-top:14px"><table>
@@ -984,10 +1100,17 @@ const S={
       </tr>`).join('')}</tbody></table></div>`
       :'<p class="hint" style="margin-top:12px">Nenhum lote gerado ainda.</p>'}</div>
 
-  ${p.produtos.length?`<div class="card"><h3>Catálogo</h3>
-    <div class="tbl-wrap"><table><thead><tr><th>Produto</th><th>Preço</th><th>Qtd</th><th>Reserv.</th><th>Disp.</th><th>Situação</th><th></th></tr></thead>
-    <tbody>${lin}</tbody></table></div></div>`
-   :`<div class="card"><p class="hint">Catálogo vazio — cadastre o primeiro produto acima.</p></div>`}`;
+  <div class="card"><h3>Catálogo</h3>
+    <div class="tbl-bar">
+      <input id="eBusca" placeholder="Buscar por nome, código, marca ou categoria" oninput="filtrarCatalogo(this.value)">
+      <button class="btn btn-p" onclick="novoProduto()">+ Novo produto</button>
+    </div>
+    ${p.produtos.length?`<div class="tbl-wrap"><table id="tblProdutos">
+      <thead><tr><th>Produto</th><th>Preço</th><th>Qtd</th><th>Reserv.</th><th>Disp.</th><th>Situação</th><th>Saldo</th><th></th></tr></thead>
+      <tbody>${lin}</tbody></table></div>
+      <p class="hint" id="eVazioBusca" style="display:none;padding:14px 0;text-align:center">Nenhum produto com esse termo.</p>`
+     :`<p class="hint" style="padding:20px 0;text-align:center">Catálogo vazio — clique em <b>+ Novo produto</b> pra cadastrar o primeiro.</p>`}
+  </div>`;
  },
  financeiro:()=>{
   if(!FIN) return head('Financeiro','O que o CRM fechou, o que está no pipeline e o que está parado.')+
