@@ -668,6 +668,30 @@ const server = createServer(async (req, res) => {
         case '/crm/api/estoque/movimentar': r = estoque.movimentar(d.sku, d); break;
         case '/crm/api/estoque/excluir': r = estoque.excluir(d.sku); break;
         case '/crm/api/estoque/vitrine': r = estoque.vitrine(d.sku, d.expor !== false); break;
+        /* "Vender" = mandar pro TikTok Shop. Enquanto a loja nao esta ligada, a
+           resposta diz O QUE falta em vez de um erro seco — o produto ja fica
+           marcado pra vitrine, que e o canal que funciona sem aprovacao. */
+        case '/crm/api/estoque/vender': {
+          const diag = tk.diagnostico();
+          const shop = diag.familias.shop;
+          if (!shop.autorizado) {
+            estoque.vitrine(d.sku, true);
+            r = {
+              ok: false,
+              motivo: 'a loja do TikTok ainda não está conectada',
+              falta: shop.appConfigurado
+                ? ['autorizar a conta em Conexões com redes sociais']
+                : ['cadastrar o app do TikTok Shop em Conexões com redes sociais: ' + (shop.faltando || []).join(', ')],
+              naVitrine: true,
+            };
+            break;
+          }
+          r = await estoque.publicarNoTiktok(d.sku, {
+            armazemId: d.armazemId || process.env.TIKTOK_ARMAZEM_ID,
+            categoriaId: d.categoriaId || process.env.TIKTOK_CATEGORIA_ID,
+          });
+          break;
+        }
         case '/crm/api/estoque/lote': r = estoque.criarLote(d); break;
         case '/crm/api/estoque/lote-excluir': r = estoque.excluirLote(d.id); break;
         case '/crm/api/funil': r = crm.setFunil(d.etapas); break;
