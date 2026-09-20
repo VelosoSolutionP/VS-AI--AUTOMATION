@@ -404,7 +404,7 @@ const TITULO={};
 MENU.forEach(m=>{TITULO[m.id]=[m.nome];(m.filhos||[]).forEach(f=>TITULO[f.id]=[m.nome,f.nome]);});
 const PAI={}; MENU.forEach(m=>(m.filhos||[]).forEach(f=>PAI[f.id]=m.id));
 
-let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null,QG=null,TKAPP=null,PAG=null;
+let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null,QG=null,TKAPP=null,PAG=null,LOTES=null;
 const TESTE={}; // resultado do ultimo teste por rede (so em memoria)
 const PROVA={}; // ultimo teste real das APIs do TikTok, por familia
 let rota=location.hash.slice(1)||'visao';
@@ -635,6 +635,151 @@ function vazio(icone,titulo,texto,passos){
 }
 const linha=(l,s,b,c)=>`<div class="stat-row"><div class="lbl">${esc(l)}${s?`<small>${s}</small>`:''}</div><span class="badge ${c||''}">${esc(b)}</span></div>`;
 
+/* ---- CRUD do catálogo ---- */
+
+/* O formulário de cadastro é o MESMO da edição. Dois formulários iguais lado a
+   lado divergem na primeira mudança de campo — e aí um passa a aceitar o que o
+   outro recusa. `EDITANDO` diz em qual modo ele está. */
+let EDITANDO=null;
+
+const campoProduto={eNome:'nome',ePreco:'preco',ePromo:'precoPromocional',eQtd:'quantidade',
+  eMarca:'marca',eCat:'categoria',eGtin:'gtin',eLink:'link',eImgs:'imagens',eDesc:'descricao'};
+
+function lerFormProduto(){
+  const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
+  return {nome:v('eNome'),preco:v('ePreco'),precoPromocional:v('ePromo')||null,
+    quantidade:Number(v('eQtd')||0),marca:v('eMarca'),categoria:v('eCat'),gtin:v('eGtin'),
+    link:v('eLink'),imagens:v('eImgs').split(',').map(s=>s.trim()).filter(Boolean),descricao:v('eDesc')};
+}
+function preencherFormProduto(p){
+  const s=(id,val)=>{const e=document.getElementById(id);if(e)e.value=val??'';};
+  s('eNome',p?.nome); s('ePreco',p?p.precoCentavos/100:''); s('ePromo',p?.precoPromocionalCentavos!=null?p.precoPromocionalCentavos/100:'');
+  s('eQtd',p?.quantidade??0); s('eMarca',p?.marca); s('eCat',p?.categoria); s('eGtin',p?.gtin);
+  s('eLink',p?.link); s('eImgs',(p?.imagens||[]).join(', ')); s('eDesc',p?.descricao);
+}
+
+async function editarProduto(sku){
+  try{
+    const r=await api('estoque/produto?sku='+encodeURIComponent(sku));
+    EDITANDO=sku;
+    preencherFormProduto(r.produto);
+    document.getElementById('eTitulo').textContent='Editando '+r.produto.sku;
+    document.getElementById('eBotao').textContent='Salvar alterações';
+    document.getElementById('eBotao').setAttribute('onclick','salvarProduto()');
+    document.getElementById('eCancelar').style.display='';
+    document.getElementById('eNome').scrollIntoView({behavior:'smooth',block:'center'});
+    document.getElementById('eNome').focus();
+  }catch(e){flash(e.message,'err');}
+}
+
+function cancelarEdicao(){
+  EDITANDO=null;
+  preencherFormProduto(null);
+  document.getElementById('eTitulo').textContent='Novo produto';
+  document.getElementById('eBotao').textContent='Cadastrar';
+  document.getElementById('eBotao').setAttribute('onclick','salvarProduto()');
+  document.getElementById('eCancelar').style.display='none';
+}
+
+async function salvarProduto(){
+  const d=lerFormProduto();
+  if(!d.nome) return flash('O nome é obrigatório.','err');
+  if(!EDITANDO&&!d.preco) return flash('O preço é obrigatório.','err');
+  try{
+    const r=EDITANDO
+      ? await api('estoque/editar',{sku:EDITANDO,mudancas:d})
+      : await api('estoque/produto',d);
+    if(r.erros?.length) return flash(r.erros.join(' · '),'err');
+    // Aviso nao impede salvar, mas impede EXPORTAR — a tela tem que dizer na hora,
+    // senao o produto some do feed depois e ninguem liga uma coisa na outra.
+    const feito=EDITANDO?'Produto atualizado.':'Produto cadastrado.';
+    flash(r.avisos?.length?`${feito} Pendente pra exportar: ${r.avisos.join('; ')}`:feito,
+      r.avisos?.length?'err':'ok');
+    cancelarEdicao();
+    carregar();
+  }catch(e){flash(e.message,'err');}
+}
+
+async function verProduto(sku){
+  try{
+    const r=await api('estoque/produto?sku='+encodeURIComponent(sku));
+    const p=r.produto;
+    const mov=(r.historico||[]).map(h=>`<tr><td>${esc(String(h.quando||'').slice(0,16).replace('T',' '))}</td>
+      <td>${esc(h.tipo||'')}</td><td style="text-align:right">${h.quantidade??''}</td>
+      <td style="text-align:right">${h.saldoDepois??''}</td></tr>`).join('');
+    document.getElementById('eDetalhe').innerHTML=`<div class="card" style="margin-bottom:16px;border-style:dashed">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div><h3>${esc(p.nome)}</h3><p class="hint">${esc(p.sku)}</p></div>
+        <span class="badge ${p.ativo!==false?'b-ok':''}">${p.ativo!==false?'à venda':'inativo'}</span></div>
+      ${linha('Preço',p.precoPromocionalCentavos!=null?'promocional em vigor':'',brl(p.precoCentavos/100),'')}
+      ${p.precoPromocionalCentavos!=null?linha('Preço promocional','',brl(p.precoPromocionalCentavos/100),'b-ok'):''}
+      ${linha('Quantidade','reservado: '+(p.reservado||0),String(p.quantidade??0),'')}
+      ${p.marca?linha('Marca','',esc(p.marca),''):''}
+      ${p.categoria?linha('Categoria','',esc(p.categoria),''):''}
+      ${p.gtin?linha('GTIN / EAN','',esc(p.gtin),''):''}
+      ${p.link?linha('Link','',esc(p.link),''):''}
+      ${linha('Imagens','',String((p.imagens||[]).length),'')}
+      ${p.descricao?`<p class="hint" style="margin-top:10px">${esc(p.descricao)}</p>`:''}
+      ${linha('Cadastrado em','',esc(String(p.criadoEm||'').slice(0,16).replace('T',' ')),'')}
+      ${linha('Alterado em','conta pro lote por período',esc(String(p.atualizadoEm||'').slice(0,16).replace('T',' ')),'')}
+      ${mov?`<div class="tbl-wrap" style="margin-top:12px"><table><thead><tr><th>Quando</th><th>Movimento</th>
+        <th style="text-align:right">Qtd</th><th style="text-align:right">Saldo</th></tr></thead><tbody>${mov}</tbody></table></div>`
+        :'<p class="hint" style="margin-top:10px">Sem movimento registrado.</p>'}
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button class="btn btn-s" onclick="editarProduto('${esc(p.sku)}')">Editar</button>
+        <button class="btn btn-s" onclick="document.getElementById('eDetalhe').innerHTML=''">Fechar</button></div></div>`;
+    document.getElementById('eDetalhe').scrollIntoView({behavior:'smooth',block:'start'});
+  }catch(e){flash(e.message,'err');}
+}
+
+async function excluirProduto(sku,nome){
+  // Confirmação com o NOME, não só o código: sku é parecido entre si e apagar o
+  // produto errado só aparece quando o feed sai sem ele.
+  if(!confirm(`Excluir "${nome}" (${sku})?\n\nIsso apaga o produto e o histórico de movimento dele. Não dá pra desfazer.\n\nSe for só parar de anunciar, use Editar e desmarque à venda.`)) return;
+  try{
+    const r=await api('estoque/excluir',{sku});
+    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
+    flash('Produto excluído.','ok');
+    if(EDITANDO===sku) cancelarEdicao();
+    document.getElementById('eDetalhe').innerHTML='';
+    carregar();
+  }catch(e){flash(e.message,'err');}
+}
+
+/* ---- lotes de exportação ---- */
+
+async function gerarLote(){
+  const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
+  try{
+    const r=await api('estoque/lote',{de:v('loDe')||null,ate:v('loAte')||null,canal:v('loCanal'),
+      incluirInativos:(document.getElementById('loInativos')||{}).checked||false});
+    if(r.ok===false) return flash(r.motivo,'err');
+    flash(`Lote ${r.lote.id} gerado: ${r.lote.incluidos} produto(s) no arquivo.`,'ok');
+    carregar();
+  }catch(e){flash(e.message,'err');}
+}
+
+async function baixarLote(id){
+  try{
+    const res=await fetch('/crm/api/estoque/lote?id='+encodeURIComponent(id),
+      {headers:TOKEN?{'x-crm-token':TOKEN}:{}});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const nome=(res.headers.get('content-disposition')||'').match(/filename="([^"]+)"/)?.[1]||(id+'.json');
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(await res.blob()); a.download=nome; a.click();
+    URL.revokeObjectURL(a.href);
+  }catch(e){flash(e.message,'err');}
+}
+
+async function excluirLote(id){
+  if(!confirm(`Excluir o lote ${id}?\n\nO arquivo dele deixa de existir — quem recebeu não consegue mais reimportar por aqui.`)) return;
+  try{
+    const r=await api('estoque/lote-excluir',{id});
+    if(r.ok===false) return flash(r.motivo,'err');
+    flash('Lote excluído.','ok'); carregar();
+  }catch(e){flash(e.message,'err');}
+}
+
 /* ---------- telas ---------- */
 function telaVisao(){
   const r=ST.resumo,w=STATUS?.whatsapp||{};
@@ -764,10 +909,13 @@ const S={
     <td style="text-align:center"><b>${x.disponivel}</b></td>
     <td><span class="badge ${!x.ativo?'':x.disponibilidade==='in_stock'?'b-ok':'b-warn'}">${!x.ativo?'inativo':x.disponibilidade==='in_stock'?'à venda':'sem saldo'}</span></td>
     <td style="white-space:nowrap">
-      <button class="btn btn-s btn-xs" onclick="movEstoque('${esc(x.sku)}','entrada')">+</button>
-      <button class="btn btn-s btn-xs" onclick="movEstoque('${esc(x.sku)}','saida')">−</button>
+      <button class="btn btn-s btn-xs" title="entrada" onclick="movEstoque('${esc(x.sku)}','entrada')">+</button>
+      <button class="btn btn-s btn-xs" title="saida" onclick="movEstoque('${esc(x.sku)}','saida')">−</button>
       <button class="btn btn-s btn-xs" onclick="movEstoque('${esc(x.sku)}','reserva')">reservar</button>
       <button class="btn btn-s btn-xs" onclick="movEstoque('${esc(x.sku)}','vender')">vender</button>
+      <button class="btn btn-s btn-xs" onclick="verProduto('${esc(x.sku)}')">ver</button>
+      <button class="btn btn-s btn-xs" onclick="editarProduto('${esc(x.sku)}')">editar</button>
+      <button class="btn btn-s btn-xs" onclick="excluirProduto('${esc(x.sku)}','${esc(x.nome).replace(/'/g,"\\'")}')">excluir</button>
     </td></tr>`).join('');
 
   const canais=Object.entries(p.canais).map(([c,s])=>`<div class="stat-row">
@@ -784,7 +932,9 @@ const S={
   ${p.alertas.length?`<div class="card" style="margin-bottom:16px"><h3>Precisa de atenção</h3>
     ${p.alertas.map(a=>linha(a.nome||a.sku,esc(a.sku),a.nivel==='acabou'?'acabou':`baixo: ${a.livre}`,a.nivel==='acabou'?'b-err':'b-warn')).join('')}</div>`:''}
 
-  <div class="card" style="margin-bottom:16px"><h3>Novo produto</h3>
+  <div id="eDetalhe"></div>
+
+  <div class="card" style="margin-bottom:16px"><h3 id="eTitulo">Novo produto</h3>
     <div class="form-grid">
       <div class="field"><label>Nome *</label><input id="eNome" placeholder="Camiseta Veloso Preta"></div>
       <div class="field"><label>Preço *</label><input id="ePreco" placeholder="R$ 79,90"></div>
@@ -796,13 +946,43 @@ const S={
       <div class="field"><label>Link do produto</label><input id="eLink" placeholder="https://sualoja.com/produto"></div>
       <div class="field" style="grid-column:1/-1"><label>Imagens (URLs separadas por vírgula)</label><input id="eImgs" placeholder="https://cdn/1.jpg, https://cdn/2.jpg"></div>
       <div class="field" style="grid-column:1/-1"><label>Descrição</label><textarea id="eDesc" rows="2" placeholder="Usada nos anúncios"></textarea></div>
-      <button class="btn btn-p" onclick="criarProduto()">Cadastrar</button>
+      <button class="btn btn-p" id="eBotao" onclick="salvarProduto()">Cadastrar</button>
+      <button class="btn btn-s" id="eCancelar" style="display:none" onclick="cancelarEdicao()">Cancelar edição</button>
     </div>
     <p class="hint">Só nome e preço são obrigatórios pra cadastrar. O resto é o que cada canal exige pra <b>exportar</b> — a lista abaixo mostra quem já está pronto.</p></div>
 
   <div class="card" style="margin-bottom:16px"><h3>Exportar para os canais</h3>
     <p class="hint">Produto com campo faltando <b>não entra no arquivo</b>: o Google reprova o item calado e a Meta reprova o feed inteiro. Melhor saber aqui.</p>
     ${canais}</div>
+
+  <div class="card" style="margin-bottom:16px"><h3>Lote de exportação por período</h3>
+    <p class="hint">Recorta o catálogo pelo que <b>mudou</b> na janela de datas e congela o arquivo.
+      Quem recebe precisa saber o que mudou desde a última carga — e precisa poder reimportar
+      exatamente o mesmo arquivo se a importação falhar no meio. Sem data, entra o catálogo inteiro.</p>
+    <div class="form-grid" style="margin-top:10px">
+      <div class="field"><label>Data inicial</label><input id="loDe" type="date"></div>
+      <div class="field"><label>Data final</label><input id="loAte" type="date"></div>
+      <div class="field"><label>Formato</label><select id="loCanal">
+        ${(LOTES?.canais||['json']).map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select></div>
+      <div class="field"><label style="display:flex;align-items:center;gap:6px;font-weight:400">
+        <input type="checkbox" id="loInativos"> Incluir inativos</label></div>
+      <button class="btn btn-p" onclick="gerarLote()">Gerar lote</button>
+    </div>
+    ${LOTES?.lotes?.length?`<div class="tbl-wrap" style="margin-top:14px"><table>
+      <thead><tr><th>Lote</th><th>Período</th><th>Formato</th><th style="text-align:center">No arquivo</th>
+        <th style="text-align:center">Recusados</th><th>Gerado em</th><th></th></tr></thead>
+      <tbody>${LOTES.lotes.map(l=>`<tr>
+        <td><b>${esc(l.id)}</b><br><small class="hint">${(l.bytes/1024).toFixed(1)} KB</small></td>
+        <td>${esc(l.de||'início')} → ${esc(l.ate||'hoje')}</td>
+        <td>${esc(l.canal)}</td>
+        <td style="text-align:center"><b>${l.incluidos}</b> de ${l.selecionados}</td>
+        <td style="text-align:center">${l.recusados.length?`<span class="badge b-warn" title="${esc(l.recusados.map(r=>r.sku+': '+r.faltando.join(', ')).join(' | '))}">${l.recusados.length}</span>`:'—'}</td>
+        <td>${esc(String(l.criadoEm).slice(0,16).replace('T',' '))}</td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-s btn-xs" onclick="baixarLote('${esc(l.id)}')">baixar</button>
+          <button class="btn btn-s btn-xs" onclick="excluirLote('${esc(l.id)}')">excluir</button></td>
+      </tr>`).join('')}</tbody></table></div>`
+      :'<p class="hint" style="margin-top:12px">Nenhum lote gerado ainda.</p>'}</div>
 
   ${p.produtos.length?`<div class="card"><h3>Catálogo</h3>
     <div class="tbl-wrap"><table><thead><tr><th>Produto</th><th>Preço</th><th>Qtd</th><th>Reserv.</th><th>Disp.</th><th>Situação</th><th></th></tr></thead>
@@ -1396,6 +1576,7 @@ async function carregar(){
     QG=await api('quebragalho').catch(()=>null);
     TKAPP=await api('tiktok/app').catch(()=>null);
     PAG=await api('pagamentos').catch(()=>null);
+    LOTES=await api('estoque/lotes').catch(()=>null);
     if(TKAPP&&TKAPP.diagnostico) TK=TKAPP.diagnostico;
     // Telas novas: carregadas a parte pra uma falha nelas nao derrubar o painel todo.
     [AUD,FIN,REL,CTA]=await Promise.all([api('auditor').catch(()=>null),api('financeiro').catch(()=>null),
@@ -1452,20 +1633,6 @@ async function salvarPerfil(){
     await api('perfil',{autor:document.getElementById('pfAutor').value.trim(),
       projectName:document.getElementById('pfProjeto').value.trim()});
     flash('Perfil salvo.','ok');carregar();
-  }catch(e){flash(e.message,'err');}
-}
-async function criarProduto(){
-  const v=(id)=>document.getElementById(id).value.trim();
-  try{
-    const r=await api('estoque/produto',{nome:v('eNome'),preco:v('ePreco'),precoPromocional:v('ePromo'),
-      quantidade:v('eQtd'),marca:v('eMarca'),categoria:v('eCat'),gtin:v('eGtin'),link:v('eLink'),
-      descricao:v('eDesc'),imagens:v('eImgs').split(',').map(x=>x.trim()).filter(Boolean)});
-    // Aviso nao impede cadastrar, mas impede exportar — a tela tem que dizer isso na hora.
-    flash((r.avisos&&r.avisos.length)?`Cadastrado. Pendente pra exportar: ${r.avisos.join('; ')}`:'Produto cadastrado.',
-      (r.avisos&&r.avisos.length)?'err':'ok');
-    ['eNome','ePreco','ePromo','eMarca','eCat','eGtin','eLink','eImgs','eDesc'].forEach(i=>{document.getElementById(i).value='';});
-    document.getElementById('eQtd').value='0';
-    carregar();
   }catch(e){flash(e.message,'err');}
 }
 async function movEstoque(sku,tipo){

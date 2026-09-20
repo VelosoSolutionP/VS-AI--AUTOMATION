@@ -519,6 +519,31 @@ const server = createServer(async (req, res) => {
         urlWebhook: `${origem}/webhook/asaas`,
       });
     }
+    /* Um produto so — a tela de ver/editar nao deve baixar o catalogo inteiro. */
+    if (req.method === 'GET' && rota === '/crm/api/estoque/produto') {
+      const sku = new URL(req.url, 'http://x').searchParams.get('sku') || '';
+      const p = estoque.obter(sku);
+      if (!p) { return json(res, 404, { erro: `produto "${sku}" nao encontrado` }); }
+      return json(res, 200, { produto: p, historico: estoque.historico(sku, 20) });
+    }
+    if (req.method === 'GET' && rota === '/crm/api/estoque/lotes') {
+      return json(res, 200, { lotes: estoque.lotes(), canais: estoque.FORMATOS });
+    }
+    /* Download do lote: sai como ARQUIVO, com o conteudo CONGELADO no momento da
+       criacao — regerar agora daria outro resultado, e ai "reimportar o lote 7"
+       nao quer dizer mais nada. */
+    if (req.method === 'GET' && rota === '/crm/api/estoque/lote') {
+      const id = new URL(req.url, 'http://x').searchParams.get('id') || '';
+      const l = estoque.obterLote(id);
+      if (!l) { return json(res, 404, { erro: `lote "${id}" nao encontrado` }); }
+      res.writeHead(200, {
+        'content-type': l.tipo,
+        'content-disposition': `attachment; filename="${l.id}-${l.arquivo}"`,
+        'x-vs-incluidos': String(l.incluidos),
+        'x-vs-recusados': String(l.recusados.length),
+      });
+      return res.end(l.conteudo);
+    }
     if (req.method === 'GET' && rota === '/crm/api/estoque/historico') {
       return json(res, 200, { movimentos: estoque.historico(new URL(req.url, 'http://x').searchParams.get('sku')) });
     }
@@ -620,6 +645,8 @@ const server = createServer(async (req, res) => {
         case '/crm/api/estoque/editar': r = estoque.editar(d.sku, d.mudancas || {}); break;
         case '/crm/api/estoque/movimentar': r = estoque.movimentar(d.sku, d); break;
         case '/crm/api/estoque/excluir': r = estoque.excluir(d.sku); break;
+        case '/crm/api/estoque/lote': r = estoque.criarLote(d); break;
+        case '/crm/api/estoque/lote-excluir': r = estoque.excluirLote(d.id); break;
         case '/crm/api/funil': r = crm.setFunil(d.etapas); break;
         case '/crm/api/leads': r = crm.criar(d); break;
         case '/crm/api/mover': r = crm.mover(d.id, d.etapa); break;
@@ -629,9 +656,14 @@ const server = createServer(async (req, res) => {
         case '/crm/api/parceiros/remover': r = crm.removerParceiro(d.id); break;
         default: return json(res, 404, { erro: 'rota de CRM desconhecida' });
       }
-      // Os modulos novos recusam com {ok:false, erros:[...]}; os antigos com {erro}.
-      // Sem unificar aqui, uma recusa voltaria HTTP 200 e a tela mostraria "salvo".
-      if (r && r.ok === false && !r.erro) { r = { ...r, erro: (r.erros || []).join('; ') || 'nao foi possivel concluir' }; }
+      /* Tres formatos de recusa convivem aqui: {erros:[...]} nos modulos de
+         cadastro, {motivo:'...'} nos de integracao (pagamentos, lote, tiktok) e
+         {erro} nos antigos. Faltava o `motivo`: a recusa virava o generico "nao
+         foi possivel concluir" e a pessoa perdia a unica frase que dizia O QUE
+         estava errado — "nenhum produto alterado nesse periodo" virava nada. */
+      if (r && r.ok === false && !r.erro) {
+        r = { ...r, erro: (r.erros || []).join('; ') || r.motivo || 'nao foi possivel concluir' };
+      }
       return json(res, (r?.erro || r?.ok === false) ? 400 : 200, r);
     }
     return json(res, 404, { erro: 'rota de CRM desconhecida' });

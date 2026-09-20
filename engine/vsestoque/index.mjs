@@ -10,6 +10,7 @@ import { normalizarProduto, disponivel, disponibilidade, precoVigente } from './
 import { aplicar, alertas, valorEmEstoque } from './saldo.mjs';
 import { exportar as exportarCanal, prontidao, FORMATOS, CANAIS, decimal } from './exportar.mjs';
 import { formatarBRL } from '../vsinfluence/ganhos.mjs';
+import * as lote from './lote.mjs';
 
 const PRODUTOS = 'produtos';
 const MOVIMENTOS = 'movimentos';
@@ -99,6 +100,15 @@ export function historico(sku, limite = 50) {
 }
 
 /** Exporta o catálogo num canal. */
+/* ---------------- lotes de exportação ---------------- */
+
+export function criarLote(e = {}) {
+  return lote.criarLote(listar(), e);
+}
+export const lotes = () => lote.resumirLotes();
+export const obterLote = (id) => lote.obterLote(id);
+export const excluirLote = (id) => lote.excluirLote(id);
+
 export function exportar(canal, opts = {}) {
   return exportarCanal(listar(), canal, opts);
 }
