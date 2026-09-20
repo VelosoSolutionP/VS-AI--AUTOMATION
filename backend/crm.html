@@ -652,12 +652,50 @@ async function salvarPagamentos(){
   }catch(e){flash(e.message,'err');}
 }
 
+function novaCobranca(){
+  abrirModal('Nova cobrança',
+    `<p class="hint">O Asaas exige nome e CPF/CNPJ do pagador — cobrança sem documento é recusada por eles na criação.</p>
+     <div class="form-grid" style="margin-top:12px">
+       <div class="field"><label>Nome do pagador *</label><input id="pgNome" placeholder="Maria Souza"></div>
+       <div class="field"><label>CPF ou CNPJ *</label><input id="pgDoc" placeholder="000.000.000-00"></div>
+       <div class="field"><label>E-mail</label><input id="pgEmail" placeholder="opcional"></div>
+       <div class="field"><label>Valor *</label><input id="pgValor" placeholder="R$ 199,90"></div>
+       <div class="field"><label>Forma</label><select id="pgMetodo">
+         <option value="PIX">Pix</option><option value="CREDIT_CARD">Cartão</option><option value="BOLETO">Boleto</option></select></div>
+       <div class="field"><label>Vencimento</label><input id="pgVenc" type="date"></div>
+       <div class="field" style="grid-column:1/-1"><label>Descrição</label>
+         <input id="pgDesc" placeholder="Mensalidade do console — setembro"></div>
+     </div>`,
+    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
+     <button class="btn btn-p" onclick="cobrarAgora()">Emitir cobrança</button>`);
+}
+
+/* Mostra o Pix de uma cobrança já emitida. Sem isto, quem fechasse a tela depois
+   de emitir perdia o copia-e-cola e tinha que emitir outra — cobrança duplicada
+   no extrato por causa de tela. */
+function verPix(id){
+  const c=(PAG?.pagamentos||[]).find(x=>x.id===id);
+  if(!c?.pix?.payload) return flash('Essa cobrança não tem Pix guardado.','err');
+  abrirModal('Pix — '+(c.referencia||c.id),
+    `${linha('Valor','',brl(c.valorCentavos/100),'b-ok')}
+     <div style="margin-top:14px;display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+       ${c.pix.imagemBase64?`<img alt="QR do Pix" style="width:168px;height:168px;border-radius:8px"
+         src="data:image/png;base64,${esc(c.pix.imagemBase64)}">`:''}
+       <div style="flex:1;min-width:220px"><label>Pix copia e cola</label>
+         <textarea rows="4" readonly onclick="this.select()" style="width:100%">${esc(c.pix.payload)}</textarea>
+         <p class="hint">Quem está no celular não aponta a câmera pra própria tela — por isso o copia e cola.</p></div>
+     </div>`,
+    `<button class="btn btn-s" onclick="fecharModal()">Fechar</button>
+     ${c.linkPagamento?`<a class="btn btn-p" href="${esc(c.linkPagamento)}" target="_blank" rel="noopener">Abrir a página</a>`:''}`);
+}
+
 async function cobrarAgora(){
   const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
   const centavos=centavosDe(v('pgValor'));
   if(!centavos) return flash('Informe um valor maior que zero.','err');
-  const alvo=document.getElementById('pgResultado');
+  const alvo=document.getElementById('modalB');
   alvo.innerHTML='<p class="hint">Emitindo no Asaas…</p>';
+  document.getElementById('modalF').innerHTML='';
   try{
     const r=await api('pagamentos/cobrar',{nome:v('pgNome'),cpfCnpj:v('pgDoc'),email:v('pgEmail'),
       valorCentavos:centavos,metodo:v('pgMetodo'),vencimento:v('pgVenc')||undefined,descricao:v('pgDesc'),referencia:v('pgDesc')});
@@ -674,8 +712,16 @@ async function cobrarAgora(){
       </div>`:''}
       ${r.pixErro?`<p class="hint">Cobrança criada, mas o QR não veio: ${esc(r.pixErro)}</p>`:''}
     </div>`;
+    document.getElementById('modalT').textContent='Cobrança emitida';
+    document.getElementById('modalF').innerHTML=
+      `<button class="btn btn-p" onclick="fecharModal();carregar()">Fechar</button>`;
     flash('Cobrança emitida no Asaas.','ok');
-  }catch(e){ alvo.innerHTML=''; flash(e.message,'err'); }
+  }catch(e){
+    // Volta o formulario com o que foi digitado: perder os dados por causa de um
+    // erro de rede obriga a redigitar CPF e valor, e ai a pessoa erra.
+    flash(e.message,'err');
+    fecharModal();
+  }
 }
 
 const kpi=(l,v,e)=>`<div class="kpi"><span>${esc(l)}</span><b>${esc(String(v))}</b><em>${esc(e)}</em></div>`;
@@ -699,6 +745,9 @@ let EDITANDO=null;
 /* Ordenacao e pagina vivem fora do render: a tela e redesenhada inteira a cada
    `carregar()`, e estado guardado no DOM se perderia a cada atualizacao. */
 let TAB={ordem:'nome',desc:false,pagina:1,porPagina:20,busca:''};
+/* Lista OU funil. O funil e bom pra arrastar a venda; a lista e melhor pra achar
+   um lead pelo nome no meio de trezentos. Quem escolhe e quem usa. */
+let VISAO_LEAD='tabela';
 
 const campoProduto={eNome:'nome',ePreco:'preco',ePromo:'precoPromocional',eQtd:'quantidade',
   eMarca:'marca',eCat:'categoria',eGtin:'gtin',eLink:'link',eImgs:'imagens',eDesc:'descricao'};
@@ -1007,6 +1056,32 @@ async function excluirLote(id){
   }catch(e){flash(e.message,'err');}
 }
 
+/* ---- DataTable genérica ----
+   Uma só, usada por todas as telas de cadastro. Cada tela repetindo a sua
+   diverge na primeira mudança: uma ganha busca, outra não; uma trata lista vazia,
+   outra mostra tabela sem linha. */
+const BUSCA={};
+function buscarEm(chave,valor){ BUSCA[chave]=valor; render(); }
+const casa=(termo,campos)=>{
+  const t=String(termo||'').toLowerCase().trim();
+  return !t || campos.filter(Boolean).some(c=>String(c).toLowerCase().includes(t));
+};
+
+/* `todos` e a lista antes do filtro. Sem ela nao da pra distinguir "nada
+   cadastrado" de "a busca nao achou" — e sao duas telas diferentes: uma convida
+   a cadastrar, a outra a corrigir o termo. */
+function tabela({colunas,itens,todos,acoes,vazio,nenhum}){
+  const bruto=todos||itens;
+  if(!bruto.length) return `<p class="hint" style="padding:24px 0;text-align:center">${vazio||'Nada cadastrado ainda.'}</p>`;
+  if(!itens.length) return `<p class="hint" style="padding:24px 0;text-align:center">${nenhum||'Nada encontrado.'}</p>`;
+  const cab=colunas.map(c=>`<th style="text-align:${c.al||'left'}">${esc(c.t)}</th>`).join('');
+  const corpo=itens.map(x=>`<tr>${colunas.map(c=>`<td style="text-align:${c.al||'left'}">${c.cel(x)}</td>`).join('')}
+    ${acoes?`<td><div class="acoes">${acoes(x)}</div></td>`:''}</tr>`).join('');
+  return `<div class="tbl-wrap"><table><thead><tr>${cab}${acoes?'<th></th>':''}</tr></thead>
+    <tbody>${corpo}</tbody></table></div>
+    <p class="hint" style="margin-top:10px">${itens.length} registro(s)</p>`;
+}
+
 /* ---- DataTable do catálogo (especificação, seção 3) ---- */
 
 const COLUNAS=[
@@ -1122,14 +1197,41 @@ function telaCrm(){
   `<div class="grid g-kpi" style="margin-bottom:16px">
     ${kpi('Abertos',r.abertos,'no funil')}${kpi('Ganhos',r.ganhos,'fechados')}${kpi('Perdidos',r.perdidos,'fechados')}
     ${kpi('Conversão',r.conversao==null?'—':Math.round(r.conversao*100)+'%',r.conversao==null?'sem fechamento ainda':'ganhos ÷ fechados')}</div>
-  <div class="card" style="margin-bottom:16px"><h3>Novo lead</h3><p class="hint" style="margin-bottom:11px">Telefone sem DDI recebe o 55 automático.</p>
-    <div class="form-grid">
-      <div class="field"><label>Nome</label><input id="nome" placeholder="Carla Souza"></div>
-      <div class="field"><label>WhatsApp</label><input id="telefone" placeholder="31975127978"></div>
-      <div class="field"><label>Interesse</label><input id="interesse" placeholder="Plano médio"></div>
-      <div class="field"><label>Valor (R$)</label><input id="valor" type="number" step="any" placeholder="1490"></div>
-      <button class="btn btn-p" onclick="criar()">Adicionar lead</button></div></div>
-  <div class="board">${ST.funil.map(colHtml).join('')}</div>`;
+  <div class="card" style="margin-bottom:16px"><h3>Leads</h3>
+    <div class="tbl-bar">
+      <input id="lBusca" value="${esc(BUSCA.lead||'')}" placeholder="Buscar por nome, telefone ou interesse"
+        oninput="buscarEm('lead',this.value)">
+      <select onchange="VISAO_LEAD=this.value;render()" style="width:auto" title="Como exibir">
+        <option value="tabela"${VISAO_LEAD==='tabela'?' selected':''}>Lista</option>
+        <option value="funil"${VISAO_LEAD==='funil'?' selected':''}>Funil</option>
+      </select>
+      <button class="btn btn-s" onclick="carregar()">Atualizar</button>
+      <button class="btn btn-p" onclick="novoLead()">+ Novo lead</button>
+    </div>
+    ${VISAO_LEAD==='funil'
+      ? `<div class="board">${ST.funil.map(colHtml).join('')}</div>`
+      : tabela({
+          vazio:'Nenhum lead ainda — clique em <b>+ Novo lead</b>.',
+          nenhum:'Nenhum lead com esse termo.',
+          colunas:[
+            {t:'Lead',cel:(l)=>`<b>${esc(l.nome||'sem nome')}</b><br><small class="hint">+${esc(l.telefone)}</small>`},
+            {t:'Interesse',cel:(l)=>esc(l.interesse||'—')},
+            {t:'Valor',al:'right',cel:(l)=>brl(l.valor)},
+            {t:'Etapa',cel:(l)=>l.status==='aberto'
+              ? `<select onchange="mover('${esc(l.id)}',this.value)" style="width:auto">
+                   ${ST.funil.map(e=>`<option${e===l.etapa?' selected':''}>${esc(e)}</option>`).join('')}</select>`
+              : `<span class="badge ${l.status==='ganho'?'b-ok':'b-err'}">${esc(l.status)}</span>`},
+            {t:'Score',al:'center',cel:(l)=>l.faixa?`<span class="tag t-${esc(l.faixa)}">${esc(l.faixa)}${l.score!=null?' · '+l.score:''}</span>`:'<span class="hint">—</span>'},
+          ],
+          acoes:(l)=>l.status==='aberto'?[
+            bi('ver','Abrir no WhatsApp',`window.open('https://wa.me/${esc(l.telefone)}','_blank','noopener')`),
+            bi('vender','Marcar como ganho',`fechar('${esc(l.id)}','ganho')`,'pri'),
+            bi('excluir','Marcar como perdido',`fechar('${esc(l.id)}','perdido')`,'dan'),
+          ].join(''):'',
+          todos:ST.leads,
+          itens:ST.leads.filter(l=>casa(BUSCA.lead,[l.nome,l.telefone,l.interesse,l.etapa])),
+        })}
+  </div>`;
 }
 function colHtml(etapa){
   const et=ST.resumo.etapas.find(e=>e.etapa===etapa)||{leads:0,valor:null};
@@ -1175,23 +1277,44 @@ function telaIndicacao(){
      <div class="field" style="grid-column:1/-1"><label>Link base</label><input id="iLink" value="${esc(g.linkBase||'')}" placeholder="https://velososolution.online"></div>
      <button class="btn btn-p" onclick="salvarRegra()">Salvar regra</button></div></div>
 
-  <div class="card" style="margin-bottom:16px"><h3>Novo parceiro</h3>
-   <p class="hint" style="margin-bottom:11px">O código sai do nome; o link de indicação é montado com ele.</p>
-   <div class="form-grid">
-     <div class="field"><label>Nome</label><input id="pNome" placeholder="Ana Ribeiro"></div>
-     <div class="field"><label>WhatsApp</label><input id="pTel" placeholder="31975127978"></div>
-     <div class="field"><label>Código (opcional)</label><input id="pCod" placeholder="ana"></div>
-     <button class="btn btn-p" onclick="criarParceiro()">Cadastrar</button></div></div>
-
   <div class="card"><h3>Parceiros</h3>
-   ${(IND?.parceiros||[]).length?`<div class="tbl-wrap"><table><thead><tr><th>Parceiro</th><th>Código</th><th>Link</th><th>Indicados</th><th></th></tr></thead><tbody>
-     ${IND.parceiros.map(p=>`<tr>
-       <td><b>${esc(p.nome)}</b>${p.telefone?`<br><small style="color:var(--dim)">+${esc(p.telefone)}</small>`:''}</td>
-       <td><code>${esc(p.codigo)}</code></td>
-       <td>${p.link?`<div class="linkbox"><span>${esc(p.link)}</span><button class="btn btn-s btn-xs" onclick="copiar('${esc(p.link)}')">Copiar</button></div>`:`<span class="badge b-warn">${esc(p.motivo||'sem link')}</span>`}</td>
-       <td>${p.indicados||0}</td>
-       <td style="text-align:right"><button class="btn btn-s btn-xs" onclick="removerParceiro('${esc(p.id)}')">Remover</button></td></tr>`).join('')}
-     </tbody></table></div>`:'<p class="hint" style="padding:12px 0">Nenhum parceiro cadastrado ainda.</p>'}</div>`;
+   <div class="tbl-bar">
+     <input id="pBusca" value="${esc(BUSCA.parceiro||'')}" placeholder="Buscar por nome ou código"
+       oninput="buscarEm('parceiro',this.value)">
+     <button class="btn btn-s" onclick="carregar()">Atualizar</button>
+     <button class="btn btn-p" onclick="novoParceiro()">+ Novo parceiro</button>
+   </div>
+   ${tabela({
+     vazio:'Nenhum parceiro cadastrado — clique em <b>+ Novo parceiro</b>.',
+     nenhum:'Nenhum parceiro com esse termo.',
+     colunas:[
+       {t:'Parceiro',cel:(p)=>`<b>${esc(p.nome)}</b>${p.telefone?`<br><small class="hint">+${esc(p.telefone)}</small>`:''}`},
+       {t:'Código',cel:(p)=>`<code>${esc(p.codigo)}</code>`},
+       {t:'Link de indicação',cel:(p)=>p.link
+         ?`<div class="linkbox"><span>${esc(p.link)}</span></div>`
+         :`<span class="badge b-warn">${esc(p.motivo||'sem link')}</span>`},
+       {t:'Indicados',al:'center',cel:(p)=>`<b>${p.indicados||0}</b>`},
+     ],
+     acoes:(p)=>[
+       p.link?bi('ver','Copiar o link',`copiar('${esc(p.link)}')`):'',
+       bi('excluir','Remover parceiro',`removerParceiro('${esc(p.id)}','${esc(p.nome).replace(/'/g,"\\'")}')`,'dan'),
+     ].join(''),
+     todos:IND?.parceiros||[],
+     itens:(IND?.parceiros||[]).filter(p=>casa(BUSCA.parceiro,[p.nome,p.codigo,p.telefone])),
+   })}</div>`;
+}
+
+function novoParceiro(){
+  abrirModal('Novo parceiro',
+    `<p class="hint">O código sai do nome; o link de indicação é montado com ele.</p>
+     <div class="form-grid" style="margin-top:12px">
+       <div class="field"><label>Nome *</label><input id="pNome" placeholder="Ana Ribeiro"></div>
+       <div class="field"><label>WhatsApp</label><input id="pTel" placeholder="31975127978"></div>
+       <div class="field" style="grid-column:1/-1"><label>Código <small>(opcional)</small></label>
+         <input id="pCod" placeholder="ana"></div>
+     </div>`,
+    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
+     <button class="btn btn-p" onclick="criarParceiro()">Cadastrar</button>`);
 }
 function trocaModelo(){
   const m=document.getElementById('iModelo').value;
@@ -1496,19 +1619,6 @@ const S={
     ESTORNADO:'estornado',CANCELADO:'cancelado',CHARGEBACK:'chargeback',CHARGEBACK_DISPUTA:'em disputa'}[e]||e);
   const cor=(e)=>['CONFIRMADO','DISPONIVEL'].includes(e)?'b-ok':['CHARGEBACK','CHARGEBACK_DISPUTA','ESTORNADO'].includes(e)?'b-err':'b-warn';
 
-  const lista=PAG.pagamentos.length
-    ? `<table class="tbl"><thead><tr><th>Quando</th><th>Descrição</th><th>Forma</th>
-        <th style="text-align:right">Valor</th><th style="text-align:center">Situação</th><th></th></tr></thead><tbody>
-       ${PAG.pagamentos.map(p=>`<tr>
-        <td>${esc(String(p.criadoEm||'').slice(0,16).replace('T',' '))}</td>
-        <td>${esc(p.referencia||p.descricao||p.id)}</td>
-        <td>${esc(p.metodo==='PIX'?'Pix':p.metodo==='CREDIT_CARD'?'Cartão':p.metodo||'—')}</td>
-        <td style="text-align:right">${esc(brl(p.valorCentavos/100))}</td>
-        <td style="text-align:center"><span class="badge ${cor(p.estado)}">${esc(estado(p.estado))}</span></td>
-        <td style="text-align:right">${p.linkPagamento?`<a class="btn btn-s btn-xs" href="${esc(p.linkPagamento)}" target="_blank" rel="noopener">abrir</a>`:''}</td>
-       </tr>`).join('')}</tbody></table>`
-    : '<p class="hint">Nenhuma cobrança emitida ainda.</p>';
-
   return head('Plano e acesso · Recebimento','Cobrar por Pix ou cartão, e ver o que entrou — pelo Asaas.')+
   `<div class="grid g-kpi" style="margin-bottom:16px">
     ${kpi('Aguardando',pend,'emitidas e não pagas')}
@@ -1541,24 +1651,32 @@ const S={
     <p class="hint" style="margin-top:10px">No painel do Asaas, em <b>Integrações → Webhooks</b>, cadastre esta URL e
       o mesmo token acima:<br><code>${esc(PAG.urlWebhook)}</code></p></div>
 
-  <div class="card" style="margin-bottom:16px"><h3>Nova cobrança</h3>
-    <p class="hint">O Asaas exige nome e CPF/CNPJ do pagador — cobrança sem documento é recusada por eles na criação.</p>
-    <div class="form-grid">
-      <div class="field"><label>Nome do pagador *</label><input id="pgNome" placeholder="Maria Souza"></div>
-      <div class="field"><label>CPF ou CNPJ *</label><input id="pgDoc" placeholder="000.000.000-00"></div>
-      <div class="field"><label>E-mail</label><input id="pgEmail" placeholder="opcional"></div>
-      <div class="field"><label>Valor *</label><input id="pgValor" placeholder="R$ 199,90"></div>
-      <div class="field"><label>Forma</label><select id="pgMetodo">
-        <option value="PIX">Pix</option><option value="CREDIT_CARD">Cartão</option><option value="BOLETO">Boleto</option></select></div>
-      <div class="field"><label>Vencimento</label><input id="pgVenc" type="date"></div>
-      <div class="field" style="grid-column:1/-1"><label>Descrição</label><input id="pgDesc" placeholder="Mensalidade do console — setembro"></div>
-      <button class="btn btn-p" onclick="cobrarAgora()">Emitir cobrança</button>
+  <div class="card"><h3>Cobranças</h3>
+    <div class="tbl-bar">
+      <input id="pgBusca" value="${esc(BUSCA.cobranca||'')}" placeholder="Buscar por descrição, valor ou situação"
+        oninput="buscarEm('cobranca',this.value)">
+      <button class="btn btn-s" onclick="carregar()">Atualizar</button>
+      <button class="btn btn-p" ${i.pronto?'':'disabled title="cadastre a chave do Asaas primeiro"'}
+        onclick="novaCobranca()">+ Nova cobrança</button>
     </div>
-    <div id="pgResultado"></div></div>
-
-  <div class="card"><h3>Cobranças emitidas</h3>
-    <p class="hint">A situação muda sozinha quando o Asaas avisa no webhook — não é preciso conferir na mão.</p>
-    ${lista}</div>`;
+    <p class="hint" style="margin-bottom:10px">A situação muda sozinha quando o Asaas avisa no webhook — não é preciso conferir na mão.</p>
+    ${tabela({
+      vazio:'Nenhuma cobrança emitida — clique em <b>+ Nova cobrança</b>.',
+      nenhum:'Nenhuma cobrança com esse termo.',
+      colunas:[
+        {t:'Quando',cel:(c)=>`<small class="hint">${esc(String(c.criadoEm||'').slice(0,16).replace('T',' '))}</small>`},
+        {t:'Descrição',cel:(c)=>`<b>${esc(c.referencia||c.descricao||c.id)}</b><br><small class="hint">${esc(c.id)}</small>`},
+        {t:'Forma',cel:(c)=>esc(c.metodo==='PIX'?'Pix':c.metodo==='CREDIT_CARD'?'Cartão':c.metodo||'—')},
+        {t:'Valor',al:'right',cel:(c)=>`<b>${esc(brl(c.valorCentavos/100))}</b>`},
+        {t:'Situação',al:'center',cel:(c)=>`<span class="badge ${cor(c.estado)}">${esc(estado(c.estado))}</span>`},
+      ],
+      acoes:(c)=>[
+        c.pix?.payload?bi('ver','Ver o Pix',`verPix('${esc(c.id)}')`):'',
+        c.linkPagamento?bi('comprar','Abrir a página de pagamento',`window.open('${esc(c.linkPagamento)}','_blank','noopener')`):'',
+      ].join(''),
+      todos:PAG.pagamentos,
+      itens:PAG.pagamentos.filter(c=>casa(BUSCA.cobranca,[c.referencia,c.descricao,c.id,estado(c.estado),brl(c.valorCentavos/100)])),
+    })}</div>`;
  },
  contrato:()=>head('Contrato','O que você assinou e o que está valendo.')+
   vazio('contrato','Nenhum contrato registrado','Não existe documento de contrato nesta instalação. A relação hoje é a chave de licença assinada (Ed25519) com plano e validade.',
@@ -1877,11 +1995,32 @@ async function salvarFunil(){
   const etapas=document.getElementById('funilTxt').value.split('\n').map(s=>s.trim()).filter(Boolean);
   try{await api('funil',{etapas});flash('Funil salvo.','ok');carregar();}catch(e){flash(e.message,'err');}
 }
+function novoLead(){
+  abrirModal('Novo lead',
+    `<p class="hint">Telefone sem DDI recebe o 55 automático.</p>
+     <div class="form-grid" style="margin-top:12px">
+       <div class="field"><label>Nome</label><input id="nome" placeholder="Carla Souza"></div>
+       <div class="field"><label>WhatsApp *</label><input id="telefone" placeholder="31975127978"></div>
+       <div class="field"><label>Interesse</label><input id="interesse" placeholder="Plano médio"></div>
+       <div class="field"><label>Valor (R$)</label><input id="valor" type="number" step="any" placeholder="1490"></div>
+     </div>`,
+    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
+     <button class="btn btn-p" onclick="criar()">Adicionar lead</button>`);
+}
+
 async function criar(){
-  const v=document.getElementById('valor').value;
-  try{await api('leads',{nome:document.getElementById('nome').value,telefone:document.getElementById('telefone').value,
-    interesse:document.getElementById('interesse').value,valor:v===''?null:Number(v)});
-    flash('Lead adicionado.','ok');carregar();}catch(e){flash(e.message,'err');}
+  const g=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
+  if(!g('telefone')) return flash('O WhatsApp é obrigatório — é a chave do lead.','err');
+  const v=g('valor');
+  try{
+    const r=await api('leads',{nome:g('nome'),telefone:g('telefone'),interesse:g('interesse'),
+      valor:v===''?null:Number(v)});
+    if(r.erro||r.ok===false) return flash(r.erro||r.motivo,'err');
+    fecharModal(); await carregar();
+    // Telefone fora do padrao BR nao impede cadastrar, mas impede o bot enviar.
+    flash(r.lead?.telefoneAviso?`Lead adicionado. Atenção: ${r.lead.telefoneAviso}`:'Lead adicionado.',
+      r.lead?.telefoneAviso?'err':'ok');
+  }catch(e){flash(e.message,'err');}
 }
 async function mover(id,etapa){try{await api('mover',{id,etapa});carregar();}catch(e){flash(e.message,'err');carregar();}}
 async function fechar(id,status){try{await api('fechar',{id,status});carregar();}catch(e){flash(e.message,'err');}}
@@ -1893,11 +2032,22 @@ async function salvarRegra(){
     flash('Regra salva.','ok');carregar();}catch(e){flash(e.message,'err');}
 }
 async function criarParceiro(){
-  try{await api('parceiros',{nome:document.getElementById('pNome').value,
-    telefone:document.getElementById('pTel').value,codigo:document.getElementById('pCod').value});
-    flash('Parceiro cadastrado.','ok');carregar();}catch(e){flash(e.message,'err');}
+  const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
+  if(!v('pNome')) return flash('O nome é obrigatório.','err');
+  try{
+    const r=await api('parceiros',{nome:v('pNome'),telefone:v('pTel'),codigo:v('pCod')});
+    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
+    fecharModal(); await carregar(); flash('Parceiro cadastrado.','ok');
+  }catch(e){flash(e.message,'err');}
 }
-async function removerParceiro(id){try{await api('parceiros/remover',{id});flash('Parceiro removido.','ok');carregar();}catch(e){flash(e.message,'err');}}
+
+async function removerParceiro(id,nome){
+  if(!confirm(`Remover o parceiro "${nome||id}"?\n\nO link de indicação dele para de funcionar. Comissão já lançada não é apagada.`)) return;
+  try{
+    await api('parceiros/remover',{id});
+    await carregar(); flash('Parceiro removido.','ok');
+  }catch(e){flash(e.message,'err');}
+}
 async function testarRede(rede){
   const campos=REDES.credenciais[rede].campos;
   const cred={};
