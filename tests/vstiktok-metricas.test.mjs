@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { perfil, listarVideos, consultarVideos, coletarMetricas } from '../engine/vstiktok/metricas.mjs';
+import * as m from '../engine/vstiktok/metricas.mjs';
 
 const ctx = (cap = {}, corpo = { data: {}, error: { code: 'ok' } }, status = 200) => ({
   token: 't',
@@ -84,4 +85,32 @@ test('listagem de video pagina por cursor e respeita o teto de 20', async () => 
   assert.equal(JSON.parse(cap.opts.body).cursor, 50);
   assert.equal(r.temMais, true);
   assert.equal(r.cursor, 123);
+});
+
+/* ---- campos x escopo ----
+   Pedir campo fora do escopo concedido faz a TikTok RECUSAR a chamada inteira,
+   nao devolver o campo vazio: pedir seguidores com so `user.info.basic`
+   derrubava ate o nome. Foi o que aconteceu na primeira conexao de verdade. */
+
+test('campos saem do escopo concedido, nao de uma lista fixa', () => {
+  const basico = m.camposPermitidos('user.info.basic');
+  assert.deepEqual(basico, ['open_id', 'union_id', 'display_name', 'avatar_url']);
+  assert.equal(basico.includes('follower_count'), false, 'seguidores nao entram com o escopo basico');
+});
+
+test('escopos somados somam campos, sem repetir', () => {
+  const c = m.camposPermitidos('user.info.basic,user.info.stats');
+  assert.ok(c.includes('display_name'));
+  assert.ok(c.includes('follower_count'));
+  assert.equal(new Set(c).size, c.length, 'campo repetido faria a query crescer a toa');
+});
+
+test('escopo vazio ou desconhecido cai no BASICO, nao em tudo', () => {
+  for (const e of [null, '', 'inventado', undefined]) {
+    assert.deepEqual(m.camposPermitidos(e), ['open_id', 'union_id', 'display_name', 'avatar_url']);
+  }
+});
+
+test('aceita lista tambem, nao so string', () => {
+  assert.ok(m.camposPermitidos(['user.info.stats']).includes('likes_count'));
 });

@@ -165,6 +165,10 @@ export async function contexto(familia, opts = {}) {
     renovado: g.renovado,
     ctx: {
       token: g.token.accessToken,
+      // O escopo concedido anda junto do token: quem chama a API precisa saber o
+      // que pode pedir. Pedir campo fora do escopo faz a TikTok recusar a
+      // chamada INTEIRA, nao devolver o campo vazio.
+      escopo: g.token.escopo || null,
       appKey: cred.appKey,
       appSecret: cred.appSecret,
       shopCipher: opts.shopCipher || cfg.shopCipher,

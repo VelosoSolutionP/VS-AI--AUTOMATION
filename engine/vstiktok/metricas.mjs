@@ -20,6 +20,27 @@ export const CAMPOS_VIDEO = [
 
 export const CAMPOS_PERFIL = ['open_id', 'union_id', 'display_name', 'avatar_url', 'follower_count', 'following_count', 'likes_count', 'video_count'];
 
+/**
+ * Quais campos cada escopo libera. Pedir um campo fora do escopo concedido faz a
+ * TikTok RECUSAR a chamada inteira — não é que ela devolva o campo vazio. Ou
+ * seja: pedir seguidores com só `user.info.basic` derruba até o nome.
+ *
+ * Referência: docs da Display API, /v2/user/info/.
+ */
+export const CAMPOS_POR_ESCOPO = {
+  'user.info.basic': ['open_id', 'union_id', 'display_name', 'avatar_url'],
+  'user.info.profile': ['profile_deep_link', 'bio_description', 'is_verified', 'username'],
+  'user.info.stats': ['follower_count', 'following_count', 'likes_count', 'video_count'],
+};
+
+/** Campos permitidos por um escopo concedido ("a,b,c" ou lista). */
+export function camposPermitidos(escopo) {
+  const lista = Array.isArray(escopo) ? escopo : String(escopo || '').split(',').map((e) => e.trim());
+  const campos = lista.flatMap((e) => CAMPOS_POR_ESCOPO[e] || []);
+  // Sem escopo conhecido, o basico: e o unico que o Login Kit concede sozinho.
+  return campos.length ? [...new Set(campos)] : CAMPOS_POR_ESCOPO['user.info.basic'];
+}
+
 const txt = (v) => String(v ?? '').trim();
 
 function req(ctx = {}, caminho, extra = {}) {
@@ -35,7 +56,9 @@ function req(ctx = {}, caminho, extra = {}) {
 }
 
 /** Perfil do criador conectado (serve de teste de conexão também). */
-export async function perfil(ctx = {}, campos = CAMPOS_PERFIL) {
+export async function perfil(ctx = {}, campos = null) {
+  // Sem lista explicita, pede exatamente o que o token concedeu.
+  campos = campos || camposPermitidos(ctx.escopo);
   const r = await req(ctx, '/v2/user/info/', { metodo: 'GET', query: { fields: campos.join(',') } });
   if (!r.ok) { return r; }
   const u = r.dados?.user || {};
