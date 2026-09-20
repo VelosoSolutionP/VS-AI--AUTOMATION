@@ -454,7 +454,7 @@ const TITULO={};
 MENU.forEach(m=>{TITULO[m.id]=[m.nome];(m.filhos||[]).forEach(f=>TITULO[f.id]=[m.nome,f.nome]);});
 const PAI={}; MENU.forEach(m=>(m.filhos||[]).forEach(f=>PAI[f.id]=m.id));
 
-let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null,QG=null,TKAPP=null,PAG=null,LOTES=null;
+let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null,QG=null,TKAPP=null,PAG=null,LOTES=null,CAIXA=null;
 const TESTE={}; // resultado do ultimo teste por rede (so em memoria)
 const PROVA={}; // ultimo teste real das APIs do TikTok, por familia
 let rota=location.hash.slice(1)||'visao';
@@ -748,6 +748,8 @@ let TAB={ordem:'nome',desc:false,pagina:1,porPagina:20,busca:''};
 /* Lista OU funil. O funil e bom pra arrastar a venda; a lista e melhor pra achar
    um lead pelo nome no meio de trezentos. Quem escolhe e quem usa. */
 let VISAO_LEAD='tabela';
+let EDITANDO_LANC=null;
+let PERIODO={de:'',ate:''};
 
 const campoProduto={eNome:'nome',ePreco:'preco',ePromo:'precoPromocional',eQtd:'quantidade',
   eMarca:'marca',eCat:'categoria',eGtin:'gtin',eLink:'link',eImgs:'imagens',eDesc:'descricao'};
@@ -1160,6 +1162,126 @@ function tabelaProdutos(produtos){
     <tbody>${corpo}</tbody></table></div>${nav}`;
 }
 
+/* ---- livro-caixa ---- */
+
+function caixaHtml(){
+  if(!CAIXA) return `<div class="card" style="margin-bottom:16px"><h3>Livro-caixa</h3>
+    <p class="hint">Backend sem a rota do financeiro. Atualize o servidor.</p></div>`;
+  const c=CAIXA, r=c.periodo;
+  const cat=(l)=>esc(l.categoria||'—');
+  return `<div class="grid g-kpi" style="margin:16px 0">
+    ${kpi('Entrou no período',brl(r.entrouCentavos/100),`${r.entradas} lançamento(s)`)}
+    ${kpi('Saiu no período',brl(r.saiuCentavos/100),`${r.saidas} lançamento(s)`)}
+    ${kpi('Saldo do período',brl(r.saldoCentavos/100),r.saldoCentavos<0?'no vermelho':'no azul')}
+    ${kpi('Saldo do mês',brl(c.mes.saldoCentavos/100),c.mes.referencia)}
+  </div>
+  <div class="card" style="margin-bottom:16px"><h3>Livro-caixa</h3>
+    <div class="tbl-bar">
+      <input id="fcBusca" value="${esc(BUSCA.caixa||'')}" placeholder="Buscar por descrição, categoria ou contato"
+        oninput="buscarEm('caixa',this.value)">
+      <input type="date" style="width:auto" value="${esc(PERIODO.de||'')}" onchange="PERIODO.de=this.value;carregar()" title="De">
+      <input type="date" style="width:auto" value="${esc(PERIODO.ate||'')}" onchange="PERIODO.ate=this.value;carregar()" title="Até">
+      <button class="btn btn-s" onclick="PERIODO={de:'',ate:''};carregar()">Limpar período</button>
+      <button class="btn btn-p" onclick="novoLancamento()">+ Novo lançamento</button>
+    </div>
+    ${tabela({
+      vazio:'Nenhum lançamento — clique em <b>+ Novo lançamento</b>. Pagamento confirmado pelo Asaas entra aqui sozinho.',
+      nenhum:'Nenhum lançamento com esse termo.',
+      colunas:[
+        {t:'Data',cel:(l)=>esc(String(l.data||'').split('-').reverse().join('/'))},
+        {t:'Descrição',cel:(l)=>`<b>${esc(l.descricao)}</b>${l.contato?`<br><small class="hint">${esc(l.contato)}</small>`:''}`},
+        {t:'Categoria',cel:(l)=>`${cat(l)}${l.origem!=='manual'?`<br><small class="hint">via ${esc(l.origem)}</small>`:''}`},
+        {t:'Forma',cel:(l)=>esc(l.forma||'—')},
+        {t:'Valor',al:'right',cel:(l)=>`<b style="color:${l.tipo==='entrada'?'var(--ok)':'var(--err)'}">${l.tipo==='entrada'?'+':'−'} ${esc(brl(l.valorCentavos/100))}</b>`},
+      ],
+      acoes:(l)=>[
+        bi('editar','Editar',`editarLancamento('${esc(l.id)}')`),
+        bi('excluir','Excluir',`excluirLancamento('${esc(l.id)}','${esc(l.descricao).replace(/'/g,"\\'")}')`,'dan'),
+      ].join(''),
+      todos:c.lancamentos,
+      itens:c.lancamentos.filter(l=>casa(BUSCA.caixa,[l.descricao,l.categoria,l.contato,l.forma])),
+    })}
+    ${r.porCategoria.length?`<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
+      <p class="hint" style="margin-bottom:8px">Por categoria, no período:</p>
+      ${r.porCategoria.map(g=>linha(`${g.categoria}`,g.tipo,brl(g.centavos/100),g.tipo==='entrada'?'b-ok':'b-warn')).join('')}</div>`:''}
+  </div>`;
+}
+
+function formLancamento(l){
+  const val=(x)=>esc(x==null?'':String(x));
+  const tipo=l?.tipo||'entrada';
+  const cats=(CAIXA?.categorias||{entrada:[],saida:[]});
+  return `<div class="form-grid">
+    <div class="field"><label>Tipo *</label>
+      <select id="fcTipo" onchange="trocarCategorias()">
+        <option value="entrada"${tipo==='entrada'?' selected':''}>Entrada (dinheiro que entrou)</option>
+        <option value="saida"${tipo==='saida'?' selected':''}>Saída (dinheiro que saiu)</option></select></div>
+    <div class="field"><label>Valor *</label><input id="fcValor" value="${l?campoNum(l.valorCentavos/100):''}" placeholder="R$ 199,90"></div>
+    <div class="field"><label>Data</label><input id="fcData" type="date" value="${val(l?.data)}"></div>
+    <div class="field"><label>Categoria</label><select id="fcCat">
+      ${(cats[tipo]||[]).map(c=>`<option value="${esc(c)}"${l?.categoria===c?' selected':''}>${esc(c)}</option>`).join('')}</select></div>
+    <div class="field"><label>Forma</label><select id="fcForma">
+      <option value="">—</option>
+      ${(CAIXA?.formas||[]).map(f=>`<option value="${esc(f)}"${l?.forma===f?' selected':''}>${esc(f)}</option>`).join('')}</select></div>
+    <div class="field"><label>Cliente / fornecedor</label><input id="fcContato" value="${val(l?.contato)}" placeholder="opcional"></div>
+    <div class="field" style="grid-column:1/-1"><label>Descrição *</label>
+      <input id="fcDesc" value="${val(l?.descricao)}" placeholder="Mensalidade de setembro"></div>
+  </div>
+  <p class="hint" style="margin-top:10px">Saída é lançada com valor <b>positivo</b> e tipo <b>Saída</b> —
+    valor negativo e tipo saída seriam dois sinais brigando.</p>`;
+}
+
+/* As categorias mudam com o tipo: "aluguel" não é entrada, "mensalidade" não é
+   saída. Oferecer as duas listas juntas convida a classificar errado. */
+function trocarCategorias(){
+  const t=(document.getElementById('fcTipo')||{}).value||'entrada';
+  const sel=document.getElementById('fcCat');
+  if(!sel) return;
+  sel.innerHTML=((CAIXA?.categorias||{})[t]||[]).map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+}
+
+function novoLancamento(){
+  EDITANDO_LANC=null;
+  abrirModal('Novo lançamento',formLancamento(null),
+    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
+     <button class="btn btn-p" onclick="salvarLancamento()">Lançar</button>`);
+}
+
+function editarLancamento(id){
+  const l=(CAIXA?.lancamentos||[]).find(x=>x.id===id);
+  if(!l) return flash('Lançamento não encontrado.','err');
+  EDITANDO_LANC=id;
+  abrirModal('Editar lançamento',formLancamento(l),
+    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
+     <button class="btn btn-p" onclick="salvarLancamento()">Salvar</button>`);
+}
+
+async function salvarLancamento(){
+  const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
+  const d={tipo:v('fcTipo'),valor:v('fcValor'),data:v('fcData')||undefined,categoria:v('fcCat'),
+    forma:v('fcForma'),contato:v('fcContato'),descricao:v('fcDesc')};
+  if(!d.descricao) return flash('A descrição é obrigatória — extrato sem descrição não se audita.','err');
+  if(!d.valor) return flash('Informe o valor.','err');
+  try{
+    const r=EDITANDO_LANC
+      ? await api('caixa/editar',{id:EDITANDO_LANC,mudancas:d})
+      : await api('caixa',d);
+    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
+    const feito=EDITANDO_LANC?'Lançamento atualizado.':'Lançamento registrado.';
+    EDITANDO_LANC=null; fecharModal(); await carregar();
+    flash(r.avisos?.length?`${feito} ${r.avisos.join('; ')}`:feito,'ok');
+  }catch(e){flash(e.message,'err');}
+}
+
+async function excluirLancamento(id,desc){
+  if(!confirm(`Excluir o lançamento "${desc}"?\n\nEle sai do caixa mas continua no histórico — nada some de verdade.`)) return;
+  try{
+    const r=await api('caixa/excluir',{id});
+    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
+    await carregar(); flash('Lançamento excluído.','ok');
+  }catch(e){flash(e.message,'err');}
+}
+
 /* ---------- telas ---------- */
 function telaVisao(){
   const r=ST.resumo,w=STATUS?.whatsapp||{};
@@ -1412,8 +1534,9 @@ const S={
     ${linha('Total reconhecido','vendas fechadas + conteúdo — o pipeline NÃO entra',f.totalReconhecido,'b-ok')}
     ${linha('Perdido','leads marcados como perdidos',f.perdido,'')}
     ${linha('Conversão','ganhos ÷ fechados',f.conversao==null?'—':Math.round(f.conversao*100)+'%',f.conversao==null?'':'b-ok')}</div>
+  ${caixaHtml()}
   <div class="card" style="border-style:dashed"><h3>O que estes números NÃO são</h3>
-    <p class="hint">Isto é consolidado operacional, não fechamento contábil. Nada aqui foi confirmado contra banco.</p>
+    <p class="hint">Isto é caixa operacional, não fechamento contábil. Nada aqui foi conciliado contra extrato bancário.</p>
     ${f.lacunas.map(l=>linha('•',' ',l,'b-warn')).join('')||'<p class="hint">Sem lacunas: todas as fontes estão preenchidas.</p>'}</div>`;
  },
  bot:()=>head('Bot','O atendimento automático — visão geral, fora do WhatsApp.')+
@@ -1977,6 +2100,7 @@ async function carregar(){
     TKAPP=await api('tiktok/app').catch(()=>null);
     PAG=await api('pagamentos').catch(()=>null);
     LOTES=await api('estoque/lotes').catch(()=>null);
+    CAIXA=await api('caixa'+(PERIODO.de||PERIODO.ate?`?de=${PERIODO.de}&ate=${PERIODO.ate}`:'')).catch(()=>null);
     if(TKAPP&&TKAPP.diagnostico) TK=TKAPP.diagnostico;
     // Telas novas: carregadas a parte pra uma falha nelas nao derrubar o painel todo.
     [AUD,FIN,REL,CTA]=await Promise.all([api('auditor').catch(()=>null),api('financeiro').catch(()=>null),

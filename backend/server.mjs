@@ -29,6 +29,7 @@ import { painelQuebraGalho, QG_URL } from './quebragalho.mjs';
 import * as tk from '../engine/vstiktok/index.mjs';
 import { reservarEvento } from './idempotencia.mjs';
 import * as pagar from '../engine/vspagamentos/index.mjs';
+import * as fin from '../engine/vsfinanceiro/index.mjs';
 import * as midia from './midia.mjs';
 import { pagina as paginaVitrine } from './vitrine.mjs';
 import { lerCorpoLimitado, criarRateLimit, ipDe, segredoIgual, CORPO_MAX_BYTES } from './limites.mjs';
@@ -287,6 +288,13 @@ const server = createServer(async (req, res) => {
     if (corpoEstourou(res, buf)) { return; }
     let evento; try { evento = JSON.parse(buf.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
     const r = pagar.processarWebhook(req.headers, evento);
+    /* Pagamento confirmado vira LANCAMENTO no caixa. E idempotente pela
+       referencia: o mesmo pagamento reentregue nao entra duas vezes. Sem isto, o
+       financeiro so mostrava promessa do funil e nunca o dinheiro que entrou. */
+    if (r.ok && ['CONFIRMADO', 'DISPONIVEL'].includes(r.estado) && r.pagamento) {
+      const l = fin.lancarPagamento(r.pagamento);
+      if (l.ok && !l.repetido) { console.log(`[caixa] entrada de ${r.pagamento.id} lancada`); }
+    }
     console.log(`[asaas] ${evento.event || '?'} ${evento.payment?.id || ''} -> ${r.ok ? r.estado : 'recusado: ' + r.motivo}`);
     return json(res, r.http || (r.ok ? 200 : 400), r);
   }
@@ -527,6 +535,13 @@ const server = createServer(async (req, res) => {
       const id = new URL(req.url, 'http://x').searchParams.get('id') || '';
       return json(res, 200, await tk.statusPublicacao(id));
     }
+    /* `/financeiro` ja era o consolidado do VSpainel (receita do funil, estoque
+       parado). O livro-caixa e outra coisa e ganha nome proprio — duas rotas com
+       o mesmo caminho fazem a segunda nunca responder, calada. */
+    if (req.method === 'GET' && rota === '/crm/api/caixa') {
+      const u = new URL(req.url, 'http://x');
+      return json(res, 200, fin.painel({ de: u.searchParams.get('de'), ate: u.searchParams.get('ate') }));
+    }
     if (req.method === 'GET' && rota === '/crm/api/pagamentos') {
       const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
       return json(res, 200, {
@@ -666,6 +681,10 @@ const server = createServer(async (req, res) => {
           });
           break;
         }
+        case '/crm/api/caixa': r = fin.criar(d); break;
+        case '/crm/api/caixa/editar': r = fin.editar(d.id, d.mudancas || {}); break;
+        case '/crm/api/caixa/excluir': r = fin.excluir(d.id, { motivo: d.motivo }); break;
+        case '/crm/api/caixa/restaurar': r = fin.restaurar(d.id); break;
         case '/crm/api/estoque/produto': r = estoque.criar(d); break;
         case '/crm/api/estoque/editar': r = estoque.editar(d.sku, d.mudancas || {}); break;
         case '/crm/api/estoque/movimentar': r = estoque.movimentar(d.sku, d); break;
