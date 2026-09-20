@@ -18,7 +18,9 @@ const MOVIMENTOS = 'movimentos';
 export { FORMATOS, CANAIS, prontidao };
 
 export function listar(opts = {}) {
-  const todos = load(PRODUTOS, []);
+  // Excluído sai de tudo por padrão: catálogo, feed, vitrine e lote. Quem precisa
+  // dele (auditoria, restauração) pede explicitamente.
+  const todos = load(PRODUTOS, []).filter((p) => opts.incluirExcluidos || !p.excluidoEm);
   if (opts.texto) {
     const t = String(opts.texto).toLowerCase();
     return todos.filter((p) => `${p.nome} ${p.sku} ${p.marca || ''} ${p.categoria || ''}`.toLowerCase().includes(t));
@@ -90,13 +92,42 @@ export function inativar(sku) { return editar(sku, { ativo: false }); }
 export function reativar(sku) { return editar(sku, { ativo: true }); }
 
 /** Apaga de vez. Separado de inativar porque não tem volta. */
-export function excluir(sku) {
-  const atuais = listar();
-  const restantes = atuais.filter((p) => p.sku !== String(sku));
-  if (restantes.length === atuais.length) { return { ok: false, erros: [`produto "${sku}" não encontrado`] }; }
-  save(PRODUTOS, restantes);
-  return { ok: true, sku };
+/**
+ * Exclusão LÓGICA. O produto sai das telas e dos feeds, mas continua no disco:
+ * pedido, movimento de estoque e lançamento financeiro apontam pra ele, e apagar
+ * de verdade deixaria histórico órfão — extrato com item que "não existe" é
+ * exatamente o que se investiga quando a conta não fecha.
+ */
+export function excluir(sku, opts = {}) {
+  const todos = load(PRODUTOS, []);
+  const i = todos.findIndex((p) => p.sku === String(sku));
+  if (i < 0) { return { ok: false, erros: [`produto "${sku}" não encontrado`] }; }
+  if (todos[i].excluidoEm) { return { ok: true, sku: String(sku), repetido: true }; }
+  todos[i] = {
+    ...todos[i],
+    excluidoEm: opts.quando || new Date().toISOString(),
+    excluidoPor: opts.porQuem || null,
+    ativo: false,
+    naVitrine: false,
+  };
+  save(PRODUTOS, todos);
+  return { ok: true, sku: String(sku), produto: todos[i] };
 }
+
+/** Desfaz a exclusão lógica. Existe porque excluir errado acontece. */
+export function restaurar(sku) {
+  const todos = load(PRODUTOS, []);
+  const i = todos.findIndex((p) => p.sku === String(sku));
+  if (i < 0) { return { ok: false, erros: [`produto "${sku}" não encontrado`] }; }
+  if (!todos[i].excluidoEm) { return { ok: true, sku: String(sku), repetido: true }; }
+  const { excluidoEm, excluidoPor, ...limpo } = todos[i];
+  todos[i] = { ...limpo, ativo: true };
+  save(PRODUTOS, todos);
+  return { ok: true, sku: String(sku), produto: todos[i] };
+}
+
+/** Os excluídos, pra tela poder mostrar e restaurar. */
+export const excluidos = () => load(PRODUTOS, []).filter((p) => p.excluidoEm);
 
 /** Movimenta o saldo e guarda o histórico — quem mexeu no estoque e por quê. */
 export function movimentar(sku, mov, agora) {
@@ -112,6 +143,67 @@ export function movimentar(sku, mov, agora) {
   save(MOVIMENTOS, [{ sku: r.produto.sku, ...r.movimento }, ...load(MOVIMENTOS, [])].slice(0, 2000));
   return { ok: true, produto: r.produto, movimento: r.movimento };
 }
+
+const RESERVAS = 'reservas';
+
+/**
+ * Reserva idempotente. É o que a venda dispara: separa a peça e NÃO baixa o
+ * saldo. A baixa só acontece quando o canal confirma — clique e callback não
+ * autenticado não podem mexer em estoque.
+ *
+ * A mesma `chave` repetida devolve a reserva original em vez de reservar de novo:
+ * retry de rede e webhook reentregue são normais, e sem isto viram peça dobrada
+ * separada pro mesmo pedido.
+ */
+export function reservar(sku, quantidade, opts = {}) {
+  const chave = String(opts.chave || '').trim();
+  if (!chave) { return { ok: false, erro: 'informe a chave de idempotência da reserva' }; }
+  const qtd = Number(quantidade);
+  if (!Number.isInteger(qtd) || qtd <= 0) { return { ok: false, erro: `quantidade inválida: "${quantidade}"` }; }
+
+  const feitas = load(RESERVAS, {});
+  if (feitas[chave]) { return { ok: true, repetido: true, reserva: feitas[chave] }; }
+
+  const r = movimentar(sku, { tipo: 'reserva', quantidade: qtd, motivo: opts.motivo || 'venda', ref: chave });
+  if (!r.ok) { return r; }
+
+  const reserva = {
+    chave, sku: String(sku), quantidade: qtd,
+    canal: opts.canal || null,
+    em: new Date().toISOString(),
+    estado: 'RESERVADO',
+  };
+  save(RESERVAS, { ...feitas, [chave]: reserva });
+  return { ok: true, reserva, produto: r.produto };
+}
+
+/** Confirma a venda: aí sim o saldo baixa. Chamado pelo evento do canal. */
+export function confirmarReserva(chave) {
+  const feitas = load(RESERVAS, {});
+  const r = feitas[String(chave)];
+  if (!r) { return { ok: false, erro: `reserva "${chave}" não encontrada` }; }
+  if (r.estado === 'VENDIDO') { return { ok: true, repetido: true, reserva: r }; }
+  const m = movimentar(r.sku, { tipo: 'vender', quantidade: r.quantidade, motivo: 'confirmado pelo canal', ref: r.chave });
+  if (!m.ok) { return m; }
+  const atualizada = { ...r, estado: 'VENDIDO', confirmadoEm: new Date().toISOString() };
+  save(RESERVAS, { ...feitas, [r.chave]: atualizada });
+  return { ok: true, reserva: atualizada, produto: m.produto };
+}
+
+/** Devolve a peça pra prateleira quando a venda não sai. */
+export function cancelarReserva(chave) {
+  const feitas = load(RESERVAS, {});
+  const r = feitas[String(chave)];
+  if (!r) { return { ok: false, erro: `reserva "${chave}" não encontrada` }; }
+  if (r.estado !== 'RESERVADO') { return { ok: false, erro: `reserva já está ${r.estado}` }; }
+  const m = movimentar(r.sku, { tipo: 'liberar', quantidade: r.quantidade, motivo: 'venda não concluída', ref: r.chave });
+  if (!m.ok) { return m; }
+  const atualizada = { ...r, estado: 'CANCELADO', canceladoEm: new Date().toISOString() };
+  save(RESERVAS, { ...feitas, [r.chave]: atualizada });
+  return { ok: true, reserva: atualizada, produto: m.produto };
+}
+
+export const reservas = () => Object.values(load(RESERVAS, {})).sort((a, b) => b.em.localeCompare(a.em));
 
 export function historico(sku, limite = 50) {
   const todos = load(MOVIMENTOS, []);

@@ -95,14 +95,96 @@ test('busca por texto acha por nome, sku, marca ou categoria', () => {
   assert.equal(vs.listar({ texto: 'geladeira' }).length, 0);
 });
 
-test('excluir some de vez; excluir de novo avisa', () => {
+/* Este teste ja exigiu exclusao FISICA. A especificacao do produto (secao 3)
+   pede soft delete: pedido, movimento e lancamento financeiro apontam pro
+   produto, e apagar de verdade deixa historico orfao — extrato com item que
+   "nao existe" e o que se investiga quando a conta nao fecha. */
+test('excluir some das telas mas NAO do disco', () => {
   assert.equal(vs.excluir('bone-veloso').ok, true);
-  assert.equal(vs.listar().length, 1);
-  assert.equal(vs.excluir('bone-veloso').ok, false);
+  assert.equal(vs.listar().length, 1, 'sai do catalogo');
+  assert.equal(vs.listar({ incluirExcluidos: true }).length, 2, 'continua gravado');
+  assert.equal(vs.obter('bone-veloso'), null, 'nao aparece mais em obter');
+  assert.equal(vs.excluidos().length, 1);
+});
+
+test('excluir de novo nao e erro — e o mesmo resultado', () => {
+  const r = vs.excluir('bone-veloso');
+  assert.equal(r.ok, true);
+  assert.equal(r.repetido, true);
+});
+
+test('excluido sai do feed e da vitrine junto', () => {
+  assert.equal(vs.daVitrine().some((p) => p.sku === 'bone-veloso'), false);
+  assert.equal(vs.exportar('json').conteudo.includes('bone-veloso'), false);
+});
+
+test('restaurar traz de volta — excluir errado acontece', () => {
+  assert.equal(vs.restaurar('bone-veloso').ok, true);
+  assert.equal(vs.listar().length, 2);
+  assert.ok(vs.obter('bone-veloso'));
+  assert.equal(vs.excluidos().length, 0);
+  vs.excluir('bone-veloso');
 });
 
 test('publicar no TikTok exige categoria, armazem e imagem — e nao chama a API sem isso', async () => {
   assert.match((await vs.publicarNoTiktok('fantasma')).motivo, /não encontrado/);
   assert.match((await vs.publicarNoTiktok('camiseta-veloso')).motivo, /armazemId/);
   assert.match((await vs.publicarNoTiktok('camiseta-veloso', { armazemId: 'W1' })).motivo, /categoriaId/);
+});
+
+/* ---- reserva: a regra critica de estoque da especificacao ----
+   "Nunca baixar estoque apenas porque o usuario clicou em Vender. Use
+   reserva/idempotencia e confirme a transacao no ponto definido pelo negocio.
+   Falhas e retries nao podem duplicar baixa." */
+
+test('reservar NAO baixa o saldo — separa a peca', () => {
+  const antes = vs.obter('camiseta-veloso');
+  const r = vs.reservar('camiseta-veloso', 2, { chave: 'ped-1', canal: 'tiktok' });
+  assert.equal(r.ok, true, r.erro);
+  const depois = vs.obter('camiseta-veloso');
+  assert.equal(depois.quantidade, antes.quantidade, 'a quantidade NAO pode cair na reserva');
+  assert.equal(depois.reservado, (antes.reservado || 0) + 2);
+});
+
+test('a MESMA chave nao reserva duas vezes — retry e webhook reentregue sao normais', () => {
+  const antes = vs.obter('camiseta-veloso');
+  const r = vs.reservar('camiseta-veloso', 2, { chave: 'ped-1' });
+  assert.equal(r.ok, true);
+  assert.equal(r.repetido, true);
+  assert.equal(vs.obter('camiseta-veloso').reservado, antes.reservado, 'reservou de novo');
+});
+
+test('reserva sem chave e recusada — sem chave nao ha idempotencia', () => {
+  assert.equal(vs.reservar('camiseta-veloso', 1, {}).ok, false);
+  assert.equal(vs.reservar('camiseta-veloso', 0, { chave: 'x' }).ok, false);
+  assert.equal(vs.reservar('camiseta-veloso', 1.5, { chave: 'y' }).ok, false);
+});
+
+test('a baixa so acontece na CONFIRMACAO do canal', () => {
+  const antes = vs.obter('camiseta-veloso');
+  const r = vs.confirmarReserva('ped-1');
+  assert.equal(r.ok, true, r.erro);
+  const depois = vs.obter('camiseta-veloso');
+  assert.equal(depois.quantidade, antes.quantidade - 2, 'agora sim o saldo cai');
+  assert.equal(depois.reservado, (antes.reservado || 0) - 2);
+});
+
+test('confirmar duas vezes nao baixa duas vezes', () => {
+  const antes = vs.obter('camiseta-veloso');
+  const r = vs.confirmarReserva('ped-1');
+  assert.equal(r.repetido, true);
+  assert.equal(vs.obter('camiseta-veloso').quantidade, antes.quantidade);
+});
+
+test('cancelar devolve a peca pra prateleira', () => {
+  vs.reservar('camiseta-veloso', 1, { chave: 'ped-2' });
+  const reservado = vs.obter('camiseta-veloso').reservado;
+  assert.equal(vs.cancelarReserva('ped-2').ok, true);
+  assert.equal(vs.obter('camiseta-veloso').reservado, reservado - 1);
+  assert.equal(vs.cancelarReserva('ped-2').ok, false, 'nao cancela duas vezes');
+});
+
+test('reserva de chave desconhecida nao move nada', () => {
+  assert.equal(vs.confirmarReserva('nao-existe').ok, false);
+  assert.equal(vs.cancelarReserva('nao-existe').ok, false);
 });
