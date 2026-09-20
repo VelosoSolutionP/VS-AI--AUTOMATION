@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rmSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { rmSync, existsSync, mkdirSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -348,10 +348,29 @@ test('git-cmd: invocacao REAL de commit/push (nao palavra solta) — fim do reci
   assert.equal(isGitPush('cat .git/HEAD'), false);
 });
 
-test('projectLabel: recibo = pai/base consistente (Velvet/frontend), MCP e hooks iguais', () => {
+test('projectLabel: recibo = pai/base consistente (Velvet/frontend), MCP e hooks iguais', (t) => {
+  /* ISOLA do ~/.qa-gate/company.json da maquina. Sem isto o teste passava so em
+     quem nao tivesse `projectName` configurado — e falhava em quem tivesse, sem
+     nada de errado no codigo. Teste que depende do ambiente de quem roda nao
+     diz se o codigo esta certo; diz onde ele rodou. */
+  const antes = process.env.QA_GATE_COMPANY_CONFIG;
+  const vazio = join(mkdtempSync(join(tmpdir(), 'semcfg-')), 'company.json');
+  writeFileSync(vazio, '{}');
+  process.env.QA_GATE_COMPANY_CONFIG = vazio;
+  t.after(() => { if (antes === undefined) { delete process.env.QA_GATE_COMPANY_CONFIG; } else { process.env.QA_GATE_COMPANY_CONFIG = antes; } });
+
   assert.equal(projectLabel('C:/Veloso/ProjetosMsb/Velvet/frontend'), 'Velvet/frontend');
   assert.equal(projectLabel('C:/Veloso/ProjetosMsb/Velvet/mobile'), 'Velvet/mobile');
   assert.equal(projectLabel('C:/Veloso/ProjetosMsb/Egle/backend'), 'Egle/backend');
+});
+
+test('projectLabel: com projectName configurado, ELE manda — e essa e a regra', (t) => {
+  const antes = process.env.QA_GATE_COMPANY_CONFIG;
+  const cfg = join(mkdtempSync(join(tmpdir(), 'comcfg-')), 'company.json');
+  writeFileSync(cfg, JSON.stringify({ projectName: 'Bolso Cheio' }));
+  process.env.QA_GATE_COMPANY_CONFIG = cfg;
+  t.after(() => { if (antes === undefined) { delete process.env.QA_GATE_COMPANY_CONFIG; } else { process.env.QA_GATE_COMPANY_CONFIG = antes; } });
+  assert.equal(projectLabel('C:/qualquer/caminho/aqui'), 'Bolso Cheio');
 });
 
 test('CMMI: hasPowerShellHereStringAt pega @ vazado no commit (VS-AUD-005)', () => {

@@ -53,9 +53,16 @@ export function receber(req, nomeOriginal) {
     const falhar = (motivo) => {
       if (encerrado) { return; }
       encerrado = true;
+      /* Apaga DEPOIS que o stream fechou. `createWriteStream` abre o arquivo de
+         forma assincrona: apagar no ato podia rodar ANTES da abertura terminar,
+         e o arquivo reaparecia em seguida — teto que deixa lixo no disco nao e
+         teto. O 'close' garante que nao ha mais o que criar. */
+      const limpar = () => {
+        try { unlinkSync(destino); } catch { /* já não existe */ }
+        resolve({ ok: false, motivo });
+      };
+      saida.once('close', limpar);
       saida.destroy();
-      try { unlinkSync(destino); } catch { /* já não existe */ }
-      resolve({ ok: false, motivo });
     };
 
     req.on('data', (p) => {
