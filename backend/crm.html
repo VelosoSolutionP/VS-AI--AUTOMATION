@@ -454,7 +454,7 @@ const TITULO={};
 MENU.forEach(m=>{TITULO[m.id]=[m.nome];(m.filhos||[]).forEach(f=>TITULO[f.id]=[m.nome,f.nome]);});
 const PAI={}; MENU.forEach(m=>(m.filhos||[]).forEach(f=>PAI[f.id]=m.id));
 
-let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null,QG=null,TKAPP=null,PAG=null,LOTES=null,CAIXA=null,BOT=null,DOCS=null;
+let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null,QG=null,TKAPP=null,PAG=null,LOTES=null,CAIXA=null,BOT=null,DOCS=null,PUB=null;
 const TESTE={}; // resultado do ultimo teste por rede (so em memoria)
 const PROVA={}; // ultimo teste real das APIs do TikTok, por familia
 let rota=location.hash.slice(1)||'visao';
@@ -1095,7 +1095,15 @@ const COLUNAS=[
   {k:'nome',t:'Produto',ord:'nome',cel:(x)=>`<b>${esc(x.nome)}</b><br><small class="hint">${esc(x.sku)}${x.marca?' · '+esc(x.marca):''}</small>`},
   {k:'preco',t:'Preço',ord:'precoCentavos',cel:(x)=>`${esc(x.vigenteFormatado)}${x.promocionalFormatado?`<br><small class="hint"><s>${esc(x.precoFormatado)}</s></small>`:''}`},
   {k:'estoque',t:'Estoque',ord:'disponivel',al:'center',cel:(x)=>`<b>${x.disponivel}</b>${x.reservado?`<br><small class="hint">${x.reservado} reservado</small>`:''}`},
-  {k:'canal',t:'Canal',ord:null,cel:(x)=>x.naVitrine?'<span class="badge b-ok">vitrine</span>':'<span class="hint">—</span>'},
+  {k:'canal',t:'Canal',ord:null,cel:(x)=>{
+    const tags=[];
+    if(x.naVitrine) tags.push('<span class="badge b-ok">vitrine</span>');
+    for(const [nome,d] of Object.entries(x.canais||{})){
+      const ok=d.estado==='publicado';
+      tags.push(`<span class="badge ${ok?'b-ok':'b-err'}" title="${esc(ok?('id la: '+(d.idExterno||'—')):(d.motivo||'falhou'))}">${esc(nome)}${ok?'':' ✖'}</span>`);
+    }
+    return tags.length?tags.join(' '):'<span class="hint">—</span>';
+  }},
   {k:'status',t:'Status',ord:'ativo',cel:(x)=>`<span class="badge ${!x.ativo?'':x.disponibilidade==='in_stock'?'b-ok':'b-warn'}">${!x.ativo?'inativo':x.disponibilidade==='in_stock'?'à venda':'sem saldo'}</span>`},
   {k:'atualizacao',t:'Atualização',ord:'atualizadoEm',cel:(x)=>`<small class="hint">${esc(String(x.atualizadoEm||'').slice(0,10).split('-').reverse().join('/'))}</small>`},
 ];
@@ -1162,6 +1170,61 @@ function tabelaProdutos(produtos){
 
   return `<div class="tbl-wrap"><table id="tblProdutos"><thead><tr>${cab}<th></th></tr></thead>
     <tbody>${corpo}</tbody></table></div>${nav}`;
+}
+
+/* ---- onde cada produto foi parar ---- */
+
+function publicacoesHtml(){
+  const p=PUB;
+  if(!p) return '';
+  const linhas=[];
+  for(const it of (p.publicados||[])){
+    if(it.naVitrine) linhas.push({sku:it.sku,nome:it.nome,canal:'vitrine',estado:'publicado',
+      idExterno:null,em:null,link:p.urlVitrine});
+    for(const c of it.canais) linhas.push({sku:it.sku,nome:it.nome,canal:c.nome,estado:c.estado,
+      idExterno:c.idExterno,motivo:c.motivo,em:c.em});
+  }
+  if(!linhas.length) return `<div class="card" style="margin-bottom:16px"><h3>Publicações</h3>
+    <p class="hint">Nenhum produto foi enviado pra canal nenhum ainda. Use o ícone 🛒 <b>Vender</b>
+      na linha do produto — ele vai pra sua vitrine e, quando a loja do TikTok estiver ligada, pra lá também.</p></div>`;
+  const falhas=linhas.filter(l=>l.estado!=='publicado').length;
+  return `<div class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div><h3>Publicações</h3><p class="hint">Onde cada produto foi parar, e com que id do outro lado.</p></div>
+      ${falhas?`<span class="badge b-err">${falhas} com falha</span>`:'<span class="badge b-ok">tudo publicado</span>'}</div>
+    ${tabela({
+      colunas:[
+        {t:'Produto',cel:(l)=>`<b>${esc(l.nome)}</b><br><small class="hint">${esc(l.sku)}</small>`},
+        {t:'Canal',cel:(l)=>esc(l.canal)},
+        {t:'Situação',cel:(l)=>l.estado==='publicado'
+          ?'<span class="badge b-ok">publicado</span>'
+          :`<span class="badge b-err">falhou</span><br><small class="hint">${esc(l.motivo||'')}</small>`},
+        {t:'Id no canal',cel:(l)=>l.idExterno?`<code>${esc(l.idExterno)}</code>`
+          :(l.canal==='vitrine'?`<a href="${esc(l.link)}" target="_blank" rel="noopener">abrir a loja</a>`:'<span class="hint">—</span>')},
+        {t:'Quando',cel:(l)=>l.em?esc(String(l.em).slice(0,16).replace('T',' ')):'<span class="hint">—</span>'},
+      ],
+      acoes:(l)=>l.canal==='vitrine'
+        ? bi('excluir','Tirar da vitrine',`tirarDaVitrine('${esc(l.sku)}')`,'dan')
+        : bi('excluir','Esquecer este envio',`esquecerCanal('${esc(l.sku)}','${esc(l.canal)}')`,'dan'),
+      todos:linhas, itens:linhas,
+    })}</div>`;
+}
+
+async function tirarDaVitrine(sku){
+  try{
+    const r=await api('estoque/vitrine',{sku,expor:false});
+    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
+    await carregar(); flash('Tirado da vitrine.','ok');
+  }catch(e){flash(e.message,'err');}
+}
+
+async function esquecerCanal(sku,canal){
+  if(!confirm(`Esquecer o envio de "${sku}" para ${canal}?\n\nIsso apaga só o REGISTRO aqui. Se o produto já está publicado lá, ele continua — remova por lá também.`)) return;
+  try{
+    const r=await api('estoque/esquecer-canal',{sku,canal});
+    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
+    await carregar(); flash('Registro removido.','ok');
+  }catch(e){flash(e.message,'err');}
 }
 
 /* ---- planos ---- */
@@ -1858,6 +1921,8 @@ const S={
           <button class="btn btn-s btn-xs" onclick="excluirLote('${esc(l.id)}')">excluir</button></td>
       </tr>`).join('')}</tbody></table></div>`
       :'<p class="hint" style="margin-top:12px">Nenhum lote gerado ainda.</p>'}</div>
+
+  ${publicacoesHtml()}
 
   <div class="card"><h3>Catálogo</h3>
     <div class="tbl-bar">
@@ -2658,6 +2723,7 @@ async function carregar(){
     TKAPP=await api('tiktok/app').catch(()=>null);
     PAG=await api('pagamentos').catch(()=>null);
     LOTES=await api('estoque/lotes').catch(()=>null);
+    PUB=await api('estoque/publicados').catch(()=>null);
     BOT=await api('bot').catch(()=>null);
     DOCS=await api('documentos').catch(()=>null);
     CAIXA=await api('caixa'+(PERIODO.de||PERIODO.ate?`?de=${PERIODO.de}&ate=${PERIODO.ate}`:'')).catch(()=>null);

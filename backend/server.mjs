@@ -561,6 +561,10 @@ const server = createServer(async (req, res) => {
       if (!p) { return json(res, 404, { erro: `produto "${sku}" nao encontrado` }); }
       return json(res, 200, { produto: p, historico: estoque.historico(sku, 20) });
     }
+    if (req.method === 'GET' && rota === '/crm/api/estoque/publicados') {
+      const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
+      return json(res, 200, { publicados: estoque.publicados(), urlVitrine: `${origem}/vitrine`, reservas: estoque.reservas().slice(0, 100) });
+    }
     if (req.method === 'GET' && rota === '/crm/api/estoque/reservas') {
       return json(res, 200, { reservas: estoque.reservas(), excluidos: estoque.excluidos().map(estoque.resumir) });
     }
@@ -712,6 +716,7 @@ const server = createServer(async (req, res) => {
         case '/crm/api/estoque/movimentar': r = estoque.movimentar(d.sku, d); break;
         case '/crm/api/estoque/excluir': r = estoque.excluir(d.sku); break;
         case '/crm/api/estoque/restaurar': r = estoque.restaurar(d.sku); break;
+        case '/crm/api/estoque/esquecer-canal': r = estoque.esquecerCanal(d.sku, d.canal); break;
         /* Comprar = entrada de mercadoria. Fica separado de `movimentar` porque
            carrega custo e fornecedor, que vao pro historico. */
         case '/crm/api/estoque/comprar': {

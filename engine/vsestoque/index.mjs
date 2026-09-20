@@ -263,6 +263,7 @@ export function resumir(p) {
     atualizadoEm: p.atualizadoEm || null,
     ativo: p.ativo !== false,
     naVitrine: p.naVitrine === true,
+    canais: p.canais || {},
   };
 }
 
@@ -297,6 +298,53 @@ export async function publicarNoTiktok(sku, opts = {}) {
       armazemId: opts.armazemId,
     }],
   }, opts);
+
+  /* Guarda ONDE o produto foi parar. Sem isto o envio acontecia e nao ficava
+     registro nenhum: a tela nao tinha como dizer se um produto ja esta na loja
+     do TikTok, e mandar de novo criaria duplicado la. */
+  registrarCanal(sku, 'tiktok', r.ok
+    ? { estado: 'publicado', idExterno: r.produtoId || r.dados?.product_id || null, em: new Date().toISOString() }
+    : { estado: 'falhou', motivo: r.motivo, em: new Date().toISOString() });
+
+  return r;
+}
+
+/** Marca em que canal externo o produto está, e com que id de lá. */
+export function registrarCanal(sku, canal, dados = {}) {
+  const todos = load(PRODUTOS, []);
+  const i = todos.findIndex((p) => p.sku === String(sku));
+  if (i < 0) { return { ok: false, erros: [`produto "${sku}" não encontrado`] }; }
+  todos[i] = {
+    ...todos[i],
+    canais: { ...(todos[i].canais || {}), [canal]: { ...dados } },
+    atualizadoEm: new Date().toISOString(),
+  };
+  save(PRODUTOS, todos);
+  return { ok: true, produto: todos[i] };
+}
+
+/** Tira o produto de um canal externo (o registro, não o produto de lá). */
+export function esquecerCanal(sku, canal) {
+  const todos = load(PRODUTOS, []);
+  const i = todos.findIndex((p) => p.sku === String(sku));
+  if (i < 0) { return { ok: false, erros: [`produto "${sku}" não encontrado`] }; }
+  const canais = { ...(todos[i].canais || {}) };
+  delete canais[canal];
+  todos[i] = { ...todos[i], canais, atualizadoEm: new Date().toISOString() };
+  save(PRODUTOS, todos);
+  return { ok: true };
+}
+
+/** Onde cada produto está publicado — é o que a coluna "Canal" mostra. */
+export function publicados() {
+  return listar()
+    .filter((p) => p.naVitrine || Object.keys(p.canais || {}).length)
+    .map((p) => ({
+      sku: p.sku,
+      nome: p.nome,
+      naVitrine: p.naVitrine === true,
+      canais: Object.entries(p.canais || {}).map(([nome, d]) => ({ nome, ...d })),
+    }));
 }
 
 export { decimal, disponivel, disponibilidade, precoVigente };

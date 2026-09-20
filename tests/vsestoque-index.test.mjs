@@ -188,3 +188,39 @@ test('reserva de chave desconhecida nao move nada', () => {
   assert.equal(vs.confirmarReserva('nao-existe').ok, false);
   assert.equal(vs.cancelarReserva('nao-existe').ok, false);
 });
+
+/* ---- onde o produto foi parar ----
+   Mandar pro canal e nao registrar deixava a tela sem como dizer se um produto
+   ja esta la — e mandar de novo criaria duplicado do outro lado. */
+
+test('registrar canal guarda o id de LA, nao so um sim/nao', () => {
+  vs.registrarCanal('camiseta-veloso', 'tiktok', { estado: 'publicado', idExterno: 'tt_123', em: '2026-09-20T10:00:00Z' });
+  const p = vs.obter('camiseta-veloso');
+  assert.equal(p.canais.tiktok.estado, 'publicado');
+  assert.equal(p.canais.tiktok.idExterno, 'tt_123', 'sem o id de la nao da pra atualizar nem remover depois');
+});
+
+test('falha no envio tambem fica registrada, com o motivo', () => {
+  vs.registrarCanal('camiseta-veloso', 'shopee', { estado: 'falhou', motivo: 'sem categoria', em: '2026-09-20T11:00:00Z' });
+  assert.equal(vs.obter('camiseta-veloso').canais.shopee.estado, 'falhou');
+  assert.match(vs.obter('camiseta-veloso').canais.shopee.motivo, /categoria/);
+});
+
+test('publicados lista onde cada produto esta', () => {
+  const l = vs.publicados();
+  const c = l.find((x) => x.sku === 'camiseta-veloso');
+  assert.ok(c);
+  assert.equal(c.canais.length, 2);
+  assert.ok(c.canais.some((x) => x.nome === 'tiktok' && x.estado === 'publicado'));
+});
+
+test('esquecer canal tira o registro e nao o produto', () => {
+  assert.equal(vs.esquecerCanal('camiseta-veloso', 'shopee').ok, true);
+  assert.equal(vs.obter('camiseta-veloso').canais.shopee, undefined);
+  assert.ok(vs.obter('camiseta-veloso'), 'o produto continua');
+  assert.equal(vs.esquecerCanal('fantasma', 'tiktok').ok, false);
+});
+
+test('registrar canal em produto inexistente e recusado', () => {
+  assert.equal(vs.registrarCanal('fantasma', 'tiktok', {}).ok, false);
+});
