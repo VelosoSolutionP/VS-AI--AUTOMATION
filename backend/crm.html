@@ -454,7 +454,7 @@ const TITULO={};
 MENU.forEach(m=>{TITULO[m.id]=[m.nome];(m.filhos||[]).forEach(f=>TITULO[f.id]=[m.nome,f.nome]);});
 const PAI={}; MENU.forEach(m=>(m.filhos||[]).forEach(f=>PAI[f.id]=m.id));
 
-let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null,QG=null,TKAPP=null,PAG=null,LOTES=null,CAIXA=null;
+let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null,QG=null,TKAPP=null,PAG=null,LOTES=null,CAIXA=null,BOT=null;
 const TESTE={}; // resultado do ultimo teste por rede (so em memoria)
 const PROVA={}; // ultimo teste real das APIs do TikTok, por familia
 let rota=location.hash.slice(1)||'visao';
@@ -750,6 +750,8 @@ let TAB={ordem:'nome',desc:false,pagina:1,porPagina:20,busca:''};
 let VISAO_LEAD='tabela';
 let EDITANDO_LANC=null;
 let PERIODO={de:'',ate:''};
+let EDITANDO_REGRA=null;
+let SIMULACAO=[];
 
 const campoProduto={eNome:'nome',ePreco:'preco',ePromo:'precoPromocional',eQtd:'quantidade',
   eMarca:'marca',eCat:'categoria',eGtin:'gtin',eLink:'link',eImgs:'imagens',eDesc:'descricao'};
@@ -1162,6 +1164,123 @@ function tabelaProdutos(produtos){
     <tbody>${corpo}</tbody></table></div>${nav}`;
 }
 
+/* ---- bot ---- */
+
+function simulacaoHtml(){
+  if(!SIMULACAO.length) return '<p class="hint">Nenhuma mensagem ainda. Escreva acima e veja o que o cliente receberia.</p>';
+  const rotulo={regra:'respondeu pela regra',humano:'chamou uma pessoa',catalogo:'mandou o catálogo',fallback:'não entendeu'};
+  const cor={regra:'b-ok',humano:'b-warn',catalogo:'b-ok',fallback:'b-err'};
+  /* Um "não entendi" que JÁ chamou gente é diferente de um que não chamou — e
+     eram idênticos na tela. Quem está ajustando as regras precisa ver o momento
+     em que o bot desistiu. */
+  const marca=(t)=>t.tipo!=='humano'&&t.handoff
+    ? `<span class="badge ${cor[t.tipo]||''}">${esc(rotulo[t.tipo]||t.tipo)}</span>
+       <span class="badge b-warn" style="margin-left:4px">chamou uma pessoa</span>`
+    : `<span class="badge ${cor[t.tipo]||''}">${esc(rotulo[t.tipo]||t.tipo)}</span>`;
+  return `<div style="display:flex;flex-direction:column;gap:10px">
+    ${SIMULACAO.map(t=>`
+      <div style="align-self:flex-end;max-width:78%;background:var(--ink);color:var(--ink-fg);
+        padding:9px 13px;border-radius:14px 14px 3px 14px;font-size:14px">${esc(t.recebida)}</div>
+      <div style="align-self:flex-start;max-width:78%">
+        <div style="background:var(--panel);border:1px solid var(--line);padding:9px 13px;
+          border-radius:14px 14px 14px 3px;font-size:14px">${esc(t.texto)}
+          ${(t.produtos||[]).length?`<ul style="margin:8px 0 0;padding-left:18px">
+            ${t.produtos.map(p=>`<li>${esc(p.nome)} — ${esc(brl(p.precoCentavos/100))}</li>`).join('')}</ul>`:''}
+        </div>
+        <div style="margin-top:5px">${marca(t)}</div>
+      </div>`).join('')}
+  </div>`;
+}
+
+async function simular(){
+  const campo=document.getElementById('simTxt');
+  const txt=(campo?.value||'').trim();
+  if(!txt) return;
+  try{
+    // Manda a conversa INTEIRA: o contador de falhas seguidas depende do que veio
+    // antes, e mandar so a ultima mensagem faria o bot nunca chamar gente.
+    const msgs=[...SIMULACAO.map(t=>t.recebida),txt];
+    const r=await api('bot/simular',{mensagens:msgs});
+    SIMULACAO=r.turnos||[];
+    campo.value='';
+    render();
+    document.getElementById('simTxt')?.focus();
+  }catch(e){flash(e.message,'err');}
+}
+
+function formRegra(r){
+  const val=(x)=>esc(x==null?'':String(x));
+  return `<div class="form-grid">
+    <div class="field" style="grid-column:1/-1"><label>Quando o cliente escrever *
+      <small>(um ou mais termos, separados por vírgula)</small></label>
+      <input id="brTermos" value="${val((r?.termos||[]).join(', '))}" placeholder="horario, aberto, funciona"></div>
+    <div class="field"><label>Como casar</label><select id="brGatilho">
+      ${['contem','exato','comeca'].map(g=>`<option value="${g}"${r?.gatilho===g?' selected':''}>${
+        g==='contem'?'contém o termo':g==='exato'?'é exatamente isso':'começa com o termo'}</option>`).join('')}</select></div>
+    <div class="field"><label>Prioridade <small>(maior ganha)</small></label>
+      <input id="brPrio" type="number" value="${val(r?.prioridade??0)}"></div>
+    <div class="field" style="grid-column:1/-1"><label>O bot responde *</label>
+      <textarea id="brResp" rows="3" placeholder="Atendemos de segunda a sexta, das 9h às 18h.">${val(r?.resposta)}</textarea></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:7px;font-weight:400;cursor:pointer;padding-bottom:9px">
+      <input type="checkbox" id="brAtiva" style="width:auto;margin:0"${r?r.ativa!==false?' checked':'':' checked'}> Ativa</label></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:7px;font-weight:400;cursor:pointer;padding-bottom:9px">
+      <input type="checkbox" id="brHandoff" style="width:auto;margin:0"${r?.handoff?' checked':''}> Depois disso, chamar uma pessoa</label></div>
+  </div>
+  <p class="hint" style="margin-top:10px">Termo curto não casa dentro de outra palavra: <code>oi</code> responde a
+    “oi, tudo bem?” e não a “moita”.</p>`;
+}
+
+function novaRegra(){
+  EDITANDO_REGRA=null;
+  abrirModal('Nova regra',formRegra(null),
+    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
+     <button class="btn btn-p" onclick="salvarRegraBot()">Cadastrar</button>`);
+}
+
+function editarRegra(id){
+  const r=(BOT?.regras||[]).find(x=>x.id===id);
+  if(!r) return flash('Regra não encontrada.','err');
+  EDITANDO_REGRA=id;
+  abrirModal('Editar regra',formRegra(r),
+    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
+     <button class="btn btn-p" onclick="salvarRegra()">Salvar</button>`);
+}
+
+async function salvarRegraBot(){
+  const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
+  const ck=(id)=>(document.getElementById(id)||{}).checked||false;
+  const termos=v('brTermos').split(',').map(t=>t.trim()).filter(Boolean);
+  if(!termos.length) return flash('Informe ao menos um termo que dispara a regra.','err');
+  if(!v('brResp')) return flash('A resposta é obrigatória.','err');
+  try{
+    const r=await api('bot/regra',{id:EDITANDO_REGRA||undefined,termos,gatilho:v('brGatilho'),
+      resposta:v('brResp'),prioridade:Number(v('brPrio')||0),ativa:ck('brAtiva'),handoff:ck('brHandoff')});
+    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
+    const feito=EDITANDO_REGRA?'Regra atualizada.':'Regra cadastrada.';
+    EDITANDO_REGRA=null; fecharModal(); await carregar(); flash(feito,'ok');
+  }catch(e){flash(e.message,'err');}
+}
+
+async function excluirRegra(id,nome){
+  if(!confirm(`Excluir a regra "${nome}"?\n\nO bot deixa de responder a esses termos.`)) return;
+  try{
+    const r=await api('bot/regra-excluir',{id});
+    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
+    await carregar(); flash('Regra excluída.','ok');
+  }catch(e){flash(e.message,'err');}
+}
+
+async function salvarBot(){
+  const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
+  const ck=(id)=>(document.getElementById(id)||{}).checked||false;
+  try{
+    const r=await api('bot/config',{nome:v('bcNome'),saudacao:v('bcSaud'),mensagemFallback:v('bcFall'),
+      mensagemHandoff:v('bcHand'),falhasAteHumano:Number(v('bcFalhas')||2),ativo:ck('bcAtivo'),usarCatalogo:ck('bcCat')});
+    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
+    await carregar(); flash('Comportamento salvo.','ok');
+  }catch(e){flash(e.message,'err');}
+}
+
 /* ---- livro-caixa ---- */
 
 function caixaHtml(){
@@ -1539,9 +1658,72 @@ const S={
     <p class="hint">Isto é caixa operacional, não fechamento contábil. Nada aqui foi conciliado contra extrato bancário.</p>
     ${f.lacunas.map(l=>linha('•',' ',l,'b-warn')).join('')||'<p class="hint">Sem lacunas: todas as fontes estão preenchidas.</p>'}</div>`;
  },
- bot:()=>head('Bot','O atendimento automático — visão geral, fora do WhatsApp.')+
-  vazio('bot','Nenhum canal de bot ativo','O WhatsApp é o primeiro canal previsto e está parado na pendência da sua conta Meta.',
-   ['Destravar o WhatsApp (WhatsApp › Integração)','Subir o webhook e a máquina de conversa','Depois avaliar Instagram Direct e site']),
+ bot:()=>{
+  if(!BOT) return head('Bot','Atendimento automático: regras, respostas e quando chamar gente.')+
+    vazio('bot','Backend sem a rota do bot','Atualize o servidor.',['Subir o backend novo','Recarregar']);
+  const c=BOT.config;
+  return head('Bot','Atendimento automático: regras, respostas e quando chamar gente. Funciona aqui antes de ligar em qualquer canal.')+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Regras',BOT.total,`${BOT.ativas} ativa(s)`)}
+    ${kpi('Chamam gente',BOT.comHandoff,'passam pro humano')}
+    ${kpi('Estado',c.ativo?'ligado':'desligado',BOT.pronto?'respondendo':'não responde ainda')}
+    ${kpi('Canal','nenhum','o WhatsApp entra depois')}
+  </div>
+  ${BOT.aviso?`<div class="card" style="margin-bottom:16px;border-style:dashed">
+    <h3>Atenção</h3>${linha('Bot ligado sem regra',esc(BOT.aviso),'corrigir','b-err')}</div>`:''}
+
+  <div class="card" style="margin-bottom:16px"><h3>Testar a conversa</h3>
+    <p class="hint">Escreva como um cliente escreveria. O bot responde com as regras de verdade e com o
+      seu catálogo real — sem precisar de WhatsApp nem de token nenhum.</p>
+    <div class="tbl-bar" style="margin-top:12px">
+      <input id="simTxt" placeholder="Ex.: qual o horário de vocês?" onkeydown="if(event.key==='Enter')simular()">
+      <button class="btn btn-p" onclick="simular()">Enviar</button>
+      <button class="btn btn-s" onclick="SIMULACAO=[];render()">Limpar</button>
+    </div>
+    <div id="simSaida" style="margin-top:14px">${simulacaoHtml()}</div></div>
+
+  <div class="card" style="margin-bottom:16px"><h3>Regras</h3>
+    <div class="tbl-bar">
+      <input id="brBusca" value="${esc(BUSCA.regra||'')}" placeholder="Buscar por termo ou resposta"
+        oninput="buscarEm('regra',this.value)">
+      <button class="btn btn-p" onclick="novaRegra()">+ Nova regra</button>
+    </div>
+    ${tabela({
+      vazio:'Nenhuma regra ainda — clique em <b>+ Nova regra</b>. Sem regra, o bot só sabe dizer que não entendeu.',
+      nenhum:'Nenhuma regra com esse termo.',
+      colunas:[
+        {t:'Quando o cliente escrever',cel:(r)=>`<b>${esc(r.nome)}</b><br><small class="hint">${esc((r.termos||[]).join(', '))} · ${esc(r.gatilho)}</small>`},
+        {t:'O bot responde',cel:(r)=>esc(String(r.resposta).slice(0,90))+(String(r.resposta).length>90?'…':'')},
+        {t:'Prioridade',al:'center',cel:(r)=>String(r.prioridade||0)},
+        {t:'Situação',al:'center',cel:(r)=>`<span class="badge ${r.ativa!==false?'b-ok':''}">${r.ativa!==false?'ativa':'desligada'}</span>${r.handoff?'<br><span class="badge b-warn" style="margin-top:4px">chama gente</span>':''}`},
+      ],
+      acoes:(r)=>[
+        bi('editar','Editar',`editarRegra('${esc(r.id)}')`),
+        bi('excluir','Excluir',`excluirRegra('${esc(r.id)}','${esc(r.nome).replace(/'/g,"\\'")}')`,'dan'),
+      ].join(''),
+      todos:BOT.regras,
+      itens:BOT.regras.filter(r=>casa(BUSCA.regra,[r.nome,r.resposta,(r.termos||[]).join(' ')])),
+    })}</div>
+
+  <div class="card"><h3>Como ele se comporta</h3>
+    <div class="form-grid">
+      <div class="field"><label>Nome do atendente</label><input id="bcNome" value="${esc(c.nome)}"></div>
+      <div class="field"><label>Falhas até chamar gente</label>
+        <input id="bcFalhas" type="number" min="1" value="${esc(c.falhasAteHumano)}"></div>
+      <div class="field" style="grid-column:1/-1"><label>Saudação</label><input id="bcSaud" value="${esc(c.saudacao)}"></div>
+      <div class="field" style="grid-column:1/-1"><label>Quando não entende</label>
+        <input id="bcFall" value="${esc(c.mensagemFallback)}"></div>
+      <div class="field" style="grid-column:1/-1"><label>Ao passar pra uma pessoa</label>
+        <input id="bcHand" value="${esc(c.mensagemHandoff)}"></div>
+      <div class="field"><label style="display:flex;align-items:center;gap:7px;font-weight:400;cursor:pointer;padding-bottom:9px">
+        <input type="checkbox" id="bcAtivo" style="width:auto;margin:0"${c.ativo?' checked':''}> Bot ligado</label></div>
+      <div class="field"><label style="display:flex;align-items:center;gap:7px;font-weight:400;cursor:pointer;padding-bottom:9px">
+        <input type="checkbox" id="bcCat" style="width:auto;margin:0"${c.usarCatalogo?' checked':''}> Responder com o catálogo</label></div>
+      <button class="btn btn-p" onclick="salvarBot()">Salvar</button>
+    </div>
+    <p class="hint" style="margin-top:10px">Use <code>{nome}</code>, <code>{empresa}</code> nas respostas — são trocados
+      pelo valor real. Variável sem valor aparece como está, em vez de sumir.</p></div>`;
+ },
  auditor:()=>{
   if(!AUD) return head('Auditor','Governança: o que rodou, o que passou no gate.')+
     vazio('auditor','Backend sem a rota de auditoria','Atualize o backend para a versão com o VSpainel.',['Subir o backend novo','Recarregar']);
@@ -2100,6 +2282,7 @@ async function carregar(){
     TKAPP=await api('tiktok/app').catch(()=>null);
     PAG=await api('pagamentos').catch(()=>null);
     LOTES=await api('estoque/lotes').catch(()=>null);
+    BOT=await api('bot').catch(()=>null);
     CAIXA=await api('caixa'+(PERIODO.de||PERIODO.ate?`?de=${PERIODO.de}&ate=${PERIODO.ate}`:'')).catch(()=>null);
     if(TKAPP&&TKAPP.diagnostico) TK=TKAPP.diagnostico;
     // Telas novas: carregadas a parte pra uma falha nelas nao derrubar o painel todo.

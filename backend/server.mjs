@@ -30,6 +30,7 @@ import * as tk from '../engine/vstiktok/index.mjs';
 import { reservarEvento } from './idempotencia.mjs';
 import * as pagar from '../engine/vspagamentos/index.mjs';
 import * as fin from '../engine/vsfinanceiro/index.mjs';
+import * as bot from '../engine/vsbot/index.mjs';
 import * as midia from './midia.mjs';
 import { pagina as paginaVitrine } from './vitrine.mjs';
 import { lerCorpoLimitado, criarRateLimit, ipDe, segredoIgual, CORPO_MAX_BYTES } from './limites.mjs';
@@ -538,6 +539,7 @@ const server = createServer(async (req, res) => {
     /* `/financeiro` ja era o consolidado do VSpainel (receita do funil, estoque
        parado). O livro-caixa e outra coisa e ganha nome proprio — duas rotas com
        o mesmo caminho fazem a segunda nunca responder, calada. */
+    if (req.method === 'GET' && rota === '/crm/api/bot') { return json(res, 200, bot.painel()); }
     if (req.method === 'GET' && rota === '/crm/api/caixa') {
       const u = new URL(req.url, 'http://x');
       return json(res, 200, fin.painel({ de: u.searchParams.get('de'), ate: u.searchParams.get('ate') }));
@@ -679,6 +681,19 @@ const server = createServer(async (req, res) => {
             titulo: d.titulo,
             privacidade: d.privacidade || 'SELF_ONLY',
           });
+          break;
+        }
+        case '/crm/api/bot/config': r = bot.salvarConfig(d); break;
+        case '/crm/api/bot/regra': r = bot.salvarRegra(d); break;
+        case '/crm/api/bot/regra-excluir': r = bot.excluirRegra(d.id); break;
+        /* Simulador: o catalogo real entra como contexto, entao o teste mostra o
+           que o cliente veria de verdade — nao um exemplo inventado. */
+        case '/crm/api/bot/simular': {
+          r = { ok: true, ...bot.simular(d.mensagens || [], {
+            nome: d.nome || 'Cliente',
+            empresa: process.env.VITRINE_NOME || 'nossa loja',
+            produtos: estoque.daVitrine().slice(0, 10),
+          }) };
           break;
         }
         case '/crm/api/caixa': r = fin.criar(d); break;
