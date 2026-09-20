@@ -1164,6 +1164,95 @@ function tabelaProdutos(produtos){
     <tbody>${corpo}</tbody></table></div>${nav}`;
 }
 
+/* ---- planos ---- */
+
+/* Os pacotes vivem aqui, não no banco: são a oferta comercial, mudam por decisão
+   e não por operação. Trocar preço é editar esta lista — sem migração. */
+const PLANOS=[
+  {id:'essencial',nome:'Essencial',centavos:14900,periodo:'mês',
+   descricao:'Pra quem está começando a vender pelo console.',
+   inclui:['CRM e funil','Catálogo e estoque','Vitrine pública','1 atendente']},
+  {id:'operacao',nome:'Operação',centavos:34900,periodo:'mês',
+   descricao:'Quando o estoque e o dinheiro precisam bater todo dia.',
+   inclui:['Tudo do Essencial','Livro-caixa e recebimento por Pix','Lotes de exportação','Auditoria e trilha']},
+  {id:'omnichannel',nome:'Omnichannel',centavos:59900,periodo:'mês',
+   descricao:'Atendimento automático e venda nas redes.',
+   inclui:['Tudo da Operação','Bot de atendimento','Integração com redes sociais','Relatórios de conversa']},
+];
+
+async function comprarPlano(id){
+  const p=PLANOS.find(x=>x.id===id);
+  if(!p) return flash('Pacote não encontrado.','err');
+  abrirModal('Comprar — '+p.nome,
+    `<p class="hint">Gera uma cobrança de <b>${esc(brl(p.centavos/100))}</b> no Asaas.
+      O Asaas exige nome e CPF/CNPJ de quem paga.</p>
+     <div class="form-grid" style="margin-top:12px">
+       <div class="field"><label>Nome *</label><input id="cpNome" placeholder="Maria Souza"></div>
+       <div class="field"><label>CPF ou CNPJ *</label><input id="cpDoc" placeholder="000.000.000-00"></div>
+       <div class="field"><label>E-mail</label><input id="cpEmail" placeholder="opcional"></div>
+       <div class="field"><label>Forma</label><select id="cpMetodo">
+         <option value="PIX">Pix</option><option value="CREDIT_CARD">Cartão</option><option value="BOLETO">Boleto</option></select></div>
+     </div>`,
+    `<button class="btn btn-s" onclick="fecharModal()">Cancelar</button>
+     <button class="btn btn-p" onclick="gerarCobrancaPlano('${esc(id)}')">Gerar cobrança</button>`);
+}
+
+async function gerarCobrancaPlano(id){
+  const p=PLANOS.find(x=>x.id===id);
+  const v=(x)=>(document.getElementById(x)||{}).value?.trim()||'';
+  if(!v('cpNome')||!v('cpDoc')) return flash('Nome e CPF/CNPJ são obrigatórios — o Asaas recusa sem eles.','err');
+  const alvo=document.getElementById('modalB');
+  alvo.innerHTML='<p class="hint">Emitindo no Asaas…</p>';
+  document.getElementById('modalF').innerHTML='';
+  try{
+    const r=await api('pagamentos/cobrar',{nome:v('cpNome'),cpfCnpj:v('cpDoc'),email:v('cpEmail'),
+      valorCentavos:p.centavos,metodo:v('cpMetodo'),descricao:`Plano ${p.nome}`,referencia:`Plano ${p.nome}`});
+    document.getElementById('modalT').textContent='Cobrança do plano '+p.nome;
+    alvo.innerHTML=`${linha('Valor','',brl(r.pagamento.valorCentavos/100),'b-ok')}
+      ${r.pagamento.linkPagamento?`<p style="margin-top:12px"><a class="btn btn-p" href="${esc(r.pagamento.linkPagamento)}" target="_blank" rel="noopener">Abrir a página de pagamento</a></p>`:''}
+      ${r.pix?`<div style="margin-top:14px;display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+        ${r.pix.imagemBase64?`<img alt="QR do Pix" style="width:168px;height:168px;border-radius:8px" src="data:image/png;base64,${esc(r.pix.imagemBase64)}">`:''}
+        <div style="flex:1;min-width:220px"><label>Pix copia e cola</label>
+          <textarea rows="4" readonly onclick="this.select()" style="width:100%">${esc(r.pix.payload)}</textarea></div></div>`:''}
+      <p class="hint" style="margin-top:12px">Quando o pagamento for confirmado, ele entra sozinho no
+        livro-caixa e aparece em <b>Recebimento</b>.</p>`;
+    document.getElementById('modalF').innerHTML=`<button class="btn btn-p" onclick="fecharModal();carregar()">Fechar</button>`;
+    flash('Cobrança do plano emitida.','ok');
+  }catch(e){ fecharModal(); flash(e.message,'err'); }
+}
+
+/* ---- trilha de leads (auditor e relatórios) ---- */
+
+/* Achata o histórico de todos os leads numa lista só, do mais novo pro mais
+   velho. O histórico já é gravado por evento desde o início — o que faltava era
+   olhar pra ele como TRILHA, não como detalhe de um lead. */
+function trilhaDeLeads(){
+  const out=[];
+  for(const l of (ST.leads||[])){
+    for(const h of (l.historico||[])){
+      out.push({...h,lead:l.nome||('+'+l.telefone),telefone:l.telefone});
+    }
+  }
+  return out.sort((a,b)=>String(b.quando||'').localeCompare(String(a.quando||'')));
+}
+
+const rotuloEvento=(e)=>({
+  criado:'lead cadastrado',
+  etapa:'mudou de etapa',
+  fechado:'lead fechado',
+  qualificado:'score calculado',
+  interacao:'mensagem',
+}[e.tipo]||e.tipo);
+
+function detalheEvento(e){
+  if(e.tipo==='etapa') return `${e.de||'—'} → ${e.para||'—'}`;
+  if(e.tipo==='fechado') return e.status+(e.motivo?` · ${e.motivo}`:'');
+  if(e.tipo==='qualificado') return `${e.faixa||'—'}${e.score!=null?' · '+e.score:''}${(e.motivos||[]).length?' · '+e.motivos.join('; '):''}`;
+  if(e.tipo==='interacao') return `${e.direcao==='saida'?'enviada':'recebida'} · ${String(e.texto||'').slice(0,60)}`;
+  if(e.tipo==='criado') return e.etapa||'';
+  return '';
+}
+
 /* ---- contrato e política ---- */
 
 function telaDocumento(tipo,titulo,sub){
@@ -1406,6 +1495,17 @@ async function excluirRegra(id,nome){
     const r=await api('bot/regra-excluir',{id});
     if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
     await carregar(); flash('Regra excluída.','ok');
+  }catch(e){flash(e.message,'err');}
+}
+
+async function salvarPersonalizacao(){
+  const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
+  try{
+    const r=await api('bot/config',{nome:v('pzNome'),persona:v('pzPersona'),saudacao:v('pzSaud'),
+      mensagemFallback:v('pzFall'),mensagemHandoff:v('pzHand'),mensagemCatalogo:v('pzCat'),
+      falhasAteHumano:Number(v('pzFalhas')||2)});
+    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
+    await carregar(); flash('Personalização salva.','ok');
   }catch(e){flash(e.message,'err');}
 }
 
@@ -2010,23 +2110,142 @@ const S={
     ${linha('Webhook de entrada','rota que recebe a mensagem do cliente','não existe','')}</div>`+
   vazio('integra','Falta o acesso da Meta','Sua conta está com pendência, então o token ainda não existe. O código que fala com a Cloud API já está pronto em <code>backend/whatsapp.mjs</code>.',
    ['Resolver a pendência no Meta Business e verificar o negócio','Criar o app e pegar <code>WA_TOKEN</code> e <code>WA_PHONE_ID</code>','Setar <code>WHATSAPP_PROVIDER=cloud</code> no systemd','Eu escrevo o webhook e o bot passa a responder']);},
- 'wa-consumo':()=>head('WhatsApp · Consumo','Mensagens enviadas e recebidas, e o custo por conversa cobrado pela Meta.')+
-  vazio('consumo','Sem consumo para medir','Nenhuma mensagem saiu desta instalação: o provider está em <code>log</code>, que só imprime o link <code>wa.me</code> no console.',
-   ['Ligar a integração','O contador começa na primeira conversa','Custo vem da categoria da conversa na fatura da Meta']),
- 'wa-bot':()=>head('WhatsApp · Bot','O atendimento automático dentro da conversa.')+
-  vazio('bot','O bot ainda não foi construído','Existe só o caminho de saída. Não há webhook que receba mensagem nem máquina de estado. O motor de vendas já existe: <code>qualify</code>, <code>followup</code>, <code>objection</code> e <code>ads</code>.',
-   ['Webhook de entrada com verificação de assinatura da Meta','Máquina de estado da conversa, gravando no CRM','Oferta montada pelo <code>ads.mjs</code>','Escalonamento pro humano quando o lead esquenta']),
- 'wa-personalizar':()=>head('WhatsApp · Personalizar','Nome, avatar, tom de voz e as mensagens do bot.')+
-  `<div class="card" style="margin-bottom:16px"><h3>Avatar e nome do negócio</h3>
-    <p class="hint">A foto e o nome que o cliente vê na conversa não são código: vêm do perfil da conta no WhatsApp Manager da Meta.</p></div>`+
-  vazio('person','Tom de voz vem da entrevista','O jeito de escrever sai do perfil que a entrevista coleta. Nesta máquina ela ainda não rodou.',
-   ['Rodar a entrevista dos sets <code>empresa</code> e <code>vendas</code>','O tom passa a valer no follow-up e na objeção','Aqui você revisa mensagem por mensagem']),
- 'wa-relatorios':()=>head('WhatsApp · Relatórios','Volume, tempo de resposta e o que virou venda.')+
-  vazio('relatorios','Sem conversa registrada','Construído em cima do histórico de interação do CRM — que já grava por lead. Falta o bot alimentá-lo.',
-   ['Ligar a integração e subir o bot','Cada mensagem vira interação no lead','O relatório cruza conversa com etapa do funil']),
- 'wa-auditor':()=>head('WhatsApp · Auditor','Trilha do que o bot falou, com quem e quando.')+
-  vazio('auditor','Nada para auditar ainda','O CRM já guarda trilha por lead: criação, etapa, qualificação com os motivos do score, e cada interação.',
-   ['A trilha já existe no histórico de cada lead','O auditor mostra por conversa, não por lead','Score vem com os motivos — nada de caixa-preta']),
+ 'wa-consumo':()=>{
+  const inter=trilhaDeLeads().filter(e=>e.tipo==='interacao');
+  const saida=inter.filter(e=>e.direcao==='saida').length;
+  const w=STATUS?.whatsapp||{};
+  const porMes={};
+  inter.forEach(e=>{const m=String(e.quando||'').slice(0,7);if(m)porMes[m]=(porMes[m]||0)+1;});
+  const meses=Object.entries(porMes).sort((a,b)=>b[0].localeCompare(a[0]));
+  return head('WhatsApp · Consumo','Quantas mensagens passaram por aqui — e o que só a fatura da Meta responde.')+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Mensagens',inter.length,'registradas no CRM')}
+    ${kpi('Enviadas',saida,'saíram desta instalação')}
+    ${kpi('Recebidas',inter.length-saida,w.envia?'pelo webhook':'sem canal de entrada')}
+    ${kpi('Custo','—','só a fatura da Meta responde')}
+  </div>
+  <div class="card" style="margin-bottom:16px"><h3>Por mês</h3>
+    ${meses.length?meses.map(([m,n])=>linha(m.split('-').reverse().join('/'),'mensagens',String(n),'b-ok')).join('')
+      :'<p class="hint">Nenhuma mensagem registrada ainda. O contador enche sozinho conforme as conversas acontecem.</p>'}</div>
+  <div class="card" style="border-style:dashed"><h3>Por que o custo aparece como “—”</h3>
+    <p class="hint">A Meta cobra por <b>conversa</b>, não por mensagem, e o preço muda com a categoria
+      (atendimento, marketing, utilidade) e com o país. Estimar isso aqui seria inventar número:
+      o valor real está na fatura deles.</p>
+    ${linha('Canal de saída',esc(w.provider||'log'),w.envia?'enviando':'não envia',w.envia?'b-ok':'b-warn')}
+    ${linha('Canal de entrada','webhook da Meta',w.envia?'depende da conta':'não existe','b-warn')}</div>`;
+ },
+ 'wa-bot':()=>{
+  const b=BOT;
+  return head('WhatsApp · Bot','O mesmo bot da tela Bot, visto pelo lado do WhatsApp.')+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Regras',b?b.total:'—',b?`${b.ativas} ativa(s)`:'backend antigo')}
+    ${kpi('Motor',b?'pronto':'—','responde e testa sem canal')}
+    ${kpi('Canal WhatsApp','falta',(STATUS?.whatsapp?.envia)?'saída ok, entrada não':'conta Meta pendente')}
+    ${kpi('Chamam gente',b?b.comHandoff:'—','passam pro humano')}
+  </div>
+  <div class="card" style="margin-bottom:16px"><h3>O que já funciona</h3>
+    <p class="hint">O motor de atendimento existe e é testável agora: regras, prioridade, catálogo,
+      passagem pra humano e simulador de conversa. Nada disso espera a Meta.</p>
+    ${linha('Regras de resposta','termo, prioridade e resposta',b&&b.total?`${b.total} cadastrada(s)`:'nenhuma ainda',b&&b.total?'b-ok':'b-warn')}
+    ${linha('Passar pra uma pessoa','pedido explícito ou bot perdido','pronto','b-ok')}
+    ${linha('Responder com o catálogo','usa os produtos da vitrine',b?.config?.usarCatalogo?'ligado':'desligado',b?.config?.usarCatalogo?'b-ok':'')}
+    ${linha('Simulador','testa a conversa sem canal','pronto','b-ok')}
+    <div style="margin-top:12px"><button class="btn btn-p" onclick="ir('bot')">Abrir a tela do Bot</button></div></div>
+  <div class="card" style="border-style:dashed"><h3>O que falta, e é só canal</h3>
+    <p class="hint">Quando a conta Meta destravar, o trabalho é ligar a entrada e a saída no motor
+      que já está pronto — as regras não mudam.</p>
+    ${linha('Webhook de entrada','recebe a mensagem do cliente e valida a assinatura','falta','b-warn')}
+    ${linha('Envio pela Cloud API','leva a resposta de volta',(STATUS?.whatsapp?.envia)?'pronto':'falta',(STATUS?.whatsapp?.envia)?'b-ok':'b-warn')}
+    ${linha('Gravar no lead','cada mensagem vira interação na trilha','pronto','b-ok')}</div>`;
+ },
+ 'wa-personalizar':()=>{
+  const c=BOT?.config;
+  if(!c) return head('WhatsApp · Personalizar','Nome, tom de voz e as mensagens do bot.')+
+    vazio('person','Backend sem a rota do bot','Atualize o servidor.',['Subir o backend novo','Recarregar']);
+  return head('WhatsApp · Personalizar','Como o bot se apresenta e o que ele fala nas três horas que decidem tudo.')+
+  `<div class="card" style="margin-bottom:16px"><h3>Como ele se apresenta</h3>
+    <p class="hint">Vale em qualquer canal — WhatsApp, site ou o simulador aqui do painel.</p>
+    <div class="form-grid" style="margin-top:12px">
+      <div class="field"><label>Nome do atendente</label><input id="pzNome" value="${esc(c.nome)}"></div>
+      <div class="field"><label>Falhas até chamar gente</label>
+        <input id="pzFalhas" type="number" min="1" value="${esc(c.falhasAteHumano)}"></div>
+      <div class="field" style="grid-column:1/-1"><label>Jeito de escrever <small>(guia pra quem redige as respostas)</small></label>
+        <textarea id="pzPersona" rows="2">${esc(c.persona||'')}</textarea></div>
+    </div></div>
+
+  <div class="card" style="margin-bottom:16px"><h3>As três mensagens que decidem tudo</h3>
+    <p class="hint">Saudação, “não entendi” e “vou chamar alguém”. São as que aparecem mais e as que
+      mais custam quando estão erradas.</p>
+    <div class="form-grid" style="margin-top:12px">
+      <div class="field" style="grid-column:1/-1"><label>Saudação</label><input id="pzSaud" value="${esc(c.saudacao)}"></div>
+      <div class="field" style="grid-column:1/-1"><label>Quando não entende</label><input id="pzFall" value="${esc(c.mensagemFallback)}"></div>
+      <div class="field" style="grid-column:1/-1"><label>Ao passar pra uma pessoa</label><input id="pzHand" value="${esc(c.mensagemHandoff)}"></div>
+      <div class="field" style="grid-column:1/-1"><label>Ao mandar o catálogo</label><input id="pzCat" value="${esc(c.mensagemCatalogo||'')}"></div>
+      <button class="btn btn-p" onclick="salvarPersonalizacao()">Salvar</button>
+      <button class="btn btn-s" onclick="ir('bot')">Testar no simulador</button>
+    </div>
+    <p class="hint" style="margin-top:10px">Use <code>{nome}</code> e <code>{empresa}</code> — são trocados pelo valor real.
+      Variável sem valor aparece como está, em vez de sumir.</p></div>
+
+  <div class="card" style="border-style:dashed"><h3>Foto e nome do número</h3>
+    <p class="hint">A foto e o nome que o cliente vê no topo da conversa <b>não são nossos</b>: vêm do
+      perfil da conta no WhatsApp Manager da Meta. Nada aqui muda isso — e prometer que muda seria mentira.</p>
+    ${linha('Perfil do número','WhatsApp Manager da Meta','fora daqui','b-warn')}
+    ${linha('Nome do atendente','aparece nas respostas do bot',esc(c.nome),'b-ok')}</div>`;
+ },
+ 'wa-relatorios':()=>{
+  const t=trilhaDeLeads();
+  const inter=t.filter(e=>e.tipo==='interacao');
+  const saida=inter.filter(e=>e.direcao==='saida').length;
+  const entrada=inter.length-saida;
+  const comConversa=new Set(inter.map(e=>e.lead));
+  const ganhosComConversa=ST.leads.filter(l=>l.status==='ganho'&&comConversa.has(l.nome||l.telefone)).length;
+  const fechados=ST.leads.filter(l=>l.status!=='aberto').length;
+  return head('WhatsApp · Relatórios','Volume de conversa e o que ela virou no funil.')+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Mensagens',inter.length,`${saida} enviada(s) · ${entrada} recebida(s)`)}
+    ${kpi('Leads com conversa',comConversa.size,ST.leads.length?`de ${ST.leads.length} lead(s)`:'sem lead ainda')}
+    ${kpi('Viraram venda',ganhosComConversa,comConversa.size?`de ${comConversa.size} com conversa`:'nenhuma conversa ainda')}
+    ${kpi('Conversão geral',fechados?Math.round(ST.leads.filter(l=>l.status==='ganho').length/fechados*100)+'%':'—',fechados?'ganhos ÷ fechados':'nenhum lead fechado')}
+  </div>
+  <div class="card" style="margin-bottom:16px"><h3>Por etapa do funil</h3>
+    ${ST.resumo.etapas.map(e=>linha(e.etapa,`${e.leads} lead(s) aberto(s)`,e.valor==null?'—':brl(e.valor/1),e.leads?'b-ok':'')).join('')
+      ||'<p class="hint">Sem funil cadastrado.</p>'}</div>
+  <div class="card" style="border-style:dashed"><h3>O que ainda não dá pra medir</h3>
+    <p class="hint">Tempo de resposta e custo por conversa vêm da fatura da Meta: sem o canal ligado,
+      esses dois números não existem — e aparecem como <b>—</b>, nunca como zero.</p>
+    ${linha('Tempo médio de resposta','depende de mensagem com hora de chegada','—','b-warn')}
+    ${linha('Custo por conversa','vem da categoria da conversa na fatura da Meta','—','b-warn')}</div>`;
+ },
+ 'wa-auditor':()=>{
+  const eventos=trilhaDeLeads();
+  return head('WhatsApp · Auditor','Tudo que aconteceu com cada lead: quem falou, quando, e por que o score deu o que deu.')+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Eventos',eventos.length,'na trilha')}
+    ${kpi('Interações',eventos.filter(e=>e.tipo==='interacao').length,'mensagens registradas')}
+    ${kpi('Qualificações',eventos.filter(e=>e.tipo==='qualificado').length,'com motivo do score')}
+    ${kpi('Leads com trilha',new Set(eventos.map(e=>e.lead)).size,'de '+(ST.leads.length||0))}
+  </div>
+  <div class="card"><h3>Trilha</h3>
+    <div class="tbl-bar">
+      <input id="auBusca" value="${esc(BUSCA.auditor||'')}" placeholder="Buscar por lead, tipo ou texto"
+        oninput="buscarEm('auditor',this.value)">
+      <button class="btn btn-s" onclick="carregar()">Atualizar</button>
+    </div>
+    <p class="hint" style="margin-bottom:10px">Nada aqui é escrito à mão: cada linha foi gravada quando o
+      evento aconteceu. Score vem com os motivos — nada de caixa-preta.</p>
+    ${tabela({
+      vazio:'Nenhum evento ainda. A trilha enche sozinha conforme os leads andam no funil e as conversas acontecem.',
+      nenhum:'Nenhum evento com esse termo.',
+      colunas:[
+        {t:'Quando',cel:(e)=>esc(String(e.quando||'').slice(0,16).replace('T',' '))},
+        {t:'Lead',cel:(e)=>`<b>${esc(e.lead)}</b>`},
+        {t:'O que houve',cel:(e)=>esc(rotuloEvento(e))},
+        {t:'Detalhe',cel:(e)=>esc(detalheEvento(e))},
+      ],
+      todos:eventos, itens:eventos.filter(e=>casa(BUSCA.auditor,[e.lead,e.tipo,rotuloEvento(e),detalheEvento(e)])),
+    })}</div>`;
+ },
 
  'pl-consumo':()=>{
   if(!CTA) return head('Plano e acesso','Licença e validade.')+
@@ -2051,9 +2270,31 @@ const S={
   <div class="card" style="border-style:dashed"><h3>Compra e recebimento</h3>
     <p class="hint">A compra ainda não passa por este painel. O backend expõe <code>/checkout</code> e emite a licença pelo webhook do Stripe; ligar isso à tela é trabalho separado, e o módulo de pagamento novo (<code>engine/vspagamentos</code>) já cobre Pix e cartão via Asaas quando vocês decidirem migrar.</p></div>`;
  },
- 'pl-comprar':()=>head('Plano e acesso · Comprar acesso','Estender o pacote quando o consumo acabar.')+
-  vazio('plano','Compra ainda não ligada a este painel','Existe o <code>/checkout</code> do Stripe no backend, que hoje serve à venda de licença — não a recarga de pacote.',
-   ['Ter o medidor de consumo primeiro','Criar os pacotes de recarga e seus preços','Ligar ao checkout, com a chave estendida na confirmação']),
+ 'pl-comprar':()=>{
+  const pronto=PAG?.painel?.integracao?.pronto;
+  const cards=PLANOS.map(p=>`<div class="card" style="margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div><h3>${esc(p.nome)}</h3><p class="hint">${esc(p.descricao)}</p></div>
+      <span class="badge b-ok">${esc(brl(p.centavos/100))}${p.periodo?' / '+esc(p.periodo):''}</span></div>
+    ${p.inclui.map(i=>linha(i,'','incluso','b-ok')).join('')}
+    <div style="margin-top:12px">
+      <button class="btn btn-p" ${pronto?'':'disabled title="cadastre a chave do Asaas em Recebimento"'}
+        onclick="comprarPlano('${esc(p.id)}')">Gerar cobrança</button></div></div>`).join('');
+  return head('Plano e acesso · Comprar acesso','Escolha o pacote e gere a cobrança — Pix na hora.')+
+  (pronto?'':`<div class="card" style="margin-bottom:16px;border-style:dashed">
+    <h3>Falta ligar o recebimento</h3>
+    <p class="hint">Os pacotes estão prontos, mas a cobrança sai pelo Asaas e a chave ainda não foi
+      cadastrada. Faça isso em <b>Plano e acesso › Recebimento</b> e volte aqui.</p>
+    <div style="margin-top:10px"><button class="btn btn-s" onclick="ir('pl-recebimento')">Ir pro Recebimento</button></div></div>`)+
+  cards+
+  `<div class="card" style="border-style:dashed"><h3>Como funciona</h3>
+    <p class="hint">Gerar a cobrança cria um Pix de verdade no Asaas e registra a venda no livro-caixa
+      quando o pagamento for confirmado — pelo webhook, sem ninguém conferir na mão.</p>
+    ${linha('Cobrança','Pix, cartão ou boleto',pronto?'pronto':'falta a chave',pronto?'b-ok':'b-warn')}
+    ${linha('Baixa automática','webhook do Asaas confirma','pronto','b-ok')}
+    ${linha('Entrada no caixa','lançada sozinha, sem duplicar','pronto','b-ok')}
+    ${linha('Extensão da licença','a chave assinada ainda é emitida à parte','manual','b-warn')}</div>`;
+ },
  'pl-recebimento':()=>{
   if(!PAG) return head('Plano e acesso · Recebimento','Receber por Pix e cartão.')+
     vazio('plano','Backend sem a rota de recebimento','Atualize o backend para a versão com o módulo de pagamentos.',['Subir o backend novo','Recarregar']);
