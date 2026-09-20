@@ -542,6 +542,9 @@ const server = createServer(async (req, res) => {
       if (!p) { return json(res, 404, { erro: `produto "${sku}" nao encontrado` }); }
       return json(res, 200, { produto: p, historico: estoque.historico(sku, 20) });
     }
+    if (req.method === 'GET' && rota === '/crm/api/estoque/reservas') {
+      return json(res, 200, { reservas: estoque.reservas(), excluidos: estoque.excluidos().map(estoque.resumir) });
+    }
     if (req.method === 'GET' && rota === '/crm/api/estoque/lotes') {
       const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
       return json(res, 200, {
@@ -667,13 +670,38 @@ const server = createServer(async (req, res) => {
         case '/crm/api/estoque/editar': r = estoque.editar(d.sku, d.mudancas || {}); break;
         case '/crm/api/estoque/movimentar': r = estoque.movimentar(d.sku, d); break;
         case '/crm/api/estoque/excluir': r = estoque.excluir(d.sku); break;
+        case '/crm/api/estoque/restaurar': r = estoque.restaurar(d.sku); break;
+        /* Comprar = entrada de mercadoria. Fica separado de `movimentar` porque
+           carrega custo e fornecedor, que vao pro historico. */
+        case '/crm/api/estoque/comprar': {
+          r = estoque.movimentar(d.sku, {
+            tipo: 'entrada',
+            quantidade: Number(d.quantidade),
+            motivo: d.fornecedor ? `compra — ${d.fornecedor}` : 'compra',
+            ref: d.nota || null,
+          });
+          break;
+        }
+        case '/crm/api/estoque/reservar': r = estoque.reservar(d.sku, Number(d.quantidade), { chave: d.chave, canal: d.canal }); break;
+        case '/crm/api/estoque/confirmar': r = estoque.confirmarReserva(d.chave); break;
+        case '/crm/api/estoque/cancelar-reserva': r = estoque.cancelarReserva(d.chave); break;
         case '/crm/api/estoque/vitrine': r = estoque.vitrine(d.sku, d.expor !== false); break;
         /* "Vender" = mandar pro TikTok Shop. Enquanto a loja nao esta ligada, a
            resposta diz O QUE falta em vez de um erro seco — o produto ja fica
            marcado pra vitrine, que e o canal que funciona sem aprovacao. */
+        /* VENDER, na ordem que a especificacao manda: valida -> RESERVA idempotente
+           -> encaminha pro canal. A baixa do saldo NAO acontece aqui; ela espera a
+           confirmacao do canal (POST /crm/api/estoque/confirmar). */
         case '/crm/api/estoque/vender': {
-          const diag = tk.diagnostico();
-          const shop = diag.familias.shop;
+          const p = estoque.obter(d.sku);
+          if (!p) { r = { ok: false, motivo: `produto "${d.sku}" nao encontrado` }; break; }
+          const qtd = Number(d.quantidade) || 1;
+          // Chave estavel: o mesmo clique repetido nao reserva de novo.
+          const chave = String(d.chave || `${d.sku}:${d.canal || 'tiktok'}:${qtd}:${new Date().toISOString().slice(0, 13)}`);
+          const res = estoque.reservar(d.sku, qtd, { chave, canal: d.canal || 'tiktok' });
+          if (!res.ok) { r = { ok: false, motivo: res.erro || res.motivo }; break; }
+
+          const shop = tk.diagnostico().familias.shop;
           if (!shop.autorizado) {
             estoque.vitrine(d.sku, true);
             r = {
@@ -683,13 +711,15 @@ const server = createServer(async (req, res) => {
                 ? ['autorizar a conta em Conexões com redes sociais']
                 : ['cadastrar o app do TikTok Shop em Conexões com redes sociais: ' + (shop.faltando || []).join(', ')],
               naVitrine: true,
+              reserva: res.reserva,
             };
             break;
           }
-          r = await estoque.publicarNoTiktok(d.sku, {
+          const env = await estoque.publicarNoTiktok(d.sku, {
             armazemId: d.armazemId || process.env.TIKTOK_ARMAZEM_ID,
             categoriaId: d.categoriaId || process.env.TIKTOK_CATEGORIA_ID,
           });
+          r = { ...env, reserva: res.reserva };
           break;
         }
         case '/crm/api/estoque/lote': r = estoque.criarLote(d); break;

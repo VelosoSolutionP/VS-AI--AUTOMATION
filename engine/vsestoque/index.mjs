@@ -259,6 +259,8 @@ export function resumir(p) {
     disponivel: disponivel(p),
     disponibilidade: disponibilidade(p),
     imagens: p.imagens?.length || 0,
+    imagemUrl: p.imagens?.[0] || null,
+    atualizadoEm: p.atualizadoEm || null,
     ativo: p.ativo !== false,
     naVitrine: p.naVitrine === true,
   };
