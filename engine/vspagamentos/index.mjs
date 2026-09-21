@@ -300,7 +300,7 @@ export async function qrPix(id, opts = {}) {
  * chamador HTTP precisa responder 200 mesmo em duplicata, senão a fila do Asaas
  * pausa após 15 falhas.
  */
-export function processarWebhook(headers = {}, corpo = {}, opts = {}) {
+export async function processarWebhook(headers = {}, corpo = {}, opts = {}) {
   const c = getConfig();
 
   /* Cada provedor assina de um jeito: o Asaas manda um token no header, o
@@ -326,6 +326,31 @@ export function processarWebhook(headers = {}, corpo = {}, opts = {}) {
     save(EVENTOS, { ...vistos, [ev.eventoId]: { em: new Date().toISOString(), evento: ev.evento, ignorado: true } });
     return { ok: true, http: 200, ignorado: true, motivo: `evento não tratado: "${ev.evento}"` };
   }
+  /* O Mercado Pago avisa "houve algo com o pagamento X" e NAO diz o que. Se a
+     gente parasse aqui, pagamento aprovado nunca viraria lancamento no caixa —
+     que e justamente o unico motivo de existir este webhook. Entao vamos buscar.
+
+     A consulta e feita ANTES de marcar o evento como visto: se a rede falhar, o
+     Mercado Pago reentrega e a gente tenta de novo, em vez de dar o evento por
+     processado tendo perdido o estado. */
+  if (ev.estado == null && ev.precisaConsultar && ev.cobrancaId) {
+    const consulta = await gateway(opts).consultarCobranca(ev.cobrancaId);
+    if (!consulta.ok) {
+      /* 404 nao melhora com o tempo: o pagamento nao e nosso ou nao existe. Pedir
+         reentrega ai faria o Mercado Pago bater na nossa porta pra sempre pelo
+         mesmo evento. Falha de REDE, sim: essa merece nova tentativa. */
+      if (consulta.status === 404) {
+        save(EVENTOS, { ...vistos, [ev.eventoId]: { em: new Date().toISOString(), evento: ev.evento, orfao: true } });
+        return { ok: true, http: 200, orfao: true, motivo: `pagamento "${ev.cobrancaId}" não existe no Mercado Pago desta conta` };
+      }
+      return { ok: false, http: 500, motivo: `não consegui consultar o pagamento ${ev.cobrancaId}: ${consulta.motivo}`, podeReentregar: true };
+    }
+    ev.estado = consulta.pagamento.estado;
+    ev.valorCentavos = consulta.pagamento.valorCentavos ?? ev.valorCentavos;
+    ev.liquidoCentavos = consulta.pagamento.liquidoCentavos ?? ev.liquidoCentavos;
+    ev.consultado = true;
+  }
+
   if (ev.estado == null) {
     save(EVENTOS, { ...vistos, [ev.eventoId]: { em: new Date().toISOString(), evento: ev.evento, semEfeito: true } });
     return { ok: true, http: 200, semEfeito: true, motivo: `"${ev.evento}" não muda o estado do pagamento` };

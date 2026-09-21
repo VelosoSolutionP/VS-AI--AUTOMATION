@@ -183,7 +183,7 @@ test('Pix recebido confirma mesmo chegando direto em CRIADO', async () => {
   const f = fakePorRota({ '/payments': { id: 'pay_pix_direto' } });
   await P.cobrar({ clienteId: 'cus_1', metodo: 'PIX', valorCentavos: 19990 }, { fetchImpl: f });
 
-  const r = P.processarWebhook(HEAD, ev('evt_pix_1', 'PAYMENT_RECEIVED', 'pay_pix_direto', { value: 199.9, netValue: 198.91 }));
+  const r = await P.processarWebhook(HEAD, ev('evt_pix_1', 'PAYMENT_RECEIVED', 'pay_pix_direto', { value: 199.9, netValue: 198.91 }));
   assert.equal(r.ok, true, r.motivo);
   assert.equal(P.obter('pay_pix_direto').estado, 'DISPONIVEL');
 });
@@ -191,16 +191,16 @@ test('Pix recebido confirma mesmo chegando direto em CRIADO', async () => {
 test('evento RECUSADO nao entra na lista de vistos — a reentrega ainda salva', async () => {
   const f = fakePorRota({ '/payments': { id: 'pay_fora_de_ordem' } });
   await P.cobrar({ clienteId: 'cus_1', metodo: 'PIX', valorCentavos: 5000 }, { fetchImpl: f });
-  P.processarWebhook(HEAD, ev('evt_cancela', 'PAYMENT_DELETED', 'pay_fora_de_ordem'));
+  await P.processarWebhook(HEAD, ev('evt_cancela', 'PAYMENT_DELETED', 'pay_fora_de_ordem'));
   assert.equal(P.obter('pay_fora_de_ordem').estado, 'CANCELADO');
 
   // Estado final: este evento nao cabe. O Asaas vai reentregar.
-  const r1 = P.processarWebhook(HEAD, ev('evt_atrasado', 'PAYMENT_RECEIVED', 'pay_fora_de_ordem'));
+  const r1 = await P.processarWebhook(HEAD, ev('evt_atrasado', 'PAYMENT_RECEIVED', 'pay_fora_de_ordem'));
   assert.equal(r1.ok, false);
   assert.equal(r1.http, 200, '4xx repetido PAUSA a fila do Asaas depois de 15 falhas');
   assert.equal(r1.podeReentregar, true);
 
-  const r2 = P.processarWebhook(HEAD, ev('evt_atrasado', 'PAYMENT_RECEIVED', 'pay_fora_de_ordem'));
+  const r2 = await P.processarWebhook(HEAD, ev('evt_atrasado', 'PAYMENT_RECEIVED', 'pay_fora_de_ordem'));
   assert.notEqual(r2.duplicado, true, 'marcar o recusado como processado matava a unica chance de recuperar');
 });
 
@@ -214,14 +214,14 @@ test('o recusado aparece no painel — dinheiro que entrou e a tela pode nao sab
 test('duplicata de evento que DEU CERTO continua sendo ignorada', async () => {
   const f = fakePorRota({ '/payments': { id: 'pay_dup' } });
   await P.cobrar({ clienteId: 'cus_1', metodo: 'PIX', valorCentavos: 1000 }, { fetchImpl: f });
-  const a = P.processarWebhook(HEAD, ev('evt_dup', 'PAYMENT_RECEIVED', 'pay_dup'));
+  const a = await P.processarWebhook(HEAD, ev('evt_dup', 'PAYMENT_RECEIVED', 'pay_dup'));
   assert.equal(a.ok, true);
-  const b = P.processarWebhook(HEAD, ev('evt_dup', 'PAYMENT_RECEIVED', 'pay_dup'));
+  const b = await P.processarWebhook(HEAD, ev('evt_dup', 'PAYMENT_RECEIVED', 'pay_dup'));
   assert.equal(b.duplicado, true);
 });
 
-test('token forjado nao move nada', () => {
-  const r = P.processarWebhook({ 'asaas-access-token': 'token-de-invasor-com-32-caracter' }, ev('evt_x', 'PAYMENT_RECEIVED', 'pay_dup'));
+test('token forjado nao move nada', async () => {
+  const r = await P.processarWebhook({ 'asaas-access-token': 'token-de-invasor-com-32-caracter' }, ev('evt_x', 'PAYMENT_RECEIVED', 'pay_dup'));
   assert.equal(r.ok, false);
   assert.equal(r.http, 401);
 });

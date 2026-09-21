@@ -386,12 +386,17 @@ const server = createServer(async (req, res) => {
   /* Webhook do Mercado Pago. Ele manda "houve algo com o pagamento X" e a gente
      vai BUSCAR o estado — por isso a query importa: o id dela entra no manifesto
      que valida a assinatura. */
-  if (req.method === 'POST' && req.url.split('?')[0] === '/webhook/mercadopago') {
+  /* Dois caminhos pro mesmo webhook: o nosso e o que ja foi cadastrado no painel
+     do Mercado Pago (`/api/webhooks/mercadopago`). Trocar URL cadastrada em
+     gateway e um passo manual a mais e uma chance a mais de ficar sem receber
+     nada — aceitar os dois custa uma linha. */
+  if (req.method === 'POST'
+      && ['/webhook/mercadopago', '/api/webhooks/mercadopago'].includes(req.url.split('?')[0])) {
     const buf = await readBody(req);
     if (corpoEstourou(res, buf)) { return; }
     let evento; try { evento = JSON.parse(buf.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
     const query = Object.fromEntries(new URL(req.url, 'http://x').searchParams);
-    const r = pagar.processarWebhook(req.headers, evento, { query });
+    const r = await pagar.processarWebhook(req.headers, evento, { query });
 
     /* Pagamento confirmado vira LANCAMENTO no caixa, igual ao Asaas. */
     if (r.ok && ['CONFIRMADO', 'DISPONIVEL'].includes(r.estado) && r.pagamento) {
@@ -406,7 +411,7 @@ const server = createServer(async (req, res) => {
     const buf = await readBody(req);
     if (corpoEstourou(res, buf)) { return; }
     let evento; try { evento = JSON.parse(buf.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
-    const r = pagar.processarWebhook(req.headers, evento);
+    const r = await pagar.processarWebhook(req.headers, evento);
     /* Pagamento confirmado vira LANCAMENTO no caixa. E idempotente pela
        referencia: o mesmo pagamento reentregue nao entra duas vezes. Sem isto, o
        financeiro so mostrava promessa do funil e nunca o dinheiro que entrou. */
@@ -727,6 +732,8 @@ const server = createServer(async (req, res) => {
         provedores: pagar.PROVEDORES,
         // Cada provedor tem a SUA URL de webhook: cadastrar a errada e nao receber nada.
         urlWebhook: `${origem}/webhook/${prov.nome === 'mercadopago' ? 'mercadopago' : 'asaas'}`,
+        // Aceito também, pra quem já cadastrou neste formato no painel do gateway.
+        urlWebhookAlternativa: prov.nome === 'mercadopago' ? `${origem}/api/webhooks/mercadopago` : null,
       });
     }
     /* Um produto so — a tela de ver/editar nao deve baixar o catalogo inteiro. */

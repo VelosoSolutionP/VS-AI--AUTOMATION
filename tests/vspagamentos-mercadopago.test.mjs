@@ -222,3 +222,68 @@ test('erro que NAO e de permissao continua falhando — nao mascara problema rea
   assert.equal(r.ok, false, 'cair no checkout aqui esconderia um bug nosso');
   assert.equal(f.chamadas.length, 1);
 });
+
+/* ---- o webhook que BUSCA o estado ----
+   O MP nao diz o que aconteceu: ele avisa "mexeu no pagamento X". Se o modulo
+   parasse ai, pagamento aprovado nunca viraria lancamento no caixa — que e o
+   unico motivo de existir este webhook. */
+
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+const dirPag = mkdtempSync(join(tmpdir(), 'mp-webhook-'));
+process.env.VSPAGAMENTOS_DIR = dirPag;
+process.env.MP_ACCESS_TOKEN_TESTE = 'token-de-teste';
+process.env.MP_WEBHOOK_SECRET = 'segredo-do-teste';
+const P = await import('../engine/vspagamentos/index.mjs');
+test.after(() => rmSync(dirPag, { recursive: true, force: true }));
+
+const assinarPara = (id, reqId, ts) =>
+  createHmac('sha256', 'segredo-do-teste').update(`id:${id};request-id:${reqId};ts:${ts};`).digest('hex');
+
+test('webhook do MP consulta o pagamento e usa o estado que voltou', async () => {
+  P.configurar({ provedor: 'mercadopago', modelo: 'direto' });
+  const ts = '1700000000';
+  const v1 = assinarPara('555', 'req-a', ts);
+  const consultado = { id: 555, status: 'approved', transaction_amount: 189,
+    transaction_details: { net_received_amount: 180 } };
+
+  const r = await P.processarWebhook(
+    { 'x-signature': `ts=${ts},v1=${v1}`, 'x-request-id': 'req-a' },
+    { type: 'payment', action: 'payment.updated', data: { id: '555' } },
+    { query: { 'data.id': '555' }, fetchImpl: async () => ({ ok: true, status: 200, json: async () => consultado }) },
+  );
+  // A cobranca nao e nossa (nao foi criada por aqui), mas o estado TEM de ter
+  // sido descoberto — e o que prova que a consulta aconteceu.
+  assert.equal(r.http, 200);
+  assert.equal(r.orfao, true, 'nao criamos esta cobranca aqui');
+  assert.notEqual(r.motivo, '"payment" não muda o estado do pagamento');
+});
+
+test('se a consulta falhar, o evento NAO e dado por processado', async () => {
+  const ts = '1700000001';
+  const v1 = assinarPara('777', 'req-b', ts);
+  const r = await P.processarWebhook(
+    { 'x-signature': `ts=${ts},v1=${v1}`, 'x-request-id': 'req-b' },
+    { type: 'payment', action: 'payment.updated', data: { id: '777' } },
+    { query: { 'data.id': '777' }, fetchImpl: async () => { throw new Error('rede caiu'); } },
+  );
+  assert.equal(r.ok, false);
+  assert.equal(r.podeReentregar, true, 'o MP tem de poder tentar de novo');
+  assert.match(r.motivo, /não consegui consultar/);
+});
+
+test('pagamento inexistente (404) encerra o evento — nao pede reentrega eterna', async () => {
+  const ts = '1700000002';
+  const v1 = assinarPara('888', 'req-c', ts);
+  const r = await P.processarWebhook(
+    { 'x-signature': `ts=${ts},v1=${v1}`, 'x-request-id': 'req-c' },
+    { type: 'payment', action: 'payment.updated', data: { id: '888' } },
+    { query: { 'data.id': '888' },
+      fetchImpl: async () => ({ ok: false, status: 404, json: async () => ({ message: 'not found' }) }) },
+  );
+  assert.equal(r.http, 200, '404 nao melhora com o tempo: reentregar seria batida eterna na porta');
+  assert.equal(r.orfao, true);
+  assert.notEqual(r.podeReentregar, true);
+});

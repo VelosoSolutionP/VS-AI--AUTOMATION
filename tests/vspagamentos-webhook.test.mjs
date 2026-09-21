@@ -134,15 +134,15 @@ test('cobranca grava o split que valeu e o link do gateway', async () => {
   assert.equal(r.pagamento.linkPagamento, 'https://asaas/x');
 });
 
-test('webhook com token errado é 401 e nao move nada', () => {
-  const r = vs.processarWebhook(hdr('z'.repeat(40)), ev('PAYMENT_CONFIRMED', 'e1'));
+test('webhook com token errado é 401 e nao move nada', async () => {
+  const r = await vs.processarWebhook(hdr('z'.repeat(40)), ev('PAYMENT_CONFIRMED', 'e1'));
   assert.equal(r.ok, false);
   assert.equal(r.http, 401);
   assert.equal(vs.obter('pay_1').estado, 'CRIADO');
 });
 
-test('CONFIRMED move pra CONFIRMADO, e o repasse continua BLOQUEADO', () => {
-  const r = vs.processarWebhook(hdr(), ev('PAYMENT_CONFIRMED', 'e2'));
+test('CONFIRMED move pra CONFIRMADO, e o repasse continua BLOQUEADO', async () => {
+  const r = await vs.processarWebhook(hdr(), ev('PAYMENT_CONFIRMED', 'e2'));
   assert.equal(r.http, 200);
   assert.equal(r.estado, 'CONFIRMADO');
   const pode = vs.podeRepassar(vs.obter('pay_1'));
@@ -150,15 +150,15 @@ test('CONFIRMED move pra CONFIRMADO, e o repasse continua BLOQUEADO', () => {
   assert.match(pode.motivo, /ainda NÃO está disponível/);
 });
 
-test('evento REENTREGUE devolve 200 e nao processa de novo (senao a fila do Asaas pausa)', () => {
-  const r = vs.processarWebhook(hdr(), ev('PAYMENT_CONFIRMED', 'e2'));
+test('evento REENTREGUE devolve 200 e nao processa de novo (senao a fila do Asaas pausa)', async () => {
+  const r = await vs.processarWebhook(hdr(), ev('PAYMENT_CONFIRMED', 'e2'));
   assert.equal(r.ok, true);
   assert.equal(r.http, 200);
   assert.equal(r.duplicado, true);
 });
 
-test('RECEIVED libera o repasse e fecha o split com o liquido real', () => {
-  const r = vs.processarWebhook(hdr(), ev('PAYMENT_RECEIVED', 'e3', { netValue: 98 }));
+test('RECEIVED libera o repasse e fecha o split com o liquido real', async () => {
+  const r = await vs.processarWebhook(hdr(), ev('PAYMENT_RECEIVED', 'e3', { netValue: 98 }));
   assert.equal(r.estado, 'DISPONIVEL');
   const p = vs.obter('pay_1');
   assert.equal(p.split.liquidoCentavos, 9800, 'o liquido so é conhecido quando o gateway informa');
@@ -178,14 +178,14 @@ test('no modelo split nao existe transferencia a fazer', async () => {
   assert.match(r.motivo, /repasse é automático na liquidação/);
 });
 
-test('evento de cobranca que nao é nossa nao quebra — responde 200', () => {
-  const r = vs.processarWebhook(hdr(), { id: 'e4', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_de_outro' } });
+test('evento de cobranca que nao é nossa nao quebra — responde 200', async () => {
+  const r = await vs.processarWebhook(hdr(), { id: 'e4', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_de_outro' } });
   assert.equal(r.http, 200);
   assert.equal(r.orfao, true);
 });
 
-test('evento sem id é recusado — sem ele nao ha idempotencia', () => {
-  const r = vs.processarWebhook(hdr(), { event: 'PAYMENT_RECEIVED', payment: { id: 'pay_1' } });
+test('evento sem id é recusado — sem ele nao ha idempotencia', async () => {
+  const r = await vs.processarWebhook(hdr(), { event: 'PAYMENT_RECEIVED', payment: { id: 'pay_1' } });
   assert.equal(r.ok, false);
   assert.equal(r.http, 400);
 });

@@ -36,4 +36,5 @@ tokens/
 # ~/.qa-gate/console/painel.env (600), fora do versionamento.
 backend/Mercado-Livre
 backend/MercadoLivreTeste
+backend/WebHooks
 **/Acessos*.md
