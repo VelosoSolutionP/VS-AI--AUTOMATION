@@ -383,6 +383,25 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  /* Webhook do Mercado Pago. Ele manda "houve algo com o pagamento X" e a gente
+     vai BUSCAR o estado — por isso a query importa: o id dela entra no manifesto
+     que valida a assinatura. */
+  if (req.method === 'POST' && req.url.split('?')[0] === '/webhook/mercadopago') {
+    const buf = await readBody(req);
+    if (corpoEstourou(res, buf)) { return; }
+    let evento; try { evento = JSON.parse(buf.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
+    const query = Object.fromEntries(new URL(req.url, 'http://x').searchParams);
+    const r = pagar.processarWebhook(req.headers, evento, { query });
+
+    /* Pagamento confirmado vira LANCAMENTO no caixa, igual ao Asaas. */
+    if (r.ok && ['CONFIRMADO', 'DISPONIVEL'].includes(r.estado) && r.pagamento) {
+      const l = fin.lancarPagamento(r.pagamento);
+      if (l.ok && !l.repetido) { console.log(`[caixa] entrada de ${r.pagamento.id} lancada`); }
+    }
+    console.log(`[mercadopago] ${evento.type || evento.topic || '?'} ${evento.data?.id || ''} -> ${r.ok ? (r.estado || 'recebido') : 'recusado: ' + r.motivo}`);
+    return json(res, r.http || (r.ok ? 200 : 400), r);
+  }
+
   if (req.method === 'POST' && req.url === '/webhook/asaas') {
     const buf = await readBody(req);
     if (corpoEstourou(res, buf)) { return; }
@@ -700,10 +719,14 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'GET' && rota === '/crm/api/pagamentos') {
       const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
+      const prov = pagar.provedorAtual();
       return json(res, 200, {
         painel: pagar.painel(),
         pagamentos: pagar.listar().slice(-40).reverse(),
-        urlWebhook: `${origem}/webhook/asaas`,
+        provedor: prov,
+        provedores: pagar.PROVEDORES,
+        // Cada provedor tem a SUA URL de webhook: cadastrar a errada e nao receber nada.
+        urlWebhook: `${origem}/webhook/${prov.nome === 'mercadopago' ? 'mercadopago' : 'asaas'}`,
       });
     }
     /* Um produto so — a tela de ver/editar nao deve baixar o catalogo inteiro. */

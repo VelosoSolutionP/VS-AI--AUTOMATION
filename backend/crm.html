@@ -3213,6 +3213,21 @@ const S={
   (i.pronto?'':`<div class="card" style="margin-bottom:16px;border-style:dashed">
     ${cardH('alerta',`Falta pra poder cobrar`,``,5)}${i.faltando.map(f=>linha(f,'','falta','b-err')).join('')}</div>`)+
   `<div class="card" style="margin-bottom:16px">
+    ${(()=>{const pv=PAG?.provedor;return pv?`<div class="card" style="margin-bottom:16px">
+      ${cardH('integra','Por onde o dinheiro entra',`Dois provedores, mesmo funcionamento por dentro. Quem já tem conta em um não precisa abrir no outro.`,2,
+        `<span class="badge ${pv.pronto?'b-ok':'b-warn'}">${esc(pv.rotulo)}${pv.pronto?'':' · incompleto'}</span>`)}
+      ${(PAG.provedores||[]).map(n=>linha(n==='mercadopago'?'Mercado Pago':'Asaas',
+        n===pv.nome?'em uso agora':'disponível',
+        n===pv.nome?(pv.emProducao?'PRODUÇÃO':'sandbox'):'—', n===pv.nome?(pv.emProducao?'b-err':'b-ok'):'')).join('')}
+      ${pv.faltando?.length?`<p class="hint" style="margin-top:10px;color:var(--err)">Falta: ${esc(pv.faltando.join(' · '))}</p>`:''}
+      <div class="form-grid" style="margin-top:12px">
+        <div class="field"><label>Provedor</label><select id="pgProvedor">
+          ${(PAG.provedores||[]).map(n=>`<option value="${esc(n)}"${n===pv.nome?' selected':''}>${n==='mercadopago'?'Mercado Pago':'Asaas'}</option>`).join('')}
+        </select></div>
+        ${botao({t:'Trocar provedor',ic:'salvar',v:'s',on:'trocarProvedor()'})}
+      </div>
+      <p class="hint" style="margin-top:8px">O Mercado Pago não faz custódia (não tem subconta com saldo): nele o modelo é <b>direto</b> ou <b>split</b>.</p>
+    </div>`:'';})()}
     ${cardH('financeiro',`Integração com o Asaas`,`A chave entra aqui e não sai mais: a tela só mostra mascarada.`,2,
       `<span class="badge ${i.pronto?'b-ok':'b-warn'}">${i.pronto?'pronta':'incompleta'}</span>
        <span class="badge ${i.emProducao?'b-err':''}">${i.emProducao?'PRODUÇÃO — move dinheiro de verdade':'sandbox'}</span>`)}
@@ -3921,6 +3936,13 @@ function previewPerfil(){
     r.onload=()=>{ foto.style.backgroundImage=`url(${r.result})`; };
     r.readAsDataURL(arq);
   }
+}
+
+async function trocarProvedor(){
+  const v=(document.getElementById('pgProvedor')||{}).value;
+  return salvar({titulo:'Trocar o provedor de recebimento',rota:'pagamentos/config',
+    corpo:()=>({provedor:v}),
+    sucesso:`Provedor trocado para ${v==='mercadopago'?'Mercado Pago':'Asaas'}. Confira a URL de webhook — ela muda junto.`});
 }
 
 async function assinarPlano(code){

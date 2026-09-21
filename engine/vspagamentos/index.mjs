@@ -26,7 +26,13 @@
  * → BDR-04 e BDR-16 no documento de arquitetura.
  */
 import { load, save, mascarar } from './store.mjs';
-import { criarGateway, validarWebhook } from './asaas.mjs';
+import { criarGateway as gatewayAsaas, validarWebhook as validarAsaas } from './asaas.mjs';
+import { criarGateway as gatewayMercadoPago } from './mercadopago.mjs';
+
+/* Dois provedores de recebimento, mesmo contrato. O cliente escolhe qual usa —
+   quem ja tem conta no Mercado Pago nao precisa abrir uma no Asaas so por causa
+   do nosso codigo. */
+export const PROVEDORES = ['asaas', 'mercadopago'];
 import { calcularSplit, paraAsaas, conferir } from './split.mjs';
 import { traduzirEvento, transitar, LIBERA_REPASSE } from './estados.mjs';
 
@@ -49,7 +55,10 @@ export const MODELOS = ['split', 'custodia', 'direto'];
 /** O modelo divide o valor com alguém de fora? */
 export const divideComTerceiro = (modelo) => modelo !== 'direto';
 
-export { calcularSplit, paraAsaas, conferir, traduzirEvento, criarGateway };
+/* `criarGateway` continua exportado com o nome antigo (o do Asaas) pra nao
+   quebrar quem ja importava daqui; o do Mercado Pago sai com nome proprio. */
+export { calcularSplit, paraAsaas, conferir, traduzirEvento };
+export { gatewayAsaas as criarGateway, gatewayMercadoPago };
 
 export function getConfig() {
   return load(CONFIG, { modelo: 'split', ambiente: 'sandbox' });
@@ -65,6 +74,14 @@ export function configurar(mudancas = {}) {
   const novo = { ...atual, ...mudancas };
   const erros = [];
 
+  if (novo.provedor && !PROVEDORES.includes(novo.provedor)) {
+    erros.push(`provedor inválido: "${novo.provedor}" (use ${PROVEDORES.join(' ou ')})`);
+  }
+  /* Custódia retém dinheiro de terceiro e exige saldo próprio na conta — o
+     Mercado Pago não faz isso. Deixar passar seria prometer o que não existe. */
+  if (novo.provedor === 'mercadopago' && novo.modelo === 'custodia') {
+    erros.push('o Mercado Pago não suporta o modelo "custódia": ele não tem subconta com saldo próprio. Use "direto" ou "split".');
+  }
   if (novo.modelo && !MODELOS.includes(novo.modelo)) {
     erros.push(`modelo inválido: "${novo.modelo}" (use ${MODELOS.join(' ou ')})`);
   }
@@ -89,6 +106,7 @@ export function configurar(mudancas = {}) {
 
 /** Situação da integração — o que falta pra poder cobrar de verdade. */
 export function diagnostico() {
+  const prov = provedorAtual();
   const c = getConfig();
   const faltando = [];
   if (!c.apiKey) { faltando.push('apiKey do Asaas'); }
@@ -115,10 +133,64 @@ export function diagnostico() {
 
 function gateway(opts = {}) {
   const c = getConfig();
-  return criarGateway({
-    apiKey: c.apiKey, ambiente: c.ambiente, webhookToken: c.webhookToken,
-    fetchImpl: opts.fetchImpl, timeoutMs: opts.timeoutMs,
-  });
+  const comum = { ambiente: c.ambiente, fetchImpl: opts.fetchImpl, timeoutMs: opts.timeoutMs };
+  if ((c.provedor || 'asaas') === 'mercadopago') {
+    const mp = credenciaisMercadoPago(c);
+    return gatewayMercadoPago({ ...comum, apiKey: mp.token, webhookSecret: mp.segredo, ambiente: mp.ambiente });
+  }
+  return gatewayAsaas({ ...comum, apiKey: c.apiKey, webhookToken: c.webhookToken });
+}
+
+/**
+ * Qual par de chaves usar.
+ *
+ * O padrão é TESTE, de propósito: produção move dinheiro de verdade e tem de ser
+ * escolha consciente de quem digitou, não o que acontece quando ninguém decidiu.
+ * O Mercado Pago tem dois pares de credenciais — o de teste não cobra ninguém.
+ */
+export function credenciaisMercadoPago(c = {}) {
+  const ambiente = c.mpAmbiente || process.env.MP_AMBIENTE || 'teste';
+  const producao = ambiente === 'producao';
+  const token = producao
+    ? (c.mpAccessToken || process.env.MP_ACCESS_TOKEN)
+    : (c.mpAccessTokenTeste || process.env.MP_ACCESS_TOKEN_TESTE);
+  return {
+    ambiente,
+    producao,
+    token: token || null,
+    publicKey: producao ? process.env.MP_PUBLIC_KEY : process.env.MP_PUBLIC_KEY_TESTE,
+    segredo: c.mpWebhookSecret || process.env.MP_WEBHOOK_SECRET,
+  };
+}
+
+/** Qual provedor está valendo, e se ele tem o mínimo pra cobrar. */
+export function provedorAtual() {
+  const c = getConfig();
+  const nome = c.provedor || 'asaas';
+  if (nome === 'mercadopago') {
+    const mp = credenciaisMercadoPago(c);
+    return {
+      nome, rotulo: 'Mercado Pago',
+      pronto: !!mp.token,
+      ambiente: mp.ambiente,
+      faltando: [
+        !mp.token ? `Access Token do Mercado Pago (${mp.ambiente})` : null,
+        /* Sem o segredo a rota ATENDE, mas sem conferir assinatura — e isso
+           precisa aparecer como pendencia, nao ficar escondido num log. */
+        !mp.segredo ? 'segredo de assinatura do webhook (a rota aceitaria evento forjado)' : null,
+      ].filter(Boolean),
+      emProducao: mp.producao,
+      /* Subconta/saldo/transferencia nao existem no MP: o split dele e taxa na
+         propria cobranca. Custodia exigiria saldo proprio — nao da. */
+      suportaCustodia: false,
+    };
+  }
+  return {
+    nome, rotulo: 'Asaas', pronto: !!c.apiKey,
+    faltando: [!c.apiKey ? 'chave de API do Asaas' : null, !c.webhookToken ? 'token do webhook' : null].filter(Boolean),
+    emProducao: (c.ambiente || 'sandbox') === 'producao',
+    suportaCustodia: true,
+  };
 }
 
 export const listar = () => load(PAGAMENTOS, []);
@@ -230,10 +302,17 @@ export async function qrPix(id, opts = {}) {
  */
 export function processarWebhook(headers = {}, corpo = {}, opts = {}) {
   const c = getConfig();
-  const v = validarWebhook(headers, c.webhookToken);
-  if (!v.ok) { return { ok: false, http: 401, motivo: v.motivo }; }
 
-  const ev = traduzirEvento(corpo);
+  /* Cada provedor assina de um jeito: o Asaas manda um token no header, o
+     Mercado Pago manda HMAC sobre um manifesto com id, request-id e timestamp.
+     Conferir com o validador ERRADO e o mesmo que nao conferir. */
+  const v = (c.provedor === 'mercadopago')
+    ? gateway(opts).validarWebhook(headers, opts.query || {})
+    : validarAsaas(headers, c.webhookToken);
+  if (!v.ok) { return { ok: false, http: 401, motivo: v.motivo }; }
+  if (v.conferida === false) { console.warn(`[pagamentos] ${v.motivo}`); }
+
+  const ev = traduzirEvento(corpo, { provedor: c.provedor || 'asaas' });
   if (!ev.eventoId) { return { ok: false, http: 400, motivo: 'evento sem id — não dá pra garantir idempotência' }; }
 
   const vistos = load(EVENTOS, {});

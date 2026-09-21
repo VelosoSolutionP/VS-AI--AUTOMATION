@@ -119,7 +119,25 @@ export const EVENTO_ASAAS = {
  * nome de evento do Asaas.
  * @returns {{conhecido:boolean, estado:string|null, eventoId:string|null, cobrancaId:string|null}}
  */
-export function traduzirEvento(corpo = {}) {
+export function traduzirEvento(corpo = {}, opts = {}) {
+  /* O Mercado Pago nao manda estado no webhook: manda "houve algo com o
+     pagamento X" e voce vai buscar. Entao o evento dele NAO carrega estado — e
+     inventar um aqui seria adivinhar o que so a consulta responde. */
+  if (opts.provedor === 'mercadopago') {
+    const id = corpo?.data?.id ?? corpo?.id ?? null;
+    return {
+      conhecido: String(corpo.type || corpo.topic || '') === 'payment',
+      evento: corpo.type || corpo.topic || null,
+      estado: null,
+      precisaConsultar: true,
+      // O MP repete notificacao: a chave de idempotencia junta tipo, id e acao.
+      eventoId: id ? `mp:${corpo.type || corpo.topic || 'payment'}:${id}:${corpo.action || ''}` : null,
+      cobrancaId: id ? String(id) : null,
+      valorCentavos: null,
+      liquidoCentavos: null,
+    };
+  }
+
   const nome = String(corpo.event || '').toUpperCase();
   const conhecido = Object.prototype.hasOwnProperty.call(EVENTO_ASAAS, nome);
   return {
