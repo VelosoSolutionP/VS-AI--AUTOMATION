@@ -72,6 +72,32 @@ export function excluirRegra(id) {
  */
 export function simular(mensagens = [], ctx = {}) {
   const cfg = { ...getConfig(), regras: regras() };
+  const fx = getFluxo();
+
+  /* O simulador testava so as REGRAS por palavra — nunca a arvore. Quem abria a
+     tela pra conferir a Micaela via uma Micaela que nao existe, e so descobria o
+     comportamento de verdade com um cliente do outro lado. Agora ele passa pelo
+     MESMO `atender` do WhatsApp: mesma arvore, mesmo entendimento, mesmo
+     silencio pos-handoff.
+
+     A conversa e de RASCUNHO e some no fim. Testar nao pode mexer no lugar da
+     conversa de um cliente real, nem deixar o proprio teste pela metade — na
+     proxima simulacao a Micaela responderia no meio do assunto anterior. */
+  if (fx) {
+    const rascunho = `simulacao-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const turnos = [];
+    try {
+      for (const m of mensagens) {
+        const r = atender(m, { ...ctx, de: rascunho });
+        turnos.push({ recebida: m, ...r });
+        if (r.handoff) { break; }
+      }
+    } finally {
+      salvarConversa(rascunho, null);
+    }
+    return { ok: true, persona: { nome: cfg.nome, saudacao: cfg.saudacao }, turnos, comFluxo: true };
+  }
+
   return {
     ok: true,
     persona: { nome: cfg.nome, saudacao: cfg.saudacao },

@@ -180,3 +180,40 @@ test('conversa RECENTE segue de onde parou', () => {
   const r = bot.atender('2', { de: '5531900000002' });
   assert.match(r.texto, /comercial/i, 'menos de 12h: continua a mesma conversa');
 });
+
+/* ---- o simulador tem de testar a Micaela QUE EXISTE ----
+
+   Ele passava so pelas regras por palavra e nunca pela arvore. Quem abria a
+   tela pra conferir via uma Micaela que nao era a do WhatsApp — e so descobria
+   o comportamento real com um cliente do outro lado, que e exatamente o lugar
+   onde nao se descobre nada de graca. */
+
+test('com fluxo cadastrado, o simulador passa pela ARVORE', () => {
+  bot.apagarFluxo();
+  bot.salvarConfig({ ativo: true });
+  bot.salvarFluxo([
+    { id: 'inicio', mensagem: 'Oi! Sou a Micaela.', opcoes: [
+      { tecla: '1', texto: 'Financeiro', vaiPara: 'fin' },
+      { tecla: '2', texto: 'Suporte', vaiPara: 'sup' },
+    ] },
+    { id: 'fin', mensagem: 'Passando pro financeiro.', acao: 'encaminhar', departamento: 'financeiro' },
+    { id: 'sup', mensagem: 'Passando pro suporte.', acao: 'encaminhar', departamento: 'suporte' },
+  ]);
+
+  const r = bot.simular(['oi', 'meu boleto venceu']);
+  assert.equal(r.comFluxo, true);
+  assert.match(r.turnos[0].texto, /Sou a Micaela/);
+  assert.equal(r.turnos[1].departamento, 'financeiro', 'a frase solta tem de achar o caminho, igual no WhatsApp');
+});
+
+test('a simulacao NAO deixa rastro em conversa nenhuma', () => {
+  const antes = JSON.stringify(bot.emAtendimento());
+  bot.simular(['oi', 'meu boleto venceu']);
+  assert.equal(JSON.stringify(bot.emAtendimento()), antes, 'testar nao pode mexer no atendimento real');
+});
+
+test('duas simulacoes seguidas comecam do zero — a segunda nao herda a primeira', () => {
+  const a = bot.simular(['oi']);
+  const b = bot.simular(['oi']);
+  assert.equal(a.turnos[0].texto, b.turnos[0].texto, 'senao a segunda responderia no meio do assunto da primeira');
+});

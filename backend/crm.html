@@ -2010,8 +2010,16 @@ async function conferirAceite(id){
 
 function simulacaoHtml(){
   if(!SIMULACAO.length) return '<p class="hint">Nenhuma mensagem ainda. Escreva acima e veja o que o cliente receberia.</p>';
-  const rotulo={regra:'respondeu pela regra',humano:'chamou uma pessoa',catalogo:'mandou o catálogo',fallback:'não entendeu'};
-  const cor={regra:'b-ok',humano:'b-warn',catalogo:'b-ok',fallback:'b-err'};
+  /* Com fluxo cadastrado a simulação passa pela ÁRVORE, e os tipos que voltam
+     são outros. Sem estes rótulos a tela mostrava "fluxo:encaminhar" cru pro
+     dono do negócio, que não tem por que conhecer nome interno nosso. */
+  const rotulo={regra:'respondeu pela regra',humano:'chamou uma pessoa',catalogo:'mandou o catálogo',
+    fallback:'não entendeu','fluxo:passo':'seguiu o fluxo','fluxo:encaminhar':'encaminhou',
+    'fluxo:coletar':'perguntou','fluxo:confirmar':'pediu confirmação','fluxo:fim':'encerrou',
+    'fluxo:nota':'registrou','silencio':'ficou quieta (atendente no comando)'};
+  const cor={regra:'b-ok',humano:'b-warn',catalogo:'b-ok',fallback:'b-err','fluxo:passo':'b-ok',
+    'fluxo:encaminhar':'b-warn','fluxo:coletar':'b-ok','fluxo:confirmar':'b-ok','fluxo:fim':'',
+    'fluxo:nota':'','silencio':''};
   /* Um "não entendi" que JÁ chamou gente é diferente de um que não chamou — e
      eram idênticos na tela. Quem está ajustando as regras precisa ver o momento
      em que o bot desistiu. */
