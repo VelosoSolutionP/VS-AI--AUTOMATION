@@ -398,32 +398,54 @@ input.erro-campo,select.erro-campo,textarea.erro-campo{border-color:var(--err);b
 /* ── Caixa de entrada do atendente ─────────────────────────────────────────
    Lista à esquerda, conversa à direita — o formato que todo mundo já sabe usar,
    e que deixa o atendente pular de uma conversa pra outra sem perder o lugar. */
-.inbox{display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:14px;align-items:start}
-.inbox-lista{display:grid;gap:8px;max-height:72vh;overflow-y:auto;padding-right:4px}
-.conversa{display:block;width:100%;text-align:left;padding:12px;border-radius:var(--r-sm);
-  background:var(--panel);border:1px solid var(--line);box-shadow:var(--sh-1);cursor:pointer;
-  transition:border-color .16s,background .16s,box-shadow .16s}
+/* Uma caixa so, altura fixa: lista rola de um lado, conversa do outro, e a
+   pagina em si nao rola. E o que faz parecer chat em vez de relatorio. */
+.inbox{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:14px;
+  height:calc(100vh - 210px);min-height:440px}
+.inbox-lista{display:grid;gap:7px;overflow-y:auto;align-content:start;padding-right:4px}
+.inbox-conversa{display:flex;flex-direction:column;min-height:0;
+  background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--line);
+  border-radius:var(--r);box-shadow:var(--sh-2);overflow:hidden}
+.conversa{display:block;width:100%;text-align:left;padding:11px 12px;border-radius:var(--r-sm);
+  background:var(--panel);border:1px solid var(--line);cursor:pointer;
+  transition:border-color .16s,background .16s}
 .conversa:hover{border-color:var(--ac-line);background:var(--ac-soft)}
-.conversa.ativa{border-color:var(--ac);background:var(--ac-soft);box-shadow:var(--sh-2)}
+.conversa.ativa{border-color:var(--ac);background:var(--ac-soft)}
+/* Quem espera gente ganha uma barra na borda: da pra varrer a lista sem ler. */
+.conversa.espera{border-left:3px solid var(--err)}
 .cv-top{display:flex;align-items:baseline;gap:8px}
 .cv-top b{font-size:13.5px;font-weight:650;letter-spacing:-.01em;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cv-top small{font-size:11px;color:var(--dim);flex:none}
-.cv-msg{font-size:12.5px;color:var(--muted);margin:4px 0 7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cv-msg{font-size:12.5px;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cv-eu{color:var(--dim)}
-.cv-tags{display:flex;gap:5px;flex-wrap:wrap}
+.cv-espera{display:flex;align-items:center;gap:5px;margin-top:6px;font-size:11px;font-weight:650;color:var(--err)}
+.cv-espera svg{width:12px;height:12px}
 
-.conversa-fluxo{display:grid;gap:9px;max-height:46vh;overflow-y:auto;padding:12px;margin:2px 0 12px;
-  background:var(--bg);border:1px solid var(--line);border-radius:var(--r-sm)}
+.cv-cab{display:flex;align-items:center;gap:11px;padding:13px 16px;border-bottom:1px solid var(--line);flex:none}
+.cv-cab-t{flex:1;min-width:0}
+.cv-cab-t b{display:block;font-size:14px;font-weight:680;letter-spacing:-.015em}
+.cv-cab-t small{display:block;font-size:11.5px;color:var(--dim);margin-top:1px}
+
+/* O contexto no topo, em uma faixa — quem atende le antes da conversa. */
+.ctx-micaela{display:flex;gap:10px;padding:11px 16px;background:var(--t2-bg);border-bottom:1px solid var(--line);flex:none;font-size:12.5px}
+.ctx-micaela svg{width:16px;height:16px;color:var(--t2);flex:none;margin-top:2px}
+.ctx-micaela b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--t2);margin-bottom:3px}
+.ctx-micaela span{display:block;color:var(--muted);line-height:1.5}
+.ctx-micaela i{font-style:normal;color:var(--fg);font-weight:550}
+
+.conversa-fluxo{display:grid;gap:9px;flex:1;min-height:0;overflow-y:auto;padding:16px;background:var(--bg)}
 .bolha{max-width:78%;padding:9px 13px;border-radius:14px;font-size:13.5px;line-height:1.5;position:relative;box-shadow:var(--sh-1)}
 .bolha small{display:block;font-size:10.5px;opacity:.6;margin-top:4px}
 /* Cliente à esquerda, nós à direita: a mesma convenção do app que ele usa. */
 .b-cliente{background:var(--panel);border:1px solid var(--line);justify-self:start;border-bottom-left-radius:4px}
 .b-nossa{background:var(--ac-soft);border:1px solid var(--ac-line);color:var(--fg);justify-self:end;border-bottom-right-radius:4px}
-.responder{display:grid;gap:9px}
+.responder{display:grid;gap:9px;padding:13px 16px;border-top:1px solid var(--line);flex:none;background:var(--panel)}
+.responder textarea{resize:vertical}
 .responder-acoes{display:flex;gap:8px;flex-wrap:wrap}
 @media(max-width:900px){
-  .inbox{grid-template-columns:1fr}
-  .inbox-lista{max-height:34vh}
+  .inbox{grid-template-columns:1fr;height:auto}
+  .inbox-lista{max-height:30vh}
+  .inbox-conversa{height:70vh}
 }
 
 /* ── Atalhos da visão geral ────────────────────────────────────────────── */
@@ -2643,18 +2665,21 @@ const S={
     ${(CANAIS?.saude||[]).map(x=>linha('Health check',esc(x.detalhe||''),x.ok?'ok':'falha',x.ok?'b-ok':'b-err')).join('')}
   </div>
 
-  ${est==='conectado'?`<div class="card" style="margin-bottom:16px">
-    ${cardH('perfil',`A cara da Micaela`,`Foto, nome e recado que o cliente vê no topo da conversa. Isto <b>só funciona neste canal</b> — na API oficial da Meta a foto vem do WhatsApp Manager e nenhum código muda.`,3)}
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('perfil',`A cara da Micaela`,`Foto, nome e recado que o cliente vê no topo da conversa. Isto <b>só funciona neste canal</b> — na API oficial da Meta a foto vem do WhatsApp Manager e nenhum código muda.`,3,
+      est==='conectado'?'':'<span class="badge b-warn">precisa conectar</span>')}
     <div class="form-grid">
       <div class="field"><label>Nome que aparece</label><input id="pfNome" placeholder="Micaela · Veloso Solution"></div>
       <div class="field" style="grid-column:1/-1"><label>Recado <small>(o "status" do perfil)</small></label>
         <input id="pfRecado" placeholder="Assistente virtual — atendo 24h, e chamo gente quando precisa"></div>
       <div class="field" style="grid-column:1/-1"><label>Foto <small>(quadrada, JPG ou PNG)</small></label>
         <input type="file" id="pfFoto" accept="image/png,image/jpeg"></div>
-      ${botao({t:'Aplicar no número',ic:'salvar',v:'p',on:'personalizarCanal()'})}
+      ${botao({t:'Aplicar no número',ic:'salvar',v:'p',on:'personalizarCanal()',off:est!=='conectado'})}
     </div>
-    <p class="hint" style="margin-top:10px">Muda o perfil do número <b>de verdade</b>, como se você tivesse trocado pelo celular.
-      Quem já conversou com você vê a foto nova.</p></div>`:''}
+    <p class="hint" style="margin-top:10px">${est==='conectado'
+      ? 'Muda o perfil do número <b>de verdade</b>, como se você tivesse trocado pelo celular. Quem já conversou com você vê a foto nova.'
+      : 'Escolha os arquivos agora se quiser, mas <b>conecte o WhatsApp acima</b> antes de aplicar: quem troca a foto é a sessão, e sem sessão não há o que trocar.'}</p>
+    <p class="hint" style="margin-top:6px">A foto é cortada em <b>círculo</b> pelo WhatsApp — o que estiver nos cantos some.</p></div>
 
   <div class="card" style="border-style:dashed">
     ${cardH('alerta',`O que você precisa saber antes de usar com cliente`,`Canal por WhatsApp Web é sessão automatizada, <b>fora dos termos da Meta</b> — o número pode ser bloqueado por eles. Serve pra beta e pra operação pequena. Quando a conta oficial destravar, trocar pro canal oficial não mexe em lead, conversa, bot nem trilha: é trocar o provider.`,5)}
@@ -2786,9 +2811,13 @@ const S={
     ${linha('Canal de saída',esc(w.provider||'log'),w.envia?'enviando':'não envia',w.envia?'b-ok':'b-warn')}
     ${linha('Canal de entrada','webhook da Meta',w.envia?'depende da conta':'não existe','b-warn')}</div>`;
  },
- /* A caixa de entrada do especialista. O atendente trabalha AQUI, dentro do
-    painel — nao no WhatsApp Web. E quando ele abre a conversa, ja ve o que a
-    Micaela coletou: nao ha "qual e o problema?" duas vezes. */
+ /* Caixa de entrada. Aqui e chat: lista de quem esta esperando a esquerda,
+    conversa a direita, e SO ISSO.
+
+    A primeira versao tinha tres indicadores no topo, o cartao de contexto embaixo
+    da conversa e a trilha inteira do CRM no rodape. Virou um relatorio com um
+    chat no meio — quem atende precisa ler a conversa e responder, nao estudar
+    metricas. Indicador foi pro Consumo, trilha voltou pro Auditor. */
  'wa-atendimento':()=>{
   const dados=ATEND||{conversas:[],esperando:0};
   const lista=dados.conversas||[];
@@ -2796,75 +2825,57 @@ const S={
   const canal=(CANAIS?.canais||[])[0];
   const online=canal?.estado==='conectado';
   const hora=(x)=>x?String(x).slice(11,16):'';
-  const dia=(x)=>x?String(x).slice(8,10)+'/'+String(x).slice(5,7):'';
+  const dia=(x)=>{ if(!x) return ''; const h=new Date(); const d=new Date(x);
+    return d.toDateString()===h.toDateString()?'hoje':String(x).slice(8,10)+'/'+String(x).slice(5,7); };
 
-  const item=(c)=>`<button class="conversa${c.telefone===sel?.telefone?' ativa':''}" onclick="abrirConversa('${esc(c.telefone)}')">
-    <div class="cv-top"><b>${esc(c.nome||'+'+c.telefone)}</b>
-      <small>${dia(c.ultima?.quando)} ${hora(c.ultima?.quando)}</small></div>
-    <div class="cv-msg">${c.ultima?.direcao==='saida'?'<span class="cv-eu">você:</span> ':''}${esc(String(c.ultima?.texto||'').slice(0,64))}</div>
-    <div class="cv-tags">
-      ${c.esperandoGente?`<span class="tag t-quente">esperando gente</span>`:'<span class="tag t-frio">com a Micaela</span>'}
-      ${c.departamento?`<span class="tag">${esc(c.departamento)}</span>`:''}
-      ${c.faixa?`<span class="tag t-${esc(c.faixa)}">${esc(c.faixa)}</span>`:''}
-    </div></button>`;
+  const item=(c)=>`<button class="conversa${c.telefone===sel?.telefone?' ativa':''}${c.esperandoGente?' espera':''}" onclick="abrirConversa('${esc(c.telefone)}')">
+    <div class="cv-top"><b>${esc(c.nome||'+'+c.telefone)}</b><small>${dia(c.ultima?.quando)} ${hora(c.ultima?.quando)}</small></div>
+    <div class="cv-msg">${c.ultima?.direcao==='saida'?'<span class="cv-eu">você: </span>':''}${esc(String(c.ultima?.texto||'').replace(/\n/g,' ').slice(0,58))}</div>
+    ${c.esperandoGente?`<div class="cv-espera">${ico('relogio')}esperando${c.departamento?' · '+esc(c.departamento):''}</div>`:''}
+  </button>`;
 
   const bolha=(h)=>`<div class="bolha ${h.direcao==='saida'?'b-nossa':'b-cliente'}">
-    <div>${esc(h.texto||'').replace(/\n/g,'<br>')}</div>
-    <small>${hora(h.quando)}</small></div>`;
+    <div>${esc(h.texto||'').replace(/\n/g,'<br>')}</div><small>${hora(h.quando)}</small></div>`;
 
+  /* O contexto vai no TOPO da conversa, discreto: e a primeira coisa que quem
+     atende precisa ler, e nao cabe depois da caixa de resposta. */
   const ctx=sel&&Object.keys(sel.contexto||{}).length
-    ? `<div class="card" style="margin-top:12px">
-        ${cardH('registrar','O que a Micaela já apurou',`Não pergunte de novo — a pessoa já respondeu isto.`,2)}
-        ${Object.entries(sel.contexto).map(([k,v])=>linha(k.replace(/_/g,' '),'',String(v).slice(0,120),'b-ok')).join('')}
-      </div>`:'';
+    ? `<div class="ctx-micaela">${ico('registrar')}<div><b>A Micaela já apurou</b>
+        ${Object.entries(sel.contexto).map(([k,v])=>`<span>${esc(k.replace(/_/g,' '))}: <i>${esc(String(v).slice(0,90))}</i></span>`).join('')}
+       </div></div>`:'';
 
-  return head('WhatsApp · Atendimento','A conversa acontece aqui dentro. Quem atende vê o que a Micaela já perguntou e responde sem sair do painel.',
+  if(!lista.length){
+    return head('Atendimento','Quem escreve no WhatsApp aparece aqui.',
+      online?'':botao({t:'Conectar o WhatsApp',ic:'whats',v:'p',on:"ir('canais')"}))+
+      vazio('whats','Nenhuma conversa ainda','Quando alguém escrever, a conversa abre aqui — com o que a Micaela já perguntou.',
+        ['Conectar o WhatsApp em Canais','Mandar uma mensagem de outro número','Voltar aqui pra responder']);
+  }
+
+  return head('Atendimento',
+      dados.esperando?`<b>${dados.esperando}</b> pessoa(s) esperando você.`:'Ninguém esperando — a Micaela está dando conta.',
       online?botao({t:'Atualizar',ic:'atualizar',v:'s',on:'carregar()'})
             :botao({t:'Conectar o WhatsApp',ic:'whats',v:'p',on:"ir('canais')"}))+
-  `<div class="grid g-kpi" style="margin-bottom:16px">
-    ${kpi('Esperando gente',dados.esperando||0,'a Micaela já passou pra vocês')}
-    ${kpi('Conversas',lista.length,'com mensagem registrada')}
-    ${kpi('Canal',online?'no ar':'desligado',canal?.numero?'+'+esc(canal.numero):'ninguém pareado')}
-  </div>
-  ${!lista.length
-    ? vazio('whats','Nenhuma conversa ainda','Quando alguém escrever no WhatsApp, a conversa aparece aqui — com tudo que a Micaela já perguntou.',
-        ['Conectar o WhatsApp em Canais','Mandar uma mensagem de outro número','Voltar aqui pra responder'])
-    : `<div class="inbox">
-        <div class="inbox-lista">${lista.map(item).join('')}</div>
-        <div class="inbox-conversa">
-          ${sel?`<div class="card">
-            ${cardH('crm',sel.nome||('+'+sel.telefone),`+${esc(sel.telefone)} · ${sel.mensagens} mensagem(ns) · etapa ${esc(sel.etapa||'—')}`,1,
-              sel.esperandoGente
-                ? `<span class="badge b-err">esperando desde ${hora(sel.desde)}</span>`
-                : '<span class="badge b-ok">a Micaela está conduzindo</span>')}
-            <div class="conversa-fluxo">${(sel.historico||[]).filter(h=>h.tipo==='interacao').map(bolha).join('')}</div>
-            <div class="responder">
-              <textarea id="respTexto" rows="2" placeholder="${online?'Escreva a resposta…':'Conecte o WhatsApp para poder responder'}" ${online?'':'disabled'}></textarea>
-              <div class="responder-acoes">
-                ${botao({t:'Enviar',ic:'enviar',v:'p',on:`responderCliente('${esc(sel.telefone)}')`,off:!online,id:'btResponder'})}
-                ${sel.esperandoGente?botao({t:'Devolver pra Micaela',ic:'bot',v:'s',on:`devolverAoBot('${esc(sel.telefone)}')`}):''}
-              </div>
-            </div></div>${ctx}`:''}
+  `<div class="inbox">
+    <div class="inbox-lista">${lista.map(item).join('')}</div>
+    <div class="inbox-conversa">${sel?`
+      <div class="cv-cab">
+        <div class="chip" style="--ct:var(--t1);--ct-bg:var(--t1-bg)">${ico('crm')}</div>
+        <div class="cv-cab-t"><b>${esc(sel.nome||('+'+sel.telefone))}</b><small>+${esc(sel.telefone)} · ${esc(sel.etapa||'sem etapa')}</small></div>
+        ${sel.esperandoGente
+          ? `<span class="badge b-err">esperando desde ${hora(sel.desde)}</span>`
+          : '<span class="badge b-ok">com a Micaela</span>'}
+      </div>
+      ${ctx}
+      <div class="conversa-fluxo">${(sel.historico||[]).filter(h=>h.tipo==='interacao').map(bolha).join('')}</div>
+      <div class="responder">
+        <textarea id="respTexto" rows="2" placeholder="${online?'Escreva a resposta…':'Conecte o WhatsApp para responder'}" ${online?'':'disabled'}></textarea>
+        <div class="responder-acoes">
+          ${botao({t:'Enviar',ic:'enviar',v:'p',on:`responderCliente('${esc(sel.telefone)}')`,off:!online,id:'btResponder'})}
+          ${sel.esperandoGente?botao({t:'Devolver pra Micaela',ic:'bot',v:'g',on:`devolverAoBot('${esc(sel.telefone)}')`}):''}
         </div>
-      </div>`}
-  <div class="card" style="margin-top:16px">
-    ${cardH('auditor',`Trilha completa`,`Cada linha foi gravada quando o evento aconteceu — nada aqui é escrito à mão. Era a tela "WhatsApp · Auditor"; virou parte do atendimento porque é o mesmo assunto.`,6)}
-    <div class="tbl-bar">
-      <input id="auBusca" value="${esc(BUSCA.auditor||'')}" placeholder="Buscar por lead, tipo ou texto"
-        oninput="buscarEm('auditor',this.value)">
-      ${botao({t:'Atualizar',ic:'atualizar',v:'s',on:'carregar()'})}
+      </div>`:''}
     </div>
-    ${(()=>{const eventos=trilhaDeLeads();return tabela({
-      vazio:'Nenhum evento ainda. A trilha enche sozinha conforme os leads andam no funil e as conversas acontecem.',
-      nenhum:'Nenhum evento com esse termo.',
-      colunas:[
-        {t:'Quando',cel:(e)=>esc(String(e.quando||'').slice(0,16).replace('T',' '))},
-        {t:'Lead',cel:(e)=>`<b>${esc(e.lead)}</b>`},
-        {t:'O que houve',cel:(e)=>esc(rotuloEvento(e))},
-        {t:'Detalhe',cel:(e)=>esc(detalheEvento(e))},
-      ],
-      todos:eventos, itens:eventos.filter(e=>casa(BUSCA.auditor,[e.lead,e.tipo,rotuloEvento(e),detalheEvento(e)])),
-    });})()}</div>`;
+  </div>`;
  },
  'wa-personalizar':()=>{
   const c=BOT?.config;
@@ -3083,6 +3094,10 @@ function render(){
   document.getElementById('crumb').innerHTML=t.map((x,i)=>i===t.length-1?`<b>${esc(x)}</b>`:`<span class="pai">${esc(x)} <i>/</i></span>`).join(' ');
   document.getElementById('view').innerHTML=(TELAS[rota]||telaVisao)();
   if(rota==='indicacao') trocaModelo();
+  /* Chat abre na ULTIMA mensagem, como qualquer app de conversa. Abrir no topo
+     obrigaria a rolar ate embaixo toda vez so pra ver o que acabou de chegar. */
+  const fluxo=document.querySelector('.conversa-fluxo');
+  if(fluxo) fluxo.scrollTop=fluxo.scrollHeight;
   document.getElementById('pillLeads').textContent=ST.resumo.abertos+' lead(s) aberto(s)';
   const w=STATUS?.whatsapp||{};
   document.getElementById('pillWa').innerHTML=`<span class="dot ${w.envia?'on':''}"></span> WhatsApp ${w.envia?'ativo':'inativo'}`;
