@@ -1,6 +1,10 @@
 /**
- * Entrega de licença via WhatsApp. Provider plugável.
+ * Saída de WhatsApp. Provider plugável.
  *   WHATSAPP_PROVIDER = cloud | log   (default: log)
+ *
+ * O canal do dia a dia NAO passa mais por aqui: ele e o WhatsAppWebProvider, em
+ * engine/canais/. Este arquivo cobre a saida pela API OFICIAL da Meta, que fica
+ * de pe pro dia em que a conta destravar.
  *
  * cloud = WhatsApp Cloud API (Meta). Fora da janela de 24h exige TEMPLATE aprovado.
  *   env: WA_TOKEN, WA_PHONE_ID, WA_TEMPLATE (nome do template), WA_LANG (default pt_BR)
@@ -27,13 +31,30 @@ function waMeLink(phone, text) {
   return `https://wa.me/${onlyDigits(phone)}?text=${encodeURIComponent(text)}`;
 }
 
-async function sendCloud(phone, key, name) {
+/**
+ * Uma saida so pra Cloud API. Recebe o corpo ja montado porque sao dois casos
+ * diferentes: a licenca pode ir por TEMPLATE (fora da janela de 24h) e a resposta
+ * do bot vai sempre como texto — ela so existe porque o cliente escreveu primeiro,
+ * ou seja, a janela esta aberta por definicao.
+ */
+async function postCloud(body, fetchImpl = globalThis.fetch) {
   const token = process.env.WA_TOKEN;
   const phoneId = process.env.WA_PHONE_ID;
-  const template = process.env.WA_TEMPLATE;
-  const lang = process.env.WA_LANG || 'pt_BR';
   if (!token || !phoneId) { throw new Error('WA_TOKEN/WA_PHONE_ID ausentes'); }
 
+  const r = await fetchImpl(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { throw new Error('WhatsApp Cloud API: ' + JSON.stringify(j)); }
+  return { ok: true, id: j.messages?.[0]?.id };
+}
+
+async function sendCloud(phone, key, name) {
+  const template = process.env.WA_TEMPLATE;
+  const lang = process.env.WA_LANG || 'pt_BR';
   const body = template
     ? {
         messaging_product: 'whatsapp', to: onlyDigits(phone), type: 'template',
@@ -45,15 +66,38 @@ async function sendCloud(phone, key, name) {
         messaging_product: 'whatsapp', to: onlyDigits(phone), type: 'text',
         text: { body: `Sua licença QA-Gate:\n\n${key}\n\nConfigure: export QA_GATE_LICENSE="<chave>"` },
       };
+  return postCloud(body);
+}
 
-  const r = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const j = await r.json();
-  if (!r.ok) { throw new Error('WhatsApp Cloud API: ' + JSON.stringify(j)); }
-  return { ok: true, id: j.messages?.[0]?.id };
+/**
+ * Manda um texto qualquer pro cliente. E por aqui que a resposta do bot sai.
+ *
+ * Mesma regra do resto do modulo: `ok:true` significa que a mensagem SAIU pela
+ * rede. Sem credencial ou com provider `log` devolve ok:false com o link wa.me —
+ * nunca ok:true "por gentileza", senao a trilha do CRM registra uma resposta que
+ * o cliente nunca recebeu.
+ *
+ * @returns {Promise<{ok:boolean, provider:string, id?:string, link?:string, error?:string}>}
+ */
+export async function enviarTexto({ phone, texto }, { fetchImpl } = {}) {
+  const destino = onlyDigits(phone);
+  const link = waMeLink(phone, texto);
+  if (!destino) { return { ok: false, provider: PROVIDER, error: 'telefone vazio' }; }
+
+  if (PROVIDER !== 'cloud') {
+    console.log(`[whatsapp:log] resposta NAO enviada (provider=${PROVIDER}) para ${destino}: ${String(texto).slice(0, 80)}`);
+    return { ok: false, provider: PROVIDER, pendente: true, error: `WHATSAPP_PROVIDER=${PROVIDER} — nada foi enviado`, link };
+  }
+  try {
+    const r = await postCloud({
+      messaging_product: 'whatsapp', to: destino, type: 'text',
+      text: { preview_url: false, body: String(texto).slice(0, 4096) },
+    }, fetchImpl);
+    return { ok: true, provider: 'cloud', id: r.id };
+  } catch (e) {
+    console.error(`[whatsapp] resposta FALHOU para ${destino} (${PROVIDER}): ${e.message}`);
+    return { ok: false, provider: PROVIDER, error: e.message, link };
+  }
 }
 
 /**

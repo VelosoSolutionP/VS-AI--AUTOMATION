@@ -28,6 +28,8 @@ import * as vspainel from '../engine/vspainel/index.mjs';
 import { painelQuebraGalho, QG_URL } from './quebragalho.mjs';
 import * as tk from '../engine/vstiktok/index.mjs';
 import { reservarEvento } from './idempotencia.mjs';
+import * as atendimento from './atendimento.mjs';
+import * as canais from './canais.mjs';
 import * as pagar from '../engine/vspagamentos/index.mjs';
 import * as fin from '../engine/vsfinanceiro/index.mjs';
 import * as bot from '../engine/vsbot/index.mjs';
@@ -37,6 +39,14 @@ import { pagina as paginaVitrine } from './vitrine.mjs';
 import { lerCorpoLimitado, criarRateLimit, ipDe, segredoIgual, CORPO_MAX_BYTES } from './limites.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+/* Hora em toda linha de log. Sem isto, `tail` do arquivo mistura o que acabou de
+   acontecer com o que quebrou uma hora atras — ja custou um diagnostico errado,
+   com linha velha sendo lida como falha nova. */
+for (const nivel of ['log', 'warn', 'error']) {
+  const original = console[nivel].bind(console);
+  console[nivel] = (...args) => original(new Date().toISOString().slice(0, 19).replace('T', ' '), ...args);
+}
+
 const PORT = process.env.PORT || 8787;
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 const CHECKOUT_URL = process.env.CHECKOUT_URL || ''; // Stripe Payment Link (opcional)
@@ -299,6 +309,75 @@ const server = createServer(async (req, res) => {
    * Responde 200 tambem na reentrega: 4xx repetido faz a fila do Asaas PAUSAR
    * depois de 15 falhas, e ai nenhum pagamento e confirmado.
    */
+  /**
+   * Webhook de ENTRADA do WhatsApp (Meta Cloud API). E o canal do bot.
+   *
+   * GET  = aperto de mao da Meta: ela chama uma vez com hub.challenge e so
+   *        registra a URL se o desafio voltar CRU, em texto puro.
+   * POST = mensagem do cliente.
+   *
+   * Fica FORA do /crm de proposito: quem chama e a Meta, sem sessao do painel.
+   * Quem protege aqui e a assinatura (WA_APP_SECRET), nao o token do console.
+   */
+  if (req.method === 'GET' && req.url.split('?')[0] === '/webhook/whatsapp') {
+    const q = new URL(req.url, 'http://x').searchParams;
+    const esperado = process.env.WA_VERIFY_TOKEN || '';
+    if (!esperado) {
+      console.error('[whatsapp] verificacao recusada: WA_VERIFY_TOKEN nao esta no ambiente');
+      return json(res, 503, { erro: 'WA_VERIFY_TOKEN ausente no servidor' });
+    }
+    // segredoIgual: comparacao em tempo constante, igual ao resto do backend.
+    if (q.get('hub.mode') === 'subscribe' && segredoIgual(q.get('hub.verify_token') || '', esperado)) {
+      console.log('[whatsapp] webhook verificado pela Meta');
+      res.writeHead(200, { 'content-type': 'text/plain' });
+      return res.end(String(q.get('hub.challenge') || ''));
+    }
+    /* Diz o BASTANTE pra achar o erro de digitacao sem imprimir o segredo: quase
+       sempre o token foi copiado pela metade (selecao de duplo clique para no
+       separador) e o tamanho entrega isso na hora. */
+    const rec = String(q.get('hub.verify_token') || '');
+    console.error(`[whatsapp] verificacao recusada: token nao confere `
+      + `(recebido ${rec.length} caracteres, esperado ${esperado.length}; `
+      + `comeca "${rec.slice(0, 2)}", termina "${rec.slice(-2)}")`);
+    return json(res, 403, { erro: 'verify_token nao confere' });
+  }
+
+  if (req.method === 'POST' && req.url.split('?')[0] === '/webhook/whatsapp') {
+    const buf = await readBody(req);
+    if (corpoEstourou(res, buf)) { return; }
+    const cru = buf.toString('utf8');
+
+    const ass = atendimento.confereAssinatura(cru, req.headers['x-hub-signature-256'], process.env.WA_APP_SECRET || '');
+    if (!ass.ok) {
+      console.error(`[whatsapp] payload RECUSADO: ${ass.motivo}`);
+      return json(res, 401, { erro: ass.motivo });
+    }
+    if (!ass.conferida) { console.warn(`[whatsapp] ${ass.motivo} — qualquer um que souber a URL consegue escrever na trilha`); }
+
+    let evento; try { evento = JSON.parse(cru); } catch { return json(res, 400, { erro: 'payload invalido' }); }
+
+    /* Responde 200 JA. A Meta reentrega tudo que nao receber 2xx rapido, e
+       processar antes de responder transformaria uma resposta lenta do bot numa
+       enxurrada de reentregas. A reentrega que vier mesmo assim para na trava de
+       idempotencia, que e feita pelo id da mensagem la dentro. */
+    json(res, 200, { received: true });
+
+    atendimento.processarEvento(evento, { produtos: () => estoque.daVitrine().slice(0, 10) })
+      .then((r) => {
+        for (const x of r.resultados) {
+          if (x.duplicado) { console.log(`[whatsapp] reentrega ignorada (${x.telefone})`); continue; }
+          if (!x.ok) { console.error(`[whatsapp] ${x.motivo}`); continue; }
+          if (x.semCrm) { console.warn(`[whatsapp] lead NAO criado para ${x.telefone}: ${x.semCrm}`); }
+          if (x.leadNovo) { console.log(`[whatsapp] lead novo: ${x.leadId}`); }
+          if (x.botDesligado) { console.log(`[whatsapp] bot desligado — mensagem de ${x.telefone} so registrada`); continue; }
+          if (x.semTexto) { console.log(`[whatsapp] ${x.telefone} mandou algo sem texto — precisa de gente`); continue; }
+          console.log(`[whatsapp] ${x.telefone}: ${x.tipo}${x.handoff ? ' (chamar gente)' : ''} -> ${x.respondeu ? 'respondido' : 'NAO enviado: ' + (x.envio?.error || '?')}`);
+        }
+      })
+      .catch((e) => console.error('[whatsapp] falha ao processar evento:', e.message));
+    return;
+  }
+
   if (req.method === 'POST' && req.url === '/webhook/asaas') {
     const buf = await readBody(req);
     if (corpoEstourou(res, buf)) { return; }
@@ -561,6 +640,12 @@ const server = createServer(async (req, res) => {
     /* `/financeiro` ja era o consolidado do VSpainel (receita do funil, estoque
        parado). O livro-caixa e outra coisa e ganha nome proprio — duas rotas com
        o mesmo caminho fazem a segunda nunca responder, calada. */
+    /* Canais. O QR vai junto do status de proposito: a tela pergunta "como esta
+       o canal" e recebe o que precisa desenhar, sem uma segunda rota so pro QR
+       que poderia responder um codigo ja vencido. */
+    if (req.method === 'GET' && rota === '/crm/api/canais') {
+      return json(res, 200, { ...canais.estado(), saude: await canais.saude() });
+    }
     if (req.method === 'GET' && rota === '/crm/api/bot') { return json(res, 200, bot.painel()); }
     if (req.method === 'GET' && rota === '/crm/api/documentos') { return json(res, 200, docs.painel()); }
     if (req.method === 'GET' && rota === '/crm/api/caixa') {
@@ -728,9 +813,16 @@ const server = createServer(async (req, res) => {
         case '/crm/api/documentos/descartar': r = docs.descartarRascunho(d.tipo); break;
         case '/crm/api/documentos/aceite': r = docs.registrarAceite(d.tipo, d.quem || {}); break;
         case '/crm/api/documentos/conferir': r = docs.conferirAceite(d.id); break;
+        case '/crm/api/canais/conectar':
+          r = await canais.conectar({ canal: d.canal, produtos: () => estoque.daVitrine().slice(0, 10) });
+          break;
+        case '/crm/api/canais/desconectar': r = await canais.desconectar({ canal: d.canal }); break;
+        case '/crm/api/canais/enviar': r = await canais.enviar(d); break;
         case '/crm/api/bot/config': r = bot.salvarConfig(d); break;
         case '/crm/api/bot/regra': r = bot.salvarRegra(d); break;
         case '/crm/api/bot/regra-excluir': r = bot.excluirRegra(d.id); break;
+        case '/crm/api/bot/fluxo-csv': r = bot.importarFluxoCsv(String(d.csv || '')); break;
+        case '/crm/api/bot/fluxo-apagar': r = bot.apagarFluxo(); break;
         /* Simulador: o catalogo real entra como contexto, entao o teste mostra o
            que o cliente veria de verdade — nao um exemplo inventado. */
         case '/crm/api/bot/simular': {

@@ -58,6 +58,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@wppconnect-team/wppconnect": "^2.3.3",
     "playwright": "^1.61.1",
     "zod": "^4.4.3"
   },

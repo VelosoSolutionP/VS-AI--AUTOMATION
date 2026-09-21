@@ -118,7 +118,17 @@ export function statusIntegracoes() {
     },
     notify,
     crm: { funil: funil.length, funilOrigem: origem, leads: leads.length },
-    bot: { webhook: false, motivo: 'webhook de entrada da Meta ainda nao existe no backend' },
+    /* O webhook de entrada passou a existir (POST /webhook/whatsapp). Ele so
+       funciona com WA_VERIFY_TOKEN no ambiente — e a Meta so registra a URL
+       depois de conferir esse token. Sem WA_APP_SECRET a rota atende, mas sem
+       conferir assinatura: a tela precisa dizer isso, nao mostrar "pronto". */
+    bot: {
+      webhook: !!env.WA_VERIFY_TOKEN,
+      assinado: !!env.WA_APP_SECRET,
+      motivo: env.WA_VERIFY_TOKEN
+        ? (env.WA_APP_SECRET ? null : 'sem WA_APP_SECRET: a rota nao confere a assinatura da Meta')
+        : 'falta WA_VERIFY_TOKEN no ambiente — a Meta nao consegue registrar a URL',
+    },
   };
 }
 

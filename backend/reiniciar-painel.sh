@@ -41,13 +41,40 @@ while IFS= read -r -d '' arg; do
   esac
 done < "/proc/$PID/cmdline"
 
+# Config que PRECISA sobreviver a reboot. O /proc so tem o ambiente de um processo
+# VIVO: se a maquina reiniciar, tudo que foi passado na primeira subida se perde e
+# o painel nao sobe mais sozinho. Este arquivo e a fonte duravel.
+#
+# O que estiver nele VENCE o que veio do processo antigo — e assim que se corrige
+# ou acrescenta uma variavel (um token novo, por exemplo) sem ter que derrubar o
+# painel na mao e lembrar das outras 100.
+ENV_FILE="${PAINEL_ENV:-$HOME/.qa-gate/console/painel.env}"
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$ENV_FILE"
+  set +a
+  echo "config carregada de $ENV_FILE"
+fi
+
 export PAINEL_URL="${PAINEL_URL:-https://painel.velososolution.com.br}"
 echo "ambiente recuperado: $n variaveis"
 
 kill "$PID" 2>/dev/null
 for _ in $(seq 40); do ss -ltn | grep -q ":$PORTA " || break; sleep 0.25; done
+
+# Escalada. Ja aconteceu de o painel ficar preso segurando a porta: alguma
+# dependencia registra handler de SIGTERM e nao encerra, e ai o restart falhava
+# em silencio deixando a VERSAO VELHA no ar — o pior dos mundos, porque parece
+# que subiu. Se nao soltou no prazo, vai de -9.
 if ss -ltn | grep -q ":$PORTA "; then
-  echo "o processo $PID nao soltou a porta $PORTA — nao vou subir outro por cima" >&2
+  echo "processo $PID ignorou o pedido de encerrar — forcando" >&2
+  kill -9 "$PID" 2>/dev/null
+  for _ in $(seq 20); do ss -ltn | grep -q ":$PORTA " || break; sleep 0.25; done
+fi
+
+if ss -ltn | grep -q ":$PORTA "; then
+  echo "a porta $PORTA continua ocupada por outro processo — nao vou subir outro por cima" >&2
   exit 1
 fi
 

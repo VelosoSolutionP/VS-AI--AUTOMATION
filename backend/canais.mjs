@@ -1,0 +1,103 @@
+/**
+ * Onde o canal encontra o domínio.
+ *
+ * Este é o único arquivo que conhece os dois lados: de cima ele monta o
+ * provider e o gateway (infraestrutura), de baixo ele chama `atendimento`
+ * (domínio). O provider continua sem saber o que é lead, e o atendimento
+ * continua sem saber o que é WhatsApp Web.
+ *
+ * Trocar o canal pelo oficial da Meta, quando a conta destravar, é trocar a
+ * linha que cria o provider — nada abaixo daqui muda.
+ */
+import { criarGateway } from '../engine/canais/gateway.mjs';
+import { criarWhatsAppWebProvider } from '../engine/canais/whatsapp-web/index.mjs';
+import { reservarEvento } from './idempotencia.mjs';
+import * as atendimento from './atendimento.mjs';
+
+let gateway = null;
+let whatsappWeb = null;
+
+/** Monta na primeira chamada. Sessão só abre quando alguém pedir "Conectar". */
+function montar({ produtos } = {}) {
+  if (gateway) { return gateway; }
+
+  gateway = criarGateway({
+    reservar: reservarEvento,
+    /**
+     * A ponte. Recebe mensagem canônica, entrega pro atendimento e devolve a
+     * resposta PELO MESMO canal de onde ela veio — por isso o `enviar` é o
+     * `responder` do contexto, e não um envio global.
+     */
+    entregar: async (msg, ctx) => {
+      const r = await atendimento.receberMensagem(
+        { id: msg.id, de: msg.de, nome: msg.nome, texto: msg.texto, tipo: msg.tipo },
+        {
+          enviar: async ({ texto }) => ctx.responder(texto),
+          produtos: produtos || (() => []),
+        },
+      );
+      // O atendimento já respondeu por dentro (ele decide se responde e o quê).
+      // Não devolvo `responder` aqui pra não mandar duas vezes.
+      if (r?.handoff) { console.log(`[canais] ${msg.de} precisa de gente`); }
+      return null;
+    },
+  });
+
+  whatsappWeb = criarWhatsAppWebProvider();
+  gateway.registrar(whatsappWeb);
+  return gateway;
+}
+
+export function estado() {
+  if (!gateway) { return { canais: [], montado: false }; }
+  return { canais: gateway.listar(), montado: true };
+}
+
+/**
+ * Espera o QR aparecer — ou desistir de esperar. NAO espera a sessao ficar
+ * pronta: `create()` do WPPConnect so resolve DEPOIS que alguem le o QR, e
+ * segurar a resposta HTTP ate la e o que fazia o proxy derrubar a requisicao
+ * com 524 e matar o QR junto. Quem termina o trabalho e o polling da tela.
+ */
+function esperarQr(p, limiteMs = 20000) {
+  const t0 = Date.now();
+  return new Promise((res) => {
+    const olhar = () => {
+      const s = p.status();
+      if (s.estado !== 'conectando' || Date.now() - t0 > limiteMs) { return res(s); }
+      setTimeout(olhar, 250);
+    };
+    olhar();
+  });
+}
+
+export async function conectar({ canal = 'whatsapp-web', produtos } = {}) {
+  const g = montar({ produtos });
+  const p = g.obter(canal);
+  if (!p) { return { ok: false, erro: `canal "${canal}" não existe` }; }
+
+  // Dispara e NAO aguarda: a promessa so termina quando a sessao estiver pareada.
+  p.conectar().catch((e) => console.error('[canais] sessao falhou:', e.message));
+
+  const s = await esperarQr(p);
+  return { ok: true, ...s };
+}
+
+export async function desconectar({ canal = 'whatsapp-web' } = {}) {
+  if (!gateway) { return { ok: true, estado: 'desconectado' }; }
+  const p = gateway.obter(canal);
+  if (!p) { return { ok: false, erro: `canal "${canal}" não existe` }; }
+  await p.desconectar();
+  return { ok: true, ...p.status() };
+}
+
+export async function saude() {
+  if (!gateway) { return []; }
+  return gateway.saudeGeral();
+}
+
+/** Usado quando o atendente responde pelo painel, fora do fluxo do bot. */
+export async function enviar({ canal = 'whatsapp-web', para, texto }) {
+  if (!gateway) { return { ok: false, erro: 'nenhum canal conectado' }; }
+  return gateway.enviarPor(canal, { para, texto });
+}

@@ -26,3 +26,7 @@ Recebimento.*
 .env
 .env.*
 !.env.example
+
+# Sessao do WhatsApp Web (WPPConnect). E CREDENCIAL: quem tiver esta pasta
+# entra no WhatsApp do cliente sem ler QR nenhum. Nunca versionar.
+tokens/

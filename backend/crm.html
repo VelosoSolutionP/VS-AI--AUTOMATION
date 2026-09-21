@@ -379,6 +379,16 @@ tbody tr:first-child td{border-top:0}
 .notas li::before{content:'';position:absolute;left:5px;top:8px;width:6px;height:6px;border-radius:50%;
   background:var(--ac);opacity:.55}
 
+.toasts{position:fixed;right:18px;bottom:18px;z-index:60;display:grid;gap:9px;max-width:min(420px,calc(100vw - 36px))}
+.toast{display:flex;gap:11px;align-items:flex-start;padding:13px 15px;border-radius:var(--r-sm);
+  background:var(--panel);border:1px solid var(--line);box-shadow:var(--sh-3);font-size:13px;line-height:1.5;
+  cursor:pointer;transition:opacity .3s;animation:sobe .18s ease}
+.toast .ic{flex:none;width:18px;height:18px}
+.toast .ic svg{width:18px;height:18px}
+.toast.t-ok .ic{color:var(--ok)}
+.toast.t-err .ic{color:var(--err)}
+.toast.t-err{border-color:var(--err-line)}
+
 /* ── Atalhos da visão geral ────────────────────────────────────────────── */
 .atalhos{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:9px}
 .atalho{display:flex;align-items:center;gap:11px;padding:11px 13px;width:100%;text-align:left;
@@ -666,6 +676,7 @@ const GRUPOS=[
    {id:'financeiro',nome:'Financeiro',icone:'financeiro'},
    {id:'bot',nome:'Bot',icone:'bot'},
    {id:'auditor',nome:'Auditor',icone:'auditor'},
+   {id:'canais',nome:'Canais de atendimento',icone:'whats'},
    {id:'redes',nome:'Conexões com redes sociais',icone:'redes'},
    {id:'relatorios',nome:'Relatórios',icone:'relatorios'},
    {id:'quebragalho',nome:'Quebra-Galho',icone:'quebragalho'},
@@ -691,6 +702,7 @@ const TITULO={};
 MENU.forEach(m=>{TITULO[m.id]=[m.nome];(m.filhos||[]).forEach(f=>TITULO[f.id]=[m.nome,f.nome]);});
 const PAI={}; MENU.forEach(m=>(m.filhos||[]).forEach(f=>PAI[f.id]=m.id));
 
+let CANAIS=null;
 let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null,QG=null,TKAPP=null,PAG=null,LOTES=null,CAIXA=null,BOT=null,DOCS=null,PUB=null;
 const TESTE={}; // resultado do ultimo teste por rede (so em memoria)
 const PROVA={}; // ultimo teste real das APIs do TikTok, por familia
@@ -699,7 +711,25 @@ const abertos=new Set(PAI[rota]?[PAI[rota]]:[]);
 
 const esc=(s)=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const brl=(v)=>v==null?'—':v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:2});
-function flash(t,tipo){const m=document.getElementById('msg');m.className='msg '+tipo;m.textContent=t;if(tipo==='ok')setTimeout(()=>m.className='msg',3200);}
+/* O aviso precisa aparecer ONDE A PESSOA ESTA OLHANDO. A versao anterior so
+   escrevia no topo do conteudo: quem clicava num botao no fim de uma tela longa
+   (importar fluxo, por exemplo) nao via resposta nenhuma e ficava sem saber se
+   a operacao deu certo. Agora vai tambem num aviso flutuante. */
+function flash(t,tipo,segundos){
+  const m=document.getElementById('msg');
+  if(m){ m.className='msg '+tipo; m.textContent=t; if(tipo==='ok') setTimeout(()=>m.className='msg',3200); }
+  toast(t,tipo,segundos);
+}
+function toast(t,tipo,segundos){
+  let c=document.getElementById('toasts');
+  if(!c){ c=document.createElement('div'); c.id='toasts'; c.className='toasts'; document.body.appendChild(c); }
+  const el=document.createElement('div');
+  el.className='toast '+(tipo==='err'?'t-err':'t-ok');
+  el.innerHTML=`<span class="ic">${ico(tipo==='err'?'alerta':'check')}</span><div>${esc(t).replace(/\n/g,'<br>')}</div>`;
+  el.onclick=()=>el.remove();
+  c.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; setTimeout(()=>el.remove(),300); }, (segundos||(tipo==='err'?9:4))*1000);
+}
 // O ?t= da URL continua funcionando (link direto), mas a sessao tem prioridade:
 // token em querystring acaba em log de acesso e em historico de navegador.
 let TOKEN=sessionStorage.getItem('crm_token')||new URLSearchParams(location.search).get('t')||'';
@@ -2424,6 +2454,25 @@ const S={
     <div id="simSaida" style="margin-top:14px">${simulacaoHtml()}</div></div>
 
   <div class="card" style="margin-bottom:16px">
+    ${cardH('versao',`Fluxo de atendimento`,
+      BOT.fluxo
+        ? `<b>${BOT.fluxo.passos} passo(s)</b> cadastrados. Enquanto existir fluxo, é ele que conduz a conversa — as regras abaixo ficam de reserva.`
+        : `A árvore de conversa: o bot pergunta, oferece opções numeradas e cada escolha leva a um lugar. Monte numa planilha e importe aqui. <b>Sem fluxo, valem só as regras por palavra.</b>`,
+      3, BOT.fluxo?`<span class="badge b-ok">no ar</span>`:`<span class="badge">não cadastrado</span>`)}
+    <p class="hint" style="margin-bottom:10px">Uma linha por opção. A mensagem do passo vai só na primeira linha dele.
+      Ações que encerram: <code>comercial</code> (chama gente), <code>catalogo</code>, <code>confirmar</code>, <code>fim</code>.
+      Botão de verdade só existe na API oficial da Meta — por isso o menu é numerado, que funciona em qualquer aparelho.</p>
+    <div class="tbl-bar">
+      <input type="file" id="fxArq" accept=".csv,text/csv" onchange="importarFluxo(this)">
+      ${botao({t:'Baixar modelo',ic:'baixar',v:'s',on:'baixarModeloFluxo()'})}
+      ${BOT.fluxo?botao({t:'Apagar fluxo',ic:'excluir',v:'no',on:'apagarFluxo()'}):''}
+    </div>
+    ${BOT.fluxo?`<div class="tbl-wrap" style="margin-top:12px"><table><thead><tr><th>Passo</th><th>Opções</th></tr></thead><tbody>
+      ${(BOT.fluxo.passos_lista||[]).map(x=>`<tr><td><b>${esc(x.id)}</b></td><td>${x.opcoes}</td></tr>`).join('')}
+    </tbody></table></div>`:''}
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
     ${cardH('bot',`Regras`,``,6)}<div class="tbl-bar">
       <input id="brBusca" value="${esc(BUSCA.regra||'')}" placeholder="Buscar por termo ou resposta"
         oninput="buscarEm('regra',this.value)">
@@ -2501,6 +2550,47 @@ const S={
     ${linha('Documentação automática','',(g.docAutoPct??'—')+'%','')}
     ${linha('Tempo economizado','estimado pelo baseline',(g.timeSavedHours??'—')+' h','')}</div>`
    :`<div class="card" style="margin-top:16px"><p class="hint">Nenhuma tarefa registrada em métricas ainda.</p></div>`}`;
+ },
+ canais:()=>{
+  const c=(CANAIS?.canais||[])[0]||null;
+  const est=c?.estado||'desconectado';
+  const rotulo={desconectado:'Desconectado',aguardando_qr:'Leia o QR Code',conectando:'Conectando…',conectado:'Conectado',caido:'Caiu'}[est]||est;
+  const cor={conectado:'b-ok',aguardando_qr:'b-warn',conectando:'b-warn',caido:'b-err'}[est]||'';
+  const quando=(x)=>x?String(x).slice(0,16).replace('T',' '):'—';
+
+  return head('Canais de atendimento','Onde o cliente fala com você. A mensagem entra por aqui, vira lead e vai pro bot — o atendente trabalha no painel, não no WhatsApp Web.',
+      est==='conectado'
+        ? botao({t:'Desconectar',ic:'power',v:'s',on:"desconectarCanal()"})
+        : botao({t:'Conectar WhatsApp',ic:'whats',v:'p',on:"conectarCanal()"}))+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Estado',rotulo,c?.provider||'nenhum canal montado')}
+    ${kpi('Número',c?.numero?'+'+esc(c.numero):'—',est==='conectado'?'aparelho pareado':'ninguém pareado ainda')}
+    ${kpi('Conectado desde',quando(c?.desde),c?.desde?'sessão em pé':'—')}
+    ${kpi('Última atividade',quando(c?.ultimaAtividade),'última mensagem que passou')}
+  </div>
+
+  ${est==='aguardando_qr'&&c?.qr?`<div class="card" style="margin-bottom:16px;text-align:center">
+    ${cardH('whats',`Leia com o seu WhatsApp`,`Abra o WhatsApp no celular → <b>Aparelhos conectados</b> → <b>Conectar um aparelho</b> e aponte pro código. Ele expira em segundos: se sumir, é só clicar em Conectar de novo.`,2)}
+    <img src="${esc(c.qr)}" alt="QR Code para parear o WhatsApp" style="width:280px;height:280px;border-radius:12px;border:1px solid var(--line);background:#fff;padding:8px">
+    <p class="hint" style="margin-top:12px">Esta tela se atualiza sozinha.</p></div>`:''}
+
+  ${est==='caido'?`<div class="card" style="margin-bottom:16px;border-style:dashed">
+    ${cardH('alerta',`A sessão caiu`,`${esc(c?.ultimoErro||'o WhatsApp encerrou a sessão')}. O painel tenta reconectar sozinho, com espera crescente. Se não voltar, é só conectar de novo e ler o QR.`,5)}
+    ${linha('Tentativas de reconexão','automáticas, com espera crescente',String(c?.tentativas??0),'b-warn')}</div>`:''}
+
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('integra',`Como está montado`,``,2,`<span class="badge ${cor}">${esc(rotulo)}</span>`)}
+    ${linha('Provider',c?.provider==='whatsapp-web'?'sessão de WhatsApp Web':'—',c?.provider||'—',c?'b-ok':'')}
+    ${linha('API oficial da Meta','este canal NÃO é a API oficial',c?(c.oficial?'sim':'não'):'—',c&&!c.oficial?'b-warn':'')}
+    ${(CANAIS?.saude||[]).map(x=>linha('Health check',esc(x.detalhe||''),x.ok?'ok':'falha',x.ok?'b-ok':'b-err')).join('')}
+  </div>
+
+  <div class="card" style="border-style:dashed">
+    ${cardH('alerta',`O que você precisa saber antes de usar com cliente`,`Canal por WhatsApp Web é sessão automatizada, <b>fora dos termos da Meta</b> — o número pode ser bloqueado por eles. Serve pra beta e pra operação pequena. Quando a conta oficial destravar, trocar pro canal oficial não mexe em lead, conversa, bot nem trilha: é trocar o provider.`,5)}
+    ${linha('Reconexão','automática, com espera crescente e teto','tratada','b-ok')}
+    ${linha('Queda de sessão','a tela avisa e o health check confere','tratada','b-ok')}
+    ${linha('Mensagem repetida','a mesma mensagem não vira dois atendimentos','tratada','b-ok')}
+    ${linha('Grupo e status','não viram atendimento, de propósito','ignorados','b-ok')}</div>`;
  },
  redes:()=>{
   const c=REDES?.credenciais||{};
@@ -2643,8 +2733,10 @@ const S={
     ${linha('Simulador','testa a conversa sem canal','pronto','b-ok')}
     <div style="margin-top:12px"><button class="btn btn-p" onclick="ir('bot')">${ico('bot')}Abrir a tela do Bot</button></div></div>
   <div class="card" style="border-style:dashed">
-    ${cardH('alerta',`O que falta, e é só canal`,`Quando a conta Meta destravar, o trabalho é ligar a entrada e a saída no motor que já está pronto — as regras não mudam.`,5)}
-    ${linha('Webhook de entrada','recebe a mensagem do cliente e valida a assinatura','falta','b-warn')}
+    ${cardH(STATUS?.bot?.webhook?'check':'alerta',`O canal`,`O motor do bot não muda: entrada e saída são só o caminho da mensagem. As regras, o handoff e o simulador são os mesmos.`,STATUS?.bot?.webhook?2:5)}
+    ${linha('Webhook de entrada','recebe a mensagem do cliente e valida a assinatura',
+      STATUS?.bot?.webhook?(STATUS?.bot?.assinado?'no ar':'no ar, sem assinatura'):'falta',
+      STATUS?.bot?.webhook?(STATUS?.bot?.assinado?'b-ok':'b-warn'):'b-warn')}
     ${linha('Envio pela Cloud API','leva a resposta de volta',(STATUS?.whatsapp?.envia)?'pronto':'falta',(STATUS?.whatsapp?.envia)?'b-ok':'b-warn')}
     ${linha('Gravar no lead','cada mensagem vira interação na trilha','pronto','b-ok')}</div>`;
  },
@@ -3144,6 +3236,7 @@ async function carregar(){
     LOTES=await api('estoque/lotes').catch(()=>null);
     PUB=await api('estoque/publicados').catch(()=>null);
     BOT=await api('bot').catch(()=>null);
+    CANAIS=await api('canais').catch(()=>null);
     DOCS=await api('documentos').catch(()=>null);
     CAIXA=await api('caixa'+(PERIODO.de||PERIODO.ate?`?de=${PERIODO.de}&ate=${PERIODO.ate}`:'')).catch(()=>null);
     if(TKAPP&&TKAPP.diagnostico) TK=TKAPP.diagnostico;
@@ -3271,6 +3364,68 @@ async function testarTiktok(familia){
     flash(p.ok?`TikTok ${familia}: todas as chamadas responderam.`:`TikTok ${familia}: alguma chamada falhou.`,p.ok?'ok':'err');
   }catch(e){PROVA[familia]={provas:[],motivo:e.message};flash(e.message,'err');}
   render();
+}
+/* Enquanto o QR esta na tela, o painel repergunta o estado: o codigo expira
+   rapido e quem esta com o celular na mao nao pode ficar apertando F5. */
+let POLL_CANAL=null;
+function acompanharCanal(){
+  clearInterval(POLL_CANAL);
+  POLL_CANAL=setInterval(async()=>{
+    if(rota!=='canais'){ clearInterval(POLL_CANAL); return; }
+    try{
+      CANAIS=await api('canais');
+      const e=(CANAIS?.canais||[])[0]?.estado;
+      render();
+      if(e==='conectado'||e==='desconectado'){ clearInterval(POLL_CANAL); }
+    }catch{ clearInterval(POLL_CANAL); }
+  },3000);
+}
+function baixarModeloFluxo(){
+  const csv=['passo,mensagem,opcao,texto_opcao,vai_para,acao,resposta',
+  'inicio,"Boa noite! Sou a Micaela, atendente virtual da Veloso Solution. Em que posso te ajudar?",1,"Já sou cliente",cliente,,',
+  'inicio,,2,"Quero conhecer a solução",novo,,',
+  'inicio,,3,"Falar com uma pessoa",,comercial,"Claro! Já estou chamando alguém do time."',
+  'cliente,"Que bom te ver de novo! O que você precisa hoje?",1,"Suporte",,comercial,"Vou te passar pro suporte agora."',
+  'cliente,,2,"Ver produtos",,catalogo,',
+  'novo,"Legal! Me confirma seu nome e a cidade que eu já te encaminho.",,,,confirmar,'].join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download='fluxo-atendimento.csv'; a.click(); URL.revokeObjectURL(a.href);
+}
+async function importarFluxo(input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  try{
+    const csv=await f.text();
+    const r=await api('bot/fluxo-csv',{csv});
+    let msg=`Fluxo importado de ${f.name}: ${r.passos} passo(s), ${r.opcoes} opção(ões).`;
+    if(r.avisos&&r.avisos.length){ msg+='\n\nAtenção:\n• '+r.avisos.join('\n• '); }
+    flash(msg, r.avisos&&r.avisos.length?'err':'ok', 14);
+    carregar();
+  }catch(e){ flash(e.message,'err'); }
+  input.value='';
+}
+async function apagarFluxo(){
+  if(!confirm('Apagar o fluxo? O bot volta a responder só pelas regras por palavra.')) return;
+  try{ await api('bot/fluxo-apagar',{}); flash('Fluxo apagado.','ok'); carregar(); }
+  catch(e){ flash(e.message,'err'); }
+}
+async function conectarCanal(){
+  flash('Abrindo a sessão… o QR aparece em alguns segundos.','ok');
+  /* O polling comeca ANTES do pedido: se a resposta do conectar demorar ou
+     morrer num proxy pelo caminho, a tela busca o QR sozinha do mesmo jeito. */
+  acompanharCanal();
+  try{
+    const r=await api('canais/conectar',{canal:'whatsapp-web'});
+    if(r&&r.erro) flash(r.erro,'err');
+    CANAIS=await api('canais'); render();
+  }catch(e){ flash('A sessão continua abrindo — o QR aparece aqui assim que sair. ('+e.message+')','err'); }
+}
+async function desconectarCanal(){
+  if(!confirm('Desconectar o WhatsApp? O bot para de receber mensagem até você parear de novo.')) return;
+  try{
+    await api('canais/desconectar',{canal:'whatsapp-web'});
+    CANAIS=await api('canais'); render(); flash('Canal desconectado.','ok');
+  }catch(e){ flash(e.message,'err'); }
 }
 function copiar(t){navigator.clipboard?.writeText(t).then(()=>flash('Link copiado.','ok'),()=>flash('Copie manualmente: '+t,'err'));}
 
