@@ -85,6 +85,20 @@ function montar({ produtos } = {}) {
   });
 
   whatsappWeb = criarWhatsAppWebProvider();
+
+  /* TODA mudanca de estado no log. Antes so a queda e a retomada no boot
+     apareciam: quando a sessao se reerguia sozinha no meio do caminho, o log
+     parava na "tentativa 3/5" e ficava por isso mesmo. Quem lia nao sabia se
+     tinha voltado ou se tinha morrido calada — e as duas coisas exigem reacao
+     diferente. */
+  whatsappWeb.aoMudarStatus((st) => {
+    const e = st?.estado || '?';
+    if (e === 'conectado') { console.log(`[canais] whatsapp CONECTADO${st.numero ? ' — ' + st.numero : ''}`); }
+    else if (e === 'aguardando_qr') { console.warn('[canais] whatsapp esperando QR — o canal esta mudo ate alguem ler no painel'); }
+    else if (e === 'caido') { console.error(`[canais] whatsapp CAIU${st.ultimoErro ? ' — ' + st.ultimoErro : ''}`); }
+    else { console.log(`[canais] whatsapp ${e}`); }
+  });
+
   gateway.registrar(whatsappWeb);
   return gateway;
 }

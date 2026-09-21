@@ -327,10 +327,20 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
       const e = await cliente?.getPnLidEntry?.(m.from);
       if (e?.phoneNumber) { candidatos.push(e.phoneNumber); }
     } catch { /* a lib nao soube: seguem os outros caminhos */ }
-    candidatos.push(m.sender?.id?.user, m.sender?.id?._serialized, m.author, m.chatId?.user, m.chatId?._serialized, m.to);
+    /* `m.to` NAO entra aqui: ele e o destinatario, ou seja, NOS. Quando o
+       remetente chegava como LID e nenhum caminho resolvia, a lista caia no
+       `to` e devolvia o NOSSO numero como se fosse o do cliente. A resposta ia
+       entao pra nossa propria conversa — educada, completa e invisivel pra quem
+       tinha escrito. O cliente ficava esperando; o log dizia "respondi". */
+    candidatos.push(m.sender?.id?.user, m.sender?.id?._serialized, m.author, m.chatId?.user, m.chatId?._serialized);
     for (const c of candidatos) {
       const d = soDigitos(c);
-      if (pareceTelefone(d)) { return d; }
+      if (!pareceTelefone(d)) { continue; }
+      /* Cinto e suspensorio: mensagem de cliente nunca vem do proprio numero
+         conectado. Se chegou nisso, foi confusao de identificador — e responder
+         seria falar sozinho de novo. */
+      if (numero && d === numero) { continue; }
+      return d;
     }
     return null;
   }

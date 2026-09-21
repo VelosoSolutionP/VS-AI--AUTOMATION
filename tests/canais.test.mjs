@@ -438,3 +438,71 @@ test('NAO envia pra identificador interno — e explica o que aconteceu', async 
   assert.match(r.erro, /identificador interno/);
   assert.equal(lib.enviadas.length, 0, 'nao podia ter tentado enviar');
 });
+
+/* ---- o remetente NUNCA pode ser a gente ----
+
+   Bug de campo, encontrado no log de producao: chegou mensagem de um contato
+   real e o sistema registrou "chegou de 553175127978", que e o numero DA
+   PROPRIA CONTA conectada. A resposta saiu completa e educada — pra nossa
+   propria conversa. Quem escreveu ficou esperando, e o log dizia "respondi".
+
+   A causa era `m.to` na lista de candidatos a remetente: `to` e o
+   DESTINATARIO. Quando o remetente vinha como LID e nada mais resolvia, a
+   lista caia nele e devolvia a gente mesmo. */
+
+test('LID sem telefone resolvivel NAO vira o nosso proprio numero', async () => {
+  const lib = libFalsa();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+
+  const recebidas = [];
+  p.aoReceber((m) => recebidas.push(m));
+  await lib.cbs.onMessage({
+    id: 'msg-lid-1',
+    from: '173916127502499@lid',
+    to: '5531999990000@c.us', // nos
+    body: 'oi',
+    type: 'chat',
+  });
+
+  assert.equal(recebidas.length, 0, 'sem telefone do cliente, melhor ignorar que responder pra si mesmo');
+  assert.equal(lib.enviadas.length, 0, 'e nada pode ter sido enviado');
+});
+
+test('mensagem que aponta pra nossa propria conta e descartada', async () => {
+  const lib = libFalsa();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+
+  const recebidas = [];
+  p.aoReceber((m) => recebidas.push(m));
+  await lib.cbs.onMessage({
+    id: 'msg-lid-2',
+    from: '173916127502499@lid',
+    chatId: { user: '5531999990000' }, // de novo nos, por outro caminho
+    body: 'oi',
+    type: 'chat',
+  });
+
+  assert.equal(recebidas.length, 0, 'cliente nunca escreve do numero que atende');
+});
+
+test('LID COM telefone resolvivel passa normal — o conserto nao pode calar quem existe', async () => {
+  const lib = libFalsa();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+
+  const recebidas = [];
+  p.aoReceber((m) => recebidas.push(m));
+  await lib.cbs.onMessage({
+    id: 'msg-lid-3',
+    from: '173916127502499@lid',
+    sender: { id: { user: '5531975127978' } },
+    to: '5531999990000@c.us',
+    body: 'meu boleto venceu',
+    type: 'chat',
+  });
+
+  assert.equal(recebidas.length, 1);
+  assert.equal(recebidas[0].de, '5531975127978');
+});
