@@ -287,3 +287,61 @@ test('pagamento inexistente (404) encerra o evento — nao pede reentrega eterna
   assert.equal(r.orfao, true);
   assert.notEqual(r.podeReentregar, true);
 });
+
+/* ---- teste e producao lado a lado ----
+
+   No painel do Mercado Pago, modo de teste e modo de producao sao dois
+   cadastros, cada um com o SEU segredo de assinatura. Um segredo so, servindo
+   aos dois, faz o pior tipo de falha: o aviso do pagamento de VERDADE chega,
+   nao confere, leva 401 — e o dinheiro entra na conta sem virar lancamento
+   aqui. O caminho da URL e quem diz de qual ambiente veio o aviso. */
+
+test('o segredo de assinatura sai POR AMBIENTE, com o unico como reserva', () => {
+  const antes = { ...process.env };
+  process.env.MP_WEBHOOK_SECRET_TESTE = 'segredo-t';
+  process.env.MP_WEBHOOK_SECRET_PRODUCAO = 'segredo-p';
+  assert.equal(P.credenciaisMercadoPago({ mpAmbiente: 'teste' }).segredo, 'segredo-t');
+  assert.equal(P.credenciaisMercadoPago({ mpAmbiente: 'producao' }).segredo, 'segredo-p');
+
+  delete process.env.MP_WEBHOOK_SECRET_PRODUCAO;
+  assert.equal(P.credenciaisMercadoPago({ mpAmbiente: 'producao' }).segredo, 'segredo-do-teste',
+    'sem o de producao, cai no unico — quem ja configurou so ele nao pode quebrar');
+  process.env = antes;
+});
+
+test('aviso de PRODUCAO assinado com o segredo de producao e RECUSADO no caminho de teste', async () => {
+  const antes = { ...process.env };
+  process.env.MP_WEBHOOK_SECRET_PRODUCAO = 'segredo-de-producao';
+  const ts = '1700000010';
+  const v1 = createHmac('sha256', 'segredo-de-producao').update(`id:901;request-id:req-p;ts:${ts};`).digest('hex');
+  const cabecalho = { 'x-signature': `ts=${ts},v1=${v1}`, 'x-request-id': 'req-p' };
+  const corpo = { type: 'payment', action: 'payment.updated', data: { id: '901' } };
+
+  const noTeste = await P.processarWebhook(cabecalho, corpo, { query: { 'data.id': '901' } });
+  assert.equal(noTeste.http, 401, 'conferir com o segredo do outro ambiente e o mesmo que nao conferir');
+  process.env = antes;
+});
+
+test('no caminho de producao, o aviso vale E a consulta vai na conta de producao', async () => {
+  const antes = { ...process.env };
+  process.env.MP_WEBHOOK_SECRET_PRODUCAO = 'segredo-de-producao';
+  process.env.MP_ACCESS_TOKEN = 'token-de-PRODUCAO';
+  const ts = '1700000011';
+  const v1 = createHmac('sha256', 'segredo-de-producao').update(`id:902;request-id:req-q;ts:${ts};`).digest('hex');
+
+  let autorizacao = null;
+  const r = await P.processarWebhook(
+    { 'x-signature': `ts=${ts},v1=${v1}`, 'x-request-id': 'req-q' },
+    { type: 'payment', action: 'payment.updated', data: { id: '902' } },
+    { query: { 'data.id': '902' },
+      mpAmbiente: 'producao',
+      fetchImpl: async (url, opts) => {
+        autorizacao = opts.headers.authorization;
+        return { ok: true, status: 200, json: async () => ({ id: 902, status: 'approved', transaction_amount: 50 }) };
+      } },
+  );
+  assert.notEqual(r.http, 401, 'com o segredo do ambiente certo, a assinatura confere');
+  assert.equal(autorizacao, 'Bearer token-de-PRODUCAO',
+    'consultar com a chave de teste acharia 404 e marcaria orfao um pagamento REAL');
+  process.env = antes;
+});

@@ -3245,8 +3245,15 @@ const S={
         <option value="split"${i.modelo==='split'?' selected':''}>split — divide com prestador</option></select></div>
       <button class="btn btn-s" onclick="salvarPagamentos()">${ico('salvar')}Salvar integração</button>
     </div>
+    ${PAG.urlWebhookProducao ? `
+    <p class="hint" style="margin-top:10px">No painel do Mercado Pago, em <b>Suas integrações → Webhooks</b>,
+      modo de teste e modo de produção são <b>dois cadastros separados, cada um com a sua assinatura secreta</b>.
+      Use uma URL para cada — assim um aviso de teste nunca é confundido com dinheiro de verdade:<br>
+      <b>Teste:</b> <code>${esc(PAG.urlWebhookTeste)}</code><br>
+      <b>Produção:</b> <code>${esc(PAG.urlWebhookProducao)}</code><br>
+      Marque o evento <b>Pagamentos</b> — sem ele o cadastro salva e não chega nada.</p>` : `
     <p class="hint" style="margin-top:10px">No painel do Asaas, em <b>Integrações → Webhooks</b>, cadastre esta URL e
-      o mesmo token acima:<br><code>${esc(PAG.urlWebhook)}</code></p></div>
+      o mesmo token acima:<br><code>${esc(PAG.urlWebhook)}</code></p>`}</div>
 
   <div class="card">
     ${cardH('financeiro',`Cobranças`,``,2)}<div class="tbl-bar">

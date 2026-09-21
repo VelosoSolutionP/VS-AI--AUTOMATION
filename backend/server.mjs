@@ -390,20 +390,34 @@ const server = createServer(async (req, res) => {
      do Mercado Pago (`/api/webhooks/mercadopago`). Trocar URL cadastrada em
      gateway e um passo manual a mais e uma chance a mais de ficar sem receber
      nada — aceitar os dois custa uma linha. */
-  if (req.method === 'POST'
-      && ['/webhook/mercadopago', '/api/webhooks/mercadopago'].includes(req.url.split('?')[0])) {
+  const CAMINHOS_MP = {
+    /* Sem sufixo: segue o ambiente configurado no painel. E o que ja esta
+       cadastrado no gateway, e continua valendo. */
+    '/webhook/mercadopago': null,
+    '/api/webhooks/mercadopago': null,
+    /* Com sufixo: o caminho DECIDE o ambiente. Teste e producao podem ficar
+       cadastrados ao mesmo tempo sem um ser confundido com o outro — cada um
+       com o seu segredo de assinatura e a sua conta na hora de consultar. */
+    '/webhook/mercadopago/teste': 'teste',
+    '/api/webhooks/mercadopago/teste': 'teste',
+    '/webhook/mercadopago/producao': 'producao',
+    '/api/webhooks/mercadopago/producao': 'producao',
+  };
+  const caminhoMp = req.url.split('?')[0];
+  if (req.method === 'POST' && Object.hasOwn(CAMINHOS_MP, caminhoMp)) {
+    const mpAmbiente = CAMINHOS_MP[caminhoMp];
     const buf = await readBody(req);
     if (corpoEstourou(res, buf)) { return; }
     let evento; try { evento = JSON.parse(buf.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
     const query = Object.fromEntries(new URL(req.url, 'http://x').searchParams);
-    const r = await pagar.processarWebhook(req.headers, evento, { query });
+    const r = await pagar.processarWebhook(req.headers, evento, { query, mpAmbiente });
 
     /* Pagamento confirmado vira LANCAMENTO no caixa, igual ao Asaas. */
     if (r.ok && ['CONFIRMADO', 'DISPONIVEL'].includes(r.estado) && r.pagamento) {
       const l = fin.lancarPagamento(r.pagamento);
       if (l.ok && !l.repetido) { console.log(`[caixa] entrada de ${r.pagamento.id} lancada`); }
     }
-    console.log(`[mercadopago] ${evento.type || evento.topic || '?'} ${evento.data?.id || ''} -> ${r.ok ? (r.estado || 'recebido') : 'recusado: ' + r.motivo}`);
+    console.log(`[mercadopago${mpAmbiente ? '/' + mpAmbiente : ''}] ${evento.type || evento.topic || '?'} ${evento.data?.id || ''} -> ${r.ok ? (r.estado || 'recebido') : 'recusado: ' + r.motivo}`);
     return json(res, r.http || (r.ok ? 200 : 400), r);
   }
 
@@ -734,6 +748,10 @@ const server = createServer(async (req, res) => {
         urlWebhook: `${origem}/webhook/${prov.nome === 'mercadopago' ? 'mercadopago' : 'asaas'}`,
         // Aceito também, pra quem já cadastrou neste formato no painel do gateway.
         urlWebhookAlternativa: prov.nome === 'mercadopago' ? `${origem}/api/webhooks/mercadopago` : null,
+        /* Uma URL por ambiente: no painel do Mercado Pago o modo de teste e o de
+           producao sao cadastros separados, com segredos diferentes. */
+        urlWebhookTeste: prov.nome === 'mercadopago' ? `${origem}/api/webhooks/mercadopago/teste` : null,
+        urlWebhookProducao: prov.nome === 'mercadopago' ? `${origem}/api/webhooks/mercadopago/producao` : null,
       });
     }
     /* Um produto so — a tela de ver/editar nao deve baixar o catalogo inteiro. */

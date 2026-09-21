@@ -135,7 +135,10 @@ function gateway(opts = {}) {
   const c = getConfig();
   const comum = { ambiente: c.ambiente, fetchImpl: opts.fetchImpl, timeoutMs: opts.timeoutMs };
   if ((c.provedor || 'asaas') === 'mercadopago') {
-    const mp = credenciaisMercadoPago(c);
+    /* `opts.mpAmbiente` deixa o CAMINHO do webhook mandar no ambiente. Sem isso,
+       um aviso de producao seria conferido e consultado com as chaves de teste,
+       onde aquele pagamento nao existe — e viraria orfao, calado. */
+    const mp = credenciaisMercadoPago(opts.mpAmbiente ? { ...c, mpAmbiente: opts.mpAmbiente } : c);
     return gatewayMercadoPago({ ...comum, apiKey: mp.token, webhookSecret: mp.segredo, ambiente: mp.ambiente });
   }
   return gatewayAsaas({ ...comum, apiKey: c.apiKey, webhookToken: c.webhookToken });
@@ -159,7 +162,15 @@ export function credenciaisMercadoPago(c = {}) {
     producao,
     token: token || null,
     publicKey: producao ? process.env.MP_PUBLIC_KEY : process.env.MP_PUBLIC_KEY_TESTE,
-    segredo: c.mpWebhookSecret || process.env.MP_WEBHOOK_SECRET,
+    /* O segredo de assinatura tambem e POR AMBIENTE — o Mercado Pago gera um
+       para o modo de teste e outro para o de producao. Usar o de teste para
+       conferir um aviso de producao da 401 em pagamento de verdade: o dinheiro
+       entra na conta e nunca vira lancamento aqui. O segredo unico continua
+       valendo como reserva, pra nao quebrar quem ja configurou so ele. */
+    segredo: (producao
+      ? (c.mpWebhookSecretProducao || process.env.MP_WEBHOOK_SECRET_PRODUCAO)
+      : (c.mpWebhookSecretTeste || process.env.MP_WEBHOOK_SECRET_TESTE))
+      || c.mpWebhookSecret || process.env.MP_WEBHOOK_SECRET,
   };
 }
 
