@@ -345,3 +345,39 @@ test('no caminho de producao, o aviso vale E a consulta vai na conta de producao
     'consultar com a chave de teste acharia 404 e marcaria orfao um pagamento REAL');
   process.env = antes;
 });
+
+test('segredo do ambiente TROCADO se denuncia em vez de virar 401 mudo', async () => {
+  const antes = { ...process.env };
+  process.env.MP_WEBHOOK_SECRET_TESTE = 'segredo-da-aba-de-teste';
+  process.env.MP_WEBHOOK_SECRET_PRODUCAO = 'segredo-da-aba-de-producao';
+  const ts = '1700000020';
+  // Assinado com o segredo de TESTE, batendo no endereco de PRODUCAO.
+  const v1 = createHmac('sha256', 'segredo-da-aba-de-teste').update(`id:903;request-id:req-r;ts:${ts};`).digest('hex');
+
+  const r = await P.processarWebhook(
+    { 'x-signature': `ts=${ts},v1=${v1}`, 'x-request-id': 'req-r' },
+    { type: 'payment', action: 'payment.updated', data: { id: '903' } },
+    { query: { 'data.id': '903' }, mpAmbiente: 'producao' },
+  );
+  assert.equal(r.http, 401, 'nao confere e nao confere — nao se processa por pena');
+  assert.equal(r.segredoTrocado.outro, 'teste');
+  assert.equal(r.segredoTrocado.atual, 'producao');
+  assert.match(r.motivo, /confere com o segredo de teste/);
+  process.env = antes;
+});
+
+test('sem segredo no outro ambiente, nao acusa troca que nao houve', async () => {
+  const antes = { ...process.env };
+  delete process.env.MP_WEBHOOK_SECRET_TESTE;
+  delete process.env.MP_WEBHOOK_SECRET_PRODUCAO; // os dois caem na reserva: mesmo segredo
+  const ts = '1700000021';
+  const v1 = createHmac('sha256', 'nada-a-ver').update(`id:904;request-id:req-s;ts:${ts};`).digest('hex');
+  const r = await P.processarWebhook(
+    { 'x-signature': `ts=${ts},v1=${v1}`, 'x-request-id': 'req-s' },
+    { type: 'payment', action: 'payment.updated', data: { id: '904' } },
+    { query: { 'data.id': '904' }, mpAmbiente: 'producao' },
+  );
+  assert.equal(r.http, 401);
+  assert.equal(r.segredoTrocado, undefined, 'mesmo segredo nos dois lados: nao ha troca a denunciar');
+  process.env = antes;
+});

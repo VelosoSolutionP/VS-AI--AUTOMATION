@@ -311,6 +311,22 @@ export async function qrPix(id, opts = {}) {
  * chamador HTTP precisa responder 200 mesmo em duplicata, senão a fila do Asaas
  * pausa após 15 falhas.
  */
+/**
+ * A assinatura confere com o segredo do ambiente VIZINHO? Devolve qual e qual,
+ * ou null. Se os dois ambientes caem no mesmo segredo (a reserva), nao ha o que
+ * denunciar — seria acusar troca onde nao houve.
+ */
+function segredoDoOutroAmbiente(headers, corpo, opts, c) {
+  if ((c.provedor || 'asaas') !== 'mercadopago') { return null; }
+  const base = opts.mpAmbiente ? { ...c, mpAmbiente: opts.mpAmbiente } : c;
+  const atual = credenciaisMercadoPago(base);
+  const outro = atual.ambiente === 'producao' ? 'teste' : 'producao';
+  const cred = credenciaisMercadoPago({ ...c, mpAmbiente: outro });
+  if (!cred.segredo || cred.segredo === atual.segredo) { return null; }
+  const g = gatewayMercadoPago({ apiKey: cred.token, webhookSecret: cred.segredo, ambiente: outro });
+  return g.validarWebhook(headers, opts.query || {}).ok ? { atual: atual.ambiente, outro } : null;
+}
+
 export async function processarWebhook(headers = {}, corpo = {}, opts = {}) {
   const c = getConfig();
 
@@ -320,7 +336,22 @@ export async function processarWebhook(headers = {}, corpo = {}, opts = {}) {
   const v = (c.provedor === 'mercadopago')
     ? gateway(opts).validarWebhook(headers, opts.query || {})
     : validarAsaas(headers, c.webhookToken);
-  if (!v.ok) { return { ok: false, http: 401, motivo: v.motivo }; }
+  if (!v.ok) {
+    /* Um 401 aqui e caro: e pagamento REAL nao virando lancamento. Antes de
+       devolver so "nao confere", descobre se a assinatura confere com o segredo
+       do OUTRO ambiente. E o erro de cadastro mais comum — copiar a assinatura
+       da aba de teste para o webhook de producao, ou o contrario — e o mais
+       dificil de enxergar, porque os dois lados parecem certos. Continua 401
+       (nao vamos processar aviso que nao confere), mas dizendo ONDE consertar. */
+    const trocado = segredoDoOutroAmbiente(headers, corpo, opts, c);
+    if (trocado) {
+      const aviso = `a assinatura confere com o segredo de ${trocado.outro}, e este endereço é de ${trocado.atual}`
+        + ` — no painel do Mercado Pago, a assinatura secreta é uma por modo`;
+      console.warn(`[pagamentos] ${aviso}`);
+      return { ok: false, http: 401, motivo: `${v.motivo}: ${aviso}`, segredoTrocado: trocado };
+    }
+    return { ok: false, http: 401, motivo: v.motivo };
+  }
   if (v.conferida === false) { console.warn(`[pagamentos] ${v.motivo}`); }
 
   const ev = traduzirEvento(corpo, { provedor: c.provedor || 'asaas' });
