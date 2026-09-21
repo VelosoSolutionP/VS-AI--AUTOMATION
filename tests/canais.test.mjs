@@ -325,3 +325,46 @@ test('status NAO usa o campo `erro` — senao o servidor devolve 400 pra um simp
   assert.equal('erro' in p.status(), false);
   assert.ok('ultimoErro' in p.status());
 });
+
+/* ---- a cara do numero (so existe no canal por WhatsApp Web) ---- */
+
+test('personalizar exige canal conectado — e diz o estado, nao um erro seco', async () => {
+  const p = criarWhatsAppWebProvider({ criarSessao: libFalsa().criar });
+  const r = await p.personalizar({ nome: 'Micaela' });
+  assert.equal(r.ok, false);
+  assert.match(r.erro, /desconectado/);
+});
+
+test('aplica foto, nome e recado no perfil do numero', async () => {
+  const lib = libFalsa();
+  const chamadas = [];
+  const criar = async (cfg) => {
+    const c = await lib.criar(cfg);
+    c.setProfilePic = async (x) => { chamadas.push(['foto', x]); return true; };
+    c.setProfileName = async (x) => { chamadas.push(['nome', x]); return true; };
+    c.setProfileStatus = async (x) => { chamadas.push(['recado', x]); };
+    return c;
+  };
+  const p = criarWhatsAppWebProvider({ criarSessao: criar });
+  await p.conectar();
+  const r = await p.personalizar({ foto: 'data:image/png;base64,AAA', nome: 'Micaela', recado: 'Assistente virtual' });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.feito, ['foto', 'nome', 'recado']);
+  assert.equal(chamadas.length, 3);
+});
+
+test('sucesso PARCIAL e relatado — foto recusada nao pode virar "tudo certo"', async () => {
+  const lib = libFalsa();
+  const criar = async (cfg) => {
+    const c = await lib.criar(cfg);
+    c.setProfilePic = async () => { throw new Error('imagem fora do formato aceito'); };
+    c.setProfileName = async () => true;
+    return c;
+  };
+  const p = criarWhatsAppWebProvider({ criarSessao: criar });
+  await p.conectar();
+  const r = await p.personalizar({ foto: 'x', nome: 'Micaela' });
+  assert.equal(r.ok, false, 'houve falha: nao pode dizer ok');
+  assert.deepEqual(r.feito, ['nome'], 'o que funcionou tem de aparecer');
+  assert.match(r.falhas[0], /foto.*fora do formato/);
+});

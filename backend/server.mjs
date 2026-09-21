@@ -818,6 +818,7 @@ const server = createServer(async (req, res) => {
           break;
         case '/crm/api/canais/desconectar': r = await canais.desconectar({ canal: d.canal }); break;
         case '/crm/api/canais/enviar': r = await canais.enviar(d); break;
+        case '/crm/api/canais/personalizar': r = await canais.personalizar(d); break;
         case '/crm/api/bot/config': r = bot.salvarConfig(d); break;
         case '/crm/api/bot/regra': r = bot.salvarRegra(d); break;
         case '/crm/api/bot/regra-excluir': r = bot.excluirRegra(d.id); break;

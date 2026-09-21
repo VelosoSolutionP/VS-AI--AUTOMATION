@@ -96,6 +96,19 @@ export async function saude() {
   return gateway.saudeGeral();
 }
 
+/**
+ * Foto, nome e recado do numero — a cara que o cliente ve no topo da conversa.
+ * So o canal por WhatsApp Web faz isso; provider que nao souber devolve o motivo
+ * em vez de estourar.
+ */
+export async function personalizar({ canal = 'whatsapp-web', foto, nome, recado } = {}) {
+  if (!gateway) { return { ok: false, erro: 'nenhum canal conectado' }; }
+  const p = gateway.obter(canal);
+  if (!p) { return { ok: false, erro: `canal "${canal}" não existe` }; }
+  if (typeof p.personalizar !== 'function') { return { ok: false, erro: `o canal "${canal}" não permite mudar foto e nome` }; }
+  return p.personalizar({ foto, nome, recado });
+}
+
 /** Usado quando o atendente responde pelo painel, fora do fluxo do bot. */
 export async function enviar({ canal = 'whatsapp-web', para, texto }) {
   if (!gateway) { return { ok: false, erro: 'nenhum canal conectado' }; }

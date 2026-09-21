@@ -276,6 +276,35 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     }
   }
 
+  /**
+   * Cara do numero: foto, nome e recado.
+   *
+   * Isto SO existe no canal por WhatsApp Web. Na API oficial da Meta a foto e o
+   * nome vem do perfil da conta no WhatsApp Manager e nenhum codigo nosso muda —
+   * a tela do painel dizia isso e estava certa PRA AQUELE canal. Aqui a sessao e
+   * a propria conta, entao da pra personalizar.
+   *
+   * @param {{foto?:string, nome?:string, recado?:string}} perfil
+   *        foto = data URL ou caminho de arquivo
+   */
+  async function personalizar({ foto, nome, recado } = {}) {
+    if (estado !== ESTADOS.CONECTADO || !cliente) {
+      return { ok: false, erro: `canal ${estado} — conecte antes de personalizar` };
+    }
+    const feito = [];
+    const falhas = [];
+    const tentar = async (rotulo, fn) => {
+      try { await fn(); feito.push(rotulo); } catch (e) { falhas.push(`${rotulo}: ${e.message}`); }
+    };
+    if (foto) { await tentar('foto', () => cliente.setProfilePic(foto)); }
+    if (nome) { await tentar('nome', () => cliente.setProfileName(nome)); }
+    if (recado) { await tentar('recado', () => cliente.setProfileStatus(recado)); }
+    if (!feito.length && !falhas.length) { return { ok: false, erro: 'nada pra mudar' }; }
+    /* Sucesso parcial e o caso normal aqui: a TikTok/WhatsApp recusa foto fora do
+       formato mas aceita o nome. Dizer so "ok" esconderia metade do resultado. */
+    return { ok: falhas.length === 0, feito, falhas };
+  }
+
   async function enviarTexto({ para, texto }) {
     const destino = soDigitos(para);
     if (!destino) { return { ok: false, erro: 'destino vazio' }; }
@@ -299,6 +328,7 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     status,
     saude,
     enviarTexto,
+    personalizar,
     aoReceber: (fn) => { ouvintesMsg.push(fn); },
     aoMudarStatus: (fn) => { ouvintesStatus.push(fn); },
     /* só pra teste: injeta uma mensagem como se tivesse vindo do WhatsApp */

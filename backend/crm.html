@@ -379,6 +379,12 @@ tbody tr:first-child td{border-top:0}
 .notas li::before{content:'';position:absolute;left:5px;top:8px;width:6px;height:6px;border-radius:50%;
   background:var(--ac);opacity:.55}
 
+/* Campo recusado: borda vermelha e o motivo logo embaixo. Mensagem de erro
+   longe do campo obriga a pessoa a adivinhar qual deles era. */
+input.erro-campo,select.erro-campo,textarea.erro-campo{border-color:var(--err);box-shadow:0 0 0 3.5px var(--err-bg)}
+.campo-erro{font-size:12.5px;margin-top:6px;font-weight:550;display:none}
+.campo-erro.on{display:block;color:var(--err)}
+
 .toasts{position:fixed;right:18px;bottom:18px;z-index:60;display:grid;gap:9px;max-width:min(420px,calc(100vw - 36px))}
 .toast{display:flex;gap:11px;align-items:flex-start;padding:13px 15px;border-radius:var(--r-sm);
   background:var(--panel);border:1px solid var(--line);box-shadow:var(--sh-3);font-size:13px;line-height:1.5;
@@ -2002,12 +2008,20 @@ async function salvarPersonalizacao(){
 async function salvarBot(){
   const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
   const ck=(id)=>(document.getElementById(id)||{}).checked||false;
-  try{
-    const r=await api('bot/config',{nome:v('bcNome'),saudacao:v('bcSaud'),mensagemFallback:v('bcFall'),
-      mensagemHandoff:v('bcHand'),falhasAteHumano:Number(v('bcFalhas')||2),ativo:ck('bcAtivo'),usarCatalogo:ck('bcCat')});
-    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
-    await carregar(); flash('Comportamento salvo.','ok');
-  }catch(e){flash(e.message,'err');}
+  return salvar({
+    titulo:'Salvar o comportamento do bot',
+    campos:[
+      {id:'bcNome',rotulo:'Nome do atendente',obrigatorio:true},
+      {id:'bcSaud',rotulo:'Saudação',obrigatorio:true},
+      {id:'bcFall',rotulo:'Quando não entende',obrigatorio:true},
+      {id:'bcHand',rotulo:'Ao passar pra uma pessoa',obrigatorio:true},
+      {id:'bcFalhas',rotulo:'Falhas até chamar gente',obrigatorio:true,numero:true,min:1},
+    ],
+    rota:'bot/config',
+    corpo:()=>({nome:v('bcNome'),saudacao:v('bcSaud'),mensagemFallback:v('bcFall'),
+      mensagemHandoff:v('bcHand'),falhasAteHumano:Number(v('bcFalhas')||2),ativo:ck('bcAtivo'),usarCatalogo:ck('bcCat')}),
+    sucesso:`Comportamento salvo. ${ck('bcAtivo')?'O bot está ligado.':'O bot segue desligado — ligue quando quiser que ele atenda.'}`,
+  });
 }
 
 /* ---- livro-caixa ---- */
@@ -2585,6 +2599,19 @@ const S={
     ${(CANAIS?.saude||[]).map(x=>linha('Health check',esc(x.detalhe||''),x.ok?'ok':'falha',x.ok?'b-ok':'b-err')).join('')}
   </div>
 
+  ${est==='conectado'?`<div class="card" style="margin-bottom:16px">
+    ${cardH('perfil',`A cara da Micaela`,`Foto, nome e recado que o cliente vê no topo da conversa. Isto <b>só funciona neste canal</b> — na API oficial da Meta a foto vem do WhatsApp Manager e nenhum código muda.`,3)}
+    <div class="form-grid">
+      <div class="field"><label>Nome que aparece</label><input id="pfNome" placeholder="Micaela · Veloso Solution"></div>
+      <div class="field" style="grid-column:1/-1"><label>Recado <small>(o "status" do perfil)</small></label>
+        <input id="pfRecado" placeholder="Assistente virtual — atendo 24h, e chamo gente quando precisa"></div>
+      <div class="field" style="grid-column:1/-1"><label>Foto <small>(quadrada, JPG ou PNG)</small></label>
+        <input type="file" id="pfFoto" accept="image/png,image/jpeg"></div>
+      ${botao({t:'Aplicar no número',ic:'salvar',v:'p',on:'personalizarCanal()'})}
+    </div>
+    <p class="hint" style="margin-top:10px">Muda o perfil do número <b>de verdade</b>, como se você tivesse trocado pelo celular.
+      Quem já conversou com você vê a foto nova.</p></div>`:''}
+
   <div class="card" style="border-style:dashed">
     ${cardH('alerta',`O que você precisa saber antes de usar com cliente`,`Canal por WhatsApp Web é sessão automatizada, <b>fora dos termos da Meta</b> — o número pode ser bloqueado por eles. Serve pra beta e pra operação pequena. Quando a conta oficial destravar, trocar pro canal oficial não mexe em lead, conversa, bot nem trilha: é trocar o provider.`,5)}
     ${linha('Reconexão','automática, com espera crescente e teto','tratada','b-ok')}
@@ -2769,8 +2796,9 @@ const S={
       Variável sem valor aparece como está, em vez de sumir.</p></div>
 
   <div class="card" style="border-style:dashed">
-    ${cardH('whats',`Foto e nome do número`,`A foto e o nome que o cliente vê no topo da conversa <b>não são nossos</b>: vêm do perfil da conta no WhatsApp Manager da Meta. Nada aqui muda isso — e prometer que muda seria mentira.`,2)}
-    ${linha('Perfil do número','WhatsApp Manager da Meta','fora daqui','b-warn')}
+    ${cardH('whats',`Foto e nome do número`,`Depende do canal: na <b>API oficial da Meta</b> a foto e o nome vêm do WhatsApp Manager e nenhum código daqui muda. No canal por <b>WhatsApp Web</b> a sessão é a própria conta, então dá para trocar em <b>Canais → A cara da Micaela</b>.`,2)}
+    ${linha('Perfil do número',STATUS?.bot?.webhook?'API oficial: WhatsApp Manager da Meta':'canal WhatsApp Web: dá para trocar no painel',
+      STATUS?.bot?.webhook?'fora daqui':'em Canais',STATUS?.bot?.webhook?'b-warn':'b-ok')}
     ${linha('Nome do atendente','aparece nas respostas do bot',esc(c.nome),'b-ok')}</div>`;
  },
  'wa-relatorios':()=>{
@@ -3288,10 +3316,20 @@ async function mover(id,etapa){try{await api('mover',{id,etapa});carregar();}cat
 async function fechar(id,status){try{await api('fechar',{id,status});carregar();}catch(e){flash(e.message,'err');}}
 async function salvarRegra(){
   const m=document.getElementById('iModelo').value;
-  try{await api('indicacao',{modelo:m,percentual:document.getElementById('iPct').value,
-    valorFixo:document.getElementById('iFixo').value,quando:document.getElementById('iQuando').value,
-    validadeDias:document.getElementById('iVal').value,linkBase:document.getElementById('iLink').value});
-    flash('Regra salva.','ok');carregar();}catch(e){flash(e.message,'err');}
+  const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
+  return salvar({
+    titulo:'Salvar a regra de comissão',
+    campos:[
+      m==='percentual'
+        ? {id:'iPct',rotulo:'Percentual',obrigatorio:true,numero:true,min:0}
+        : {id:'iFixo',rotulo:'Valor fixo',obrigatorio:true,numero:true,min:0},
+      {id:'iVal',rotulo:'Validade (dias)',numero:true,min:1},
+      {id:'iLink',rotulo:'Link base',regra:(x)=>/^https?:\/\//i.test(x),mensagem:'O link base precisa começar com http:// ou https://.'},
+    ],
+    rota:'indicacao',
+    corpo:()=>({modelo:m,percentual:v('iPct'),valorFixo:v('iFixo'),quando:v('iQuando'),validadeDias:v('iVal'),linkBase:v('iLink')}),
+    sucesso:'Regra de comissão salva. Ela já vale para os próximos indicados.',
+  });
 }
 async function criarParceiro(){
   const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
@@ -3323,11 +3361,18 @@ async function testarRede(rede){
   campos.forEach(f=>{const el=document.getElementById(`rc-${rede}-${f}`);if(el)el.value=cred[f];});
 }
 async function salvarPerfil(){
-  try{
-    await api('perfil',{autor:document.getElementById('pfAutor').value.trim(),
-      projectName:document.getElementById('pfProjeto').value.trim()});
-    flash('Perfil salvo.','ok');carregar();
-  }catch(e){flash(e.message,'err');}
+  const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
+  return salvar({
+    titulo:'Salvar o perfil',
+    campos:[
+      {id:'pfAutor',rotulo:'Autor',obrigatorio:true,regra:(x)=>/^[a-z0-9._-]+$/i.test(x),
+        mensagem:'O autor entra no nome da branch: use só letras, números, ponto, hífen ou underline.'},
+      {id:'pfProjeto',rotulo:'Nome do projeto',obrigatorio:true},
+    ],
+    rota:'perfil',
+    corpo:()=>({autor:v('pfAutor'),projectName:v('pfProjeto')}),
+    sucesso:'Perfil salvo. É este nome que vai nas branches e nos commits.',
+  });
 }
 async function movEstoque(sku,tipo){
   const rotulo={entrada:'Entraram quantas unidades?',saida:'Saíram quantas (perda, quebra)?',reserva:'Reservar quantas?',vender:'Vender quantas?'}[tipo];
@@ -3419,6 +3464,128 @@ async function conectarCanal(){
     if(r&&r.erro) flash(r.erro,'err');
     CANAIS=await api('canais'); render();
   }catch(e){ flash('A sessão continua abrindo — o QR aparece aqui assim que sair. ('+e.message+')','err'); }
+}
+/* ── Padrão de salvar ──────────────────────────────────────────────────────
+   Clicar em salvar e nao acontecer nada e o pior tipo de defeito: a pessoa nao
+   sabe se deu certo, se travou ou se ela errou alguma coisa — e clica de novo.
+   Daqui pra frente todo salvar passa por aqui e SEMPRE termina em uma das tres:
+   confirmacao cordial, erro no campo (vermelho, do lado do campo) ou modal
+   explicando o que o servidor recusou.
+
+   Por que erro em MODAL e sucesso em aviso flutuante: erro precisa parar a
+   pessoa e ser lido; sucesso so precisa confirmar e sair da frente. Modal a cada
+   salvo bem-sucedido vira um clique a mais pra sempre. */
+
+function limparErros(){
+  document.querySelectorAll('.campo-erro.on').forEach(e=>{e.classList.remove('on');e.textContent='';});
+  document.querySelectorAll('.erro-campo').forEach(e=>e.classList.remove('erro-campo'));
+}
+
+/** Pinta o campo de vermelho e escreve o motivo embaixo dele. */
+function marcarCampo(id,msg){
+  const campo=document.getElementById(id);
+  if(!campo) return false;
+  campo.classList.add('erro-campo');
+  let aviso=document.getElementById(id+'-erro');
+  if(!aviso){
+    aviso=document.createElement('div');
+    aviso.id=id+'-erro'; aviso.className='campo-erro'; aviso.setAttribute('role','alert');
+    campo.parentNode.insertBefore(aviso,campo.nextSibling);
+  }
+  aviso.textContent=msg; aviso.classList.add('on');
+  return true;
+}
+
+/**
+ * O padrão. `campos` diz o que é obrigatório e como se chama na tela —
+ * o nome amigável é o que entra na mensagem, nunca o id do input.
+ *
+ *   salvar({
+ *     titulo:'Salvar a regra de comissão',
+ *     campos:[{id:'iPct', rotulo:'Percentual', obrigatorio:true, numero:true}],
+ *     rota:'indicacao',
+ *     corpo:()=>({percentual:val('iPct')}),
+ *     sucesso:'Regra de comissão salva.',
+ *   })
+ */
+async function salvar({titulo,campos=[],rota,corpo,sucesso,depois,botao}){
+  limparErros();
+  const val=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
+
+  const faltando=[];
+  for(const c of campos){
+    const v=val(c.id);
+    if(c.obrigatorio&&!v){ faltando.push({...c,msg:`${c.rotulo} é obrigatório.`}); continue; }
+    if(v&&c.numero&&isNaN(Number(String(v).replace(',','.')))){ faltando.push({...c,msg:`${c.rotulo} precisa ser um número.`}); continue; }
+    if(v&&c.min!=null&&Number(String(v).replace(',','.'))<c.min){ faltando.push({...c,msg:`${c.rotulo} não pode ser menor que ${c.min}.`}); continue; }
+    if(v&&c.regra&&!c.regra(v)){ faltando.push({...c,msg:c.mensagem||`${c.rotulo} está em formato inválido.`}); }
+  }
+  if(faltando.length){
+    faltando.forEach(f=>marcarCampo(f.id,f.msg));
+    document.getElementById(faltando[0].id)?.focus();
+    abrirModal(titulo||'Confira antes de salvar',
+      `<p class="hint" style="margin-bottom:12px">Faltou pouco — estes campos precisam de ajuste:</p>
+       <ul class="notas">${faltando.map(f=>`<li>${esc(f.msg)}</li>`).join('')}</ul>`,
+      `<button class="btn btn-p" onclick="fecharModal()">${ico('check')}Entendi</button>`);
+    return {ok:false,validacao:true};
+  }
+
+  const bt=botao?document.getElementById(botao):null;
+  const antes=bt?bt.innerHTML:null;
+  if(bt){ bt.disabled=true; bt.innerHTML=ico('relogio')+'<span>Salvando…</span>'; }
+  try{
+    const r=await api(rota,typeof corpo==='function'?corpo():corpo);
+    flash(sucesso||'Pronto, salvo.','ok');
+    if(depois) depois(r); else carregar();
+    return {ok:true,r};
+  }catch(e){
+    /* O servidor recusou. Pode vir uma lista de motivos: mostra todos, e joga
+       no campo o que der pra casar pelo rótulo. */
+    const motivos=String(e.message||'').split(';').map(x=>x.trim()).filter(Boolean);
+    let casou=false;
+    for(const m of motivos){
+      const alvo=campos.find(c=>m.toLowerCase().includes(String(c.rotulo).toLowerCase()));
+      if(alvo&&marcarCampo(alvo.id,m)) casou=true;
+    }
+    abrirModal(titulo||'Não consegui salvar',
+      `<p class="hint" style="margin-bottom:12px">O servidor recusou${casou?' — marquei os campos na tela':''}:</p>
+       <ul class="notas">${motivos.map(m=>`<li>${esc(m)}</li>`).join('')}</ul>`,
+      `<button class="btn btn-p" onclick="fecharModal()">${ico('check')}Entendi</button>`);
+    return {ok:false,erro:e.message};
+  }finally{
+    if(bt){ bt.disabled=false; bt.innerHTML=antes; }
+  }
+}
+
+async function personalizarCanal(){
+  limparErros();
+  const nome=(document.getElementById('pfNome')||{}).value?.trim()||'';
+  const recado=(document.getElementById('pfRecado')||{}).value?.trim()||'';
+  const arq=(document.getElementById('pfFoto')||{}).files?.[0];
+  if(!nome&&!recado&&!arq){
+    marcarCampo('pfNome','Preencha ao menos um destes: nome, recado ou foto.');
+    abrirModal('Nada para aplicar',
+      '<p class="hint">Preencha ao menos um campo — nome, recado ou foto — antes de aplicar no número.</p>',
+      `<button class="btn btn-p" onclick="fecharModal()">${ico('check')}Entendi</button>`);
+    return;
+  }
+  try{
+    let foto=null;
+    if(arq){
+      if(arq.size>5*1024*1024){ flash('A foto passa de 5 MB — o WhatsApp recusa.','err'); return; }
+      foto=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(arq); });
+    }
+    const r=await api('canais/personalizar',{canal:'whatsapp-web',foto,nome,recado});
+    /* Sucesso PARCIAL e o caso comum: o WhatsApp recusa foto fora do formato e
+       aceita o nome na mesma chamada. Dizer so "pronto" esconderia metade. */
+    const ok=(r.feito||[]).join(', ');
+    if(r.falhas&&r.falhas.length){
+      flash(`Aplicado: ${ok||'nada'}.\nNão deu certo:\n• ${r.falhas.join('\n• ')}`,'err',12);
+    }else{
+      flash(`Perfil atualizado no número: ${ok}.`,'ok');
+    }
+    carregar();
+  }catch(e){ flash(e.message,'err'); }
 }
 async function desconectarCanal(){
   if(!confirm('Desconectar o WhatsApp? O bot para de receber mensagem até você parear de novo.')) return;
