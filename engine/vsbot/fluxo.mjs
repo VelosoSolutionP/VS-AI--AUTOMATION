@@ -29,6 +29,8 @@ export const ACOES = Object.freeze({
   FIM: 'fim',               // encerra sem chamar ninguém
 });
 
+import { entender, entenderNoFluxo } from './entender.mjs';
+
 const norm = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 const VOLTAR = ['menu', 'voltar', 'inicio', 'começar', 'comecar', 'recomecar', 'recomeçar'];
 
@@ -161,10 +163,45 @@ export function avancar(fluxo, estado, texto) {
        A conversa fica gravada no passo em que parou, entao o "oi" de HOJE era
        lido como resposta errada ao menu de ONTEM, e a primeira frase que o
        cliente ouvia era uma bronca. Saudacao reabre o passo, calada. */
+    /* Ninguem escreve "1" no WhatsApp. Escreve "meu boleto venceu". A arvore
+       continua mandando no encaminhamento — o que muda e que a pessoa nao
+       precisa mais percorre-la tecla por tecla pra chegar onde ja disse que
+       queria na primeira frase. */
+    const palpite = entender(texto, ops);
+    if (palpite.escolhida) { return seguir(fluxo, palpite.escolhida); }
+
+    /* Empate nao vira escolha. Mandar pro departamento errado com cara de
+       certeza faz o cliente contar o problema duas vezes — pior que perguntar. */
+    if (palpite.empate) {
+      const so = { ...atual, mensagem: 'Só pra eu não te mandar pro lugar errado:', opcoes: palpite.empate };
+      return { texto: desenhar(so), passo: atual.id, desambiguando: true };
+    }
+
+    /* Ainda no comeco da conversa? Entao procura o assunto na arvore INTEIRA.
+       Quem escreve "o sistema travou" nao tem como saber que Suporte mora
+       dentro de "Ja sou cliente" — e nao deveria precisar saber. */
+    if (String(atual.id) === String(fluxo.inicio)) {
+      const salto = entenderNoFluxo(texto, fluxo, { ignorar: fluxo.inicio });
+      if (salto.opcao) { return { ...seguir(fluxo, salto.opcao), saltou: true }; }
+      if (salto.passo) { return { ...entrar(fluxo, salto.passo), saltou: true }; }
+    }
+
+    /* A saudacao e conferida DEPOIS de tentar entender, de proposito: "oi,
+       minha fatura venceu" comeca com "oi" e nao e uma saudacao — e um pedido
+       com educacao na frente. Conferir antes jogava fora a frase inteira e
+       devolvia o menu pra quem ja tinha dito do que precisava. */
     if (ehSaudacao(texto)) { return entrar(fluxo, atual); }
-    return { texto: `Não entendi a escolha.\n\n${desenhar(atual)}`, passo: atual.id, erroDeEscolha: true };
+
+    /* "Nao entendi a escolha" poe a culpa em quem escreveu. Quem nao entendeu
+       fui eu, e o que resolve nao e a bronca — e a lista. */
+    return { texto: `Me ajuda a te levar pro lugar certo — qual desses é o seu caso?\n\n${desenhar(atual)}`, passo: atual.id, erroDeEscolha: true };
   }
 
+  return seguir(fluxo, escolhida);
+}
+
+/** Levar a conversa pela opção escolhida — por tecla, por texto ou por entendimento. */
+function seguir(fluxo, escolhida) {
   const fala = String(escolhida.resposta || '').trim();
 
   if (escolhida.vaiPara) {

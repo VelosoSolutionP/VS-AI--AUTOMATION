@@ -86,7 +86,7 @@ test('escolha invalida repete o menu, sem perder o lugar', () => {
   const r = avancar(exemplo(), { passo: 'inicio' }, 'banana');
   assert.equal(r.erroDeEscolha, true);
   assert.equal(r.passo, 'inicio', 'nao pode jogar a pessoa pra fora do passo');
-  assert.match(r.texto, /Não entendi a escolha/);
+  assert.match(r.texto, /Me ajuda a te levar pro lugar certo/);
   assert.match(r.texto, /1 - Já sou cliente/, 'tem de repetir as opcoes');
 });
 
@@ -324,7 +324,7 @@ test('"Oi" no meio da arvore reabre o passo SEM bronca', () => {
   const r = avancar(f, { passo: 'inicio' }, 'Oi');
   assert.equal(r.erroDeEscolha, undefined, 'saudacao nao e escolha errada');
   assert.match(r.texto, /Sou a Micaela/);
-  assert.doesNotMatch(r.texto, /Não entendi/);
+  assert.doesNotMatch(r.texto, /Me ajuda a te levar/);
   assert.equal(r.passo, 'inicio');
 });
 
@@ -340,7 +340,8 @@ test('escolha errada DE VERDADE continua avisando — senao o cliente fica no es
   const f = exemplo();
   const r = avancar(f, { passo: 'inicio' }, 'xpto 9');
   assert.equal(r.erroDeEscolha, true);
-  assert.match(r.texto, /Não entendi/);
+  assert.match(r.texto, /Me ajuda a te levar pro lugar certo/);
+  assert.doesNotMatch(r.texto, /Não entendi/, 'a culpa nao e de quem escreveu');
 });
 
 test('saudacao nao atropela opcao valida que comeca parecido', () => {
