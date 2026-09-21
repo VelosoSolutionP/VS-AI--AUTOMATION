@@ -1033,4 +1033,10 @@ const server = createServer(async (req, res) => {
   json(res, 404, { error: 'not found' });
 });
 
-server.listen(PORT, () => console.log(`[qa-gate-backend] ouvindo em :${PORT} (webhook /webhook, health /health)`));
+server.listen(PORT, () => {
+  console.log(`[qa-gate-backend] ouvindo em :${PORT} (webhook /webhook, health /health)`);
+  /* O canal volta sozinho se estava ligado. Nao trava o boot: se o navegador
+     demorar ou falhar, o painel ja esta de pe e a tela mostra o estado. */
+  canais.retomar({ produtos: () => estoque.daVitrine().slice(0, 10) })
+    .catch((e) => console.error(`[canais] falhei ao retomar o canal: ${e.message}`));
+});

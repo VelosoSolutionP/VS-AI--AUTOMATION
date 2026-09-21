@@ -14,6 +14,23 @@ import { criarWhatsAppWebProvider } from '../engine/canais/whatsapp-web/index.mj
 import { reservarEvento } from './idempotencia.mjs';
 import * as atendimento from './atendimento.mjs';
 
+/** Pedaco curto da mensagem: o log serve pra diagnosticar, nao pra guardar
+    conversa de cliente. */
+const trecho = (t) => {
+  const x = String(t || '').replace(/\s+/g, ' ').trim();
+  if (!x) { return '(sem texto)'; }
+  return x.length > 48 ? `${x.slice(0, 48)}…` : x;
+};
+
+/** Por que ninguem foi respondido. Cada caso tem conserto diferente. */
+function motivoDoSilencio(r) {
+  if (!r) { return 'o atendimento nao devolveu resultado'; }
+  if (r.botDesligado) { return 'o bot esta DESLIGADO na configuracao'; }
+  if (r.emSilencio || r.silenciado) { return 'conversa em silencio pos-handoff'; }
+  if (r.respondeu === false) { return 'o fluxo decidiu nao responder esta mensagem'; }
+  return 'o fluxo nao produziu resposta';
+}
+
 let gateway = null;
 let whatsappWeb = null;
 
@@ -29,16 +46,40 @@ function montar({ produtos } = {}) {
      * `responder` do contexto, e não um envio global.
      */
     entregar: async (msg, ctx) => {
+      const quem = msg.nome ? `${msg.de} (${msg.nome})` : msg.de;
+      console.log(`[canais] chegou de ${quem} — ${msg.tipo || 'texto'}: ${trecho(msg.texto)}`);
+
+      let respondidas = 0;
+      let falha = null;
       const r = await atendimento.receberMensagem(
         { id: msg.id, de: msg.de, nome: msg.nome, texto: msg.texto, tipo: msg.tipo },
         {
-          enviar: async ({ texto }) => ctx.responder(texto),
+          /* O ENVIO e o unico passo que some quando falha: a mensagem entrou, a
+             trilha registrou, e o cliente nunca viu nada. Do lado de ca o log
+             ficava mudo e a conclusao virava "o bot nao funciona". Cada tentativa
+             passa a deixar rastro — a que deu certo e, principalmente, a que nao. */
+          enviar: async ({ texto }) => {
+            const env = await ctx.responder(texto);
+            if (env && env.ok === false) {
+              falha = env.erro || env.motivo || 'motivo nao informado';
+              console.error(`[canais] NAO consegui responder ${quem}: ${falha}`);
+            } else {
+              respondidas += 1;
+              console.log(`[canais] respondi ${quem}: ${trecho(texto)}`);
+            }
+            return env;
+          },
           produtos: produtos || (() => []),
         },
       );
       // O atendimento já respondeu por dentro (ele decide se responde e o quê).
       // Não devolvo `responder` aqui pra não mandar duas vezes.
       if (r?.handoff) { console.log(`[canais] ${msg.de} precisa de gente`); }
+      /* Silencio tambem e resultado, e precisa de nome. Sem esta linha, "o bot
+         decidiu nao responder" e "o bot quebrou" saem iguais no log: nada. */
+      if (!respondidas && !falha) {
+        console.log(`[canais] nada respondido a ${quem} — ${motivoDoSilencio(r)}`);
+      }
       return null;
     },
   });
@@ -72,6 +113,49 @@ export function salvarConfigCanal(d = {}) {
   return { ok: true, config: cfg };
 }
 
+/**
+ * Guarda a INTENCAO: o canal deve estar no ar? E diferente de estar no ar.
+ * Sem isso, todo reinicio do painel — um deploy, uma queda, um kill — deixava
+ * o WhatsApp do cliente mudo ate alguem abrir a tela e clicar em Conectar.
+ * Ninguem clica no que nao sabe que caiu: quem descobria era o cliente dele,
+ * mandando mensagem e nao sendo atendido.
+ */
+function marcarLigado(ligado) {
+  const cfg = { ...lerConfig(), ligado, [ligado ? 'ligadoEm' : 'desligadoEm']: new Date().toISOString() };
+  mkdirSync(dirname(arqConfig()), { recursive: true, mode: 0o700 });
+  writeFileSync(arqConfig(), JSON.stringify(cfg, null, 2));
+}
+
+/**
+ * Chamado no boot do painel. Se o canal estava ligado, reabre a sessao sozinho.
+ *
+ * O login fica salvo no perfil do navegador, entao na maioria das vezes ela
+ * volta SEM QR nenhum. Quando o WhatsApp tiver expirado o pareamento, volta
+ * pedindo QR — e isso precisa aparecer GRITANDO no log, porque e o unico caso
+ * em que so um humano com o celular na mao resolve.
+ */
+export async function retomar({ produtos } = {}) {
+  const cfg = lerConfig();
+  if (!cfg.ligado) {
+    return { ok: true, retomado: false, motivo: 'o canal estava desligado quando o painel parou' };
+  }
+  console.log('[canais] o canal estava ligado — reabrindo a sessao do WhatsApp');
+  const g = montar({ produtos });
+  const p = g.obter('whatsapp-web');
+  if (!p) { return { ok: false, erro: 'canal whatsapp-web nao existe' }; }
+
+  p.conectar().catch((e) => console.error(`[canais] nao consegui reabrir a sessao: ${e.message}`));
+  const st = await esperarQr(p);
+  if (st.estado === 'conectado') {
+    console.log('[canais] WhatsApp de volta no ar — o login estava salvo, nao precisou de QR');
+  } else if (st.estado === 'aguardando_qr') {
+    console.warn('[canais] ATENCAO: o pareamento expirou — PRECISA ler o QR de novo no painel, o canal esta mudo ate la');
+  } else {
+    console.warn(`[canais] sessao em "${st.estado}" depois de retomar — acompanhar`);
+  }
+  return { ok: true, retomado: true, ...st };
+}
+
 export function estado() {
   const config = lerConfig();
   /* O limite de atendentes vem do PLANO, nao daqui: ampliar e adendo de
@@ -103,6 +187,7 @@ export async function conectar({ canal = 'whatsapp-web', produtos } = {}) {
   const g = montar({ produtos });
   const p = g.obter(canal);
   if (!p) { return { ok: false, erro: `canal "${canal}" não existe` }; }
+  marcarLigado(true);
 
   // Dispara e NAO aguarda: a promessa so termina quando a sessao estiver pareada.
   p.conectar().catch((e) => console.error('[canais] sessao falhou:', e.message));
@@ -112,6 +197,7 @@ export async function conectar({ canal = 'whatsapp-web', produtos } = {}) {
 }
 
 export async function desconectar({ canal = 'whatsapp-web' } = {}) {
+  marcarLigado(false);
   if (!gateway) { return { ok: true, estado: 'desconectado' }; }
   const p = gateway.obter(canal);
   if (!p) { return { ok: false, erro: `canal "${canal}" não existe` }; }
