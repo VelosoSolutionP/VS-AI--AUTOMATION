@@ -322,26 +322,39 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
    * chat. O primeiro que parecer telefone do Brasil ganha.
    */
   async function resolverTelefone(m) {
+    /* Cada candidato leva o NOME do caminho junto. Quando isto falha em campo,
+       a pergunta e sempre "de onde o sistema tirou esse numero?" — e sem o
+       nome do caminho a resposta custa uma tarde de leitura de log. */
     const candidatos = [];
     try {
       const e = await cliente?.getPnLidEntry?.(m.from);
-      if (e?.phoneNumber) { candidatos.push(e.phoneNumber); }
+      if (e?.phoneNumber) { candidatos.push(['lid->telefone', e.phoneNumber]); }
     } catch { /* a lib nao soube: seguem os outros caminhos */ }
     /* `m.to` NAO entra aqui: ele e o destinatario, ou seja, NOS. Quando o
        remetente chegava como LID e nenhum caminho resolvia, a lista caia no
        `to` e devolvia o NOSSO numero como se fosse o do cliente. A resposta ia
        entao pra nossa propria conversa — educada, completa e invisivel pra quem
        tinha escrito. O cliente ficava esperando; o log dizia "respondi". */
-    candidatos.push(m.sender?.id?.user, m.sender?.id?._serialized, m.author, m.chatId?.user, m.chatId?._serialized);
-    for (const c of candidatos) {
-      const d = soDigitos(c);
-      if (!pareceTelefone(d)) { continue; }
+    candidatos.push(
+      ['sender.id.user', m.sender?.id?.user],
+      ['sender.id._serialized', m.sender?.id?._serialized],
+      ['author', m.author],
+      ['chatId.user', m.chatId?.user],
+      ['chatId._serialized', m.chatId?._serialized],
+    );
+    const recusados = [];
+    for (const [caminho, valor] of candidatos) {
+      const d = soDigitos(valor);
+      if (!d) { continue; }
+      if (!pareceTelefone(d)) { recusados.push(`${caminho} nao parece telefone (${d.length} digitos)`); continue; }
       /* Cinto e suspensorio: mensagem de cliente nunca vem do proprio numero
          conectado. Se chegou nisso, foi confusao de identificador — e responder
          seria falar sozinho de novo. */
-      if (numero && d === numero) { continue; }
+      if (numero && d === numero) { recusados.push(`${caminho} devolveu o NOSSO proprio numero`); continue; }
+      console.log(`[whatsapp-web] telefone do cliente veio de ${caminho}`);
       return d;
     }
+    if (recusados.length) { console.warn(`[whatsapp-web] caminhos recusados: ${recusados.join('; ')}`); }
     return null;
   }
 
