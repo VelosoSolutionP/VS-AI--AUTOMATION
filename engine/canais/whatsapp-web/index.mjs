@@ -17,7 +17,7 @@
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { ESTADOS, mensagem } from '../provider.mjs';
-import { deveAtender, normalizar, soDigitos } from './normalizar.mjs';
+import { deveAtender, normalizar, soDigitos, ehLid, pareceTelefone } from './normalizar.mjs';
 
 /**
  * Mata navegador ORFAO preso na pasta desta sessao.
@@ -189,11 +189,22 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
         statusFind: (s) => onStatus(s),
       });
 
-      cliente.onMessage?.((m) => {
+      cliente.onMessage?.(async (m) => {
         ultimaAtividade = agora();
         const filtro = deveAtender(m);
         if (!filtro.ok) { return; }
         const canonica = normalizar(m);
+
+        /* LID -> telefone. Sem isto a resposta sai pro identificador, que parece
+           numero e nao e, e o cliente nunca recebe nada. */
+        if (ehLid(m.from) || !pareceTelefone(canonica.de)) {
+          const real = await resolverTelefone(m);
+          if (real) { canonica.de = real; } else {
+            console.error(`[whatsapp-web] nao consegui descobrir o telefone de "${m.from}" — mensagem ignorada pra nao responder pro vazio`);
+            return;
+          }
+        }
+
         for (const fn of ouvintesMsg) {
           try { fn(canonica); } catch (e) { console.error('[whatsapp-web] ouvinte de mensagem quebrou:', e.message); }
         }
@@ -305,9 +316,33 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     return { ok: falhas.length === 0, feito, falhas };
   }
 
+  /**
+   * Descobre o telefone de verdade por tras de um LID. Tenta, em ordem: o
+   * tradutor da propria lib, o contato que veio junto da mensagem, e o id do
+   * chat. O primeiro que parecer telefone do Brasil ganha.
+   */
+  async function resolverTelefone(m) {
+    const candidatos = [];
+    try {
+      const e = await cliente?.getPnLidEntry?.(m.from);
+      if (e?.phoneNumber) { candidatos.push(e.phoneNumber); }
+    } catch { /* a lib nao soube: seguem os outros caminhos */ }
+    candidatos.push(m.sender?.id?.user, m.sender?.id?._serialized, m.author, m.chatId?.user, m.chatId?._serialized, m.to);
+    for (const c of candidatos) {
+      const d = soDigitos(c);
+      if (pareceTelefone(d)) { return d; }
+    }
+    return null;
+  }
+
   async function enviarTexto({ para, texto }) {
     const destino = soDigitos(para);
     if (!destino) { return { ok: false, erro: 'destino vazio' }; }
+    /* Numero fora do padrao quase sempre e LID que escapou. Enviar seria falar
+       com o vazio e ainda registrar na trilha que o cliente foi respondido. */
+    if (!pareceTelefone(destino)) {
+      return { ok: false, erro: `"${destino}" não é um telefone válido (${destino.length} dígitos) — provavelmente é um identificador interno do WhatsApp, não o número do cliente` };
+    }
     if (estado !== ESTADOS.CONECTADO || !cliente) {
       return { ok: false, erro: `canal ${estado} — nada foi enviado` };
     }

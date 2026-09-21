@@ -117,14 +117,22 @@ export async function receberMensagem(msg, deps = {}) {
     crm.interagir(lead.id, { canal: 'whatsapp', direcao: 'entrada', texto: msg.texto || `[${msg.tipo}]` });
   }
 
-  // Mensagem sem texto (áudio, imagem): registrada acima, mas o bot não tem o que
-  // interpretar. Responder "não entendi" a um áudio é pior que ficar quieto —
-  // quem manda áudio quer uma pessoa.
+  const cfg = bot.painel().config;
+
+  /* Áudio, foto e figurinha chegam sem texto: o bot não tem o que interpretar.
+     A versão anterior ficava CALADA aqui — e no primeiro teste real isso pareceu
+     defeito: a pessoa mandou áudio, nada voltou, e ninguém soube dizer por quê.
+     Agora ele diz o que consegue fazer e oferece a saída. */
   if (!msg.texto) {
-    return { ok: true, telefone: t.telefone, leadId: lead?.id || null, leadNovo, semCrm, semTexto: true, handoff: true };
+    const aviso = cfg.mensagemSemTexto;
+    const envio = cfg.ativo && aviso ? await enviar({ phone: t.telefone, texto: aviso }) : { ok: false };
+    if (lead && envio.ok) { crm.interagir(lead.id, { canal: 'whatsapp', direcao: 'saida', texto: aviso }); }
+    return {
+      ok: true, telefone: t.telefone, leadId: lead?.id || null, leadNovo, semCrm,
+      semTexto: true, tipo: msg.tipo || 'midia', handoff: true, respondeu: envio.ok, envio,
+    };
   }
 
-  const cfg = bot.painel().config;
   if (!cfg.ativo) {
     return { ok: true, telefone: t.telefone, leadId: lead?.id || null, leadNovo, semCrm, botDesligado: true };
   }

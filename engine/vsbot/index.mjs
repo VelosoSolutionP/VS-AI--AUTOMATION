@@ -25,6 +25,10 @@ const PADRAO = {
   mensagemFallback: 'Não entendi. Quer falar com uma pessoa do time?',
   mensagemHandoff: 'Já chamo uma pessoa do time pra te atender. Um instante.',
   mensagemCatalogo: 'Olha o que temos disponível:',
+  /* Audio, foto e figurinha chegam sem texto. Ficar calado parece defeito pra
+     quem mandou — e e o que acontecia. Responder o que da pra fazer e mais
+     honesto que silencio, e custa zero: transcrever audio exige IA paga. */
+  mensagemSemTexto: 'Ainda não consigo ouvir áudio nem ler imagem — me escreve em texto, por favor? Se preferir falar com uma pessoa, escreva *atendente*.',
   usarCatalogo: true,
   limiteCatalogo: 5,
   falhasAteHumano: 2,

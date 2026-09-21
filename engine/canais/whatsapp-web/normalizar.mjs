@@ -47,6 +47,24 @@ export function soDigitos(jid) {
 }
 
 /**
+ * O WhatsApp passou a entregar o remetente como LID (`...@lid`) em vez do
+ * telefone — identidade que preserva o numero, comum em conta Business.
+ *
+ * O LID PARECE um telefone (so digito, 15 casas) e nao e: mandar resposta pra
+ * ele e falar com o vazio. Foi exatamente o que aconteceu no primeiro teste
+ * real — a mensagem do cliente entrou, o bot respondeu, e a resposta saiu pra um
+ * numero que nao existe.
+ */
+export const ehLid = (jid) => String(jid || '').endsWith('@lid');
+
+/** Telefone plausivel no Brasil: 12 ou 13 digitos com DDI 55, ou 10/11 sem. */
+export function pareceTelefone(d) {
+  const n = String(d || '').replace(/\D/g, '');
+  if (n.startsWith('55')) { return n.length === 12 || n.length === 13; }
+  return n.length === 10 || n.length === 11;
+}
+
+/**
  * Evento do WPPConnect -> MensagemCanal.
  *
  * Legenda de imagem/vídeo entra como texto de propósito: quem manda foto com

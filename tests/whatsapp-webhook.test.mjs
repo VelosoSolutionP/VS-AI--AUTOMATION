@@ -184,3 +184,31 @@ test('telefone fora do padrao nao entra', async () => {
   assert.match(r.motivo, /telefone/);
 });
 
+
+/* ---- o que o primeiro teste com telefone de verdade mostrou ---- */
+
+test('audio recebe resposta cordial, em vez de silencio', async () => {
+  at._zerarFalhas();
+  bot.salvarConfig({ ativo: true, mensagemSemTexto: 'Ainda não consigo ouvir áudio — me escreve em texto?' });
+  const enviadas = [];
+  const r = await at.receberMensagem(
+    { id: 'wamid.audio1', de: '5531975127978', nome: 'Fabiano', tipo: 'audio', texto: '' },
+    { enviar: async (m) => { enviadas.push(m); return { ok: true }; } },
+  );
+  assert.equal(r.semTexto, true);
+  assert.equal(r.respondeu, true, 'silencio parece defeito pra quem mandou');
+  assert.match(enviadas[0].texto, /escreve em texto/);
+  assert.equal(r.handoff, true, 'quem manda audio costuma querer gente');
+});
+
+test('audio com o bot desligado nao responde, mas fica na trilha', async () => {
+  bot.salvarConfig({ ativo: false });
+  const enviadas = [];
+  const r = await at.receberMensagem(
+    { id: 'wamid.audio2', de: '5531975127978', tipo: 'audio', texto: '' },
+    { enviar: async (m) => { enviadas.push(m); return { ok: true }; } },
+  );
+  assert.equal(enviadas.length, 0);
+  assert.equal(r.semTexto, true);
+  bot.salvarConfig({ ativo: true });
+});

@@ -1996,13 +1996,21 @@ async function excluirRegra(id,nome){
 
 async function salvarPersonalizacao(){
   const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
-  try{
-    const r=await api('bot/config',{nome:v('pzNome'),persona:v('pzPersona'),saudacao:v('pzSaud'),
+  return salvar({
+    titulo:'Salvar a personalização',
+    campos:[
+      {id:'pzNome',rotulo:'Nome do atendente',obrigatorio:true},
+      {id:'pzSaud',rotulo:'Saudação',obrigatorio:true},
+      {id:'pzFall',rotulo:'Quando não entende',obrigatorio:true},
+      {id:'pzHand',rotulo:'Ao passar pra uma pessoa',obrigatorio:true},
+      {id:'pzFalhas',rotulo:'Falhas até chamar gente',obrigatorio:true,numero:true,min:1},
+    ],
+    rota:'bot/config',
+    corpo:()=>({nome:v('pzNome'),persona:v('pzPersona'),saudacao:v('pzSaud'),
       mensagemFallback:v('pzFall'),mensagemHandoff:v('pzHand'),mensagemCatalogo:v('pzCat'),
-      falhasAteHumano:Number(v('pzFalhas')||2)});
-    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
-    await carregar(); flash('Personalização salva.','ok');
-  }catch(e){flash(e.message,'err');}
+      mensagemSemTexto:v('pzSemTexto'),falhasAteHumano:Number(v('pzFalhas')||2)}),
+    sucesso:'Personalização salva. É assim que a Micaela vai se apresentar.',
+  });
 }
 
 async function salvarBot(){
@@ -2789,6 +2797,8 @@ const S={
       <div class="field" style="grid-column:1/-1"><label>Quando não entende</label><input id="pzFall" value="${esc(c.mensagemFallback)}"></div>
       <div class="field" style="grid-column:1/-1"><label>Ao passar pra uma pessoa</label><input id="pzHand" value="${esc(c.mensagemHandoff)}"></div>
       <div class="field" style="grid-column:1/-1"><label>Ao mandar o catálogo</label><input id="pzCat" value="${esc(c.mensagemCatalogo||'')}"></div>
+      <div class="field" style="grid-column:1/-1"><label>Quando chega áudio ou imagem <small>(ele não transcreve — precisa dizer isso)</small></label>
+        <input id="pzSemTexto" value="${esc(c.mensagemSemTexto||'')}"></div>
       <button class="btn btn-p" onclick="salvarPersonalizacao()">${ico('salvar')}Salvar</button>
       <button class="btn btn-s" onclick="ir('bot')">${ico('testar')}Testar no simulador</button>
     </div>

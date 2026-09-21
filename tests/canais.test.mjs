@@ -8,7 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validarProvider, ESTADOS, mensagem } from '../engine/canais/provider.mjs';
-import { deveAtender, normalizar, soDigitos } from '../engine/canais/whatsapp-web/normalizar.mjs';
+import { deveAtender, normalizar, soDigitos, ehLid, pareceTelefone } from '../engine/canais/whatsapp-web/normalizar.mjs';
 import { criarWhatsAppWebProvider, matarNavegadorOrfao, ehErroDeAmbiente } from '../engine/canais/whatsapp-web/index.mjs';
 import { criarGateway } from '../engine/canais/gateway.mjs';
 
@@ -367,4 +367,74 @@ test('sucesso PARCIAL e relatado — foto recusada nao pode virar "tudo certo"',
   assert.equal(r.ok, false, 'houve falha: nao pode dizer ok');
   assert.deepEqual(r.feito, ['nome'], 'o que funcionou tem de aparecer');
   assert.match(r.falhas[0], /foto.*fora do formato/);
+});
+
+/* ---- LID: o que quebrou no primeiro teste com telefone de verdade ----
+   O WhatsApp entregou o remetente como `...@lid` (identidade que preserva o
+   numero, comum em conta Business). O LID PARECE telefone — 15 digitos, so
+   numero — e nao e: o bot respondeu pra ele e o cliente nunca recebeu nada. */
+
+test('LID e reconhecido como identificador, nao como telefone', () => {
+  assert.equal(ehLid('173916127502499@lid'), true);
+  assert.equal(ehLid('5531975127978@c.us'), false);
+  assert.equal(pareceTelefone('173916127502499'), false, '15 digitos nao e telefone BR');
+  assert.equal(pareceTelefone('5531975127978'), true);
+  assert.equal(pareceTelefone('31975127978'), true);
+});
+
+test('mensagem com LID: o telefone real e descoberto pelo tradutor da lib', async () => {
+  const lib = libFalsa();
+  const criar = async (cfg) => {
+    const c = await lib.criar(cfg);
+    c.getPnLidEntry = async (jid) => {
+      assert.equal(jid, '173916127502499@lid');
+      return { lid: jid, phoneNumber: '5531975127978@c.us' };
+    };
+    return c;
+  };
+  const p = criarWhatsAppWebProvider({ criarSessao: criar });
+  const recebidas = [];
+  p.aoReceber((m) => recebidas.push(m));
+  await p.conectar();
+  lib.cbs.onMessage({ id: { id: 'M1' }, from: '173916127502499@lid', type: 'chat', body: 'oi' });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(recebidas.length, 1);
+  assert.equal(recebidas[0].de, '5531975127978', 'tinha de virar o telefone de verdade');
+});
+
+test('sem conseguir descobrir o telefone, a mensagem NAO vira atendimento', async () => {
+  const lib = libFalsa();
+  const criar = async (cfg) => {
+    const c = await lib.criar(cfg);
+    c.getPnLidEntry = async () => { throw new Error('nao sei'); };
+    return c;
+  };
+  const p = criarWhatsAppWebProvider({ criarSessao: criar });
+  const recebidas = [];
+  p.aoReceber((m) => recebidas.push(m));
+  await p.conectar();
+  lib.cbs.onMessage({ id: { id: 'M2' }, from: '173916127502499@lid', type: 'chat', body: 'oi' });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(recebidas.length, 0, 'melhor nao atender do que responder pro vazio');
+});
+
+test('o telefone tambem e achado no contato que veio junto da mensagem', async () => {
+  const lib = libFalsa();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  const recebidas = [];
+  p.aoReceber((m) => recebidas.push(m));
+  await p.conectar();
+  lib.cbs.onMessage({ id: { id: 'M3' }, from: '999@lid', type: 'chat', body: 'oi', sender: { id: { user: '5531988887777' } } });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(recebidas[0].de, '5531988887777');
+});
+
+test('NAO envia pra identificador interno — e explica o que aconteceu', async () => {
+  const lib = libFalsa();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+  const r = await p.enviarTexto({ para: '173916127502499', texto: 'oi' });
+  assert.equal(r.ok, false);
+  assert.match(r.erro, /identificador interno/);
+  assert.equal(lib.enviadas.length, 0, 'nao podia ter tentado enviar');
 });
