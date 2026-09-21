@@ -30,6 +30,7 @@ import * as tk from '../engine/vstiktok/index.mjs';
 import { reservarEvento } from './idempotencia.mjs';
 import * as atendimento from './atendimento.mjs';
 import * as canais from './canais.mjs';
+import * as planos from '../engine/vsplanos/index.mjs';
 import * as pagar from '../engine/vspagamentos/index.mjs';
 import * as fin from '../engine/vsfinanceiro/index.mjs';
 import * as bot from '../engine/vsbot/index.mjs';
@@ -47,11 +48,9 @@ for (const nivel of ['log', 'warn', 'error']) {
   console[nivel] = (...args) => original(new Date().toISOString().slice(0, 19).replace('T', ' '), ...args);
 }
 
-/* O plano vem da licenca assinada, nao de config editavel: e o que o cliente
-   contratou. Sem modulo de licenca devolve vazio — e ai nada e bloqueado. */
-function planoAtual() {
-  try { return vspainel.planoDaLicenca?.() || process.env.VS_PLANO || null; } catch { return process.env.VS_PLANO || null; }
-}
+/* Os limites vem da ASSINATURA, que aponta pra um plano do catalogo. Sem
+   assinatura nada e bloqueado — ver engine/vsplanos. */
+const limitesAtuais = () => { try { return planos.assinatura().limites; } catch { return {}; } };
 
 const PORT = process.env.PORT || 8787;
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
@@ -597,7 +596,7 @@ const server = createServer(async (req, res) => {
     // guarda em ~/.qa-gate/vstiktok com arquivo 0600. O diagnostico ja sai mascarado.
     if (req.method === 'GET' && rota === '/crm/api/tiktok') { return json(res, 200, tiktokDiagnostico()); }
     if (req.method === 'GET' && rota === '/crm/api/estoque') {
-      return json(res, 200, estoque.painel({ plano: planoAtual() }));
+      return json(res, 200, estoque.painel({ limiteProdutos: limitesAtuais().produtos }));
     }
     // Telas que eram casca: leem recibo do gate, dinheiro e cruzamento de dado real.
     if (req.method === 'GET' && rota === '/crm/api/auditor') { return json(res, 200, await vspainel.painelAuditor()); }
@@ -651,6 +650,9 @@ const server = createServer(async (req, res) => {
     /* Canais. O QR vai junto do status de proposito: a tela pergunta "como esta
        o canal" e recebe o que precisa desenhar, sem uma segunda rota so pro QR
        que poderia responder um codigo ja vencido. */
+    if (req.method === 'GET' && rota === '/crm/api/planos') {
+      return json(res, 200, { ...planos.tabela(), assinatura: planos.assinatura(), limiteAtendentes: planos.limiteDeAtendentes() });
+    }
     if (req.method === 'GET' && rota === '/crm/api/canais') {
       return json(res, 200, { ...canais.estado(), saude: await canais.saude() });
     }
@@ -864,6 +866,9 @@ const server = createServer(async (req, res) => {
         case '/crm/api/canais/enviar': r = await canais.enviar(d); break;
         case '/crm/api/canais/personalizar': r = await canais.personalizar(d); break;
         case '/crm/api/canais/config': r = canais.salvarConfigCanal(d); break;
+        case '/crm/api/planos/assinar': r = planos.assinar(d); break;
+        case '/crm/api/planos/salvar': r = planos.salvarPlano(d); break;
+        case '/crm/api/planos/versionar': r = planos.versionarPlano(d.code, d.mudancas || {}, d.sufixo || 'v2'); break;
         /* O atendente responde DAQUI. A resposta sai pelo canal e entra na trilha
            do lead — mesma trilha do bot, pra conversa nao virar duas metades. */
         case '/crm/api/atendimentos/responder': {
@@ -896,7 +901,7 @@ const server = createServer(async (req, res) => {
         case '/crm/api/caixa/editar': r = fin.editar(d.id, d.mudancas || {}); break;
         case '/crm/api/caixa/excluir': r = fin.excluir(d.id, { motivo: d.motivo }); break;
         case '/crm/api/caixa/restaurar': r = fin.restaurar(d.id); break;
-        case '/crm/api/estoque/produto': r = estoque.criar(d, { plano: planoAtual() }); break;
+        case '/crm/api/estoque/produto': r = estoque.criar(d, { limiteProdutos: limitesAtuais().produtos }); break;
         case '/crm/api/estoque/editar': r = estoque.editar(d.sku, d.mudancas || {}); break;
         case '/crm/api/estoque/movimentar': r = estoque.movimentar(d.sku, d); break;
         case '/crm/api/estoque/excluir': r = estoque.excluir(d.sku); break;

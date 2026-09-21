@@ -6,7 +6,10 @@
  * tem I/O e composição, como no VSinfluence.
  */
 import { load, save } from './store.mjs';
-import { cabeMais, uso } from './plano.mjs';
+/* O teto NAO mora aqui: vem do catalogo comercial (engine/vsplanos), que e dado
+   em disco. Este modulo so recebe o numero e obedece — trocar preco ou limite e
+   editar dado, nao mexer em estoque. */
+import { cabeMais, uso } from '../vsplanos/catalogo.mjs';
 import { normalizarProduto, disponivel, disponibilidade, precoVigente } from './produto.mjs';
 import { aplicar, alertas, valorEmEstoque } from './saldo.mjs';
 import { exportar as exportarCanal, prontidao, FORMATOS, CANAIS, decimal } from './exportar.mjs';
@@ -41,7 +44,7 @@ export function criar(entrada, opts = {}) {
   /* Teto do plano. Fica AQUI, no backend, e nao so na tela: a tela avisa, o
      backend decide — senao basta um F12 pra furar o contrato. Plano
      desconhecido nao bloqueia (ver ./plano.mjs). */
-  const cabe = cabeMais(atuais.filter((p) => p.ativo !== false).length, opts.plano);
+  const cabe = cabeMais(atuais.filter((p) => p.ativo !== false).length, opts.limiteProdutos, 'produtos');
   if (!cabe.ok) { return { ok: false, erros: [cabe.motivo], limite: cabe }; }
 
   const r = normalizarProduto(entrada, { ...opts, existentes: atuais.map((p) => p.sku) });
@@ -239,7 +242,7 @@ export function painel(opcoes = {}) {
   const valor = valorEmEstoque(produtos);
   return {
     // Quanto do plano ja foi usado — a tela avisa antes de encher.
-    planoUso: uso(ativos.length, opcoes.plano),
+    planoUso: uso(ativos.length, opcoes.limiteProdutos, 'produtos'),
     total: produtos.length,
     ativos: ativos.length,
     semEstoque: ativos.filter((p) => (disponivel(p) ?? 0) === 0).length,
