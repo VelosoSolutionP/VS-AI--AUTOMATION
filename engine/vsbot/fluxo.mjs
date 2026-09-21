@@ -32,6 +32,11 @@ export const ACOES = Object.freeze({
 const norm = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 const VOLTAR = ['menu', 'voltar', 'inicio', 'começar', 'comecar', 'recomecar', 'recomeçar'];
 
+/* Abrir conversa nao e escolher opcao. Sem isso, "oi", "bom dia" e "opa" viram
+   erro de digitacao aos olhos do fluxo. */
+const SAUDACAO = /^(oi+|ola|eai+|e ai|eae|opa|opah|bom dia|boa tarde|boa noite|alo+|hey|hi|hello|tudo bem|tudo bom|boa)\b/;
+const ehSaudacao = (t) => SAUDACAO.test(norm(t));
+
 /** Ações que entregam o atendimento pra uma pessoa. */
 const ENCERRA_COM_GENTE = (a) => a === ACOES.ENCAMINHAR;
 
@@ -152,6 +157,11 @@ export function avancar(fluxo, estado, texto) {
   });
 
   if (!escolhida) {
+    /* Quem chega dizendo "oi" nao errou escolha nenhuma — nao viu menu nenhum.
+       A conversa fica gravada no passo em que parou, entao o "oi" de HOJE era
+       lido como resposta errada ao menu de ONTEM, e a primeira frase que o
+       cliente ouvia era uma bronca. Saudacao reabre o passo, calada. */
+    if (ehSaudacao(texto)) { return entrar(fluxo, atual); }
     return { texto: `Não entendi a escolha.\n\n${desenhar(atual)}`, passo: atual.id, erroDeEscolha: true };
   }
 

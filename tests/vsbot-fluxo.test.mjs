@@ -311,3 +311,41 @@ test('mas numa pergunta ABERTA a palavra e resposta, nao comando', () => {
   assert.equal(r.handoff, false, 'isso era a descricao do problema, nao um pedido de atendente');
   assert.match(r.texto, /Obrigado/);
 });
+
+/* ---- a primeira frase nao pode ser bronca ----
+
+   Em campo: o cliente mandou "Oi" e ouviu de volta "Não entendi a escolha.".
+   A conversa ficara gravada no passo inicial de um teste antigo, entao o "oi"
+   de hoje foi lido como resposta errada ao menu de ontem — um menu que ele
+   nunca viu. Primeira impressao queimada num "oi". */
+
+test('"Oi" no meio da arvore reabre o passo SEM bronca', () => {
+  const f = exemplo();
+  const r = avancar(f, { passo: 'inicio' }, 'Oi');
+  assert.equal(r.erroDeEscolha, undefined, 'saudacao nao e escolha errada');
+  assert.match(r.texto, /Sou a Micaela/);
+  assert.doesNotMatch(r.texto, /Não entendi/);
+  assert.equal(r.passo, 'inicio');
+});
+
+test('as saudacoes que gente usa de verdade contam como saudacao', () => {
+  const f = exemplo();
+  for (const s of ['oi', 'Oii', 'olá', 'Ola', 'bom dia', 'Boa tarde', 'boa noite', 'opa', 'eae', 'e aí', 'alô', 'tudo bem?']) {
+    const r = avancar(f, { passo: 'inicio' }, s);
+    assert.equal(r.erroDeEscolha, undefined, `"${s}" nao devia virar erro`);
+  }
+});
+
+test('escolha errada DE VERDADE continua avisando — senao o cliente fica no escuro', () => {
+  const f = exemplo();
+  const r = avancar(f, { passo: 'inicio' }, 'xpto 9');
+  assert.equal(r.erroDeEscolha, true);
+  assert.match(r.texto, /Não entendi/);
+});
+
+test('saudacao nao atropela opcao valida que comeca parecido', () => {
+  const f = exemplo();
+  // "Já sou cliente" continua escolhendo a opcao 1, nao caindo na saudacao.
+  const r = avancar(f, { passo: 'inicio' }, 'Já sou cliente');
+  assert.equal(r.passo, 'cliente');
+});

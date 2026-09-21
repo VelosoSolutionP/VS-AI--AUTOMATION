@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
 import * as R from '../engine/vsbot/regras.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'vsbot-'));
@@ -139,4 +140,43 @@ test('bot ligado e sem regra ativa e denunciado no painel', () => {
 test('config recusa numero sem sentido', () => {
   assert.equal(bot.salvarConfig({ falhasAteHumano: 0 }).ok, false);
   assert.equal(bot.salvarConfig({ falhasAteHumano: 3 }).ok, true);
+});
+
+/* ---- conversa que esfriou ----
+
+   Quem volta no dia seguinte esta comecando assunto, nao continuando o de
+   ontem. Sem corte de tempo, a mensagem nova era lida como resposta a um menu
+   que ja saiu da tela dele — e o fluxo respondia sobre outra coisa. */
+
+test('conversa parada ha mais de 12h recomeca do inicio', () => {
+  bot.apagarFluxo();
+  bot.salvarConfig({ ativo: true });
+  bot.salvarFluxo([
+    { id: 'inicio', mensagem: 'Oi! Sou a Micaela.', opcoes: [
+      { tecla: '1', texto: 'Suporte', vaiPara: 'sup' },
+      { tecla: '2', texto: 'Comercial', vaiPara: 'com' },
+    ] },
+    { id: 'sup', mensagem: 'Me conta o problema.', acao: 'coletar', vaiPara: 'com' },
+    { id: 'com', mensagem: 'Passando pro comercial.', acao: 'encaminhar', departamento: 'comercial' },
+  ]);
+
+  // Ontem ele parou no passo de suporte, esperando a descricao do problema.
+  bot.atender('1', { de: '5531900000001' });
+  const conversas = bot.emAtendimento;               // so pra garantir que o modulo esta vivo
+  assert.ok(typeof conversas === 'function');
+
+  // Envelhece a conversa na marra e manda "2" hoje.
+  const arq = join(dir, 'conversas.json');
+  const d = JSON.parse(readFileSync(arq, 'utf8'));
+  d['5531900000001'].em = new Date(Date.now() - 20 * 3600 * 1000).toISOString();
+  writeFileSync(arq, JSON.stringify(d));
+
+  const r = bot.atender('2', { de: '5531900000001' });
+  assert.match(r.texto, /Sou a Micaela|Suporte/, 'tem de voltar ao menu inicial, nao seguir de onde parou');
+});
+
+test('conversa RECENTE segue de onde parou', () => {
+  bot.atender('oi', { de: '5531900000002' });
+  const r = bot.atender('2', { de: '5531900000002' });
+  assert.match(r.texto, /comercial/i, 'menos de 12h: continua a mesma conversa');
 });

@@ -141,6 +141,12 @@ export function devolverAoBot(telefone) {
 const HORAS_SILENCIO = 4;
 const aindaEmSilencio = (c) => c?.handoffEm && (Date.now() - new Date(c.handoffEm).getTime()) < HORAS_SILENCIO * 3600 * 1000;
 
+/* Conversa parada ha muito tempo nao e conversa em andamento: e assunto novo.
+   Sem este corte, quem voltasse no dia seguinte caia no meio da triagem de
+   ontem — respondendo a um menu que nao esta mais na tela dele. */
+const HORAS_ATE_ESQUECER = 12;
+const esfriou = (c) => c?.em && (Date.now() - new Date(c.em).getTime()) > HORAS_ATE_ESQUECER * 3600 * 1000;
+
 /**
  * Uma mensagem só — é o que o canal chama.
  *
@@ -153,7 +159,10 @@ export function atender(texto, ctx = {}) {
   const de = ctx.de || null;
 
   if (fx && de) {
-    const atual = conversas()[de] || null;
+    const guardada = conversas()[de] || null;
+    /* O silencio pos-handoff continua valendo mesmo em conversa fria: ele
+       protege o atendente humano, e 4h e sempre menos que 12h. */
+    const atual = esfriou(guardada) && !guardada?.handoffEm ? null : guardada;
     if (aindaEmSilencio(atual)) {
       return { tipo: 'silencio', texto: '', calado: true, handoff: true };
     }
