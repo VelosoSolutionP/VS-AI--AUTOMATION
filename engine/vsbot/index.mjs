@@ -109,6 +109,32 @@ const salvarConversa = (de, dados) => {
   save('conversas', todas);
 };
 
+/**
+ * Quem está esperando gente, e com o que já foi contado.
+ *
+ * É isto que faz o especialista NÃO começar perguntando "qual é o problema?" —
+ * ele abre a conversa já sabendo o que a pessoa disse pra Micaela.
+ */
+export function emAtendimento() {
+  const todas = conversas();
+  return Object.entries(todas)
+    .filter(([, c]) => c?.handoffEm)
+    .map(([telefone, c]) => ({
+      telefone,
+      desde: c.handoffEm,
+      departamento: c.departamento || 'humano',
+      contexto: c.contexto || {},
+    }))
+    .sort((a, b) => String(b.desde).localeCompare(String(a.desde)));
+}
+
+/** Devolve a conversa pro bot: o atendente terminou e o fluxo pode recomeçar. */
+export function devolverAoBot(telefone) {
+  if (!telefone) { return { ok: false, erro: 'telefone vazio' }; }
+  salvarConversa(telefone, null);
+  return { ok: true, telefone };
+}
+
 /* Depois que o atendimento vai pra uma pessoa, o bot CALA A BOCA por um tempo.
    Bot respondendo por cima do atendente humano e o jeito mais rapido de fazer o
    cliente perder a confianca nos dois. */

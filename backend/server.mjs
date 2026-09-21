@@ -646,6 +646,42 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && rota === '/crm/api/canais') {
       return json(res, 200, { ...canais.estado(), saude: await canais.saude() });
     }
+    /* Caixa de entrada do atendente. Junta o que o CRM sabe do lead com o que a
+       Micaela coletou antes de chamar gente — e e por isso que o especialista
+       nao comeca perguntando "qual e o problema?". */
+    if (req.method === 'GET' && rota === '/crm/api/atendimentos') {
+      const esperando = bot.emAtendimento();
+      const leads = crm.listar();
+      const conversas = leads
+        .map((l) => {
+          const inter = (l.historico || []).filter((h) => h.tipo === 'interacao');
+          if (!inter.length) { return null; }
+          const fila = esperando.find((e) => e.telefone === l.telefone) || null;
+          return {
+            id: l.id,
+            telefone: l.telefone,
+            nome: l.nome,
+            etapa: l.etapa,
+            status: l.status,
+            faixa: l.faixa,
+            score: l.score,
+            mensagens: inter.length,
+            ultima: inter[inter.length - 1],
+            esperandoGente: !!fila,
+            desde: fila?.desde || null,
+            departamento: fila?.departamento || null,
+            contexto: fila?.contexto || {},
+            historico: l.historico || [],
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => {
+          // Quem espera gente vem primeiro; depois, conversa mais recente.
+          if (a.esperandoGente !== b.esperandoGente) { return a.esperandoGente ? -1 : 1; }
+          return String(b.ultima?.quando || '').localeCompare(String(a.ultima?.quando || ''));
+        });
+      return json(res, 200, { conversas, esperando: esperando.length, canal: canais.estado() });
+    }
     if (req.method === 'GET' && rota === '/crm/api/bot') { return json(res, 200, bot.painel()); }
     if (req.method === 'GET' && rota === '/crm/api/documentos') { return json(res, 200, docs.painel()); }
     if (req.method === 'GET' && rota === '/crm/api/caixa') {
@@ -819,6 +855,19 @@ const server = createServer(async (req, res) => {
         case '/crm/api/canais/desconectar': r = await canais.desconectar({ canal: d.canal }); break;
         case '/crm/api/canais/enviar': r = await canais.enviar(d); break;
         case '/crm/api/canais/personalizar': r = await canais.personalizar(d); break;
+        /* O atendente responde DAQUI. A resposta sai pelo canal e entra na trilha
+           do lead — mesma trilha do bot, pra conversa nao virar duas metades. */
+        case '/crm/api/atendimentos/responder': {
+          const texto = String(d.texto || '').trim();
+          if (!texto) { r = { ok: false, motivo: 'escreva a mensagem antes de enviar' }; break; }
+          const envio = await canais.enviar({ canal: d.canal, para: d.telefone, texto });
+          if (!envio.ok) { r = { ok: false, motivo: envio.erro || 'não consegui enviar' }; break; }
+          const lead = crm.listar().find((l) => l.telefone === String(d.telefone || '').replace(/\D/g, ''));
+          if (lead) { crm.interagir(lead.id, { canal: 'whatsapp', direcao: 'saida', texto }); }
+          r = { ok: true, enviado: true, id: envio.id || null };
+          break;
+        }
+        case '/crm/api/atendimentos/devolver': r = bot.devolverAoBot(String(d.telefone || '').replace(/\D/g, '')); break;
         case '/crm/api/bot/config': r = bot.salvarConfig(d); break;
         case '/crm/api/bot/regra': r = bot.salvarRegra(d); break;
         case '/crm/api/bot/regra-excluir': r = bot.excluirRegra(d.id); break;
