@@ -47,6 +47,12 @@ for (const nivel of ['log', 'warn', 'error']) {
   console[nivel] = (...args) => original(new Date().toISOString().slice(0, 19).replace('T', ' '), ...args);
 }
 
+/* O plano vem da licenca assinada, nao de config editavel: e o que o cliente
+   contratou. Sem modulo de licenca devolve vazio — e ai nada e bloqueado. */
+function planoAtual() {
+  try { return vspainel.planoDaLicenca?.() || process.env.VS_PLANO || null; } catch { return process.env.VS_PLANO || null; }
+}
+
 const PORT = process.env.PORT || 8787;
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 const CHECKOUT_URL = process.env.CHECKOUT_URL || ''; // Stripe Payment Link (opcional)
@@ -590,7 +596,9 @@ const server = createServer(async (req, res) => {
     // fica gravada") e poria app_secret num POST. A configuracao mora na CLI, que
     // guarda em ~/.qa-gate/vstiktok com arquivo 0600. O diagnostico ja sai mascarado.
     if (req.method === 'GET' && rota === '/crm/api/tiktok') { return json(res, 200, tiktokDiagnostico()); }
-    if (req.method === 'GET' && rota === '/crm/api/estoque') { return json(res, 200, estoque.painel()); }
+    if (req.method === 'GET' && rota === '/crm/api/estoque') {
+      return json(res, 200, estoque.painel({ plano: planoAtual() }));
+    }
     // Telas que eram casca: leem recibo do gate, dinheiro e cruzamento de dado real.
     if (req.method === 'GET' && rota === '/crm/api/auditor') { return json(res, 200, await vspainel.painelAuditor()); }
     if (req.method === 'GET' && rota === '/crm/api/financeiro') { return json(res, 200, await vspainel.painelFinanceiro()); }
@@ -855,6 +863,7 @@ const server = createServer(async (req, res) => {
         case '/crm/api/canais/desconectar': r = await canais.desconectar({ canal: d.canal }); break;
         case '/crm/api/canais/enviar': r = await canais.enviar(d); break;
         case '/crm/api/canais/personalizar': r = await canais.personalizar(d); break;
+        case '/crm/api/canais/config': r = canais.salvarConfigCanal(d); break;
         /* O atendente responde DAQUI. A resposta sai pelo canal e entra na trilha
            do lead — mesma trilha do bot, pra conversa nao virar duas metades. */
         case '/crm/api/atendimentos/responder': {
@@ -887,7 +896,7 @@ const server = createServer(async (req, res) => {
         case '/crm/api/caixa/editar': r = fin.editar(d.id, d.mudancas || {}); break;
         case '/crm/api/caixa/excluir': r = fin.excluir(d.id, { motivo: d.motivo }); break;
         case '/crm/api/caixa/restaurar': r = fin.restaurar(d.id); break;
-        case '/crm/api/estoque/produto': r = estoque.criar(d); break;
+        case '/crm/api/estoque/produto': r = estoque.criar(d, { plano: planoAtual() }); break;
         case '/crm/api/estoque/editar': r = estoque.editar(d.sku, d.mudancas || {}); break;
         case '/crm/api/estoque/movimentar': r = estoque.movimentar(d.sku, d); break;
         case '/crm/api/estoque/excluir': r = estoque.excluir(d.sku); break;

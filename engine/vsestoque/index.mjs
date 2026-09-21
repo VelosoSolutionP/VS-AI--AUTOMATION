@@ -6,6 +6,7 @@
  * tem I/O e composição, como no VSinfluence.
  */
 import { load, save } from './store.mjs';
+import { cabeMais, uso } from './plano.mjs';
 import { normalizarProduto, disponivel, disponibilidade, precoVigente } from './produto.mjs';
 import { aplicar, alertas, valorEmEstoque } from './saldo.mjs';
 import { exportar as exportarCanal, prontidao, FORMATOS, CANAIS, decimal } from './exportar.mjs';
@@ -36,6 +37,13 @@ export function obter(sku) {
 /** Cadastra. Recusa SKU repetido — id duplicado faz o feed sobrescrever um com o outro. */
 export function criar(entrada, opts = {}) {
   const atuais = listar();
+
+  /* Teto do plano. Fica AQUI, no backend, e nao so na tela: a tela avisa, o
+     backend decide — senao basta um F12 pra furar o contrato. Plano
+     desconhecido nao bloqueia (ver ./plano.mjs). */
+  const cabe = cabeMais(atuais.filter((p) => p.ativo !== false).length, opts.plano);
+  if (!cabe.ok) { return { ok: false, erros: [cabe.motivo], limite: cabe }; }
+
   const r = normalizarProduto(entrada, { ...opts, existentes: atuais.map((p) => p.sku) });
   if (r.erros.length) { return { ok: false, erros: r.erros, avisos: r.avisos }; }
   save(PRODUTOS, [...atuais, r.produto]);
@@ -225,11 +233,13 @@ export function exportar(canal, opts = {}) {
 }
 
 /** Visão da tela: números, alertas e o que está pronto pra cada canal. */
-export function painel() {
+export function painel(opcoes = {}) {
   const produtos = listar();
   const ativos = produtos.filter((p) => p.ativo !== false);
   const valor = valorEmEstoque(produtos);
   return {
+    // Quanto do plano ja foi usado — a tela avisa antes de encher.
+    planoUso: uso(ativos.length, opcoes.plano),
     total: produtos.length,
     ativos: ativos.length,
     semEstoque: ativos.filter((p) => (disponivel(p) ?? 0) === 0).length,

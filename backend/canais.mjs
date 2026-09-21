@@ -48,9 +48,37 @@ function montar({ produtos } = {}) {
   return gateway;
 }
 
+/* Config do canal: numero previsto, apelido e setores. Fica em disco junto do
+   resto — e o que o contrato promete, nao o que a sessao descobriu. */
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join, dirname } from 'node:path';
+
+const arqConfig = () => join(homedir(), '.qa-gate', 'canais', 'config.json');
+const lerConfig = () => { try { return JSON.parse(readFileSync(arqConfig(), 'utf8')); } catch { return {}; } };
+
+export function salvarConfigCanal(d = {}) {
+  const numero = String(d.numero || '').replace(/\D/g, '');
+  if (numero && numero.length < 10) { return { ok: false, motivo: 'número curto demais — informe com DDD' }; }
+  const cfg = {
+    ...lerConfig(),
+    numero: numero || null,
+    apelido: String(d.apelido || '').trim() || null,
+    setores: (d.setores || []).map((x) => String(x).trim()).filter(Boolean),
+    atualizadoEm: new Date().toISOString(),
+  };
+  mkdirSync(dirname(arqConfig()), { recursive: true, mode: 0o700 });
+  writeFileSync(arqConfig(), JSON.stringify(cfg, null, 2));
+  return { ok: true, config: cfg };
+}
+
 export function estado() {
-  if (!gateway) { return { canais: [], montado: false }; }
-  return { canais: gateway.listar(), montado: true };
+  const config = lerConfig();
+  /* O limite de atendentes vem do PLANO, nao daqui: ampliar e adendo de
+     contrato. Enquanto o modulo de plano nao informa, some. */
+  const plano = { atendentes: config.atendentesContratados ?? null };
+  if (!gateway) { return { canais: [], montado: false, config, plano }; }
+  return { canais: gateway.listar(), montado: true, config, plano };
 }
 
 /**

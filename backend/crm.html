@@ -395,6 +395,23 @@ input.erro-campo,select.erro-campo,textarea.erro-campo{border-color:var(--err);b
 .toast.t-err .ic{color:var(--err)}
 .toast.t-err{border-color:var(--err-line)}
 
+/* ── Preview do perfil no celular ──────────────────────────────────────────
+   Um celular desenhado em CSS. Nao e enfeite: e onde se ve o corte CIRCULAR da
+   foto antes de aplicar no numero de verdade. */
+.perfil-grid{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:18px;align-items:start}
+.celular{background:#0b1120;border-radius:22px;padding:14px 12px 12px;border:1px solid var(--line-2);
+  box-shadow:var(--sh-3)}
+.cel-topo{display:flex;align-items:center;gap:10px;padding:0 4px 11px;border-bottom:1px solid rgba(255,255,255,.1)}
+.cel-foto{width:42px;height:42px;border-radius:50%;flex:none;background:#334155 center/cover no-repeat}
+.cel-id b{display:block;color:#f1f5f9;font-size:13px;font-weight:600;line-height:1.3}
+.cel-id small{display:block;color:#94a3b8;font-size:11px;line-height:1.3;max-width:150px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cel-conversa{display:grid;gap:7px;padding:12px 4px 4px}
+.cel-bolha{max-width:85%;padding:7px 10px;border-radius:10px;font-size:11.5px;line-height:1.45;
+  background:#1e293b;color:#e2e8f0;justify-self:start;border-bottom-left-radius:3px}
+.cel-bolha.cel-eu{background:#065f46;color:#d1fae5;justify-self:end;border-bottom-right-radius:3px;border-bottom-left-radius:10px}
+@media(max-width:900px){.perfil-grid{grid-template-columns:1fr}}
+
 /* ── Caixa de entrada do atendente ─────────────────────────────────────────
    Lista à esquerda, conversa à direita — o formato que todo mundo já sabe usar,
    e que deixa o atendente pular de uma conversa pra outra sem perder o lugar. */
@@ -732,21 +749,33 @@ const GRUPOS=[
  { secao:'Operação', itens:[
    {id:'visao',nome:'Visão geral',icone:'visao'},
    {id:'estoque',nome:'Estoque',icone:'estoque'},
-   {id:'financeiro',nome:'Financeiro',icone:'financeiro'},
-   {id:'bot',nome:'Bot',icone:'bot'},
-   {id:'auditor',nome:'Auditor',icone:'auditor'},
-   {id:'canais',nome:'Canais de atendimento',icone:'whats'},
-   {id:'redes',nome:'Conexões com redes sociais',icone:'redes'},
+   /* Financeiro fica INVISIVEL: controle de caixa e algo que cada empresa faz do
+      seu jeito, e entregar um generico e pior que nao entregar. Quando um cliente
+      pedir, a gente faz focado nele. A tela continua no codigo, sem porta no menu. */
+   {id:'bot',nome:'Bot',icone:'bot',filhos:[
+     {id:'bot-regras',nome:'Regras e comportamento'},
+     {id:'wa-personalizar',nome:'Personalizar'}]},
+   {id:'redes',nome:'Redes sociais',icone:'redes',filhos:[
+     {id:'redes-canal',nome:'Conexões'},
+     {id:'redes-planos',nome:'O que está incluso'},
+     {id:'redes-auditor',nome:'Auditor'}]},
    {id:'relatorios',nome:'Relatórios',icone:'relatorios'},
-   {id:'quebragalho',nome:'Quebra-Galho',icone:'quebragalho'},
+   {id:'quebragalho',nome:'Quebra-Galho',icone:'quebragalho',filhos:[
+     {id:'qg-painel',nome:'Painel'},
+     {id:'qg-auditor',nome:'Auditor'}]},
    {id:'crm',nome:'Integração CRM',icone:'crm'},
    /* O submenu do WhatsApp tinha seis itens e QUATRO eram os mesmos de cima:
       Bot, Relatórios e Auditor já existem no topo, e "Integração" virou a tela
       Canais. Menu repetido faz a pessoa procurar duas vezes e desconfiar de qual
       dos dois é o certo. Ficou o que só existe aqui. */
+   /* Cada canal carrega o que e DELE: a conexao, a auditoria do que passou por
+      ali e o consumo. Antes "Canais de atendimento" e "Auditor" eram itens
+      soltos no topo, servindo a todos e a nenhum — e com mais de um canal isso
+      so piora. Personalizar foi pra dentro do Bot, que e de quem ela e. */
    {id:'whats',nome:'WhatsApp',icone:'whats',filhos:[
      {id:'wa-atendimento',nome:'Atendimento'},
-     {id:'wa-personalizar',nome:'Personalizar'},
+     {id:'canais',nome:'Canal e conexão'},
+     {id:'wa-auditor',nome:'Auditor'},
      {id:'wa-consumo',nome:'Consumo'}]},
  ]},
  { secao:'Crescimento', itens:[
@@ -809,6 +838,20 @@ function toggleNav(v){document.getElementById('side').classList.toggle('open',v)
 /* Sobrancelha = a seção do menu em que a rota vive. Dita de graça em toda tela
    onde a pessoa está, sem ela ter que reler a barra lateral. */
 const SECAO={}; GRUPOS.forEach(g=>g.itens.forEach(m=>{SECAO[m.id]=g.secao;(m.filhos||[]).forEach(f=>SECAO[f.id]=g.secao);}));
+/**
+ * UM lugar decide se o WhatsApp esta no ar — e por onde.
+ * Sem isto, cada tela inventava a sua resposta a partir de `STATUS.whatsapp`,
+ * que so conhece a API oficial da Meta.
+ */
+function canalWhatsApp(){
+  const web=(CANAIS?.canais||[]).find(c=>c.provider==='whatsapp-web');
+  if(web?.estado==='conectado') return {no_ar:true,via:'WhatsApp Web',numero:web.numero||null,rotulo:'no ar · WhatsApp Web',oficial:false};
+  if(STATUS?.whatsapp?.envia) return {no_ar:true,via:'API oficial',numero:null,rotulo:'no ar · API oficial',oficial:true};
+  if(web?.estado==='aguardando_qr') return {no_ar:false,via:null,numero:null,rotulo:'esperando o QR',oficial:false};
+  if(web?.estado==='caido') return {no_ar:false,via:null,numero:null,rotulo:'sessão caiu',oficial:false};
+  return {no_ar:false,via:null,numero:null,rotulo:'desligado',oficial:false};
+}
+
 const head=(t,p,acts)=>`<div class="page-head"><div class="ph-txt">`+
   `<div class="eyebrow">${esc(SECAO[rota]||"Console")}</div><h1>${esc(t)}</h1><p>${p}</p></div>`+
   `${acts?`<div class="ph-acts">${acts}</div>`:""}</div>`;
@@ -2215,9 +2258,51 @@ async function excluirLancamento(id,desc){
    vão branco. Agora ela responde três perguntas em ordem: como está a operação
    (números), o que está ligado (integrações × pendências) e pra onde ir agora
    (atalhos). Os atalhos são as MESMAS rotas do menu — nenhuma tela nova. */
+/**
+ * Trilha de um canal. `canal` vazio mostra tudo — util enquanto so existe um.
+ * Evento sem canal declarado entra no WhatsApp, que e de onde vieram todos ate
+ * hoje: escondê-lo seria pior que classificá-lo com uma suposição declarada.
+ */
+function auditorDoCanal(canal,titulo,sub){
+  const todos=trilhaDeLeads();
+  const eventos=todos.filter(e=>{
+    if(e.tipo!=='interacao') return canal==='whatsapp';
+    const c=e.canal||'whatsapp';
+    return canal==='rede'?['instagram','facebook','linkedin','tiktok','youtube'].includes(c)
+         : canal==='quebragalho'?c==='quebragalho'
+         : !['instagram','facebook','linkedin','tiktok','youtube','quebragalho'].includes(c);
+  });
+  const inter=eventos.filter(e=>e.tipo==='interacao');
+  return head(titulo,sub)+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Eventos',eventos.length,'na trilha deste canal')}
+    ${kpi('Mensagens',inter.length,`${inter.filter(e=>e.direcao==='saida').length} enviada(s)`)}
+    ${kpi('Leads com trilha',new Set(eventos.map(e=>e.lead)).size,'de '+(ST.leads.length||0))}
+  </div>
+  <div class="card">
+    ${cardH('auditor','Trilha',`Cada linha foi gravada quando o evento aconteceu — nada aqui é escrito à mão.`,6)}
+    <div class="tbl-bar">
+      <input id="auBusca" value="${esc(BUSCA.auditor||'')}" placeholder="Buscar por lead, tipo ou texto"
+        oninput="buscarEm('auditor',this.value)">
+      ${botao({t:'Atualizar',ic:'atualizar',v:'s',on:'carregar()'})}
+    </div>
+    ${tabela({
+      vazio:'Nenhum evento neste canal ainda.',
+      nenhum:'Nenhum evento com esse termo.',
+      colunas:[
+        {t:'Quando',cel:(e)=>esc(String(e.quando||'').slice(0,16).replace('T',' '))},
+        {t:'Lead',cel:(e)=>`<b>${esc(e.lead)}</b>`},
+        {t:'O que houve',cel:(e)=>esc(rotuloEvento(e))},
+        {t:'Detalhe',cel:(e)=>esc(detalheEvento(e))},
+      ],
+      todos:eventos, itens:eventos.filter(e=>casa(BUSCA.auditor,[e.lead,e.tipo,rotuloEvento(e),detalheEvento(e)])),
+    })}</div>`;
+}
+
 function telaVisao(){
   const r=ST.resumo,w=STATUS?.whatsapp||{};
-  const estados=[w.envia,!!(w.waToken&&w.waPhoneId),false/* webhook de entrada: ainda nao existe */,
+  const wpp=canalWhatsApp();
+  const estados=[wpp.no_ar,!!(w.waToken&&w.waPhoneId),!!STATUS?.bot?.webhook,
     !!STATUS?.notify?.enabled,!!STATUS?.crm?.funil,!!IND?.regra];
   const ligadas=estados.filter(Boolean).length;
   const atalho=(id,icone,titulo,apoio)=>
@@ -2229,11 +2314,11 @@ function telaVisao(){
     ${kpi('Leads abertos',r.abertos,ST.funil.length?ST.funil.length+' etapas no funil':'sem funil')}
     ${kpi('Ganhos',r.ganhos,'fechados no CRM')}
     ${kpi('Conversão',r.conversao==null?'—':Math.round(r.conversao*100)+'%',r.conversao==null?'nenhum lead fechado ainda':'ganhos ÷ fechados')}
-    ${kpi('Bot no ar',w.envia?'sim':'não',w.envia?'Cloud API ativa':'provider = '+(w.provider||'log'))}</div>
+    ${(()=>{const c=canalWhatsApp();return kpi('WhatsApp',c.no_ar?'no ar':'desligado',c.via?('por '+c.via+(c.numero?' · +'+esc(c.numero):'')):'nenhum canal conectado');})()}</div>
   <div class="grid g-2" style="margin-bottom:16px">
     <div class="card">
       ${cardH('integra','Integrações','Estado real, lido do ambiente.',2,`<span class="badge ${ligadas===estados.length?'b-ok':'b-warn'}">${ligadas} de ${estados.length}</span>`)}
-      ${linha('WhatsApp Cloud API','provider '+(w.provider||'log'),w.envia?'enviando':'não envia',w.envia?'b-ok':'')}
+      ${linha('Canal de WhatsApp',wpp.via?('por '+wpp.via):'nenhum canal conectado',wpp.no_ar?'no ar':'desligado',wpp.no_ar?'b-ok':'')}
       ${linha('Token da Meta','WA_TOKEN / WA_PHONE_ID',w.waToken&&w.waPhoneId?'presentes':'ausentes',w.waToken&&w.waPhoneId?'b-ok':'')}
       ${linha('Webhook de entrada','recebe mensagem do cliente','não existe','')}
       ${linha('Notificação do QA-Gate','CallMeBot',STATUS?.notify?.enabled?'ligada':'desligada',STATUS?.notify?.enabled?'b-ok':'')}
@@ -2427,11 +2512,20 @@ const S={
 
   return head('Estoque','Cadastro de produto, saldo com reserva e exportação para os canais de venda.')+
   `<div class="grid g-kpi" style="margin-bottom:16px">
-    ${kpi('Produtos',p.total,`${p.ativos} à venda`)}
+    ${kpi('Produtos',p.planoUso?.limite?`${p.ativos}/${p.planoUso.limite}`:p.total,
+      p.planoUso?.plano?p.planoUso.texto:`${p.ativos} à venda`)}
     ${kpi('Unidades',p.unidades,`${p.reservadas} reservada(s)`)}
     ${kpi('Valor parado',p.valorFormatado,'quantidade × preço')}
     ${kpi('Sem saldo',p.semEstoque,'ativos que não dá pra entregar')}
   </div>
+  ${p.planoUso?.alerta?`<div class="card" style="margin-bottom:16px;border-style:dashed">
+    ${cardH(p.planoUso.alerta==='cheio'?'alerta':'relogio',
+      p.planoUso.alerta==='cheio'?`Seu plano está cheio`:`Você está chegando no limite do plano`,
+      p.planoUso.alerta==='cheio'
+        ? `O plano <b>${esc(p.planoUso.plano)}</b> permite <b>${p.planoUso.limite}</b> produtos ativos. Pra cadastrar mais, desative um que não vende ou amplie o plano.`
+        : `Você usou <b>${p.planoUso.usados}</b> de <b>${p.planoUso.limite}</b> produtos do plano <b>${esc(p.planoUso.plano)}</b>. Restam ${p.planoUso.restam}.`,
+      p.planoUso.alerta==='cheio'?5:4,
+      botao({t:'Ampliar plano',ic:'seta',v:'p',sz:'xs',on:"ir('pl-comprar')"}))}</div>`:''}
   ${p.alertas.length?`<div class="card" style="margin-bottom:16px">
     ${cardH('alerta',`Precisa de atenção`,``,5)}${p.alertas.map(a=>linha(a.nome||a.sku,esc(a.sku),a.nivel==='acabou'?'acabou':`baixo: ${a.livre}`,a.nivel==='acabou'?'b-err':'b-warn')).join('')}</div>`:''}
 
@@ -2666,15 +2760,60 @@ const S={
   </div>
 
   <div class="card" style="margin-bottom:16px">
+    ${cardH('whats',`O número deste canal`,`Qual telefone atende por aqui. É ele que o cliente vê e para onde a Micaela responde.`,2,
+      c?.numero?`<span class="badge b-ok">+${esc(c.numero)}</span>`:'<span class="badge">nenhum pareado</span>')}
+    ${linha('Número pareado agora','lido da sessão, não digitado',c?.numero?'+'+esc(c.numero):'—',c?.numero?'b-ok':'')}
+    <div class="form-grid" style="margin-top:12px">
+      <div class="field"><label>Número previsto no contrato <small>(confere com o pareado)</small></label>
+        <input id="cnNumero" value="${esc(CANAIS?.config?.numero||'')}" placeholder="5531975127978"></div>
+      <div class="field"><label>Nome da operação <small>(aparece nos relatórios)</small></label>
+        <input id="cnApelido" value="${esc(CANAIS?.config?.apelido||'')}" placeholder="Suporte Veloso"></div>
+      ${botao({t:'Salvar',ic:'salvar',v:'s',on:'salvarCanalConfig()'})}
+    </div>
+    ${c?.numero&&CANAIS?.config?.numero&&String(c.numero)!==String(CANAIS.config.numero).replace(/\D/g,'')
+      ? `<p class="hint" style="margin-top:10px;color:var(--err)">O número pareado (<b>+${esc(c.numero)}</b>) é diferente do previsto no contrato (<b>${esc(CANAIS.config.numero)}</b>). Confira antes de atender cliente.</p>`:''}
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('crm',`Atendentes e setores`,`Quantas pessoas podem atender e em que setores. O limite vem do contrato — ampliar é adendo, não configuração.`,1,
+      `<span class="badge ${(CANAIS?.plano?.atendentes||0)>0?'b-ok':'b-warn'}">${CANAIS?.plano?.atendentes??'—'} atendente(s)</span>`)}
+    ${linha('Atendentes contratados','quantas pessoas podem responder',String(CANAIS?.plano?.atendentes??'—'),'b-ok')}
+    ${linha('Em uso agora','cadastrados no painel',String((CANAIS?.config?.setores||[]).length?CANAIS.config.atendentesEmUso||0:0),'')}
+    <div class="form-grid" style="margin-top:12px">
+      <div class="field" style="grid-column:1/-1"><label>Setores <small>(um por linha — viram as filas do encaminhamento)</small></label>
+        <textarea id="cnSetores" rows="3" placeholder="Suporte&#10;Comercial&#10;Financeiro">${esc((CANAIS?.config?.setores||[]).join('\n'))}</textarea></div>
+      ${botao({t:'Salvar setores',ic:'salvar',v:'s',on:'salvarCanalConfig()'})}
+      ${botao({t:'Ampliar no contrato',ic:'seta',v:'g',on:"ir('pl-comprar')"})}
+    </div>
+    <p class="hint" style="margin-top:10px">Os setores aqui são os mesmos que o fluxo usa em <code>encaminhar_&lt;setor&gt;</code>.</p>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
     ${cardH('perfil',`A cara da Micaela`,`Foto, nome e recado que o cliente vê no topo da conversa. Isto <b>só funciona neste canal</b> — na API oficial da Meta a foto vem do WhatsApp Manager e nenhum código muda.`,3,
       est==='conectado'?'':'<span class="badge b-warn">precisa conectar</span>')}
-    <div class="form-grid">
-      <div class="field"><label>Nome que aparece</label><input id="pfNome" placeholder="Micaela · Veloso Solution"></div>
-      <div class="field" style="grid-column:1/-1"><label>Recado <small>(o "status" do perfil)</small></label>
-        <input id="pfRecado" placeholder="Assistente virtual — atendo 24h, e chamo gente quando precisa"></div>
-      <div class="field" style="grid-column:1/-1"><label>Foto <small>(quadrada, JPG ou PNG)</small></label>
-        <input type="file" id="pfFoto" accept="image/png,image/jpeg"></div>
-      ${botao({t:'Aplicar no número',ic:'salvar',v:'p',on:'personalizarCanal()',off:est!=='conectado'})}
+    <div class="perfil-grid">
+      <div class="form-grid" style="align-content:start">
+        <div class="field" style="grid-column:1/-1"><label>Nome que aparece</label>
+          <input id="pfNome" placeholder="Micaela · Veloso Solution" oninput="previewPerfil()"></div>
+        <div class="field" style="grid-column:1/-1"><label>Recado <small>(o "status" do perfil)</small></label>
+          <input id="pfRecado" placeholder="Assistente virtual — atendo 24h, e chamo gente quando precisa" oninput="previewPerfil()"></div>
+        <div class="field" style="grid-column:1/-1"><label>Foto <small>(quadrada, JPG ou PNG, até 5 MB)</small></label>
+          <input type="file" id="pfFoto" accept="image/png,image/jpeg" onchange="previewPerfil()"></div>
+        ${botao({t:'Aplicar no número',ic:'salvar',v:'p',on:'personalizarCanal()',off:est!=='conectado'})}
+      </div>
+      <!-- Preview: e aqui que se descobre que o WhatsApp corta em CIRCULO, antes
+           de subir uma arte com texto nos cantos e ver metade sumir. -->
+      <div class="celular">
+        <div class="cel-topo">
+          <div class="cel-foto" id="pvFoto"></div>
+          <div class="cel-id"><b id="pvNome">Micaela</b><small id="pvRecado">online</small></div>
+        </div>
+        <div class="cel-conversa">
+          <div class="cel-bolha">Oi! Eu sou a Micaela, assistente virtual da Veloso Solution.</div>
+          <div class="cel-bolha cel-eu">oi</div>
+        </div>
+        <p class="hint" style="text-align:center;font-size:11px;margin-top:8px">é assim que ele vê no celular</p>
+      </div>
     </div>
     <p class="hint" style="margin-top:10px">${est==='conectado'
       ? 'Muda o perfil do número <b>de verdade</b>, como se você tivesse trocado pelo celular. Quem já conversou com você vê a foto nova.'
@@ -2808,8 +2947,8 @@ const S={
       :'<p class="hint">Nenhuma mensagem registrada ainda. O contador enche sozinho conforme as conversas acontecem.</p>'}</div>
   <div class="card" style="border-style:dashed">
     ${cardH('politica',`Por que o custo aparece como “—”`,`A Meta cobra por <b>conversa</b>, não por mensagem, e o preço muda com a categoria (atendimento, marketing, utilidade) e com o país. Estimar isso aqui seria inventar número: o valor real está na fatura deles.`,3)}
-    ${linha('Canal de saída',esc(w.provider||'log'),w.envia?'enviando':'não envia',w.envia?'b-ok':'b-warn')}
-    ${linha('Canal de entrada','webhook da Meta',w.envia?'depende da conta':'não existe','b-warn')}</div>`;
+    ${(()=>{const c=canalWhatsApp();return linha('Canal de saída',c.via||'nenhum',c.no_ar?'enviando':'não envia',c.no_ar?'b-ok':'b-warn')
+      +linha('Canal de entrada',c.oficial?'webhook da Meta':'sessão de WhatsApp Web',c.no_ar?'recebendo':'não recebe',c.no_ar?'b-ok':'b-warn');})()}</div>`;
  },
  /* Caixa de entrada. Aqui e chat: lista de quem esta esperando a esquerda,
     conversa a direita, e SO ISSO.
@@ -2877,6 +3016,30 @@ const S={
     </div>
   </div>`;
  },
+ /* Auditor de canal. Mesma trilha, recortada pelo canal que gerou o evento —
+    e por isso ele vive dentro de cada canal em vez de ser um item solto que
+    mistura WhatsApp, rede social e marketplace na mesma tabela. */
+ 'wa-auditor':()=>auditorDoCanal('whatsapp','WhatsApp · Auditor','Tudo que passou pelo WhatsApp: quem falou, quando, e por que o score deu o que deu.'),
+ 'redes-auditor':()=>auditorDoCanal('rede','Redes sociais · Auditor','O que entrou pelas redes sociais.'),
+ /* O que o contrato cobre e o que e adendo. Deixar isso escrito na tela evita a
+    conversa mais cara que existe: a de "eu achei que estava incluso". */
+ 'redes-planos':()=>{
+  const incluso=[['linkedin','LinkedIn'],['instagram','Instagram']];
+  const adendo=[['ifood','iFood'],['99','99'],['zedelivery','Zé Delivery'],['mercadolivre','Mercado Livre'],['shopee','Shopee']];
+  return head('Redes sociais · O que está incluso','Canal incluso no plano entra ligando. Canal de marketplace é adendo de contrato e cobrança à parte — não é configuração.')+
+  `<div class="card" style="margin-bottom:16px">
+    ${cardH('check','Inclusos no plano','Ligue quando quiser, sem falar com ninguém.',2,
+      `<span class="badge b-ok">${incluso.length} canais</span>`)}
+    ${incluso.map(([id,nome])=>linha(nome,'incluso no plano','disponível','b-ok')).join('')}
+  </div>
+  <div class="card">
+    ${cardH('financeiro','Marketplaces — adendo de contrato','Cada um tem integração e custo próprios. Pedir aqui abre a solicitação; ligar depende do aceite e do pagamento.',4,
+      `<span class="badge b-warn">${adendo.length} disponíveis</span>`)}
+    ${adendo.map(([id,nome])=>`<div class="stat-row"><div class="lbl">${esc(nome)}<small>adendo + cobrança à parte</small></div>
+      ${botao({t:'Solicitar',ic:'seta',v:'s',sz:'xs',on:`ir('pl-comprar')`})}</div>`).join('')}
+  </div>`;
+ },
+ 'qg-auditor':()=>auditorDoCanal('quebragalho','Quebra-Galho · Auditor','O que veio do marketplace.'),
  'wa-personalizar':()=>{
   const c=BOT?.config;
   if(!c) return head('WhatsApp · Personalizar','Nome, tom de voz e as mensagens do bot.')+
@@ -3075,7 +3238,17 @@ const S={
     ${linha('Arquivo','fonte de tudo acima',p.caminho,'')}</div>`;
  },
 };
-const TELAS={visao:telaVisao,crm:telaCrm,indicacao:telaIndicacao,whats:S['wa-atendimento'],plano:S['pl-consumo'],...S};
+/* Aliases: o menu novo tem itens que sao a MESMA tela vista de outro lugar.
+   Clicar no pai abre a primeira coisa util do grupo, nao uma tela em branco. */
+const TELAS={
+  visao:telaVisao, crm:telaCrm, indicacao:telaIndicacao,
+  whats:S['wa-atendimento'],
+  bot:S.bot, 'bot-regras':S.bot,
+  redes:S.redes, 'redes-canal':S.redes,
+  quebragalho:S.quebragalho, 'qg-painel':S.quebragalho,
+  plano:S['pl-consumo'],
+  ...S,
+};
 
 /* ---------- render ---------- */
 function renderNav(){
@@ -3100,7 +3273,12 @@ function render(){
   if(fluxo) fluxo.scrollTop=fluxo.scrollHeight;
   document.getElementById('pillLeads').textContent=ST.resumo.abertos+' lead(s) aberto(s)';
   const w=STATUS?.whatsapp||{};
-  document.getElementById('pillWa').innerHTML=`<span class="dot ${w.envia?'on':''}"></span> WhatsApp ${w.envia?'ativo':'inativo'}`;
+  /* O canal pode ser a API oficial da Meta OU a sessao de WhatsApp Web. Ler so
+     `w.envia` (que e a Meta) fazia a tarja dizer "inativo" com o WhatsApp Web
+     conectado e conversando — o pior tipo de mentira: a que desmente o que a
+     pessoa esta vendo acontecer. */
+  const wpp=canalWhatsApp();
+  document.getElementById('pillWa').innerHTML=`<span class="dot ${wpp.no_ar?'on':''}"></span> WhatsApp ${wpp.rotulo}`;
 }
 function ir(id){rota=id;if(PAI[id])abertos.add(PAI[id]);location.hash=id;toggleNav(false);render();scrollTo(0,0);}
 function toggleSub(id){abertos.has(id)?abertos.delete(id):abertos.add(id);renderNav();}
@@ -3650,6 +3828,39 @@ async function devolverAoBot(tel){
   if(!confirm('Devolver esta conversa pra Micaela? Ela volta a responder este número.')) return;
   try{ await api('atendimentos/devolver',{telefone:tel}); flash('Conversa devolvida pra Micaela.','ok'); await carregar(); }
   catch(e){ flash(e.message,'err'); }
+}
+
+/* Preview do perfil: mostra no formato do celular ANTES de aplicar. Foi olhando
+   isto que dava pra ver que arte com texto nos cantos perde metade no corte
+   circular do WhatsApp — descobrir isso depois de aplicar custa uma troca de
+   foto na frente do cliente. */
+function previewPerfil(){
+  const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
+  const nome=document.getElementById('pvNome');
+  const recado=document.getElementById('pvRecado');
+  if(nome) nome.textContent=v('pfNome')||'Micaela';
+  if(recado) recado.textContent=v('pfRecado')||'online';
+  const arq=(document.getElementById('pfFoto')||{}).files?.[0];
+  const foto=document.getElementById('pvFoto');
+  if(arq&&foto){
+    const r=new FileReader();
+    r.onload=()=>{ foto.style.backgroundImage=`url(${r.result})`; };
+    r.readAsDataURL(arq);
+  }
+}
+
+async function salvarCanalConfig(){
+  const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
+  return salvar({
+    titulo:'Salvar a configuração do canal',
+    campos:[{id:'cnNumero',rotulo:'Número previsto no contrato',
+      regra:(x)=>String(x).replace(/\D/g,'').length>=10,
+      mensagem:'Informe o número com DDD (e DDI, se tiver) — só dígitos bastam.'}],
+    rota:'canais/config',
+    corpo:()=>({numero:v('cnNumero').replace(/\D/g,''),apelido:v('cnApelido'),
+      setores:v('cnSetores').split('\n').map(x=>x.trim()).filter(Boolean)}),
+    sucesso:'Configuração do canal salva.',
+  });
 }
 
 async function personalizarCanal(){
