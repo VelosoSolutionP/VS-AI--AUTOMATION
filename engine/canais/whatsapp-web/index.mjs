@@ -76,6 +76,11 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
   let ultimaAtividade = null;
   let ultimoErro = null;
   let tentativas = 0;
+  /* Desligar e uma ORDEM, nao um acidente. Fechar a sessao faz a lib emitir o
+     mesmo evento de uma queda, e o reconector religava dois segundos depois —
+     contra a vontade de quem desligou. Este sinalizador e a diferenca entre
+     "caiu" e "o dono mandou parar". */
+  let intencional = false;
   let reconectando = null;  // timer
 
   const ouvintesMsg = [];
@@ -163,6 +168,9 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
   }
 
   async function conectar({ aoQr } = {}) {
+    /* Pedido explicito de conexao cancela o desligamento: quem mandou ligar
+       agora manda mais que quem mandou desligar antes. */
+    intencional = false;
     if (estado === ESTADOS.CONECTADO) { return status(); }
     mudar(ESTADOS.CONECTANDO);
     ultimoErro = null;
@@ -229,10 +237,13 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
 
       // Queda de sessão detectada pela própria lib.
       cliente.onStateChange?.((s) => {
-        if (['UNPAIRED', 'UNPAIRED_IDLE', 'CONFLICT'].includes(String(s))) {
-          mudar(ESTADOS.CAIDO);
-          agendarReconexao();
-        }
+        if (!['UNPAIRED', 'UNPAIRED_IDLE', 'CONFLICT'].includes(String(s))) { return; }
+        /* Desligado de proposito nao e queda. Marcar CAIDO aqui poria um erro
+           vermelho na tela por uma decisao do dono — e alguem "consertaria"
+           religando o que ele desligou. */
+        if (intencional) { return; }
+        mudar(ESTADOS.CAIDO);
+        agendarReconexao();
       });
 
       // Agora o cliente existe: da pra perguntar de verdade em vez de supor.
@@ -259,6 +270,10 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
    * motivo real da queda no meio de mil linhas de log.
    */
   function agendarReconexao() {
+    if (intencional) {
+      console.log('[whatsapp-web] desligado de proposito — nao vou reconectar sozinho');
+      return;
+    }
     if (reconectando || tentativas >= maxTentativas) {
       if (tentativas >= maxTentativas) {
         console.error(`[whatsapp-web] desisti de reconectar depois de ${tentativas} tentativas — precisa de gente`);
@@ -276,6 +291,9 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
   }
 
   async function desconectar() {
+    /* Marca ANTES de fechar: o `close()` dispara o evento de queda, e sem a
+       marca ja posta o reconector agendaria a volta no mesmo instante. */
+    intencional = true;
     if (reconectando) { clearTimeout(reconectando); reconectando = null; }
     tentativas = 0;
     try { await cliente?.close?.(); } catch (e) { console.warn('[whatsapp-web] erro ao fechar:', e.message); }

@@ -524,3 +524,44 @@ test('LID COM telefone resolvivel passa normal — o conserto nao pode calar que
   assert.equal(recebidas.length, 1);
   assert.equal(recebidas[0].de, '5531975127978');
 });
+
+/* ---- desligar e uma ORDEM ----
+
+   Bug de campo: o dono desativou o servico e, 44 segundos depois, a Micaela
+   atendeu um cliente real. Fechar a sessao faz a lib emitir o mesmo evento de
+   uma queda, e o reconector religava em dois segundos — contra a vontade de
+   quem desligou. Nao existe erro mais grave neste modulo: o produto operando
+   no numero de alguem que mandou parar. */
+
+test('desconectar NAO pode ser desfeito pelo reconector automatico', async () => {
+  const lib = libFalsa();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+  assert.equal(p.status().estado, ESTADOS.CONECTADO);
+
+  await p.desconectar();
+  // A lib avisa a queda DEPOIS do close — foi assim que ele religava sozinho.
+  lib.cbs.onStateChange?.('UNPAIRED');
+  await new Promise((r) => setTimeout(r, 40));
+
+  assert.equal(p.status().estado, ESTADOS.DESCONECTADO, 'desligado tem de continuar desligado');
+});
+
+test('mandar conectar DEPOIS de desligar volta a valer — a ultima ordem manda', async () => {
+  const lib = libFalsa();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+  await p.desconectar();
+  await p.conectar();
+  assert.equal(p.status().estado, ESTADOS.CONECTADO);
+});
+
+test('queda de verdade continua reconectando — o conserto nao pode matar a recuperacao', async () => {
+  const lib = libFalsa();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar, maxTentativas: 1 });
+  await p.conectar();
+  lib.cbs.onStateChange?.('CONFLICT');
+  assert.equal(p.status().estado, ESTADOS.CAIDO, 'caiu sozinho: aqui o reconector TEM de agir');
+  await new Promise((r) => setTimeout(r, 2200));
+  assert.equal(p.status().estado, ESTADOS.CONECTADO, 'voltou sozinho');
+});
