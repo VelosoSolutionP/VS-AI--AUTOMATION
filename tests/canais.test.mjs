@@ -687,3 +687,54 @@ test('a enxurrada inteira da reconexao e barrada de uma vez', async () => {
   }
   assert.equal(recebidas.length, 0, '16 respostas num segundo e spam, nao atendimento');
 });
+
+/* ---- mensagem sem id ----
+
+   Incidente em campo, no teste do proprio cliente com um amigo: as mensagens
+   CHEGARAM, o telefone foi resolvido, e o log parou ali. Nenhum "chegou de",
+   nenhuma resposta. O WhatsApp entregou as mensagens SEM o campo `id` — visto
+   com audio e com encaminhada — e o gateway descartava calado toda mensagem
+   sem id, porque usava ele pra evitar responder duas vezes.
+
+   Cliente ignorado por falta de um numero de controle NOSSO e o pior tipo de
+   silencio: ele escreveu, chegou, e ninguem respondeu. */
+
+test('mensagem SEM id ainda vira atendimento', async () => {
+  const lib = libFalsa();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+  const recebidas = [];
+  p.aoReceber((m) => recebidas.push(m));
+
+  await lib.cbs.onMessage({ from: '5531977776666@c.us', t: Math.floor(Date.now() / 1000),
+    body: 'meu boleto venceu', type: 'chat' });
+
+  assert.equal(recebidas.length, 1, 'faltou um campo NOSSO, nao a mensagem do cliente');
+  assert.ok(recebidas[0].id, 'tem de sair com alguma identidade');
+});
+
+test('a chave inventada REPETE para a mesma mensagem — reentrega nao vira resposta dobrada', async () => {
+  const { chaveSintetica } = await import('../engine/canais/whatsapp-web/normalizar.mjs');
+  const m = { from: '5531977776666@c.us', t: 1790000000, body: 'oi', type: 'chat' };
+  assert.equal(chaveSintetica(m), chaveSintetica({ ...m }));
+});
+
+test('mensagens diferentes geram chaves diferentes', async () => {
+  const { chaveSintetica } = await import('../engine/canais/whatsapp-web/normalizar.mjs');
+  const base = { from: '5531977776666@c.us', t: 1790000000, type: 'chat' };
+  assert.notEqual(chaveSintetica({ ...base, body: 'oi' }), chaveSintetica({ ...base, body: 'tchau' }));
+  assert.notEqual(chaveSintetica({ ...base, body: 'oi' }), chaveSintetica({ ...base, body: 'oi', t: 1790000001 }));
+  assert.notEqual(chaveSintetica({ ...base, body: 'oi' }), chaveSintetica({ ...base, body: 'oi', from: '5531900000000@c.us' }));
+});
+
+test('audio sem id e sem corpo tambem passa — e o caso que apareceu em campo', async () => {
+  const lib = libFalsa();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+  const recebidas = [];
+  p.aoReceber((m) => recebidas.push(m));
+
+  await lib.cbs.onMessage({ from: '5531977776666@c.us', t: Math.floor(Date.now() / 1000), type: 'ptt' });
+  assert.equal(recebidas.length, 1);
+  assert.equal(recebidas[0].tipo, 'audio');
+});

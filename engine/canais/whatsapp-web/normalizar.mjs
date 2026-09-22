@@ -71,11 +71,35 @@ export function pareceTelefone(d) {
  * "quanto custa esse?" escreveu uma pergunta, e ignorá-la seria jogar fora a
  * única parte que o bot consegue responder.
  */
+/**
+ * Identidade de uma mensagem sem id: de quem, quando e o que veio.
+ *
+ * Nao e aleatoria — precisa repetir para a MESMA mensagem, senao a reentrega
+ * do WhatsApp viraria atendimento em dobro.
+ */
+export function chaveSintetica(m = {}) {
+  const de = String(m.from || m.chatId?._serialized || m.chatId || '?');
+  const quando = String(m.t || m.timestamp || '0');
+  const corpo = String(m.body || m.caption || m.type || '');
+  let h = 0;
+  for (let i = 0; i < corpo.length; i += 1) { h = ((h * 31) + corpo.charCodeAt(i)) | 0; }
+  return `sem-id:${de}:${quando}:${(h >>> 0).toString(36)}`;
+}
+
 export function normalizar(m, canal = 'whatsapp-web') {
   const tipo = TIPOS[m.type] || 'outro';
   const texto = m.type === 'chat' ? (m.body || '') : (m.caption || '');
   return mensagem({
-    id: m.id?.id || m.id || '',
+    /* O id e so pra nao responder duas vezes a MESMA mensagem. Quando o
+       WhatsApp nao manda um — e ele as vezes nao manda, visto em producao com
+       audio e com mensagem encaminhada — o codigo descartava a mensagem
+       inteira, calado. Cliente ignorado por falta de um numero de controle
+       NOSSO e o pior tipo de silencio: ele escreveu, chegou, e ninguem
+       respondeu.
+
+       Entao a gente monta um. Deterministico de proposito: a mesma mensagem
+       reentregue gera a mesma chave e continua sendo barrada como duplicata. */
+    id: m.id?.id || m.id || chaveSintetica(m),
     de: soDigitos(m.from),
     /* O jid cru, do jeito que o WhatsApp mandou — e pra ELE que se responde.
        Pode ser telefone@c.us ou LID@lid; o canal nao precisa saber qual, so

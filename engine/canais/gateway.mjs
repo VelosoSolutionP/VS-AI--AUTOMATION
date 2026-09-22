@@ -43,7 +43,12 @@ export function criarGateway({ entregar, reservar } = {}) {
 
     provider.aoReceber(async (msg) => {
       const chave = `${provider.nome}:${msg.id}`;
-      if (!msg.id || jaVi(chave)) { return; }
+      /* Sem id NAO se descarta mais — o provider monta uma chave a partir do
+         proprio conteudo. Se nem isso vier, avisa alto: silencio aqui e cliente
+         escrevendo e ninguem respondendo. */
+      if (!msg.id) {
+        console.error(`[gateway] mensagem de ${msg.de || '?'} sem identificador — nao da pra garantir que nao vira resposta em dobro, atendendo mesmo assim`);
+      } else if (jaVi(chave)) { return; }
       try {
         const r = await entregar(msg, { canal: provider.nome, responder: (texto) => provider.enviarTexto({ para: msg.endereco || msg.de, texto }) });
         // O domínio pode devolver um texto pra responder. Se não devolver, tudo
