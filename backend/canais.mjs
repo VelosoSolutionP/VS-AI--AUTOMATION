@@ -369,6 +369,9 @@ export function perfilAnterior() {
 export async function restaurarPerfil({ canal = 'whatsapp-web' } = {}) {
   const a = lerConfig().perfilAnterior;
   if (!a) { return { ok: false, erro: 'não tenho a cara anterior guardada — ela só é salva na primeira vez que o painel troca o perfil' }; }
+  if (!a.foto && !a.nome && !a.recado) {
+    return { ok: false, erro: 'a cara anterior foi guardada vazia — não tenho o que devolver. Troque a foto pelo celular.' };
+  }
   if (!gateway) { return { ok: false, erro: 'nenhum canal conectado' }; }
   const p = gateway.obter(canal);
   if (!p) { return { ok: false, erro: `canal "${canal}" não existe` }; }

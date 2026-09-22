@@ -391,12 +391,31 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     if (estado !== ESTADOS.CONECTADO || !cliente) { return null; }
     const wid = numero ? `${numero}@c.us` : await cliente.getWid?.().catch(() => null);
     const pegar = async (fn) => { try { return await fn(); } catch { return null; } };
+    const bruta = await pegar(() => cliente.getProfilePicFromServer?.(wid));
     return {
-      foto: await pegar(() => cliente.getProfilePicFromServer?.(wid)),
+      /* A lib devolve a foto como OBJETO com a url ({eurl}), e `setProfilePic`
+         so aceita imagem. Guardar do jeito que veio daria um backup que nao
+         restaura — descoberto antes de doer, mas so porque o log mostrou
+         "restaurado: nada". Entao baixamos a imagem e guardamos os BYTES: a url
+         da Meta expira, e backup que expira nao e backup. */
+      foto: await baixarComoDataUri(bruta?.eurl || bruta?.imgFull || bruta),
       nome: await pegar(() => cliente.getProfileName?.()),
       recado: await pegar(() => cliente.getProfileStatus?.()),
       em: agora(),
     };
+  }
+
+  /** URL da foto -> data URI. Devolve null se nao der: backup e complemento. */
+  async function baixarComoDataUri(url) {
+    const u = String(url || '');
+    if (!u.startsWith('http')) { return u || null; }
+    try {
+      const res = await fetch(u);
+      if (!res.ok) { return null; }
+      const tipo = res.headers.get('content-type') || 'image/jpeg';
+      const b64 = Buffer.from(await res.arrayBuffer()).toString('base64');
+      return `data:${tipo};base64,${b64}`;
+    } catch { return null; }
   }
 
   async function personalizar({ foto, nome, recado } = {}) {

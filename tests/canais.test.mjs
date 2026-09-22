@@ -756,7 +756,10 @@ test('audio sem id e sem corpo tambem passa — e o caso que apareceu em campo',
 function libComPerfil({ conectaDireto = true } = {}) {
   const espiao = libFalsa({ conectaDireto });
   const criarBase = espiao.criar;
-  espiao.perfil = { foto: 'https://exemplo/foto-antiga.jpg', nome: 'Fabiano', recado: 'no ar' };
+  /* Data URI de proposito: depois que o backup passou a guardar BYTES, url
+     crua nao e mais o que sai de la — e o duble tem de refletir a realidade,
+     senao trava um comportamento que nao existe mais. */
+  espiao.perfil = { foto: 'data:image/jpeg;base64,FOTOANTIGA', nome: 'Fabiano', recado: 'no ar' };
   espiao.criar = async (cfg) => {
     const c = await criarBase(cfg);
     c.getProfilePicFromServer = async () => espiao.perfil.foto;
@@ -778,7 +781,7 @@ test('personalizar devolve a cara ANTERIOR junto — e o que permite voltar', as
   const r = await p.personalizar({ foto: 'data:image/jpeg;base64,MICAELA', nome: 'Micaela' });
   assert.equal(r.ok, true);
   assert.equal(r.completo, true, 'tudo entrou');
-  assert.equal(r.anterior.foto, 'https://exemplo/foto-antiga.jpg');
+  assert.equal(r.anterior.foto, 'data:image/jpeg;base64,FOTOANTIGA');
   assert.equal(r.anterior.nome, 'Fabiano');
   assert.equal(lib.perfil.nome, 'Micaela', 'e a troca aconteceu de verdade');
 });
@@ -806,7 +809,7 @@ test('restaurar devolve exatamente o que estava guardado', async () => {
 
   await p.personalizar({ foto: r.anterior.foto, nome: r.anterior.nome, recado: r.anterior.recado });
   assert.equal(lib.perfil.nome, 'Fabiano');
-  assert.equal(lib.perfil.foto, 'https://exemplo/foto-antiga.jpg');
+  assert.equal(lib.perfil.foto, 'data:image/jpeg;base64,FOTOANTIGA');
   assert.equal(lib.perfil.recado, 'no ar');
 });
 
@@ -847,4 +850,49 @@ test('quando NADA entra, ok e false de verdade', async () => {
   const r = await p.personalizar({ foto: 'data:image/jpeg;base64,X' });
   assert.equal(r.ok, false);
   assert.equal(r.completo, false);
+});
+
+test('a foto do backup e guardada como IMAGEM, nao como url', async () => {
+  const lib = libComPerfil();
+  const criarBase = lib.criar;
+  lib.criar = async (cfg) => {
+    const c = await criarBase(cfg);
+    // E assim que a lib devolve de verdade: um objeto com a url.
+    c.getProfilePicFromServer = async () => ({ eurl: 'https://pps.whatsapp.net/v/t61/foto.jpg' });
+    return c;
+  };
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+
+  const antesFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: true,
+    headers: { get: () => 'image/jpeg' },
+    arrayBuffer: async () => new TextEncoder().encode('BYTESDAFOTO').buffer,
+  });
+  try {
+    const r = await p.personalizar({ nome: 'Micaela' });
+    assert.match(r.anterior.foto, /^data:image\/jpeg;base64,/,
+      'guardar a url daria um backup que nao restaura — e a url da Meta ainda expira');
+  } finally { globalThis.fetch = antesFetch; }
+});
+
+test('se a foto nao baixar, o backup guarda o resto em vez de nada', async () => {
+  const lib = libComPerfil();
+  const criarBase = lib.criar;
+  lib.criar = async (cfg) => {
+    const c = await criarBase(cfg);
+    c.getProfilePicFromServer = async () => ({ eurl: 'https://pps.whatsapp.net/v/t61/foto.jpg' });
+    return c;
+  };
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+
+  const antesFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error('rede caiu'); };
+  try {
+    const r = await p.personalizar({ nome: 'Micaela' });
+    assert.equal(r.anterior.foto, null);
+    assert.equal(r.anterior.nome, 'Fabiano', 'nome e recado continuam salvos');
+  } finally { globalThis.fetch = antesFetch; }
 });

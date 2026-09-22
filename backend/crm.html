@@ -4602,7 +4602,11 @@ function restaurarPerfil(){
     consequencia:'A cara da Micaela sai do ar para todos os contatos.',
     rotulo:'Voltar a anterior', icone:'atualizar', perigo:false,
     aoConfirmar:async()=>{
-      const r=await api('canais/restaurar-perfil',{canal:'whatsapp-web'});
+      /* A tela pode estar velha: o canal cai sozinho e o dado da tela e o do
+         ultimo carregamento. Em campo apareceu como "erro diz desconectado, tela
+         diz conectado" — e a tela e que estava mentindo. Recarrega ANTES, pra a
+         pessoa ver o estado de agora junto com o erro. */
+      const r=await api('canais/restaurar-perfil',{canal:'whatsapp-web'}).catch(async(e)=>{ await carregar(); throw e; });
       const ok=(r.feito||[]).join(', ');
       if(r.falhas&&r.falhas.length){
         avisoErro('Voltou pela metade',`Devolvido: ${ok||'nada'}.`,r.falhas);
