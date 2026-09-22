@@ -303,9 +303,9 @@ a.btn{text-decoration:none}
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:13px;align-items:end}
 .form-grid > .btn{justify-self:start;align-self:end}
 .field label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:6px;font-weight:650}
-.msg{padding:12px 15px;border-radius:var(--r-sm);margin-bottom:16px;font-size:13px;display:none;font-weight:550;box-shadow:var(--sh-1)}
-.msg.err{display:block;background:var(--err-bg);border:1px solid var(--err-line);color:var(--err)}
-.msg.ok{display:block;background:var(--ok-bg);border:1px solid var(--ok-line);color:var(--ok)}
+/* A barra de aviso do topo saiu: era um tarjao sem vida que empurrava a tela
+   pra baixo e ficava longe de onde a pessoa clicou. Confirmacao agora e modal
+   (quando exige leitura) ou toast (quando e so um "pronto"). */
 .overlay{display:none;position:fixed;inset:0;background:rgba(10,10,16,.45);backdrop-filter:blur(2px);z-index:29}
 
 /* ── Tabela ────────────────────────────────────────────────────────────── */
@@ -678,7 +678,7 @@ body.sem-nav main,body.sem-nav .main{margin-left:0!important}
       <div class="crumb" id="crumb"></div>
       <div class="top-right"><span class="pill" id="pillLeads">—</span><span class="pill" id="pillWa">—</span></div>
     </div>
-    <div class="content"><div class="msg" id="msg"></div><div id="view"></div></div>
+    <div class="content"><div id="view"></div></div>
   </main>
 </div>
 
@@ -825,11 +825,7 @@ const brl=(v)=>v==null?'—':v.toLocaleString('pt-BR',{style:'currency',currency
    escrevia no topo do conteudo: quem clicava num botao no fim de uma tela longa
    (importar fluxo, por exemplo) nao via resposta nenhuma e ficava sem saber se
    a operacao deu certo. Agora vai tambem num aviso flutuante. */
-function flash(t,tipo,segundos){
-  const m=document.getElementById('msg');
-  if(m){ m.className='msg '+tipo; m.textContent=t; if(tipo==='ok') setTimeout(()=>m.className='msg',3200); }
-  toast(t,tipo,segundos);
-}
+function flash(t,tipo,segundos){ toast(t,tipo,segundos); }
 function toast(t,tipo,segundos){
   let c=document.getElementById('toasts');
   if(!c){ c=document.createElement('div'); c.id='toasts'; c.className='toasts'; document.body.appendChild(c); }
@@ -1119,43 +1115,43 @@ async function descobrirLojaTiktok(){
        <ul class="notas">${lojas.map(l=>`<li><button class="btn btn-s" style="margin:2px"
          onclick="fecharModal();escolherLojaTiktok('${esc(l.cipher)}','${esc(l.id||'')}','${esc(l.name||'')}')">${esc(l.name||l.id)}</button></li>`).join('')}</ul>`,
       `<button class="btn btn-g" onclick="fecharModal()">Agora não</button>`);
-  }catch(e){ flash(e.message,'err'); }
+  }catch(e){ avisoErro('Não consegui concluir',e.message); }
 }
 async function escolherLojaTiktok(cipher,id,nome){
   try{ await api('tiktok/loja-ativa',{cipher,id,nome}); flash(`Loja "${nome}" selecionada.`,'ok'); await carregarTiktokLoja(); }
-  catch(e){ flash(e.message,'err'); }
+  catch(e){ avisoErro('Não consegui concluir',e.message); }
 }
 
 async function escolherCategoriaTiktok(){
   try{
     const r=await api('tiktok/categorias',{});
     const lista=(r.dados?.categories||r.categorias||[]).filter(c=>c.is_leaf!==false).slice(0,60);
-    if(!lista.length){ flash('A TikTok não devolveu categorias para esta loja.','err'); return; }
+    if(!lista.length){ avisoErro('Não consegui concluir','A TikTok não devolveu categorias para esta loja.'); return; }
     abrirModal('Categoria dos produtos enviados daqui',
       `<p class="hint" style="margin-bottom:12px">A TikTok exige categoria em todo produto. Escolha a que mais se
         aproxima do que você vende — dá pra trocar depois.</p>
        <ul class="notas">${lista.map(c=>`<li><button class="btn btn-s" style="margin:2px"
          onclick="fecharModal();salvarPadraoTiktok({categoriaId:'${esc(c.id)}',categoriaNome:'${esc(c.local_name||c.name||c.id)}'})">${esc(c.local_name||c.name||c.id)}</button></li>`).join('')}</ul>`,
       `<button class="btn btn-g" onclick="fecharModal()">Agora não</button>`);
-  }catch(e){ flash(e.message,'err'); }
+  }catch(e){ avisoErro('Não consegui concluir',e.message); }
 }
 
 async function escolherArmazemTiktok(){
   try{
     const r=await api('tiktok/armazens',{});
     const lista=r.dados?.warehouses||r.armazens||[];
-    if(!lista.length){ flash('Nenhum armazém cadastrado na sua loja do TikTok.','err'); return; }
+    if(!lista.length){ avisoErro('Não consegui concluir','Nenhum armazém cadastrado na sua loja do TikTok.'); return; }
     abrirModal('De qual armazém sai o estoque?',
       `<p class="hint" style="margin-bottom:12px">É o endereço que a TikTok usa para calcular frete e prazo.</p>
        <ul class="notas">${lista.map(w=>`<li><button class="btn btn-s" style="margin:2px"
          onclick="fecharModal();salvarPadraoTiktok({armazemId:'${esc(w.id)}',armazemNome:'${esc(w.name||w.id)}'})">${esc(w.name||w.id)}</button></li>`).join('')}</ul>`,
       `<button class="btn btn-g" onclick="fecharModal()">Agora não</button>`);
-  }catch(e){ flash(e.message,'err'); }
+  }catch(e){ avisoErro('Não consegui concluir',e.message); }
 }
 
 async function salvarPadraoTiktok(d){
   try{ await api('tiktok/padroes',d); flash('Pronto, guardado.','ok'); await carregarTiktokLoja(); }
-  catch(e){ flash(e.message,'err'); }
+  catch(e){ avisoErro('Não consegui concluir',e.message); }
 }
 
 async function publicarProdutoTiktok(sku){
@@ -1194,11 +1190,11 @@ async function descobrirAnuncianteTiktok(){
        <ul class="notas">${contas.map(c=>`<li><button class="btn btn-s" style="margin:2px"
          onclick="fecharModal();escolherAnuncianteTiktok('${esc(c.advertiser_id)}','${esc(c.advertiser_name||'')}')">${esc(c.advertiser_name||c.advertiser_id)}</button></li>`).join('')}</ul>`,
       `<button class="btn btn-g" onclick="fecharModal()">Agora não</button>`);
-  }catch(e){ flash(e.message,'err'); }
+  }catch(e){ avisoErro('Não consegui concluir',e.message); }
 }
 async function escolherAnuncianteTiktok(id,nome){
   try{ await api('tiktok/anunciante-ativo',{id,nome}); flash(`Conta "${nome}" selecionada.`,'ok'); await carregarTiktokAds(); }
-  catch(e){ flash(e.message,'err'); }
+  catch(e){ avisoErro('Não consegui concluir',e.message); }
 }
 
 function criarCampanhaTiktok(){
@@ -1220,7 +1216,7 @@ function criarCampanhaTiktok(){
 async function publicarNoTiktok(){
   const arq=(document.getElementById('tkVideo')||{}).files?.[0];
   const alvo=document.getElementById('tkPubResultado');
-  if(!arq) return flash('Escolha o arquivo de vídeo.','err');
+  if(!arq) return avisoErro('Não consegui concluir','Escolha o arquivo de vídeo.');
   const titulo=(document.getElementById('tkTitulo')||{}).value?.trim()||'';
   const priv=(document.getElementById('tkPriv')||{}).value||'SELF_ONLY';
   alvo.innerHTML='<p class="hint">Enviando o arquivo…</p>';
@@ -1241,34 +1237,34 @@ async function publicarNoTiktok(){
       ${(r.avisos||[]).map(a=>`<p class="hint">⚠ ${esc(a)}</p>`).join('')}
       ${r.publishId?`<button class="btn btn-s" onclick="verStatusTiktok('${esc(r.publishId)}')">${ico('ver')}Ver situação</button>`:''}</div>`;
     flash('Vídeo enviado. A TikTok processa em alguns segundos.','ok');
-  }catch(e){ alvo.innerHTML=''; flash(e.message,'err'); }
+  }catch(e){ alvo.innerHTML=''; avisoErro('Não consegui concluir',e.message); }
 }
 
 async function verStatusTiktok(id){
   try{
     const r=await api('tiktok/publicacao?id='+encodeURIComponent(id));
     flash('Situação: '+(r.dados?.status||r.motivo||'sem resposta'), r.ok?'ok':'err');
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 
 async function salvarBaseRedirect(){
   const base=(document.getElementById('tkBase')||{}).value?.trim()||'';
   try{
     const r=await api('tiktok/redirect-base',{base});
-    if(r.ok===false) return flash(r.motivo,'err');
+    if(r.ok===false) return avisoErro('Não consegui concluir',r.motivo);
     await carregar();
     flash('Pronto. Use as URLs de retorno novas no painel da TikTok.','ok');
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 
 async function salvarVerificacaoTiktok(limpar){
   const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
   try{
     const r=await api('tiktok/verificacao',limpar?{limpar:true}:{arquivo:v('tk-verif-arq'),conteudo:v('tk-verif-txt')});
-    if(r.ok===false) return flash(r.motivo,'err');
+    if(r.ok===false) return avisoErro('Não consegui concluir',r.motivo);
     flash(limpar?'Arquivo tirado do ar.':'Arquivo publicado. Agora clique em Verificar no painel da TikTok.','ok');
     carregar();
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 
 async function salvarAppTiktok(familia,campos){
@@ -1278,7 +1274,7 @@ async function salvarAppTiktok(familia,campos){
     await api('tiktok/app',{familia,cred});
     flash('Credenciais salvas. Agora clique em "Conectar conta".','ok');
     carregar();
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 
 async function autorizarTiktok(familia){
@@ -1290,7 +1286,7 @@ async function autorizarTiktok(familia){
     // Abre a tela de consentimento da rede. A volta cai no /oauth/callback deste painel.
     window.open(r.url,'_blank','noopener');
     flash('Abri a autorização do TikTok em outra aba. Ao voltar, recarregue esta tela.','ok');
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 /* Valor digitado por gente: "R$ 1.299,90", "1299,90", "1299.90". O que NAO pode
    e virar 0 calado — cobranca de zero passa reto e so aparece no extrato. */
@@ -1310,9 +1306,9 @@ async function salvarPagamentos(){
   if(v('pgToken')) m.webhookToken=v('pgToken');
   try{
     const r=await api('pagamentos/config',m);
-    if(r.erros?.length) return flash(r.erros.join(' · '),'err');
+    if(r.erros?.length) return avisoErro('Não consegui concluir',r.erros.join(' · '));
     flash('Integração salva.','ok'); carregar();
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 
 function novaCobranca(){
@@ -1338,7 +1334,7 @@ function novaCobranca(){
    no extrato por causa de tela. */
 function verPix(id){
   const c=(PAG?.pagamentos||[]).find(x=>x.id===id);
-  if(!c?.pix?.payload) return flash('Essa cobrança não tem Pix guardado.','err');
+  if(!c?.pix?.payload) return avisoErro('Não consegui concluir','Essa cobrança não tem Pix guardado.');
   abrirModal('Pix — '+(c.referencia||c.id),
     `${linha('Valor','',brl(c.valorCentavos/100),'b-ok')}
      <div style="margin-top:14px;display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
@@ -1355,7 +1351,7 @@ function verPix(id){
 async function cobrarAgora(){
   const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
   const centavos=centavosDe(v('pgValor'));
-  if(!centavos) return flash('Informe um valor maior que zero.','err');
+  if(!centavos) return avisoErro('Não consegui concluir','Informe um valor maior que zero.');
   const alvo=document.getElementById('modalB');
   alvo.innerHTML='<p class="hint">Emitindo no Asaas…</p>';
   document.getElementById('modalF').innerHTML='';
@@ -1381,7 +1377,7 @@ async function cobrarAgora(){
   }catch(e){
     // Volta o formulario com o que foi digitado: perder os dados por causa de um
     // erro de rede obriga a redigitar CPF e valor, e ai a pessoa erra.
-    flash(e.message,'err');
+    avisoErro('Não consegui concluir',e.message);
     fecharModal();
   }
 }
@@ -1503,13 +1499,13 @@ function lerFormProduto(){
 
 async function salvarProduto(){
   const d=lerFormProduto();
-  if(!d.nome) return flash('O nome é obrigatório.','err');
-  if(!EDITANDO&&!d.preco) return flash('O preço é obrigatório.','err');
+  if(!d.nome) return avisoErro('Não consegui concluir','O nome é obrigatório.');
+  if(!EDITANDO&&!d.preco) return avisoErro('Não consegui concluir','O preço é obrigatório.');
   try{
     const r=EDITANDO
       ? await api('estoque/editar',{sku:EDITANDO,mudancas:d})
       : await api('estoque/produto',d);
-    if(r.erros?.length) return flash(r.erros.join(' · '),'err');
+    if(r.erros?.length) return avisoErro('Não consegui concluir',r.erros.join(' · '));
     const feito=EDITANDO?'Produto atualizado.':'Produto cadastrado.';
     EDITANDO=null;
     fecharModal();
@@ -1518,7 +1514,7 @@ async function salvarProduto(){
     await carregar();
     flash(feito,'ok');
     mostrarPendencias(r.produto||{nome:d.nome},r.avisos||[]);
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 
 
@@ -1540,6 +1536,60 @@ function abrirModal(titulo,corpo,rodape){
     if(document.getElementById('eFotos')) pintarFotos();
   },60);
 }
+/* ---------------------------------------------------------------------------
+   Modais padrao. UM lugar decide como o sistema fala com quem clicou.
+
+   Antes cada tela inventava o seu: umas usavam a barra do topo (que saiu),
+   outras um toast de canto, e as que perguntavam "tem certeza?" usavam o
+   `confirm()` do navegador — aquela caixinha cinza do sistema operacional, sem
+   icone, sem cor, com botao escrito "OK". Num painel que se vende como premium,
+   o `confirm()` e a parte mais barata da tela, e aparece justamente na hora
+   mais tensa: a de apagar.
+   --------------------------------------------------------------------------- */
+
+const BT = {
+  /** Botao de fechar, que e o que a maioria dos avisos precisa. */
+  fechar: (rot = 'Entendi') => `<button class="btn btn-p" onclick="fecharModal()">${ico('check')}<span>${esc(rot)}</span></button>`,
+  cancelar: (rot = 'Cancelar') => `<button class="btn btn-g" onclick="fecharModal()">${ico('fechar')}<span>${esc(rot)}</span></button>`,
+};
+
+/** Deu certo. Curto, com o que foi feito escrito de forma conferivel. */
+function avisoOk(titulo, corpo) {
+  abrirModal(titulo, `<p class="hint">${corpo || 'Pronto, feito.'}</p>`, BT.fechar());
+}
+
+/**
+ * Nao deu. Erro NAO vira toast: some em quatro segundos e some junto a chance
+ * de a pessoa ler o motivo. Fica na tela ate ela fechar.
+ */
+function avisoErro(titulo, corpo, motivos) {
+  const lista = (motivos || []).filter(Boolean);
+  abrirModal(titulo || 'Não consegui fazer isso',
+    `<p class="hint"${lista.length ? ' style="margin-bottom:12px"' : ''}>${corpo || 'O servidor recusou a operação.'}</p>`
+    + (lista.length ? `<ul class="notas">${lista.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>` : ''),
+    BT.fechar());
+}
+
+/**
+ * Pergunta antes de fazer algo que nao volta.
+ *
+ * O texto diz O QUE acontece, nao "tem certeza?" — "tem certeza" nao informa
+ * nada e vira reflexo de clicar em sim. E o botao perigoso NAO e o primeiro:
+ * quem chega com o dedo pronto acerta o Cancelar.
+ */
+function confirmar({ titulo, texto, consequencia, rotulo = 'Excluir', icone = 'excluir', perigo = true, aoConfirmar }) {
+  const id = 'cfm' + Math.random().toString(36).slice(2, 9);
+  window[id] = async () => {
+    fecharModal();
+    try { await aoConfirmar(); } catch (e) { avisoErro('Não consegui concluir', e.message); }
+    delete window[id];
+  };
+  abrirModal(titulo,
+    `<p class="hint" style="margin-bottom:${consequencia ? '10' : '0'}px">${texto}</p>`
+    + (consequencia ? `<p class="hint" style="color:var(--err);font-weight:600">${consequencia}</p>` : ''),
+    BT.cancelar() + `<button class="btn ${perigo ? 'btn-d' : 'btn-p'}" onclick="window['${id}']()">${ico(icone)}<span>${esc(rotulo)}</span></button>`);
+}
+
 function fecharModal(){
   document.getElementById('modalBg').classList.remove('show');
   document.body.style.overflow='';
@@ -1641,7 +1691,7 @@ function removerFoto(i){
 function colarUrlFoto(){
   const u=prompt('Cole o endereço da imagem (https://...)');
   if(!u) return;
-  if(!/^https?:\/\//i.test(u.trim())) return flash('O endereço precisa começar com http:// ou https://','err');
+  if(!/^https?:\/\//i.test(u.trim())) return avisoErro('Não consegui concluir','O endereço precisa começar com http:// ou https://');
   definirFotos([...fotosAtuais(),u.trim()]);
 }
 
@@ -1684,7 +1734,7 @@ async function editarProduto(sku){
     abrirModal('Editar '+r.produto.sku,formProduto(r.produto),
       `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Cancelar</button>
        <button class="btn btn-p" onclick="salvarProduto()">${ico('salvar')}Salvar alterações</button>`);
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 
 async function verProduto(sku){
@@ -1713,20 +1763,27 @@ async function verProduto(sku){
         :'<p class="hint" style="margin-top:12px">Sem movimento registrado.</p>'}`,
       `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Fechar</button>
        <button class="btn btn-p" onclick="editarProduto('${esc(p.sku)}')">${ico('editar')}Editar</button>`);
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 
 async function excluirProduto(sku,nome){
   // Confirmação com o NOME, não só o código: sku é parecido entre si e apagar o
   // produto errado só aparece quando o feed sai sem ele.
-  if(!confirm(`Excluir "${nome}" (${sku})?\n\nIsso apaga o produto e o histórico de movimento dele. Não dá pra desfazer.\n\nSe for só tirar da loja, use "tirar" em vez de excluir.`)) return;
-  try{
-    const r=await api('estoque/excluir',{sku});
-    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
-    flash('Produto excluído.','ok');
-    if(EDITANDO===sku){EDITANDO=null;fecharModal();}
-    carregar();
-  }catch(e){flash(e.message,'err');}
+  return confirmar({
+    titulo:'Excluir este produto?',
+    texto:`Vou apagar <b>${esc(nome)}</b> (<code>${esc(sku)}</code>) do estoque.`,
+    consequencia:'O histórico de movimento dele vai junto. Não dá pra desfazer — se for só tirar de venda, desative em vez de excluir.',
+    rotulo:'Excluir produto', icone:'excluir', perigo:true,
+    aoConfirmar:async()=>{
+      try{
+        const r=await api('estoque/excluir',{sku});
+        if(r.erros?.length||r.ok===false) return avisoErro('Não consegui concluir',r.erros?.join(' · ')||r.motivo);
+        flash('Produto excluído.','ok');
+        if(EDITANDO===sku){EDITANDO=null;fecharModal();}
+        carregar();
+      }catch(e){avisoErro('Não consegui concluir',e.message);}
+    },
+  });
 }
 
 
@@ -1746,13 +1803,13 @@ async function comprarProduto(sku,nome){
 async function confirmarCompra(sku){
   const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
   const q=Number(v('cQtd'));
-  if(!Number.isInteger(q)||q<=0) return flash('Informe uma quantidade maior que zero.','err');
+  if(!Number.isInteger(q)||q<=0) return avisoErro('Não consegui concluir','Informe uma quantidade maior que zero.');
   try{
     const r=await api('estoque/comprar',{sku,quantidade:q,fornecedor:v('cForn'),nota:v('cNota')});
-    if(r.ok===false) return flash(r.erro||r.motivo,'err');
+    if(r.ok===false) return avisoErro('Não consegui concluir',r.erro||r.motivo);
     fecharModal(); await carregar();
     flash(`Entrada de ${q} registrada.`,'ok');
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 
 function abrirExportar(){
@@ -1781,13 +1838,13 @@ function abrirImportar(){
 
 async function importarProdutos(){
   const txt=(document.getElementById('impTxt')||{}).value?.trim()||'';
-  if(!txt) return flash('Cole o conteúdo primeiro.','err');
+  if(!txt) return avisoErro('Não consegui concluir','Cole o conteúdo primeiro.');
   let itens;
   try{
     const d=JSON.parse(txt);
     itens=Array.isArray(d)?d:(d.produtos||[]);
-  }catch(e){ return flash('JSON inválido: '+e.message,'err'); }
-  if(!itens.length) return flash('Nenhum item encontrado no conteúdo.','err');
+  }catch(e){ return avisoErro('Não consegui concluir','JSON inválido: '+e.message); }
+  if(!itens.length) return avisoErro('Não consegui concluir','Nenhum item encontrado no conteúdo.');
 
   const erros=[]; let entraram=0;
   for(const it of itens){
@@ -1831,7 +1888,7 @@ async function venderProduto(sku,nome){
       `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Fechar</button>
        <a class="btn btn-s" href="${esc(url)}" target="_blank" rel="noopener">${ico('ver')}Abrir minha loja</a>
        <button class="btn btn-p" onclick="fecharModal();ir('redes')">${ico('power')}Ligar o TikTok</button>`);
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 
 /* ---- lotes de exportação ---- */
@@ -1841,10 +1898,10 @@ async function gerarLote(){
   try{
     const r=await api('estoque/lote',{de:v('loDe')||null,ate:v('loAte')||null,canal:v('loCanal'),
       incluirInativos:(document.getElementById('loInativos')||{}).checked||false});
-    if(r.ok===false) return flash(r.motivo,'err');
+    if(r.ok===false) return avisoErro('Não consegui concluir',r.motivo);
     flash(`Lote ${r.lote.id} gerado: ${r.lote.incluidos} produto(s) no arquivo.`,'ok');
     carregar();
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 
 async function baixarLote(id){
@@ -1856,16 +1913,23 @@ async function baixarLote(id){
     const a=document.createElement('a');
     a.href=URL.createObjectURL(await res.blob()); a.download=nome; a.click();
     URL.revokeObjectURL(a.href);
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 
 async function excluirLote(id){
-  if(!confirm(`Excluir o lote ${id}?\n\nO arquivo dele deixa de existir — quem recebeu não consegue mais reimportar por aqui.`)) return;
-  try{
-    const r=await api('estoque/lote-excluir',{id});
-    if(r.ok===false) return flash(r.motivo,'err');
-    flash('Lote excluído.','ok'); carregar();
-  }catch(e){flash(e.message,'err');}
+  return confirmar({
+    titulo:'Excluir este lote?',
+    texto:`Vou apagar o lote <code>${esc(id)}</code>.`,
+    consequencia:'O arquivo dele deixa de existir — quem recebeu não consegue mais reimportar por aqui.',
+    rotulo:'Excluir lote', icone:'excluir', perigo:true,
+    aoConfirmar:async()=>{
+      try{
+        const r=await api('estoque/lote-excluir',{id});
+        if(r.ok===false) return avisoErro('Não consegui concluir',r.motivo);
+        flash('Lote excluído.','ok'); carregar();
+      }catch(e){avisoErro('Não consegui concluir',e.message);}
+    },
+  });
 }
 
 /* ---- DataTable genérica ----
@@ -2019,18 +2083,25 @@ function publicacoesHtml(){
 async function tirarDaVitrine(sku){
   try{
     const r=await api('estoque/vitrine',{sku,expor:false});
-    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
+    if(r.erros?.length||r.ok===false) return avisoErro('Não consegui concluir',r.erros?.join(' · ')||r.motivo);
     await carregar(); flash('Tirado da vitrine.','ok');
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 
 async function esquecerCanal(sku,canal){
-  if(!confirm(`Esquecer o envio de "${sku}" para ${canal}?\n\nIsso apaga só o REGISTRO aqui. Se o produto já está publicado lá, ele continua — remova por lá também.`)) return;
-  try{
-    const r=await api('estoque/esquecer-canal',{sku,canal});
-    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
-    await carregar(); flash('Registro removido.','ok');
-  }catch(e){flash(e.message,'err');}
+  return confirmar({
+    titulo:'Esquecer este envio?',
+    texto:`Vou apagar o registro de <b>${esc(sku)}</b> em <b>${esc(canal)}</b>.`,
+    consequencia:'Apaga só o registro daqui. Se o produto já está publicado lá, ele CONTINUA publicado.',
+    rotulo:'Esquecer envio', icone:'excluir', perigo:true,
+    aoConfirmar:async()=>{
+      try{
+        const r=await api('estoque/esquecer-canal',{sku,canal});
+        if(r.erros?.length||r.ok===false) return avisoErro('Não consegui concluir',r.erros?.join(' · ')||r.motivo);
+        await carregar(); flash('Registro removido.','ok');
+      }catch(e){avisoErro('Não consegui concluir',e.message);}
+    },
+  });
 }
 
 /* ---- planos ---- */
@@ -2051,7 +2122,7 @@ const PLANOS=[
 
 async function comprarPlano(id){
   const p=PLANOS.find(x=>x.id===id);
-  if(!p) return flash('Pacote não encontrado.','err');
+  if(!p) return avisoErro('Não consegui concluir','Pacote não encontrado.');
   abrirModal('Comprar — '+p.nome,
     `<p class="hint">Gera uma cobrança de <b>${esc(brl(p.centavos/100))}</b> no Asaas.
       O Asaas exige nome e CPF/CNPJ de quem paga.</p>
@@ -2069,7 +2140,7 @@ async function comprarPlano(id){
 async function gerarCobrancaPlano(id){
   const p=PLANOS.find(x=>x.id===id);
   const v=(x)=>(document.getElementById(x)||{}).value?.trim()||'';
-  if(!v('cpNome')||!v('cpDoc')) return flash('Nome e CPF/CNPJ são obrigatórios — o Asaas recusa sem eles.','err');
+  if(!v('cpNome')||!v('cpDoc')) return avisoErro('Não consegui concluir','Nome e CPF/CNPJ são obrigatórios — o Asaas recusa sem eles.');
   const alvo=document.getElementById('modalB');
   alvo.innerHTML='<p class="hint">Emitindo no Asaas…</p>';
   document.getElementById('modalF').innerHTML='';
@@ -2087,7 +2158,7 @@ async function gerarCobrancaPlano(id){
         livro-caixa e aparece em <b>Recebimento</b>.</p>`;
     document.getElementById('modalF').innerHTML=`<button class="btn btn-p" onclick="fecharModal();carregar()">${ico('fechar')}Fechar</button>`;
     flash('Cobrança do plano emitida.','ok');
-  }catch(e){ fecharModal(); flash(e.message,'err'); }
+  }catch(e){ fecharModal(); avisoErro('Não consegui concluir',e.message); }
 }
 
 /* ---- trilha de leads (auditor e relatórios) ---- */
@@ -2203,26 +2274,40 @@ async function salvarDocumento(tipo){
   const v=(id)=>(document.getElementById(id)||{}).value||'';
   try{
     const r=await api('documentos/rascunho',{tipo,texto:v('docTxt'),vigenteDe:v('docVig')});
-    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
+    if(r.erros?.length||r.ok===false) return avisoErro('Não consegui concluir',r.erros?.join(' · ')||r.motivo);
     fecharModal(); await carregar(); flash('Rascunho salvo. Ele ainda não vale — publique quando estiver pronto.','ok');
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 
 async function publicarDocumento(tipo){
-  if(!confirm('Publicar esta versão?\n\nDepois de publicada, o texto dela não muda mais. Para corrigir, cria-se uma versão nova.')) return;
-  try{
-    const r=await api('documentos/publicar',{tipo});
-    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
-    await carregar(); flash(`Versão ${r.versao.versao} publicada.`,'ok');
-  }catch(e){flash(e.message,'err');}
+  return confirmar({
+    titulo:'Publicar esta versão?',
+    texto:'O documento passa a valer para quem aceitar daqui em diante.',
+    consequencia:'Depois de publicada, o texto não muda mais — para corrigir, cria-se uma versão nova.',
+    rotulo:'Publicar', icone:'publicar', perigo:false,
+    aoConfirmar:async()=>{
+      try{
+        const r=await api('documentos/publicar',{tipo});
+        if(r.erros?.length||r.ok===false) return avisoErro('Não consegui concluir',r.erros?.join(' · ')||r.motivo);
+        await carregar(); flash(`Versão ${r.versao.versao} publicada.`,'ok');
+      }catch(e){avisoErro('Não consegui concluir',e.message);}
+    },
+  });
 }
 
 async function descartarDocumento(tipo){
-  if(!confirm('Descartar o rascunho?\n\nO texto não publicado é perdido. A versão em vigor não muda.')) return;
-  try{
-    await api('documentos/descartar',{tipo});
-    await carregar(); flash('Rascunho descartado.','ok');
-  }catch(e){flash(e.message,'err');}
+  return confirmar({
+    titulo:'Descartar o rascunho?',
+    texto:'A versão em vigor continua valendo, sem alteração.',
+    consequencia:'O texto não publicado é perdido.',
+    rotulo:'Descartar', icone:'excluir', perigo:true,
+    aoConfirmar:async()=>{
+      try{
+        await api('documentos/descartar',{tipo});
+        await carregar(); flash('Rascunho descartado.','ok');
+      }catch(e){avisoErro('Não consegui concluir',e.message);}
+    },
+  });
 }
 
 function aceitarDocumento(tipo){
@@ -2240,21 +2325,21 @@ function aceitarDocumento(tipo){
 
 async function confirmarAceite(tipo){
   const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
-  if(!v('acNome')&&!v('acEmail')&&!v('acDoc')) return flash('Informe nome, e-mail ou documento.','err');
+  if(!v('acNome')&&!v('acEmail')&&!v('acDoc')) return avisoErro('Não consegui concluir','Informe nome, e-mail ou documento.');
   try{
     const r=await api('documentos/aceite',{tipo,quem:{nome:v('acNome'),email:v('acEmail'),documento:v('acDoc')}});
-    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
+    if(r.erros?.length||r.ok===false) return avisoErro('Não consegui concluir',r.erros?.join(' · ')||r.motivo);
     fecharModal(); await carregar();
     flash(r.repetido?'Esse aceite já estava registrado nesta versão.':'Aceite registrado.','ok');
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 
 async function conferirAceite(id){
   try{
     const r=await api('documentos/conferir',{id});
     if(r.ok) return flash(`Confere: o texto da versão ${r.versao.versao} é o mesmo que foi aceito.`,'ok');
-    flash(r.adulterado?`ATENÇÃO: ${r.motivo}`:r.motivo,'err');
-  }catch(e){flash(e.message,'err');}
+    avisoErro('Não consegui concluir',r.adulterado?`ATENÇÃO: ${r.motivo}`:r.motivo);
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 
 /* ---- bot ---- */
@@ -2306,7 +2391,7 @@ async function simular(){
     campo.value='';
     render();
     document.getElementById('simTxt')?.focus();
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 
 function formRegra(r){
@@ -2340,7 +2425,7 @@ function novaRegra(){
 
 function editarRegra(id){
   const r=(BOT?.regras||[]).find(x=>x.id===id);
-  if(!r) return flash('Regra não encontrada.','err');
+  if(!r) return avisoErro('Não consegui concluir','Regra não encontrada.');
   EDITANDO_REGRA=id;
   abrirModal('Editar regra',formRegra(r),
     `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Cancelar</button>
@@ -2351,24 +2436,31 @@ async function salvarRegraBot(){
   const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
   const ck=(id)=>(document.getElementById(id)||{}).checked||false;
   const termos=v('brTermos').split(',').map(t=>t.trim()).filter(Boolean);
-  if(!termos.length) return flash('Informe ao menos um termo que dispara a regra.','err');
-  if(!v('brResp')) return flash('A resposta é obrigatória.','err');
+  if(!termos.length) return avisoErro('Não consegui concluir','Informe ao menos um termo que dispara a regra.');
+  if(!v('brResp')) return avisoErro('Não consegui concluir','A resposta é obrigatória.');
   try{
     const r=await api('bot/regra',{id:EDITANDO_REGRA||undefined,termos,gatilho:v('brGatilho'),
       resposta:v('brResp'),prioridade:Number(v('brPrio')||0),ativa:ck('brAtiva'),handoff:ck('brHandoff')});
-    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
+    if(r.erros?.length||r.ok===false) return avisoErro('Não consegui concluir',r.erros?.join(' · ')||r.motivo);
     const feito=EDITANDO_REGRA?'Regra atualizada.':'Regra cadastrada.';
     EDITANDO_REGRA=null; fecharModal(); await carregar(); flash(feito,'ok');
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 
 async function excluirRegra(id,nome){
-  if(!confirm(`Excluir a regra "${nome}"?\n\nO bot deixa de responder a esses termos.`)) return;
-  try{
-    const r=await api('bot/regra-excluir',{id});
-    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
-    await carregar(); flash('Regra excluída.','ok');
-  }catch(e){flash(e.message,'err');}
+  return confirmar({
+    titulo:'Excluir esta regra?',
+    texto:`Vou apagar a regra <b>${esc(nome)}</b>.`,
+    consequencia:'O bot deixa de responder a esses termos.',
+    rotulo:'Excluir regra', icone:'excluir', perigo:true,
+    aoConfirmar:async()=>{
+      try{
+        const r=await api('bot/regra-excluir',{id});
+        if(r.erros?.length||r.ok===false) return avisoErro('Não consegui concluir',r.erros?.join(' · ')||r.motivo);
+        await carregar(); flash('Regra excluída.','ok');
+      }catch(e){avisoErro('Não consegui concluir',e.message);}
+    },
+  });
 }
 
 async function salvarPersonalizacao(){
@@ -2497,7 +2589,7 @@ function novoLancamento(){
 
 function editarLancamento(id){
   const l=(CAIXA?.lancamentos||[]).find(x=>x.id===id);
-  if(!l) return flash('Lançamento não encontrado.','err');
+  if(!l) return avisoErro('Não consegui concluir','Lançamento não encontrado.');
   EDITANDO_LANC=id;
   abrirModal('Editar lançamento',formLancamento(l),
     `<button class="btn btn-s" onclick="fecharModal()">${ico('fechar')}Cancelar</button>
@@ -2508,26 +2600,33 @@ async function salvarLancamento(){
   const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
   const d={tipo:v('fcTipo'),valor:v('fcValor'),data:v('fcData')||undefined,categoria:v('fcCat'),
     forma:v('fcForma'),contato:v('fcContato'),descricao:v('fcDesc')};
-  if(!d.descricao) return flash('A descrição é obrigatória — extrato sem descrição não se audita.','err');
-  if(!d.valor) return flash('Informe o valor.','err');
+  if(!d.descricao) return avisoErro('Não consegui concluir','A descrição é obrigatória — extrato sem descrição não se audita.');
+  if(!d.valor) return avisoErro('Não consegui concluir','Informe o valor.');
   try{
     const r=EDITANDO_LANC
       ? await api('caixa/editar',{id:EDITANDO_LANC,mudancas:d})
       : await api('caixa',d);
-    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
+    if(r.erros?.length||r.ok===false) return avisoErro('Não consegui concluir',r.erros?.join(' · ')||r.motivo);
     const feito=EDITANDO_LANC?'Lançamento atualizado.':'Lançamento registrado.';
     EDITANDO_LANC=null; fecharModal(); await carregar();
     flash(r.avisos?.length?`${feito} ${r.avisos.join('; ')}`:feito,'ok');
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 
 async function excluirLancamento(id,desc){
-  if(!confirm(`Excluir o lançamento "${desc}"?\n\nEle sai do caixa mas continua no histórico — nada some de verdade.`)) return;
-  try{
-    const r=await api('caixa/excluir',{id});
-    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
-    await carregar(); flash('Lançamento excluído.','ok');
-  }catch(e){flash(e.message,'err');}
+  return confirmar({
+    titulo:'Excluir este lançamento?',
+    texto:`Vou tirar <b>${esc(desc)}</b> do caixa.`,
+    consequencia:'Ele continua no histórico — nada some de verdade.',
+    rotulo:'Excluir lançamento', icone:'excluir', perigo:true,
+    aoConfirmar:async()=>{
+      try{
+        const r=await api('caixa/excluir',{id});
+        if(r.erros?.length||r.ok===false) return avisoErro('Não consegui concluir',r.erros?.join(' · ')||r.motivo);
+        await carregar(); flash('Lançamento excluído.','ok');
+      }catch(e){avisoErro('Não consegui concluir',e.message);}
+    },
+  });
 }
 
 /* ---------- telas ---------- */
@@ -3925,13 +4024,13 @@ async function carregar(){
   }catch(e){
     document.getElementById('envName').textContent='Backend fora';
     document.getElementById('envSub').textContent=e.message.slice(0,26);
-    flash('Não consegui carregar: '+e.message,'err');
+    avisoErro('Não consegui concluir','Não consegui carregar: '+e.message);
   }
   render();
 }
 async function salvarFunil(){
   const etapas=document.getElementById('funilTxt').value.split('\n').map(s=>s.trim()).filter(Boolean);
-  try{await api('funil',{etapas});flash('Funil salvo.','ok');carregar();}catch(e){flash(e.message,'err');}
+  try{await api('funil',{etapas});flash('Funil salvo.','ok');carregar();}catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 function novoLead(){
   abrirModal('Novo lead',
@@ -3948,20 +4047,20 @@ function novoLead(){
 
 async function criar(){
   const g=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
-  if(!g('telefone')) return flash('O WhatsApp é obrigatório — é a chave do lead.','err');
+  if(!g('telefone')) return avisoErro('Não consegui concluir','O WhatsApp é obrigatório — é a chave do lead.');
   const v=g('valor');
   try{
     const r=await api('leads',{nome:g('nome'),telefone:g('telefone'),interesse:g('interesse'),
       valor:v===''?null:Number(v)});
-    if(r.erro||r.ok===false) return flash(r.erro||r.motivo,'err');
+    if(r.erro||r.ok===false) return avisoErro('Não consegui concluir',r.erro||r.motivo);
     fecharModal(); await carregar();
     // Telefone fora do padrao BR nao impede cadastrar, mas impede o bot enviar.
     flash(r.lead?.telefoneAviso?`Lead adicionado. Atenção: ${r.lead.telefoneAviso}`:'Lead adicionado.',
       r.lead?.telefoneAviso?'err':'ok');
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
-async function mover(id,etapa){try{await api('mover',{id,etapa});carregar();}catch(e){flash(e.message,'err');carregar();}}
-async function fechar(id,status){try{await api('fechar',{id,status});carregar();}catch(e){flash(e.message,'err');}}
+async function mover(id,etapa){try{await api('mover',{id,etapa});carregar();}catch(e){avisoErro('Não consegui concluir',e.message);carregar();}}
+async function fechar(id,status){try{await api('fechar',{id,status});carregar();}catch(e){avisoErro('Não consegui concluir',e.message);}}
 async function salvarRegra(){
   const m=document.getElementById('iModelo').value;
   const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
@@ -3981,20 +4080,27 @@ async function salvarRegra(){
 }
 async function criarParceiro(){
   const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
-  if(!v('pNome')) return flash('O nome é obrigatório.','err');
+  if(!v('pNome')) return avisoErro('Não consegui concluir','O nome é obrigatório.');
   try{
     const r=await api('parceiros',{nome:v('pNome'),telefone:v('pTel'),codigo:v('pCod')});
-    if(r.erros?.length||r.ok===false) return flash(r.erros?.join(' · ')||r.motivo,'err');
+    if(r.erros?.length||r.ok===false) return avisoErro('Não consegui concluir',r.erros?.join(' · ')||r.motivo);
     fecharModal(); await carregar(); flash('Parceiro cadastrado.','ok');
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 
 async function removerParceiro(id,nome){
-  if(!confirm(`Remover o parceiro "${nome||id}"?\n\nO link de indicação dele para de funcionar. Comissão já lançada não é apagada.`)) return;
-  try{
-    await api('parceiros/remover',{id});
-    await carregar(); flash('Parceiro removido.','ok');
-  }catch(e){flash(e.message,'err');}
+  return confirmar({
+    titulo:'Remover este parceiro?',
+    texto:`Vou remover <b>${esc(nome||id)}</b>.`,
+    consequencia:'O link de indicação dele para de funcionar. Comissão já lançada NÃO é apagada.',
+    rotulo:'Remover parceiro', icone:'excluir', perigo:true,
+    aoConfirmar:async()=>{
+      try{
+        await api('parceiros/remover',{id});
+        await carregar(); flash('Parceiro removido.','ok');
+      }catch(e){avisoErro('Não consegui concluir',e.message);}
+    },
+  });
 }
 async function testarRede(rede){
   const campos=REDES.credenciais[rede].campos;
@@ -4004,7 +4110,7 @@ async function testarRede(rede){
   try{
     TESTE[rede]=await api('redes/testar',{rede,cred});
     flash(TESTE[rede].ok?`${rede}: conectado.`:`${rede}: ${TESTE[rede].motivo}`,TESTE[rede].ok?'ok':'err');
-  }catch(e){TESTE[rede]={ok:false,motivo:e.message};flash(e.message,'err');}
+  }catch(e){TESTE[rede]={ok:false,motivo:e.message};avisoErro('Não consegui concluir',e.message);}
   render();
   campos.forEach(f=>{const el=document.getElementById(`rc-${rede}-${f}`);if(el)el.value=cred[f];});
 }
@@ -4030,7 +4136,7 @@ async function movEstoque(sku,tipo){
     const r=await api('estoque/movimentar',{sku,tipo,quantidade:Number(q)});
     flash(`${sku}: ${r.produto.quantidade} em estoque, ${r.produto.reservado} reservado(s).`,'ok');
     carregar();
-  }catch(e){flash(e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
 }
 async function baixarFeed(canal){
   // O feed é ARQUIVO (XML/CSV), não JSON. Não dá pra usar <a download> porque ele não
@@ -4047,7 +4153,7 @@ async function baixarFeed(canal){
     URL.revokeObjectURL(url);
     flash(Number(rec)?`${nome}: ${incl} produto(s). ${rec} ficaram de fora por campo faltando.`
                      :`${nome}: ${incl} produto(s).`, Number(rec)?'err':'ok');
-  }catch(e){flash('Não consegui gerar o arquivo: '+e.message,'err');}
+  }catch(e){avisoErro('Não consegui concluir','Não consegui gerar o arquivo: '+e.message);}
 }
 async function testarTiktok(familia){
   PROVA[familia]={provas:[],motivo:'testando…'};render();
@@ -4055,7 +4161,7 @@ async function testarTiktok(familia){
     PROVA[familia]=await api('tiktok/testar',{familia});
     const p=PROVA[familia];
     flash(p.ok?`TikTok ${familia}: todas as chamadas responderam.`:`TikTok ${familia}: alguma chamada falhou.`,p.ok?'ok':'err');
-  }catch(e){PROVA[familia]={provas:[],motivo:e.message};flash(e.message,'err');}
+  }catch(e){PROVA[familia]={provas:[],motivo:e.message};avisoErro('Não consegui concluir',e.message);}
   render();
 }
 /* Enquanto o QR esta na tela, o painel repergunta o estado: o codigo expira
@@ -4094,13 +4200,20 @@ async function importarFluxo(input){
     if(r.avisos&&r.avisos.length){ msg+='\n\nAtenção:\n• '+r.avisos.join('\n• '); }
     flash(msg, r.avisos&&r.avisos.length?'err':'ok', 14);
     carregar();
-  }catch(e){ flash(e.message,'err'); }
+  }catch(e){ avisoErro('Não consegui concluir',e.message); }
   input.value='';
 }
 async function apagarFluxo(){
-  if(!confirm('Apagar o fluxo? O bot volta a responder só pelas regras por palavra.')) return;
-  try{ await api('bot/fluxo-apagar',{}); flash('Fluxo apagado.','ok'); carregar(); }
-  catch(e){ flash(e.message,'err'); }
+  return confirmar({
+    titulo:'Apagar o fluxo da Micaela?',
+    texto:'Ela volta a responder só pelas regras por palavra — sem árvore, sem triagem.',
+    consequencia:'As conversas em andamento perdem o ponto onde pararam.',
+    rotulo:'Apagar fluxo', icone:'excluir', perigo:true,
+    aoConfirmar:async()=>{
+      try{ await api('bot/fluxo-apagar',{}); flash('Fluxo apagado.','ok'); carregar(); }
+      catch(e){ avisoErro('Não consegui concluir',e.message); }
+    },
+  });
 }
 async function conectarCanal(){
   flash('Abrindo a sessão… o QR aparece em alguns segundos.','ok');
@@ -4109,9 +4222,9 @@ async function conectarCanal(){
   acompanharCanal();
   try{
     const r=await api('canais/conectar',{canal:'whatsapp-web'});
-    if(r&&r.erro) flash(r.erro,'err');
+    if(r&&r.erro) avisoErro('Não consegui concluir',r.erro);
     CANAIS=await api('canais'); render();
-  }catch(e){ flash('A sessão continua abrindo — o QR aparece aqui assim que sair. ('+e.message+')','err'); }
+  }catch(e){ avisoErro('Não consegui concluir','A sessão continua abrindo — o QR aparece aqui assim que sair. ('+e.message+')'); }
 }
 /* ── Padrão de salvar ──────────────────────────────────────────────────────
    Clicar em salvar e nao acontecer nada e o pior tipo de defeito: a pessoa nao
@@ -4183,7 +4296,11 @@ async function salvar({titulo,campos=[],rota,corpo,sucesso,depois,botao}){
   if(bt){ bt.disabled=true; bt.innerHTML=ico('relogio')+'<span>Salvando…</span>'; }
   try{
     const r=await api(rota,typeof corpo==='function'?corpo():corpo);
-    flash(sucesso||'Pronto, salvo.','ok');
+    /* Sucesso em MODAL, nao em toast de canto. Foi pedido depois de "clico em
+       salvar e nao da mensagem nenhuma": o toast nasce longe do olho de quem
+       acabou de clicar e some em quatro segundos. O modal custa um clique a
+       mais e elimina a duvida — que e o que faz a pessoa salvar duas vezes. */
+    avisoOk('Pronto', sucesso||'Alteração salva.');
     if(depois) depois(r); else carregar();
     return {ok:true,r};
   }catch(e){
@@ -4195,10 +4312,8 @@ async function salvar({titulo,campos=[],rota,corpo,sucesso,depois,botao}){
       const alvo=campos.find(c=>m.toLowerCase().includes(String(c.rotulo).toLowerCase()));
       if(alvo&&marcarCampo(alvo.id,m)) casou=true;
     }
-    abrirModal(titulo||'Não consegui salvar',
-      `<p class="hint" style="margin-bottom:12px">O servidor recusou${casou?' — marquei os campos na tela':''}:</p>
-       <ul class="notas">${motivos.map(m=>`<li>${esc(m)}</li>`).join('')}</ul>`,
-      `<button class="btn btn-p" onclick="fecharModal()">${ico('check')}Entendi</button>`);
+    avisoErro(titulo||'Não consegui salvar',
+      `O servidor recusou${casou?' — marquei os campos na tela':''}:`, motivos);
     return {ok:false,erro:e.message};
   }finally{
     if(bt){ bt.disabled=false; bt.innerHTML=antes; }
@@ -4262,9 +4377,16 @@ async function responderCliente(tel){
 }
 
 async function devolverAoBot(tel){
-  if(!confirm('Devolver esta conversa pra Micaela? Ela volta a responder este número.')) return;
-  try{ await api('atendimentos/devolver',{telefone:tel}); flash('Conversa devolvida pra Micaela.','ok'); await carregar(); }
-  catch(e){ flash(e.message,'err'); }
+  return confirmar({
+    titulo:'Devolver a conversa pra Micaela?',
+    texto:'Ela volta a responder este número automaticamente.',
+    consequencia:null,
+    rotulo:'Devolver', icone:'bot', perigo:false,
+    aoConfirmar:async()=>{
+      try{ await api('atendimentos/devolver',{telefone:tel}); flash('Conversa devolvida pra Micaela.','ok'); await carregar(); }
+      catch(e){ avisoErro('Não consegui concluir',e.message); }
+    },
+  });
 }
 
 /* Preview do perfil: mostra no formato do celular ANTES de aplicar. Foi olhando
@@ -4385,12 +4507,19 @@ async function trocarProvedor(){
 }
 
 async function assinarPlano(code){
-  if(!confirm('Assinar este plano? Os limites passam a valer na hora.')) return;
-  try{
-    await api('planos/assinar',{plano:code,ciclo:CICLO});
-    flash('Plano assinado. Os limites já estão valendo.','ok');
-    carregar();
-  }catch(e){ flash(e.message,'err'); }
+  return confirmar({
+    titulo:'Assinar este plano?',
+    texto:'Os limites de produtos, atendentes e canais passam a valer na hora.',
+    consequencia:null,
+    rotulo:'Assinar plano', icone:'check', perigo:false,
+    aoConfirmar:async()=>{
+      try{
+        await api('planos/assinar',{plano:code,ciclo:CICLO});
+        flash('Plano assinado. Os limites já estão valendo.','ok');
+        carregar();
+      }catch(e){ avisoErro('Não consegui concluir',e.message); }
+    },
+  });
 }
 
 async function salvarCanalConfig(){
@@ -4441,7 +4570,7 @@ async function personalizarCanal(){
   try{
     let foto=null;
     if(arq){
-      if(arq.size>5*1024*1024){ flash('A foto passa de 5 MB — o WhatsApp recusa.','err'); return; }
+      if(arq.size>5*1024*1024){ avisoErro('Não consegui concluir','A foto passa de 5 MB — o WhatsApp recusa.'); return; }
       foto=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(arq); });
     }
     const r=await api('canais/personalizar',{canal:'whatsapp-web',foto,nome,recado});
@@ -4454,7 +4583,7 @@ async function personalizarCanal(){
       flash(`Perfil atualizado no número: ${ok}.`,'ok');
     }
     carregar();
-  }catch(e){ flash(e.message,'err'); }
+  }catch(e){ avisoErro('Não consegui concluir',e.message); }
 }
 /* Reconectar e derrubar e subir: sessao travada em "esperando o QR" nao se
    conserta mandando conectar de novo — o provider ja se acha conectando. */
@@ -4474,13 +4603,20 @@ async function reconectarCanal(){
 }
 
 async function desconectarCanal(){
-  if(!confirm('Desconectar o WhatsApp? O bot para de receber mensagem até você parear de novo.')) return;
-  try{
-    await api('canais/desconectar',{canal:'whatsapp-web'});
-    CANAIS=await api('canais'); render(); flash('Canal desconectado.','ok');
-  }catch(e){ flash(e.message,'err'); }
+  return confirmar({
+    titulo:'Desconectar o WhatsApp?',
+    texto:'O canal sai do ar e ninguém é atendido até você parear de novo.',
+    consequencia:'Mensagem que chegar enquanto estiver fora não é respondida.',
+    rotulo:'Desconectar', icone:'power', perigo:true,
+    aoConfirmar:async()=>{
+      try{
+        await api('canais/desconectar',{canal:'whatsapp-web'});
+        CANAIS=await api('canais'); render(); flash('Canal desconectado.','ok');
+      }catch(e){ avisoErro('Não consegui concluir',e.message); }
+    },
+  });
 }
-function copiar(t){navigator.clipboard?.writeText(t).then(()=>flash('Link copiado.','ok'),()=>flash('Copie manualmente: '+t,'err'));}
+function copiar(t){navigator.clipboard?.writeText(t).then(()=>avisoErro('Não consegui concluir','Link copiado.','ok'),()=>flash('Copie manualmente: '+t));}
 
 function sairDoPainel(){
   TOKEN='';sessionStorage.removeItem('crm_token');telaEntrar();
