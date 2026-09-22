@@ -38,7 +38,11 @@ export const CREDENCIAL = {
     ajuda: 'app id e secret do app em business-api.tiktok.com',
   },
   shop: {
-    campos: ['appKey', 'appSecret'],
+    /* `serviceId` entra na lista de OBRIGATORIOS porque sem ele nao existe URL
+       de autorizacao — o botao "Conectar" apareceria e quebraria no clique. Um
+       revisor de marketplace que clica e recebe erro reprova na hora, e com
+       razao: do lado dele, a integracao nao funciona. */
+    campos: ['appKey', 'appSecret', 'serviceId'],
     nome: 'TikTok Shop Partner API',
     ajuda: 'app key e app secret do app em partner.tiktokshop.com',
   },

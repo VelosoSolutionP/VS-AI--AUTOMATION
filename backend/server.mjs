@@ -708,6 +708,22 @@ const server = createServer(async (req, res) => {
        alcancava 2 das 10 capacidades do modulo. Vender "catalogo e campanhas"
        no Modulo A com o codigo pronto e sem rota e prometer o que nao se
        entrega — nao por falta de codigo, por falta de porta. */
+    /* Estado da conexao com a TikTok Shop, do jeito que um revisor precisa ver:
+       conectada ou nao, QUAL loja, e a prova da ultima chamada real. */
+    if (req.method === 'GET' && rota === '/crm/api/tiktok/shop') {
+      const d = tk.diagnostico();
+      const cfg = tk.getConfig();
+      const fam = d.familias.shop || {};
+      return json(res, 200, {
+        appPronto: fam.appConfigurado === true,
+        faltando: fam.faltando || [],
+        conectada: fam.autorizado === true && Boolean(cfg.shopCipher),
+        autorizado: fam.autorizado === true,
+        loja: cfg.shopCipher ? { nome: cfg.shopNome || null, id: cfg.shopId || null } : null,
+        ultimaSincronizacao: tk.ultimaSincronizacao(),
+        publicados: Object.keys(tk.publicados()).length,
+      });
+    }
     if (req.method === 'GET' && rota === '/crm/api/tiktok/loja') {
       const cfg = tk.getConfig();
       /* Sem loja escolhida NAO se chama a API: a TikTok responde erro cru e a
@@ -978,6 +994,10 @@ const server = createServer(async (req, res) => {
           break;
         }
         case '/crm/api/tiktok/descobrir-loja': r = await tk.descobrirLoja({}); break;
+        /* Sincronizar e CHAMAR a TikTok. Devolve o que veio de la, com o
+           carimbo — e devolve a falha do mesmo jeito, porque esconder falha de
+           integracao e o que faz o cliente descobrir no pior dia. */
+        case '/crm/api/tiktok/sincronizar': r = await tk.sincronizarProdutos({}); break;
         case '/crm/api/tiktok/descobrir-anunciante': r = await tk.descobrirAnunciante({}); break;
         case '/crm/api/tiktok/loja-ativa': r = tk.salvarConfig({ shopCipher: d.cipher, shopId: d.id, shopNome: d.nome }); break;
         case '/crm/api/tiktok/anunciante-ativo': r = tk.salvarConfig({ anuncianteId: d.id, anuncianteNome: d.nome }); break;
@@ -1032,6 +1052,9 @@ const server = createServer(async (req, res) => {
           r = await canais.conectar({ canal: d.canal, produtos: () => estoque.daVitrine().slice(0, 10) });
           break;
         case '/crm/api/canais/desconectar': r = await canais.desconectar({ canal: d.canal }); break;
+        case '/crm/api/canais/trocar-numero':
+          r = await canais.trocarNumero({ canal: d.canal, produtos: () => estoque.daVitrine().slice(0, 10) });
+          break;
         case '/crm/api/canais/enviar': r = await canais.enviar(d); break;
         case '/crm/api/canais/personalizar': r = await canais.personalizar(d); break;
         case '/crm/api/canais/restaurar-perfil': r = await canais.restaurarPerfil({ canal: d.canal }); break;

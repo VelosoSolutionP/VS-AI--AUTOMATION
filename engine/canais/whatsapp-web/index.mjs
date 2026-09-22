@@ -15,6 +15,7 @@
  * O que chega vira mensagem canônica e sobe pro gateway.
  */
 import { execFileSync } from 'node:child_process';
+import { existsSync, renameSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { ESTADOS, mensagem } from '../provider.mjs';
 import { deveAtender, normalizar, soDigitos, ehLid, pareceTelefone } from './normalizar.mjs';
@@ -65,6 +66,9 @@ const agora = () => new Date().toISOString();
  */
 export function criarWhatsAppWebProvider(opcoes = {}) {
   const nomeSessao = opcoes.sessao || process.env.WPP_SESSAO || 'veloso';
+  /* Onde o pareamento mora. O login do WhatsApp fica DENTRO do perfil do
+     navegador — e e por isso que reconectar nunca pede QR de novo. */
+  const pastaDaSessao = () => join(process.cwd(), 'tokens', nomeSessao);
   const chrome = opcoes.chrome || process.env.CHROME_PATH || '/usr/bin/google-chrome';
   const maxTentativas = opcoes.maxTentativas ?? 5;
 
@@ -192,7 +196,7 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     // Tira da frente qualquer navegador que sobrou de uma queda anterior. Sem
     // isto, a primeira conexao depois de um restart forcado falha sempre.
     if (!opcoes.criarSessao) {
-      matarNavegadorOrfao(join(process.cwd(), 'tokens', nomeSessao), opcoes.exec);
+      matarNavegadorOrfao(pastaDaSessao(), opcoes.exec);
     }
 
     try {
@@ -348,6 +352,35 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     numero = null;
     desde = null;
     mudar(ESTADOS.DESCONECTADO);
+  }
+
+  /**
+   * Esquece o aparelho pareado e volta a pedir QR.
+   *
+   * Existe porque "desconectar" NAO troca de numero: o login mora dentro do
+   * perfil do navegador, entao toda reconexao voltava calada pro mesmo
+   * aparelho. Quem queria ligar outro numero nao tinha caminho — e a tela nunca
+   * mostrava o QR, o que parece defeito e e so o produto fazendo exatamente o
+   * que foi programado.
+   *
+   * O perfil e MOVIDO, nao apagado: se o pareamento novo falhar, ainda da pra
+   * voltar. Apagar 200 MB de sessao de alguem por causa de um clique seria uma
+   * escolha que nao se desfaz.
+   */
+  async function esquecerAparelho({ mover = true } = {}) {
+    await desconectar();
+    matarNavegadorOrfao(pastaDaSessao(), opcoes.exec);
+
+    const pasta = pastaDaSessao();
+    if (!existsSync(pasta)) { return { ok: true, tinhaSessao: false }; }
+    const destino = `${pasta}.anterior-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')}`;
+    try {
+      if (mover) { renameSync(pasta, destino); } else { rmSync(pasta, { recursive: true, force: true }); }
+    } catch (e) {
+      return { ok: false, erro: `nao consegui liberar a sessao antiga: ${e.message}` };
+    }
+    console.log(`[whatsapp-web] pareamento esquecido — perfil guardado em ${mover ? destino : '(apagado)'}`);
+    return { ok: true, tinhaSessao: true, guardadoEm: mover ? destino : null };
   }
 
   /**
@@ -558,6 +591,7 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     enviarTexto,
     personalizar,
     perfilAtual,
+    esquecerAparelho,
     aoReceber: (fn) => { ouvintesMsg.push(fn); },
     /** Avisado quando o DONO digita numa conversa — o canal nao decide o que
         fazer com isso, quem decide e o dominio. */

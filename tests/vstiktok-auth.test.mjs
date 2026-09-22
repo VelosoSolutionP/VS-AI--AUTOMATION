@@ -12,7 +12,11 @@ const fake = (status, corpo, cap = {}) => async (url, opts) => {
 
 test('diz o que falta no app ANTES de tentar autorizar', () => {
   assert.deepEqual(faltaCredencial('open', {}), ['clientKey', 'clientSecret']);
-  assert.deepEqual(faltaCredencial('shop', { appKey: 'a' }), ['appSecret']);
+  /* O serviceId entrou nos obrigatorios: sem ele nao ha URL de autorizacao, e
+     o botao "Conectar" apareceria so pra quebrar no clique do revisor. */
+  assert.deepEqual(faltaCredencial('shop', { appKey: 'a' }), ['appSecret', 'serviceId']);
+  assert.deepEqual(faltaCredencial('shop', { appKey: 'a', appSecret: 's' }), ['serviceId']);
+  assert.deepEqual(faltaCredencial('shop', { appKey: 'a', appSecret: 's', serviceId: 'x' }), []);
   assert.deepEqual(faltaCredencial('business', { appId: '1', secret: 's' }), []);
   assert.match(faltaCredencial('orkut', {})[0], /sem suporte/);
 });

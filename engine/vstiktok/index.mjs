@@ -23,6 +23,10 @@ const CONFIG = 'config';
    INTEGRACAO, nao do catalogo: o estoque nao tem por que saber que existe
    TikTok. */
 const PUBLICADOS = 'publicados';
+/* Ultima sincronizacao com a loja: quando, se deu certo e quantos itens vieram.
+   Um revisor de marketplace precisa ver PROVA de chamada real — e prova sem
+   carimbo de hora e so uma tela bonita. */
+const SINCRONIA = 'sincronizacao';
 
 export { produtos, campanhas, conteudo, metricas, auth, ponte };
 
@@ -40,10 +44,16 @@ export function salvarCredencial(familia, cred = {}) {
   if (!auth.CREDENCIAL[familia]) { return { ok: false, erros: [`familia sem suporte: "${familia}"`] }; }
   const atual = getCredenciais();
   const nova = { ...(atual[familia] || {}), ...cred };
-  const falta = auth.faltaCredencial(familia, nova);
-  if (falta.length) { return { ok: false, erros: [`falta preencher: ${falta.join(', ')}`], faltando: falta }; }
+  /* GRAVA o que veio, mesmo incompleto, e diz o que ainda falta. Recusar o
+     parcial fazia quem tinha duas das tres chaves perder as duas ao salvar — e
+     essas chaves vem de telas diferentes do painel da TikTok, entao chegar em
+     partes e o normal, nao a excecao.
+
+     O que impede de autorizar cedo demais nao e esta gravacao: e
+     `faltaCredencial`, conferido de novo na hora de montar a URL. */
   save(CREDENCIAIS, { ...atual, [familia]: nova });
-  return { ok: true, familia, campos: Object.keys(nova) };
+  const falta = auth.faltaCredencial(familia, nova);
+  return { ok: true, familia, campos: Object.keys(nova), faltando: falta, completo: falta.length === 0 };
 }
 
 export function getTokens() {
@@ -318,6 +328,41 @@ export async function publicarProdutoDoEstoque(prod, opts = {}) {
     return { ok: true, produtoId: id, editado: Boolean(antes), avisos: t.avisos };
   });
 }
+
+/**
+ * Puxa os produtos da loja DE VERDADE e registra o resultado.
+ *
+ * Registra tanto o sucesso quanto a falha. Guardar so o sucesso faria a tela
+ * mostrar para sempre a ultima vez que deu certo, escondendo que hoje nao
+ * conecta — que e exatamente a informacao que importa.
+ *
+ * NUNCA inventa item. Se a TikTok nao respondeu, a lista volta vazia com o
+ * motivo; dado fabricado numa tela de integracao e o tipo de coisa que passa
+ * numa revisao e quebra no cliente.
+ */
+export async function sincronizarProdutos(opts = {}) {
+  const quando = new Date().toISOString();
+  const cfg = getConfig();
+  if (!cfg.shopCipher) {
+    const reg = { em: quando, ok: false, total: 0, motivo: 'nenhuma loja selecionada — autorize a loja primeiro' };
+    save(SINCRONIA, reg);
+    return { ok: false, ...reg };
+  }
+  const r = await listarProdutos({ tamanho: 50 }, opts);
+  const itens = r.ok ? (r.dados?.products || r.produtos || []) : [];
+  const reg = {
+    em: quando,
+    ok: r.ok === true,
+    total: itens.length,
+    loja: cfg.shopNome || cfg.shopId || null,
+    ...(r.ok ? {} : { motivo: r.motivo || 'a TikTok recusou a consulta' }),
+  };
+  save(SINCRONIA, reg);
+  return { ...reg, produtos: itens };
+}
+
+/** O carimbo da ultima sincronizacao — null se nunca houve. */
+export const ultimaSincronizacao = () => load(SINCRONIA, null);
 
 /** O que ja foi publicado na loja, por SKU. */
 export const publicados = () => load(PUBLICADOS, {});

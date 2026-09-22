@@ -812,7 +812,7 @@ const TITULO={};
 MENU.forEach(m=>{TITULO[m.id]=[m.nome];(m.filhos||[]).forEach(f=>TITULO[f.id]=[m.nome,f.nome]);});
 const PAI={}; MENU.forEach(m=>(m.filhos||[]).forEach(f=>PAI[f.id]=m.id));
 
-let CANAIS=null,ATEND=null,CONVERSA=null,PLANOS_CAT=null,CICLO='mensal',OPERADORES=null,OP_EDIT=null,TKLOJA=null,TKADS=null;
+let CANAIS=null,ATEND=null,CONVERSA=null,PLANOS_CAT=null,CICLO='mensal',OPERADORES=null,OP_EDIT=null,TKLOJA=null,TKADS=null,TKSHOP=null;
 let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null,QG=null,TKAPP=null,PAG=null,LOTES=null,CAIXA=null,BOT=null,DOCS=null,PUB=null;
 const TESTE={}; // resultado do ultimo teste por rede (so em memoria)
 const PROVA={}; // ultimo teste real das APIs do TikTok, por familia
@@ -907,6 +907,59 @@ const head=(t,p,acts)=>`<div class="page-head"><div class="ph-txt">`+
 const TK_NOME={open:'Login Kit / Display',business:'Business (Ads)',shop:'Shop (produtos)'};
 /* TikTok Shop. O motor ja fazia tudo isto; faltava porta — o painel alcancava
    2 das 10 capacidades do modulo, e "catalogo" e vendido no Modulo A. */
+/**
+ * TikTok Shop — o cartao que um revisor de marketplace abre.
+ *
+ * Ele precisa ver, sem procurar: uma acao clara pra conectar, o estado da
+ * conexao, QUAL loja foi autorizada e a prova de que houve chamada de verdade.
+ * Por isso este cartao fica no TOPO da tela de Conexoes e nao depende de rolar.
+ *
+ * Nada aqui e inventado: se a TikTok nao respondeu, aparece o motivo. Tela de
+ * integracao que mostra dado fabricado passa na revisao e quebra no cliente.
+ */
+function tiktokShopCard(){
+  const d=TKSHOP;
+  if(!d) return '';
+  const badge=d.conectada?'<span class="badge b-ok">TikTok Shop conectada</span>'
+    :d.autorizado?'<span class="badge b-warn">autorizada · falta escolher a loja</span>'
+    :d.appPronto?'<span class="badge b-warn">pronta para conectar</span>'
+    :'<span class="badge">app ainda não configurado</span>';
+  const s=d.ultimaSincronizacao;
+  const quando=(x)=>x?String(x).slice(0,16).replace('T',' '):'—';
+
+  return `<div class="card" style="margin-bottom:16px">
+    ${cardH('redes','TikTok Shop',
+      'Autorização oficial da loja. O painel manda você para o TikTok, recebe a autorização de volta e passa a falar com a API da sua loja.',
+      2,badge)}
+
+    ${d.conectada?`
+      ${linha('Loja autorizada','identificação devolvida pela TikTok',esc(d.loja?.nome||d.loja?.id||'—'),'b-ok')}
+      ${linha('Última sincronização',s?.ok?'produtos lidos da API da TikTok':'a última tentativa falhou',
+        s?`${quando(s.em)} · ${s.ok?`${s.total} produto(s)`:esc(s.motivo||'falhou')}`:'nunca sincronizado',
+        s?(s.ok?'b-ok':'b-err'):'b-warn')}
+      ${linha('Enviados deste painel','produtos publicados por aqui',String(d.publicados||0),'')}
+      <div class="form-grid" style="margin-top:12px">
+        ${botao({t:'Sincronizar agora',ic:'atualizar',v:'p',on:'sincronizarShop()'})}
+        ${botao({t:'Trocar de loja',ic:'seta',v:'g',on:'descobrirLojaTiktok()'})}
+      </div>
+      <p class="hint" style="margin-top:8px">A sincronização chama a API da TikTok na hora. O número acima é o que
+        <b>ela respondeu</b> — se a chamada falhar, aparece o motivo em vez de um número antigo.</p>`
+    :d.autorizado?`
+      <p class="hint" style="margin-bottom:10px">A conta foi autorizada, mas falta escolher <b>qual loja</b> desta conta
+        será usada — uma conta pode administrar mais de uma.</p>
+      ${botao({t:'Escolher a loja',ic:'estoque',v:'p',on:'descobrirLojaTiktok()'})}`
+    :d.appPronto?`
+      <p class="hint" style="margin-bottom:10px">Você será levado ao <b>TikTok Shop</b> para autorizar esta loja. Ao
+        voltar, o painel guarda a autorização e passa a ler seus produtos pela API oficial.</p>
+      ${botao({t:'Conectar TikTok Shop',ic:'integra',v:'p',on:"autorizarTiktok('shop')"})}`
+    :`
+      <p class="hint" style="margin-bottom:6px">Falta configurar o aplicativo no
+        <b>partner.tiktokshop.com</b> antes de conectar a loja: <code>${(d.faltando||[]).map(esc).join('</code>, <code>')}</code>.</p>
+      <p class="hint">Essas chaves identificam o <b>aplicativo</b>, não a loja — a loja entra pela autorização, no botão
+        que aparece assim que o app estiver configurado.</p>`}
+  </div>`;
+}
+
 function tiktokLojaCard(){
   const s=TK?.familias?.shop;
   if(!s?.autorizado) return '';
@@ -1085,6 +1138,22 @@ function tiktokCard(){
   ${bloco('open','Login e conteúdo',[['clientKey','Client key','do app em developers.tiktok.com'],['clientSecret','Client secret','']],'publicar vídeo, ler perfil e métricas')}
   ${bloco('business','Anúncios (Ads)',[['appId','App ID','de business-api.tiktok.com'],['secret','Secret','']],'campanhas, conjuntos e relatórios')}
   ${bloco('shop','Loja (produtos)',[['appKey','App key','de partner.tiktokshop.com'],['appSecret','App secret',''],['serviceId','Service ID','do painel do app']],'catálogo, estoque e preço')}`;
+}
+
+async function sincronizarShop(){
+  try{
+    const r=await api('tiktok/sincronizar',{});
+    TKSHOP=await api('tiktok/shop').catch(()=>TKSHOP);
+    if(r.ok){
+      avisoOk('Sincronizado com a TikTok',
+        `A API respondeu com <b>${r.total}</b> produto(s) da loja <b>${esc(r.loja||'—')}</b>.`);
+    }else{
+      /* Falha de integracao NAO vira aviso que some: e o motivo pelo qual o
+         numero na tela nao mudou, e quem opera precisa ler. */
+      avisoErro('A TikTok não respondeu a consulta',esc(r.motivo||'sem motivo informado'));
+    }
+    render();
+  }catch(e){ avisoErro('Não consegui sincronizar',e.message); }
 }
 
 async function carregarTiktokLoja(){
@@ -3134,8 +3203,10 @@ const S={
          em segundos. */
       est==='conectado'
         ? botao({t:'Desconectar',ic:'power',v:'s',on:"desconectarCanal()"})
+          +botao({t:'Trocar de número',ic:'atualizar',v:'g',on:'trocarNumeroCanal()'})
         : ['aguardando_qr','caido','conectando'].includes(est)
           ? botao({t:'Reconectar (gera QR novo)',ic:'atualizar',v:'p',on:"reconectarCanal()"})
+            +botao({t:'Trocar de número',ic:'usuario',v:'g',on:'trocarNumeroCanal()'})
             +botao({t:'Desligar o canal',ic:'power',v:'g',on:"desconectarCanal()"})
           : botao({t:'Conectar WhatsApp',ic:'whats',v:'p',on:"conectarCanal()"}))+
   `<div class="grid g-kpi" style="margin-bottom:16px">
@@ -3272,6 +3343,7 @@ const S={
     ${linha('Publicação automática','TikTok: postar vídeo pela API','no TikTok','b-ok')}
     ${linha('Catálogo e campanhas','TikTok Shop e TikTok Ads','no TikTok','b-ok')}
     ${linha('Demais redes','YouTube, Instagram, Facebook: só leitura','ainda não','b-warn')}</div>
+  ${tiktokShopCard()}
   ${tiktokCard()}
   <div class="card" style="margin-bottom:16px;border-style:dashed">
     ${cardH('integra',`Teste rápido — a credencial abaixo não fica gravada`,`Vale para os formulários desta seção: o token vai até este servidor, é usado na chamada e descartado. Serve para conferir se uma credencial funciona, não para deixar a integração ligada. <b>A integração completa do TikTok é o bloco acima</b>, com OAuth e token renovado sozinho.`,2)}</div>
@@ -4007,6 +4079,7 @@ async function carregar(){
     // e o resto do painel continua funcionando normalmente.
     QG=await api('quebragalho').catch(()=>null);
     TKAPP=await api('tiktok/app').catch(()=>null);
+    TKSHOP=await api('tiktok/shop').catch(()=>null);
     /* So busca Shop e Ads se a familia correspondente estiver autorizada: bater
        na API sem token devolve erro e encheria a tela de vermelho por algo que
        ainda nem foi configurado. */
@@ -4673,6 +4746,31 @@ async function personalizarCanal(){
 }
 /* Reconectar e derrubar e subir: sessao travada em "esperando o QR" nao se
    conserta mandando conectar de novo — o provider ja se acha conectando. */
+/* Trocar de numero NAO e reconectar. Reconectar volta pro mesmo aparelho;
+   trocar esquece o pareamento e pede QR do novo. Eram a mesma coisa na tela, e
+   por isso parecia que o painel "nao aceitava numero novo". */
+function trocarNumeroCanal(){
+  const c=(CANAIS?.canais||[])[0]||null;
+  confirmar({
+    titulo:'Trocar o número que atende?',
+    texto:`Vou esquecer o aparelho pareado${c?.numero?` (<b>+${esc(c.numero)}</b>)`:''} e pedir o QR Code do número novo.`,
+    consequencia:'Até alguém ler o novo QR, o canal fica fora do ar e ninguém é atendido.',
+    rotulo:'Esquecer e pedir QR', icone:'atualizar', perigo:false,
+    aoConfirmar:async()=>{
+      flash('Esquecendo o aparelho e subindo sessão nova…','ok');
+      const r=await api('canais/trocar-numero',{canal:'whatsapp-web'});
+      await carregar();
+      if(r.qr||r.estado==='aguardando_qr'){
+        avisoOk('Pronto para parear',
+          'O QR Code aparece aqui nesta tela. Abra o WhatsApp do número novo → <b>Aparelhos conectados</b> → <b>Conectar um aparelho</b>.'
+          +(r.anterior?'<br><br><small>A sessão anterior foi guardada, não apagada.</small>':''));
+      }else{
+        avisoErro('A sessão nova não chegou a pedir QR',`Estado atual: <b>${esc(r.estado||'?')}</b>. Tente "Reconectar (gera QR novo)".`);
+      }
+    },
+  });
+}
+
 async function reconectarCanal(){
   try{
     flash('Derrubando a sessão para subir uma nova…','ok');

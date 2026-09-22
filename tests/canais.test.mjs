@@ -896,3 +896,58 @@ test('se a foto nao baixar, o backup guarda o resto em vez de nada', async () =>
     assert.equal(r.anterior.nome, 'Fabiano', 'nome e recado continuam salvos');
   } finally { globalThis.fetch = antesFetch; }
 });
+
+/* ---- trocar o numero que atende ----
+
+   Reclamacao de campo: "ela nao aceita numero novo, deveria pedir o QR". E o
+   painel estava certo do jeito errado — o login do WhatsApp mora DENTRO do
+   perfil do navegador, entao desconectar e conectar voltava sempre para o mesmo
+   aparelho, calado. Nao havia caminho nenhum para ligar outro chip. */
+
+import { mkdtempSync, mkdirSync, existsSync, writeFileSync, readdirSync } from 'node:fs';
+import { tmpdir as tmpdir2 } from 'node:os';
+import { join as join2 } from 'node:path';
+
+test('esquecer o aparelho GUARDA a sessao anterior em vez de apagar', async () => {
+  const raiz = mkdtempSync(join2(tmpdir2(), 'troca-'));
+  const antes = process.cwd();
+  process.chdir(raiz);
+  mkdirSync(join2(raiz, 'tokens', 'veloso'), { recursive: true });
+  writeFileSync(join2(raiz, 'tokens', 'veloso', 'login.json'), '{"pareado":true}');
+
+  const lib = libFalsa();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar, exec: () => '' });
+  await p.conectar();
+  const r = await p.esquecerAparelho();
+
+  assert.equal(r.ok, true);
+  assert.equal(r.tinhaSessao, true);
+  assert.equal(existsSync(join2(raiz, 'tokens', 'veloso')), false, 'a sessao antiga sai do caminho');
+  assert.ok(readdirSync(join2(raiz, 'tokens')).some((d) => d.startsWith('veloso.anterior-')),
+    'apagar 200 MB de sessao por um clique seria escolha que nao se desfaz');
+  process.chdir(antes);
+});
+
+test('esquecer sem sessao nenhuma nao e erro', async () => {
+  const raiz = mkdtempSync(join2(tmpdir2(), 'troca-vazia-'));
+  const antes = process.cwd();
+  process.chdir(raiz);
+  const p = criarWhatsAppWebProvider({ criarSessao: libFalsa().criar, exec: () => '' });
+  const r = await p.esquecerAparelho();
+  assert.equal(r.ok, true);
+  assert.equal(r.tinhaSessao, false);
+  process.chdir(antes);
+});
+
+test('depois de esquecer, o canal fica DESCONECTADO — nao "caiu"', async () => {
+  const raiz = mkdtempSync(join2(tmpdir2(), 'troca-est-'));
+  const antes = process.cwd();
+  process.chdir(raiz);
+  const lib = libFalsa();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar, exec: () => '' });
+  await p.conectar();
+  await p.esquecerAparelho();
+  assert.equal(p.status().estado, ESTADOS.DESCONECTADO);
+  assert.equal(p.status().numero, null, 'o numero antigo nao pode ficar na tela');
+  process.chdir(antes);
+});

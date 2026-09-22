@@ -18,10 +18,24 @@ const fake = (corpo, cap = {}) => async (url, opts) => {
   return { status: 200, json: async () => corpo };
 };
 
-test('credencial incompleta nao é gravada — evita "configurado" mentiroso na tela', () => {
+/* A regra mudou, e a mudanca veio do uso: as chaves vem de TELAS DIFERENTES do
+   painel da TikTok, entao chegar em partes e o normal. Recusar o parcial fazia
+   quem tinha duas das tres perder as duas ao salvar.
+
+   O "configurado mentiroso" continua impedido — so que pelo lugar certo:
+   `faltando` acompanha a gravacao, e e ele que decide se a tela oferece o botao
+   de autorizar. Guardar rascunho nao e declarar pronto. */
+test('credencial incompleta E gravada, dizendo o que ainda falta', () => {
   const r = vs.salvarCredencial('open', { clientKey: 'ck' });
-  assert.equal(r.ok, false);
+  assert.equal(r.ok, true, 'nao se joga fora o que a pessoa acabou de colar');
   assert.deepEqual(r.faltando, ['clientSecret']);
+  assert.equal(r.completo, false, 'gravado nao quer dizer pronto');
+});
+
+test('so quando tudo esta preenchido o app e declarado completo', () => {
+  const r = vs.salvarCredencial('open', { clientSecret: 'cs' });
+  assert.equal(r.completo, true);
+  assert.deepEqual(r.faltando, []);
 });
 
 test('familia desconhecida é recusada', () => {
@@ -40,7 +54,7 @@ test('diagnostico diz o que falta em vez de so falhar depois', () => {
   const d = vs.diagnostico();
   assert.equal(d.familias.open.appConfigurado, true);
   assert.equal(d.familias.open.autorizado, false);
-  assert.deepEqual(d.familias.shop.faltando, ['appKey', 'appSecret']);
+  assert.deepEqual(d.familias.shop.faltando, ['appKey', 'appSecret', 'serviceId']);
   assert.equal(d.pronto.publicar, false);
 });
 

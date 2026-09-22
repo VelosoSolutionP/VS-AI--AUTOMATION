@@ -304,6 +304,36 @@ export async function conectar({ canal = 'whatsapp-web', produtos } = {}) {
   return { ok: true, ...s };
 }
 
+/**
+ * Trocar o número que atende.
+ *
+ * Esquece o aparelho pareado e sobe a sessão de novo, que aí nasce pedindo QR.
+ * Sem isto, "desconectar e conectar" voltava sempre para o MESMO número —
+ * silenciosamente, porque o login mora no perfil do navegador. Quem queria ligar
+ * outro chip não tinha caminho nenhum na tela.
+ */
+export async function trocarNumero({ canal = 'whatsapp-web', produtos } = {}) {
+  const g = montar({ produtos });
+  const p = g.obter(canal);
+  if (!p) { return { ok: false, erro: `canal "${canal}" não existe` }; }
+  if (typeof p.esquecerAparelho !== 'function') {
+    return { ok: false, erro: `o canal "${canal}" não permite trocar de número` };
+  }
+
+  console.log('[canais] TROCANDO o numero que atende — o pareamento atual sera esquecido');
+  const r = await p.esquecerAparelho();
+  if (!r.ok) { return r; }
+
+  /* Marca ligado ANTES de conectar: quem pediu para trocar de número quer o
+     canal no ar, e sem isto um reinício no meio do pareamento deixaria tudo
+     desligado sem ninguém entender por quê. */
+  marcarLigado(true);
+  p.conectar().catch((e) => console.error(`[canais] falhei ao subir a sessao nova: ${e.message}`));
+  const st = await esperarQr(p);
+  console.log(`[canais] sessao nova em "${st.estado}"${st.qr ? ' — QR pronto para leitura' : ''}`);
+  return { ok: true, ...st, anterior: r.guardadoEm || null, tinhaSessao: r.tinhaSessao };
+}
+
 export async function desconectar({ canal = 'whatsapp-web' } = {}) {
   marcarLigado(false);
   if (!gateway) { return { ok: true, estado: 'desconectado' }; }
