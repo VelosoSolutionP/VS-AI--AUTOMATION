@@ -315,3 +315,36 @@ test('o simulador NAO deixa protocolo de mentira no historico', () => {
   bot.simular(['oi', '1']);
   assert.equal(proto.listar().length, antes, 'testar nao pode encher o historico');
 });
+
+test('o dono assumindo a conversa CALA a Micaela naquela conversa', () => {
+  bot.apagarFluxo();
+  bot.salvarConfig({ ativo: true, nome: 'Micaela' });
+  bot.salvarFluxo([
+    { id: 'inicio', mensagem: 'Oi! Sou a Micaela.', opcoes: [{ tecla: '1', texto: 'Suporte', vaiPara: 'sup' }] },
+    { id: 'sup', mensagem: 'Passando pro suporte.', acao: 'encaminhar', departamento: 'suporte' },
+  ]);
+  const cliente = '5531900300';
+  assert.match(bot.atender('oi', { de: cliente }).texto, /Sou a Micaela/);
+
+  const r = bot.assumirConversa(cliente);
+  assert.equal(r.ok, true);
+  assert.equal(r.novo, true);
+
+  const depois = bot.atender('me ajuda ai', { de: cliente });
+  assert.equal(depois.calado, true, 'ela nao pode falar por cima de quem esta atendendo');
+  assert.equal(depois.texto, '');
+});
+
+test('assumir de novo renova o silencio — enquanto o dono digita, ela fica fora', () => {
+  const cliente = '5531900300';
+  const r = bot.assumirConversa(cliente);
+  assert.equal(r.ok, true);
+  assert.equal(r.novo, false, 'ja estava assumida: nao precisa avisar de novo no log');
+  assert.equal(bot.atender('e ai?', { de: cliente }).calado, true);
+});
+
+test('devolver pra Micaela faz ela voltar a atender', () => {
+  const cliente = '5531900300';
+  bot.devolverAoBot(cliente);
+  assert.match(bot.atender('oi', { de: cliente }).texto, /Sou a Micaela/);
+});

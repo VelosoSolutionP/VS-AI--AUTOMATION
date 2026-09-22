@@ -93,6 +93,18 @@ function montar({ produtos } = {}) {
      parava na "tentativa 3/5" e ficava por isso mesmo. Quem lia nao sabia se
      tinha voltado ou se tinha morrido calada — e as duas coisas exigem reacao
      diferente. */
+  /* O dono entrou na conversa: a Micaela sai de cena ali.
+     Nao existe jeito mais rapido de queimar a confianca do cliente do que ver
+     duas pessoas respondendo a mesma pergunta — e uma delas e um robo cortando
+     o assunto com um menu. Reusa o MESMO silencio pos-handoff: a regra ja
+     existia, so nunca tinha sido ligada neste gatilho. */
+  whatsappWeb.aoDonoEscrever(({ de, endereco }) => {
+    const chave = de || endereco;
+    if (!chave) { return; }
+    const r = bot.assumirConversa(chave, { endereco });
+    if (r?.novo) { console.log(`[canais] voce assumiu a conversa com ${chave} — a Micaela fica quieta ate devolver`); }
+  });
+
   whatsappWeb.aoMudarStatus((st) => {
     const e = st?.estado || '?';
     if (e === 'conectado') { console.log(`[canais] whatsapp CONECTADO${st.numero ? ' — ' + st.numero : ''}`); }

@@ -565,3 +565,52 @@ test('queda de verdade continua reconectando — o conserto nao pode matar a rec
   await new Promise((r) => setTimeout(r, 2200));
   assert.equal(p.status().estado, ESTADOS.CONECTADO, 'voltou sozinho');
 });
+
+/* ---- quando o dono entra na conversa ----
+
+   Incidente real: o dono estava conversando com um cliente — a pessoa mandando
+   telefone, nome, "Mercado pago" — e a Micaela cortou TRES vezes com o menu.
+   O cliente viu dois interlocutores falando ao mesmo tempo sobre coisas
+   diferentes, e um deles era um robo. Nao ha jeito mais rapido de queimar a
+   confianca de quem esta do outro lado. */
+
+test('mensagem que o DONO digita avisa o dominio — nao e mais jogada fora como eco', async () => {
+  const lib = libFalsa();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+
+  const assumidas = [];
+  p.aoDonoEscrever((x) => assumidas.push(x));
+  await lib.cbs.onMessage({ id: { id: 'MANUAL1' }, fromMe: true, from: '5531999990000@c.us',
+    to: '5531977776666@c.us', body: 'oi, aqui e o Fabiano', type: 'chat' });
+
+  assert.equal(assumidas.length, 1);
+  assert.equal(assumidas[0].endereco, '5531977776666@c.us', 'a conversa e com o CLIENTE, nao com a gente');
+  assert.equal(assumidas[0].de, '5531977776666');
+});
+
+test('o eco da PROPRIA resposta nao conta como o dono digitando', async () => {
+  const lib = libFalsa();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+
+  const assumidas = [];
+  p.aoDonoEscrever((x) => assumidas.push(x));
+  const env = await p.enviarTexto({ para: '5531977776666', texto: 'resposta da Micaela' });
+  // O WhatsApp devolve o que a gente mesmo mandou, com o mesmo id.
+  await lib.cbs.onMessage({ id: { id: env.id }, fromMe: true, from: '5531999990000@c.us',
+    to: '5531977776666@c.us', body: 'resposta da Micaela', type: 'chat' });
+
+  assert.equal(assumidas.length, 0, 'senao ela se calaria sozinha a cada resposta que desse');
+});
+
+test('mensagem do dono NAO entra como mensagem de cliente', async () => {
+  const lib = libFalsa();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+  const recebidas = [];
+  p.aoReceber((m) => recebidas.push(m));
+  await lib.cbs.onMessage({ id: { id: 'MANUAL2' }, fromMe: true, from: '5531999990000@c.us',
+    to: '5531977776666@c.us', body: 'oi', type: 'chat' });
+  assert.equal(recebidas.length, 0);
+});

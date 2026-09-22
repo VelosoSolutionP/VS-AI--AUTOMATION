@@ -81,6 +81,11 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
      contra a vontade de quem desligou. Este sinalizador e a diferenca entre
      "caiu" e "o dono mandou parar". */
   let intencional = false;
+  /* Ids do que NOS mandamos. O WhatsApp devolve tudo que sai da conta como
+     mensagem `fromMe` — inclusive as nossas. Sem separar as duas coisas, a
+     resposta da propria Micaela seria lida como "o dono digitou". */
+  const enviadosPorNos = new Set();
+  const ouvintesDono = [];
   let reconectando = null;  // timer
 
   const ouvintesMsg = [];
@@ -199,6 +204,25 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
 
       cliente.onMessage?.(async (m) => {
         ultimaAtividade = agora();
+        /* O DONO ASSUMIU A CONVERSA.
+           Mensagem que sai da conta e `fromMe`. Ate agora tudo isso era jogado
+           fora como eco — e junto ia o sinal mais importante que existe neste
+           canal: a pessoa de carne e osso entrou na conversa. Enquanto isso era
+           ignorado, a Micaela respondia POR CIMA do dono, com o cliente vendo os
+           dois falando ao mesmo tempo. */
+        if (m.fromMe) {
+          const idm = String(m.id?.id || m.id || '');
+          if (enviadosPorNos.has(idm)) { enviadosPorNos.delete(idm); return; }
+          const onde = m.to || m.chatId?._serialized || m.chatId || null;
+          if (onde) {
+            console.log(`[whatsapp-web] o dono escreveu em ${onde} — a Micaela sai desta conversa`);
+            for (const fn of ouvintesDono) {
+              try { fn({ endereco: String(onde), de: soDigitos(onde) }); } catch (e) { console.error('[whatsapp-web] ouvinte do dono quebrou:', e.message); }
+            }
+          }
+          return;
+        }
+
         const filtro = deveAtender(m);
         if (!filtro.ok) {
           /* Este era o ultimo ponto cego: mensagem descartada aqui sumia sem
@@ -439,7 +463,15 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     try {
       const r = await cliente.sendText(destino.includes('@') ? destino : `${destino}@c.us`, String(texto));
       ultimaAtividade = agora();
-      return { ok: true, id: r?.id?.id || r?.id || null };
+      const idEnviado = r?.id?.id || r?.id || null;
+      /* Guarda o id pra reconhecer o proprio eco daqui a pouco. Com teto: a
+         lista existe por segundos e nao pode virar vazamento de memoria numa
+         sessao que fica meses no ar. */
+      if (idEnviado) {
+        enviadosPorNos.add(String(idEnviado));
+        if (enviadosPorNos.size > 300) { enviadosPorNos.delete(enviadosPorNos.values().next().value); }
+      }
+      return { ok: true, id: idEnviado };
     } catch (e) {
       return { ok: false, erro: e.message };
     }
@@ -455,6 +487,9 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     enviarTexto,
     personalizar,
     aoReceber: (fn) => { ouvintesMsg.push(fn); },
+    /** Avisado quando o DONO digita numa conversa — o canal nao decide o que
+        fazer com isso, quem decide e o dominio. */
+    aoDonoEscrever: (fn) => { ouvintesDono.push(fn); },
     aoMudarStatus: (fn) => { ouvintesStatus.push(fn); },
     /* só pra teste: injeta uma mensagem como se tivesse vindo do WhatsApp */
     _receberDireto: (m) => {

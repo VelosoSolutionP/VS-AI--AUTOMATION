@@ -165,6 +165,36 @@ export function emAtendimento() {
     .sort((a, b) => String(b.desde).localeCompare(String(a.desde)));
 }
 
+/**
+ * O DONO assumiu esta conversa — o bot sai de cena.
+ *
+ * Mesmo mecanismo do handoff, disparado por outro gatilho: ali a Micaela decide
+ * chamar gente; aqui a gente simplesmente entra e ela precisa perceber. Sem
+ * isto, ela responde POR CIMA de quem está atendendo, e o cliente vê os dois
+ * falando ao mesmo tempo sobre coisas diferentes.
+ *
+ * É idempotente de propósito: cada mensagem que o dono digita passa por aqui, e
+ * renovar o silêncio a cada uma é exatamente o comportamento certo — enquanto
+ * ele estiver digitando, ela continua fora.
+ */
+export function assumirConversa(de, { endereco } = {}) {
+  if (!de) { return { ok: false, erro: 'sem remetente' }; }
+  const atual = conversas()[de] || null;
+  const novo = !atual?.handoffEm;
+  salvarConversa(de, {
+    ...(atual || {}),
+    handoffEm: new Date().toISOString(),
+    departamento: 'humano',
+    contexto: atual?.contexto || {},
+    assumidaPeloDono: true,
+  });
+  try {
+    const p = proto.aberto(de);
+    if (p) { proto.anotar(p.numero, { estado: proto.ESTADOS.COM_HUMANO, departamento: 'humano', endereco }); }
+  } catch { /* protocolo e complemento: se falhar, o silencio ja esta valendo */ }
+  return { ok: true, novo };
+}
+
 /** Devolve a conversa pro bot: o atendente terminou e o fluxo pode recomeçar. */
 export function devolverAoBot(telefone) {
   if (!telefone) { return { ok: false, erro: 'telefone vazio' }; }
