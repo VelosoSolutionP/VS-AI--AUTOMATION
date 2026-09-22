@@ -208,6 +208,50 @@ export function estaComGente(de) {
   return Boolean(c?.handoffEm) && aindaEmSilencio(c);
 }
 
+/**
+ * Quem está esperando gente há tempo demais, e ninguém resgatou ainda.
+ *
+ * O desenho tinha um buraco do tamanho do cliente: ela passava para a fila,
+ * calava por quatro horas e NINGUÉM era avisado — o único aviso era uma linha
+ * de log. Sem atendente olhando o painel naquele minuto, a pessoa ficava
+ * falando sozinha achando que o atendimento morreu. E morria mesmo.
+ *
+ * `handoffEm` é renovado sempre que alguém de casa escreve na conversa, então
+ * "antigo" aqui significa de verdade: ninguém respondeu.
+ */
+export function aguardandoHaMais(minutos = 10, agora = Date.now()) {
+  const todas = conversas();
+  return Object.entries(todas)
+    /* `assumidaPeloDono` fica DE FORA para sempre, nao por dez minutos: se uma
+       pessoa de carne e osso entrou na conversa, o bot nao volta a falar ali
+       por conta propria. Reiniciar so o relogio deixava ela interromper o
+       atendente dez minutos depois — que e o defeito que este modulo inteiro
+       existe para evitar. Quem devolve a conversa pro bot e o botao "Devolver
+       pra Micaela", conscientemente. */
+    .filter(([, c]) => c?.handoffEm && !c.resgatadoEm && !c.assumidaPeloDono)
+    .filter(([, c]) => (agora - new Date(c.handoffEm).getTime()) / 60000 >= minutos)
+    .map(([de, c]) => ({
+      de,
+      desde: c.handoffEm,
+      departamento: c.departamento || 'humano',
+      contexto: c.contexto || {},
+      minutos: Math.floor((agora - new Date(c.handoffEm).getTime()) / 60000),
+    }));
+}
+
+/**
+ * Marca que a pessoa já foi avisada da espera.
+ *
+ * Uma vez só. Bot que repete "ainda estou procurando alguém" a cada dez minutos
+ * não tranquiliza: vira alarme, e o cliente bloqueia o número.
+ */
+export function marcarResgatada(de, quando = new Date().toISOString()) {
+  const atual = conversas()[de];
+  if (!atual) { return { ok: false, erro: 'conversa não existe' }; }
+  salvarConversa(de, { ...atual, resgatadoEm: quando });
+  return { ok: true };
+}
+
 /** Devolve a conversa pro bot: o atendente terminou e o fluxo pode recomeçar. */
 export function devolverAoBot(telefone) {
   if (!telefone) { return { ok: false, erro: 'telefone vazio' }; }

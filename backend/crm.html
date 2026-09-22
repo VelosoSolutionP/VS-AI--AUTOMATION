@@ -892,6 +892,11 @@ function numeroBonito(n){
 function canalWhatsApp(){
   const web=(CANAIS?.canais||[]).find(c=>c.provider==='whatsapp-web');
   if(web?.estado==='conectado') return {no_ar:true,via:'WhatsApp Web',numero:web.numero||null,rotulo:'no ar · WhatsApp Web',oficial:false};
+  /* O backend agora tambem sabe do canal proprio: se ele disser que ha canal no
+     ar, vale — mesmo que a lista de canais ainda nao tenha chegado nesta tela.
+     Duas fontes discordando era o que fazia o topo dizer "desligada" com a
+     Micaela conversando. */
+  if(STATUS?.whatsapp?.canal) return {no_ar:true,via:'WhatsApp Web',numero:STATUS.whatsapp.numero||null,rotulo:'no ar · WhatsApp Web',oficial:false};
   if(STATUS?.whatsapp?.envia) return {no_ar:true,via:'API oficial',numero:null,rotulo:'no ar · API oficial',oficial:true};
   if(web?.estado==='aguardando_qr') return {no_ar:false,via:null,numero:null,rotulo:'esperando o QR',oficial:false};
   if(web?.estado==='caido') return {no_ar:false,via:null,numero:null,rotulo:'sessão caiu',oficial:false};

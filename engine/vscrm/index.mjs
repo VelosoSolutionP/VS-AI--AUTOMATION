@@ -98,7 +98,17 @@ export function painel() {
  * Estado REAL de cada integração, pro painel parar de fingir que está tudo certo.
  * Só booleano e nome de provider — token e apikey nunca saem daqui.
  */
-export function statusIntegracoes() {
+/**
+ * O que o topo do painel mostra sobre as integrações.
+ *
+ * `canais` é o estado do canal próprio (WhatsApp Web), passado por quem chama —
+ * o CRM não conhece canal, e não vai passar a conhecer por causa de um badge.
+ *
+ * Existe porque o topo olhava SÓ para a API oficial da Meta e dizia "WhatsApp
+ * desligado" com a Micaela pareada e conversando. Quem lê o topo confia nele: o
+ * dono desligou e religou o canal mais de uma vez por causa desse aviso.
+ */
+export function statusIntegracoes(canais = null) {
   const env = process.env;
   let notify = { enabled: false, phone: false, apikey: false };
   try {
@@ -108,6 +118,12 @@ export function statusIntegracoes() {
   } catch {}
   const { funil, origem } = getFunil();
   const leads = listar();
+
+  const oficialAtiva = (env.WHATSAPP_PROVIDER || 'log') === 'cloud' && !!env.WA_TOKEN && !!env.WA_PHONE_ID;
+  /* SÓ 'conectado' conta. Canal esperando QR, caído ou conectando não atende
+     ninguém — acender o topo neles seria a mentira oposta à de antes. */
+  const canalProprio = (canais?.canais || []).find((c) => c?.estado === 'conectado') || null;
+
   return {
     whatsapp: {
       provider: env.WHATSAPP_PROVIDER || 'log',
@@ -115,7 +131,19 @@ export function statusIntegracoes() {
       waPhoneId: !!env.WA_PHONE_ID,
       template: !!env.WA_TEMPLATE,
       // 'log' não envia nada: só imprime o link wa.me no console.
-      envia: (env.WHATSAPP_PROVIDER || 'log') === 'cloud' && !!env.WA_TOKEN && !!env.WA_PHONE_ID,
+      envia: oficialAtiva || Boolean(canalProprio),
+      /* POR ONDE está ativo, não só "se" está. A oficial ganha do canal próprio
+         quando as duas existem: é ela que a Meta reconhece, e é por ela que a
+         mensagem sai. Dizer "whatsapp-web" nesse caso mandaria o suporte olhar
+         a sessão errada. */
+      via: oficialAtiva ? 'API oficial' : (canalProprio ? (canalProprio.nome || 'whatsapp-web') : null),
+      /* `cloud` e `canal` separados de proposito: o topo precisa dizer POR ONDE
+         esta ativo, e "tem a oficial" e "tem canal proprio" sao perguntas
+         diferentes — as duas podem ser verdade ao mesmo tempo. */
+      cloud: oficialAtiva,
+      canal: canalProprio ? (canalProprio.nome || 'whatsapp-web') : null,
+      numero: canalProprio?.numero || null,
+      oficial: oficialAtiva ? true : (canalProprio ? false : null),
     },
     notify,
     crm: { funil: funil.length, funilOrigem: origem, leads: leads.length },

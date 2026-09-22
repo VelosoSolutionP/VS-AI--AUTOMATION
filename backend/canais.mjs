@@ -264,6 +264,58 @@ export async function encerrarParados({ agora } = {}) {
   return { encerrados: encerrados.length, avisados };
 }
 
+/** Minutos de espera até a Micaela voltar para dizer que ainda está esperando. */
+const MIN_ATE_RESGATE = Number(process.env.MINUTOS_RESGATE_FILA || 10);
+
+/**
+ * Resgata quem ficou esperando gente e não foi atendido.
+ *
+ * O silêncio pós-handoff existe para o bot não falar por cima do atendente. Só
+ * que, sem atendente, ele virava abandono: a pessoa escrevia, era encaminhada,
+ * e sumia todo mundo por quatro horas. Do lado dela, o atendimento morreu.
+ *
+ * A mensagem é honesta de propósito: não promete prazo, não inventa que "já
+ * estão te atendendo". Diz que ainda não conseguiu alguém, entrega o número do
+ * protocolo e deixa claro que a conversa continua de onde parou.
+ */
+export async function resgatarFila({ agora, minutos } = {}) {
+  const espera = minutos ?? MIN_ATE_RESGATE;
+  const parados = bot.aguardandoHaMais(espera, agora ? new Date(agora).getTime() : Date.now());
+  if (!parados.length) { return { resgatados: 0 }; }
+
+  let avisados = 0;
+  for (const p of parados) {
+    const proto_ = proto.aberto(p.de) || proto.ultimoEncerrado(p.de);
+    const numero = proto_?.numero;
+    const texto = `Ainda não consegui falar com alguém do time — peço desculpa pela espera.\n\n`
+      + (numero ? `*Protocolo ${numero}*\n\n` : '')
+      + `Não se preocupe: guardei tudo o que você me contou. Assim que alguém assumir, a conversa continua `
+      + `daqui, sem você precisar repetir nada. Se preferir, pode escrever mais detalhes agora que eu registro.`;
+
+    /* Marca ANTES de enviar. Se o envio falhar, a pessoa nao e avisada duas
+       vezes na proxima varredura — e aviso repetido de espera vira alarme, nao
+       tranquilidade. */
+    bot.marcarResgatada(p.de);
+
+    const para = proto_?.endereco || p.de;
+    if (!whatsappWeb) { continue; }
+    try {
+      const r = await whatsappWeb.enviarTexto({ para, texto });
+      if (r?.ok) { avisados += 1; } else {
+        console.warn(`[fila] ${p.de} espera ha ${p.minutos} min e nao consegui avisar: ${r?.erro || 'sem motivo'}`);
+      }
+    } catch (e) {
+      console.warn(`[fila] ${p.de} espera ha ${p.minutos} min e nao consegui avisar: ${e.message}`);
+    }
+  }
+
+  /* Este aviso e para o DONO, e por isso e barulhento: alguem esta esperando
+     atendimento humano e ninguem assumiu. */
+  console.warn(`[fila] ATENCAO: ${parados.length} pessoa(s) esperando atendimento ha mais de ${espera} min `
+    + `(${parados.map((x) => `${x.de} ha ${x.minutos}min`).join(', ')}) — ${avisados} avisada(s) da espera`);
+  return { resgatados: parados.length, avisados };
+}
+
 export function estado() {
   const config = lerConfig();
   /* O limite de atendentes vem do PLANO, nao daqui: ampliar e adendo de

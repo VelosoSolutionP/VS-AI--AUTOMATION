@@ -651,7 +651,7 @@ const server = createServer(async (req, res) => {
         : { erro: 'senha ausente ou invalida' });
     }
     if (req.method === 'GET' && rota === '/crm/api/painel') { return json(res, 200, crm.painel()); }
-    if (req.method === 'GET' && rota === '/crm/api/status') { return json(res, 200, crm.statusIntegracoes()); }
+    if (req.method === 'GET' && rota === '/crm/api/status') { return json(res, 200, crm.statusIntegracoes(canais.estado())); }
     if (req.method === 'GET' && rota === '/crm/api/indicacao') { return json(res, 200, crm.painelIndicacao()); }
     if (req.method === 'GET' && rota === '/crm/api/redes') { return json(res, 200, { credenciais: CREDENCIAL }); }
     // TikTok: o painel LE o estado e MANDA testar, mas nao grava credencial por HTTP.
@@ -1215,6 +1215,10 @@ server.listen(PORT, () => {
      processo de pe sozinho. */
   const relogio = setInterval(() => {
     canais.encerrarParados().catch((e) => console.error(`[protocolo] varredura falhou: ${e.message}`));
+    /* Na mesma batida: quem esta esperando gente ha tempo demais. Sao duas
+       varreduras porque sao dois problemas — uma fecha conversa parada, a outra
+       resgata cliente abandonado na fila. */
+    canais.resgatarFila().catch((e) => console.error(`[fila] varredura falhou: ${e.message}`));
   }, 60000);
   relogio.unref?.();
 });

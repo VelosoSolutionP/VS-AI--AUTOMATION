@@ -407,3 +407,59 @@ test('devolver pra Micaela libera o caminho de novo', () => {
 test('quem nunca conversou nao esta com gente', () => {
   assert.equal(bot.estaComGente('5531909999'), false);
 });
+
+/* ---- quem fica esperando na fila ----
+
+   "Depois que passa pra fila ja era, morre." E era verdade: o silencio
+   pos-handoff existe pro bot nao falar por cima do atendente, mas SEM atendente
+   ele virava abandono — a pessoa escrevia, era encaminhada, e sumia todo mundo
+   por quatro horas. Do lado dela, o atendimento morreu. */
+
+test('quem acabou de entrar na fila NAO e resgatado — o atendente merece uns minutos', () => {
+  bot.apagarFluxo();
+  bot.salvarConfig({ ativo: true, nome: 'Micaela' });
+  bot.salvarFluxo([
+    { id: 'inicio', mensagem: 'Oi!', opcoes: [{ tecla: '1', texto: 'Falar com uma pessoa', acao: 'encaminhar', departamento: 'humano' }] },
+  ]);
+  const de = '5531902000';
+  bot.atender('oi', { de });
+  bot.atender('1', { de });
+  assert.equal(bot.aguardandoHaMais(10).some((x) => x.de === de), false);
+});
+
+test('passados os minutos, ele aparece na lista de quem precisa ser resgatado', () => {
+  const de = '5531902000';
+  const daqui = Date.now() + 11 * 60000;
+  const espera = bot.aguardandoHaMais(10, daqui).find((x) => x.de === de);
+  assert.ok(espera, 'quem esperou 11 minutos sem resposta nao pode ficar invisivel');
+  assert.equal(espera.departamento, 'humano');
+  assert.ok(espera.minutos >= 10);
+});
+
+test('resgatado UMA vez — aviso repetido de espera vira alarme, e o cliente bloqueia', () => {
+  const de = '5531902000';
+  bot.marcarResgatada(de);
+  assert.equal(bot.aguardandoHaMais(10, Date.now() + 60 * 60000).some((x) => x.de === de), false);
+});
+
+test('se alguem de casa escreve, o relogio reinicia — nao se resgata quem ja esta sendo atendido', () => {
+  const de = '5531902001';
+  bot.atender('oi', { de });
+  bot.atender('1', { de });
+  const daqui = Date.now() + 11 * 60000;
+  assert.ok(bot.aguardandoHaMais(10, daqui).some((x) => x.de === de), 'esperando');
+
+  bot.assumirConversa(de);   // o dono entrou na conversa
+  assert.equal(bot.aguardandoHaMais(10, daqui).some((x) => x.de === de), false,
+    'com gente atendendo, resgatar seria falar por cima do atendente');
+});
+
+test('conversa que nunca foi pra fila nao entra na varredura', () => {
+  const de = '5531902002';
+  bot.atender('oi', { de });
+  assert.equal(bot.aguardandoHaMais(0, Date.now() + 999999).some((x) => x.de === de), false);
+});
+
+test('marcar resgate de conversa inexistente devolve erro em vez de fingir', () => {
+  assert.equal(bot.marcarResgatada('5531999999').ok, false);
+});
