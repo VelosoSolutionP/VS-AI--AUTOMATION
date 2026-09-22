@@ -4650,7 +4650,7 @@ async function personalizarCanal(){
     /* Sucesso PARCIAL e o caso comum: o WhatsApp recusa foto fora do formato e
        aceita o nome na mesma chamada. Dizer so "pronto" esconderia metade. */
     const ok=(r.feito||[]).join(', ');
-    if(r.falhas&&r.falhas.length){
+    if((r.falhas||[]).length){
       /* Deu certo em parte NAO e "nao consegui". Em campo isso apareceu como
          "Nao consegui concluir" depois de a foto TER SIDO aplicada — e o dono
          foi olhar o celular achando que nada tinha acontecido. O titulo conta o

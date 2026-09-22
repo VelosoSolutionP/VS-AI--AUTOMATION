@@ -416,9 +416,15 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     if (nome) { await tentar('nome', () => cliente.setProfileName(nome)); }
     if (recado) { await tentar('recado', () => cliente.setProfileStatus(recado)); }
     if (!feito.length && !falhas.length) { return { ok: false, erro: 'nada pra mudar' }; }
-    /* Sucesso parcial e o caso normal aqui: a TikTok/WhatsApp recusa foto fora do
-       formato mas aceita o nome. Dizer so "ok" esconderia metade do resultado. */
-    return { ok: falhas.length === 0, feito, falhas, anterior };
+    /* DUAS perguntas diferentes, duas respostas.
+         `ok`       — a operacao rodou e ALGO mudou no numero;
+         `completo` — tudo que foi pedido entrou.
+
+       Eram uma coisa so, e isso custou caro: com `ok:false` no parcial, o
+       tradutor generico do servidor virava a resposta inteira em "nao foi
+       possivel concluir" — e o dono lia fracasso depois de a foto TER SIDO
+       trocada no numero dele. Mentira em cima de sucesso e pior que erro. */
+    return { ok: feito.length > 0, completo: falhas.length === 0, feito, falhas, anterior };
   }
 
   /**

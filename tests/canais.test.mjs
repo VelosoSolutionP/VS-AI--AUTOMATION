@@ -364,7 +364,13 @@ test('sucesso PARCIAL e relatado — foto recusada nao pode virar "tudo certo"',
   const p = criarWhatsAppWebProvider({ criarSessao: criar });
   await p.conectar();
   const r = await p.personalizar({ foto: 'x', nome: 'Micaela' });
-  assert.equal(r.ok, false, 'houve falha: nao pode dizer ok');
+  /* A regra mudou, e a mudanca veio de campo: `ok` agora responde "mudou algo
+     no numero?" e `completo` responde "entrou tudo?". Eram a mesma coisa, e com
+     `ok:false` no parcial o tradutor generico do servidor transformava a
+     resposta inteira em "nao foi possivel concluir" — o dono lia fracasso
+     depois de a foto ja estar trocada no celular dele. */
+  assert.equal(r.ok, true, 'o nome entrou: algo mudou no numero');
+  assert.equal(r.completo, false, 'mas a foto nao entrou, e isso tem de aparecer');
   assert.deepEqual(r.feito, ['nome'], 'o que funcionou tem de aparecer');
   assert.match(r.falhas[0], /foto.*fora do formato/);
 });
@@ -771,6 +777,7 @@ test('personalizar devolve a cara ANTERIOR junto — e o que permite voltar', as
 
   const r = await p.personalizar({ foto: 'data:image/jpeg;base64,MICAELA', nome: 'Micaela' });
   assert.equal(r.ok, true);
+  assert.equal(r.completo, true, 'tudo entrou');
   assert.equal(r.anterior.foto, 'https://exemplo/foto-antiga.jpg');
   assert.equal(r.anterior.nome, 'Fabiano');
   assert.equal(lib.perfil.nome, 'Micaela', 'e a troca aconteceu de verdade');
@@ -806,4 +813,38 @@ test('restaurar devolve exatamente o que estava guardado', async () => {
 test('perfilAtual sem sessao devolve null em vez de estourar', async () => {
   const p = criarWhatsAppWebProvider({ criarSessao: libComPerfil().criar });
   assert.equal(await p.perfilAtual(), null);
+});
+
+test('deu certo em PARTE continua sendo ok — o numero mudou', async () => {
+  const lib = libComPerfil();
+  const criarBase = lib.criar;
+  lib.criar = async (cfg) => {
+    const c = await criarBase(cfg);
+    // Exatamente o que o WhatsApp Web faz hoje: aceita foto, recusa o nome.
+    c.setProfileName = async () => { throw new Error('n.functions.setPushname is not a function'); };
+    return c;
+  };
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+
+  const r = await p.personalizar({ foto: 'data:image/jpeg;base64,MICAELA', nome: 'Micaela' });
+  assert.equal(r.ok, true, 'a foto ENTROU: dizer que falhou seria mentir em cima de sucesso');
+  assert.equal(r.completo, false, 'mas nem tudo entrou, e isso precisa aparecer');
+  assert.deepEqual(r.feito, ['foto']);
+  assert.match(r.falhas.join(' '), /nome/);
+});
+
+test('quando NADA entra, ok e false de verdade', async () => {
+  const lib = libComPerfil();
+  const criarBase = lib.criar;
+  lib.criar = async (cfg) => {
+    const c = await criarBase(cfg);
+    c.setProfilePic = async () => { throw new Error('foto invalida'); };
+    return c;
+  };
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+  const r = await p.personalizar({ foto: 'data:image/jpeg;base64,X' });
+  assert.equal(r.ok, false);
+  assert.equal(r.completo, false);
 });
