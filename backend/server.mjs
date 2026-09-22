@@ -571,7 +571,20 @@ const server = createServer(async (req, res) => {
     const rota = req.url.split('?')[0];
     if (req.method === 'GET' && rota === '/crm') {
       try {
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        res.writeHead(200, {
+          'content-type': 'text/html; charset=utf-8',
+          /* O painel e UM arquivo que muda a cada deploy, e nao tinha cabecalho
+             de cache nenhum. Sem instrucao, o navegador guarda por conta propria
+             — e o dono ficava com a tela de ontem enquanto o servidor ja tinha a
+             de hoje. Custou uma manha: correcao subia, ele recarregava, nada
+             mudava, e os dois lados achavam que o conserto nao funcionou.
+
+             `no-store` porque aqui nao ha o que reaproveitar: e uma pagina so,
+             pequena, e servir a versao errada dela quebra o painel inteiro. */
+          'cache-control': 'no-store, must-revalidate',
+          pragma: 'no-cache',
+          expires: '0',
+        });
         return res.end(readFileSync(join(HERE, 'crm.html'), 'utf8'));
       } catch (e) { return json(res, 500, { erro: 'crm page: ' + e.message }); }
     }
