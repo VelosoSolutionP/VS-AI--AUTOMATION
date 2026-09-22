@@ -10,8 +10,9 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from 'n
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
+import { dentroDaCasa } from '../casa.mjs';
 export function baseDir() {
-  return process.env.VSTIKTOK_DIR || join(homedir(), '.qa-gate', 'vstiktok');
+  return process.env.VSTIKTOK_DIR || dentroDaCasa('vstiktok');
 }
 
 export function filePath(nome) {

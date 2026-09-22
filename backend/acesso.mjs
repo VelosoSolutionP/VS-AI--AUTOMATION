@@ -23,8 +23,9 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from 'n
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 
+import { dentroDaCasa } from '../engine/casa.mjs';
 const ARQUIVO = () =>
-  process.env.VSCONSOLE_ACESSO || join(homedir(), '.qa-gate', 'console', 'acesso.json');
+  process.env.VSCONSOLE_ACESSO || dentroDaCasa('console', 'acesso.json');
 
 export const MIN_SENHA = 8;
 

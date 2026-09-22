@@ -167,7 +167,8 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 
-const arqConfig = () => join(homedir(), '.qa-gate', 'canais', 'config.json');
+import { dentroDaCasa } from '../engine/casa.mjs';
+const arqConfig = () => dentroDaCasa('canais', 'config.json');
 const lerConfig = () => { try { return JSON.parse(readFileSync(arqConfig(), 'utf8')); } catch { return {}; } };
 
 export function salvarConfigCanal(d = {}) {

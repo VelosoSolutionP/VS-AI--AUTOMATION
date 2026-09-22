@@ -9,9 +9,10 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
+import { dentroDaCasa } from '../casa.mjs';
 /** Diretório raiz dos dados do módulo. */
 export function baseDir() {
-  return process.env.VSCRM_DIR || join(homedir(), '.qa-gate', 'vscrm');
+  return process.env.VSCRM_DIR || dentroDaCasa('vscrm');
 }
 
 /** Caminho do arquivo de um dataset. */

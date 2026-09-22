@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 
+import { dentroDaCasa } from '../engine/casa.mjs';
 export const MAX_BYTES = Number(process.env.MIDIA_MAX_BYTES || 256 * 1024 * 1024);
 /* Foto tem teto proprio e bem menor: ninguem precisa de 256 MB de JPEG numa
    vitrine, e aceitar isso e convidar o catalogo a ficar lento pro cliente. */
@@ -35,7 +36,7 @@ const TIPOS = {
 export const ehImagem = (nome) => String(TIPOS[String(nome || '').slice(String(nome).lastIndexOf('.')).toLowerCase()] || '').startsWith('image/');
 
 export function baseDir() {
-  const d = process.env.VSMIDIA_DIR || join(homedir(), '.qa-gate', 'midia');
+  const d = process.env.VSMIDIA_DIR || dentroDaCasa('midia');
   mkdirSync(d, { recursive: true, mode: 0o700 });
   return d;
 }

@@ -13,8 +13,9 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from 'n
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
+import { dentroDaCasa } from '../casa.mjs';
 export function baseDir() {
-  return process.env.VSPAGAMENTOS_DIR || join(homedir(), '.qa-gate', 'vspagamentos');
+  return process.env.VSPAGAMENTOS_DIR || dentroDaCasa('vspagamentos');
 }
 
 export const filePath = (nome) => join(baseDir(), `${nome}.json`);

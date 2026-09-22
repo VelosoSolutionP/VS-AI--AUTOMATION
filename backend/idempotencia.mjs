@@ -16,11 +16,12 @@ import { writeFileSync, existsSync, mkdirSync, readdirSync, statSync, rmSync } f
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
+import { dentroDaCasa } from '../engine/casa.mjs';
 /** Só o que der pra usar como nome de arquivo — id de evento vem de fora. */
 const sanitiza = (s) => String(s || '').replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 120);
 
 export function baseDir() {
-  return process.env.WEBHOOK_EVENTS_DIR || join(homedir(), '.qa-gate', 'webhook-events');
+  return process.env.WEBHOOK_EVENTS_DIR || dentroDaCasa('webhook-events');
 }
 
 /**

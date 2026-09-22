@@ -13,6 +13,7 @@ import { homedir } from 'node:os';
 import { loadProfile } from './index.mjs';
 import { assertInstalled } from './install.mjs';
 
+import { dentroDaCasa } from '../casa.mjs';
 /** Puro: aplica os perfis sobre um company-config e devolve o novo objeto + o que mudou. */
 export function applyProfiles(company, { dev, analista, qa, modulos } = {}) {
   const c = JSON.parse(JSON.stringify(company || {}));
@@ -68,7 +69,7 @@ export function applyProfiles(company, { dev, analista, qa, modulos } = {}) {
 }
 
 function companyPath() {
-  return join(homedir(), '.qa-gate', 'company.json');
+  return dentroDaCasa('company.json');
 }
 
 /**

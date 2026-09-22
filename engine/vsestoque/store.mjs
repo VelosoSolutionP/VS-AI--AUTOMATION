@@ -9,8 +9,9 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
+import { dentroDaCasa } from '../casa.mjs';
 export function baseDir() {
-  return process.env.VSESTOQUE_DIR || join(homedir(), '.qa-gate', 'vsestoque');
+  return process.env.VSESTOQUE_DIR || dentroDaCasa('vsestoque');
 }
 
 export function filePath(nome) {

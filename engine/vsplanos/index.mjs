@@ -14,9 +14,10 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { validarPlano, novaVersao, precoDoCiclo, limitesDe, cabeMais, uso, MODULOS, CICLOS } from './catalogo.mjs';
 
+import { dentroDaCasa } from '../casa.mjs';
 export { precoDoCiclo, limitesDe, cabeMais, uso, MODULOS, CICLOS };
 
-const dir = () => process.env.VSPLANOS_DIR || join(homedir(), '.qa-gate', 'vsplanos');
+const dir = () => process.env.VSPLANOS_DIR || dentroDaCasa('vsplanos');
 const arq = (n) => join(dir(), `${n}.json`);
 const load = (n, p = null) => { try { return JSON.parse(readFileSync(arq(n), 'utf8')); } catch { return p; } };
 const save = (n, d) => { mkdirSync(dir(), { recursive: true, mode: 0o700 }); writeFileSync(arq(n), JSON.stringify(d, null, 2)); };

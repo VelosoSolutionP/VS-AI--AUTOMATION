@@ -12,8 +12,17 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from 'n
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
+/* REGRA 0 da spec: o marketplace NAO importa de engine/vs* — ele tem de poder
+   ser entregue sozinho, sem o resto do VS-IA junto. Por isso a raiz e resolvida
+   aqui, em duas linhas repetidas de proposito, em vez de vir de um modulo
+   compartilhado. Duplicar duas linhas custa menos que amarrar dois produtos.
+
+   `VS_HOME` continua valendo: quem sobe uma instancia de demonstracao troca a
+   raiz inteira e este modulo acompanha, sem depender de ninguem. */
+const raiz = () => process.env.VS_HOME || join(homedir(), '.qa-gate');
+
 export function baseDir() {
-  return process.env.VSMARKET_DIR || join(homedir(), '.qa-gate', 'vsmarket');
+  return process.env.VSMARKET_DIR || join(raiz(), 'vsmarket');
 }
 
 export const filePath = (nome) => join(baseDir(), `${nome}.json`);

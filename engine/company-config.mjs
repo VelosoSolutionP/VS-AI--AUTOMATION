@@ -15,6 +15,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, dirname, parse } from 'node:path';
 import { homedir } from 'node:os';
 
+import { dentroDaCasa } from './casa.mjs';
 export const DEFAULT_CONFIG = {
   // Sem autor embutido: o segmento <autor> da branch é de CADA EMPRESA e vem da
   // entrevista (set "dev" -> branch_autor). Default com nome de pessoa aqui fazia
@@ -93,7 +94,7 @@ export function resolveConfigPath(baseDir) {
   }
   const up = findUp(base, 'qa-gate.company.json');
   if (up) { return up; }
-  const home = join(homedir(), '.qa-gate', 'company.json');
+  const home = dentroDaCasa('company.json');
   if (existsSync(home)) { return home; }
   return null;
 }

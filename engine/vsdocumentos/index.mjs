@@ -14,7 +14,8 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { createHash } from 'node:crypto';
 
-const dir = () => process.env.VSDOCS_DIR || join(homedir(), '.qa-gate', 'vsdocumentos');
+import { dentroDaCasa } from '../casa.mjs';
+const dir = () => process.env.VSDOCS_DIR || dentroDaCasa('vsdocumentos');
 const arq = (n) => join(dir(), `${n}.json`);
 const load = (n, p = null) => { try { return JSON.parse(readFileSync(arq(n), 'utf8')); } catch { return p; } };
 const save = (n, d) => { mkdirSync(dir(), { recursive: true, mode: 0o700 }); writeFileSync(arq(n), JSON.stringify(d, null, 2), { mode: 0o600 }); return d; };

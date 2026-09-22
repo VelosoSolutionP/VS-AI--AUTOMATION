@@ -11,7 +11,7 @@ import { responder, conversar, validarRegra, escolher, GATILHOS, pediuHumano, pr
 import { validarFluxo, avancar, ACOES } from './fluxo.mjs';
 import { fluxoDeCsv } from './fluxo-csv.mjs';
 
-const dir = () => process.env.VSBOT_DIR || join(homedir(), '.qa-gate', 'vsbot');
+const dir = () => process.env.VSBOT_DIR || dentroDaCasa('vsbot');
 const arq = (n) => join(dir(), `${n}.json`);
 const load = (n, p = null) => { try { return JSON.parse(readFileSync(arq(n), 'utf8')); } catch { return p; } };
 const save = (n, d) => { mkdirSync(dir(), { recursive: true, mode: 0o700 }); writeFileSync(arq(n), JSON.stringify(d, null, 2), { mode: 0o600 }); };
@@ -20,6 +20,7 @@ export { responder, conversar, GATILHOS };
 
 import * as proto from '../vsprotocolo/index.mjs';
 
+import { dentroDaCasa } from '../casa.mjs';
 const PADRAO = {
   nome: 'Atendente',
   persona: 'Atende de forma direta e educada, sem prometer o que a loja não faz.',

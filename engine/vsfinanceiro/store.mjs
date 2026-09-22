@@ -3,7 +3,8 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
-export const baseDir = () => process.env.VSFINANCEIRO_DIR || join(homedir(), '.qa-gate', 'vsfinanceiro');
+import { dentroDaCasa } from '../casa.mjs';
+export const baseDir = () => process.env.VSFINANCEIRO_DIR || dentroDaCasa('vsfinanceiro');
 export const filePath = (nome) => join(baseDir(), `${nome}.json`);
 
 export function load(nome, padrao = null) {

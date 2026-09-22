@@ -11,9 +11,10 @@ import { join, dirname } from 'node:path';
 import { validar, cabeMais, porSetor, setoresSemGente, uso, ativos, norm } from './regras.mjs';
 import { limiteDeAtendentes } from '../vsplanos/index.mjs';
 
+import { dentroDaCasa } from '../casa.mjs';
 export { porSetor, setoresSemGente, ativos, norm };
 
-const arq = () => join(process.env.VSOPERADORES_DIR || join(homedir(), '.qa-gate', 'vsoperadores'), 'operadores.json');
+const arq = () => join(process.env.VSOPERADORES_DIR || dentroDaCasa('vsoperadores'), 'operadores.json');
 const ler = () => { try { return JSON.parse(readFileSync(arq(), 'utf8')); } catch { return []; } };
 const gravar = (lista) => {
   mkdirSync(dirname(arq()), { recursive: true, mode: 0o700 });

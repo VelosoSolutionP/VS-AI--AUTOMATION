@@ -14,8 +14,9 @@ import {
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
+import { dentroDaCasa } from './casa.mjs';
 function stateDir() {
-  const d = join(homedir(), '.qa-gate', 'state');
+  const d = dentroDaCasa('state');
   if (!existsSync(d)) {
     mkdirSync(d, { recursive: true });
   }

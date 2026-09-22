@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { createHmac } from 'node:crypto';
 
+import { dentroDaCasa } from './casa.mjs';
 const DAY = 86400000;
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url))); // pasta qa-gate/
 // Segredo embutido (levanta a barra; ofuscar no build). Não é sigilo perfeito — é anti-espertinho.
@@ -18,12 +19,12 @@ const SECRET = 'vs-' + 'trial' + '-9f3a' + 'c1' + 'e7' + '-guard';
 /** 3 locais redundantes do registro do teste. */
 export function guardPaths() {
   return [
-    join(homedir(), '.qa-gate', 'trial.json'),
+    dentroDaCasa('trial.json'),
     join(homedir(), '.vs-guard.json'),
     join(ROOT, '.vsguard'),
   ];
 }
-export function lockFile() { return join(homedir(), '.qa-gate', 'locked.json'); }
+export function lockFile() { return dentroDaCasa('locked.json'); }
 
 const sign = (installedAt, days, plan) => createHmac('sha256', SECRET).update(`${installedAt}|${days}|${plan}`).digest('hex');
 

@@ -17,6 +17,7 @@ import {
 import { normalizarTelefone } from './leads.mjs';
 import { normalizarRegra, novoParceiro, resumoParceiros, linkDe, comissao } from './parceiros.mjs';
 
+import { dentroDaCasa } from '../casa.mjs';
 /** Etapas do funil, com a origem (pra tela poder dizer de onde veio). */
 export function getFunil() {
   const cfg = load('config', null);
@@ -24,7 +25,7 @@ export function getFunil() {
   try {
     // Lê o arquivo da entrevista direto: `require` não funciona em ESM e um import()
     // deixaria getFunil() assíncrona só por causa do fallback.
-    const perfis = JSON.parse(readFileSync(join(homedir(), '.qa-gate', 'vs-profiles.json'), 'utf8'));
+    const perfis = JSON.parse(readFileSync(dentroDaCasa('vs-profiles.json'), 'utf8'));
     const v = perfis?.vendas;
     if (v?.funil?.length) { return { funil: v.funil, origem: 'entrevista' }; }
   } catch {}
@@ -101,7 +102,7 @@ export function statusIntegracoes() {
   const env = process.env;
   let notify = { enabled: false, phone: false, apikey: false };
   try {
-    const cfg = JSON.parse(readFileSync(join(homedir(), '.qa-gate', 'company.json'), 'utf8'));
+    const cfg = JSON.parse(readFileSync(dentroDaCasa('company.json'), 'utf8'));
     const wa = cfg?.notify?.whatsapp || {};
     notify = { enabled: !!wa.enabled, phone: !!(wa.phone && wa.phone !== 'xxx'), apikey: !!(wa.apikey && wa.apikey !== 'xxx') };
   } catch {}

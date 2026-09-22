@@ -6,8 +6,9 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 
+import { dentroDaCasa } from '../casa.mjs';
 export function profilesPath() {
-  return join(homedir(), '.qa-gate', 'vs-profiles.json');
+  return dentroDaCasa('vs-profiles.json');
 }
 
 function readAll() {

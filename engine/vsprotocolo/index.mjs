@@ -11,9 +11,10 @@ import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import * as R from './protocolo.mjs';
 
+import { dentroDaCasa } from '../casa.mjs';
 export * from './protocolo.mjs';
 
-const arq = () => join(process.env.VSPROTOCOLO_DIR || join(homedir(), '.qa-gate', 'vsprotocolo'), 'protocolos.json');
+const arq = () => join(process.env.VSPROTOCOLO_DIR || dentroDaCasa('vsprotocolo'), 'protocolos.json');
 const ler = () => { try { return JSON.parse(readFileSync(arq(), 'utf8')); } catch { return []; } };
 const gravar = (lista) => {
   mkdirSync(dirname(arq()), { recursive: true, mode: 0o700 });

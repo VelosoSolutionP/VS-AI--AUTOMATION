@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { loadCompanyConfig, resolveConfigPath, branchName, DEFAULT_CONFIG } from '../company-config.mjs';
 
+import { dentroDaCasa } from '../casa.mjs';
 /** Placeholders que a entrevista deixa e que NÃO contam como preenchido. */
 const VAZIO = ['', 'xxx', 'XXX', 'null', null, undefined];
 const preenchido = (v) => !VAZIO.includes(v) && String(v ?? '').trim() !== '';
@@ -26,7 +27,7 @@ export function mascarar(s) {
 }
 
 export function caminhoConfig() {
-  return resolveConfigPath?.() || join(homedir(), '.qa-gate', 'company.json');
+  return resolveConfigPath?.() || dentroDaCasa('company.json');
 }
 
 /**
