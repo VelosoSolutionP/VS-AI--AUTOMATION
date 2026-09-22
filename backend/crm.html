@@ -812,7 +812,7 @@ const TITULO={};
 MENU.forEach(m=>{TITULO[m.id]=[m.nome];(m.filhos||[]).forEach(f=>TITULO[f.id]=[m.nome,f.nome]);});
 const PAI={}; MENU.forEach(m=>(m.filhos||[]).forEach(f=>PAI[f.id]=m.id));
 
-let CANAIS=null,ATEND=null,CONVERSA=null,PLANOS_CAT=null,CICLO='mensal',OPERADORES=null,OP_EDIT=null;
+let CANAIS=null,ATEND=null,CONVERSA=null,PLANOS_CAT=null,CICLO='mensal',OPERADORES=null,OP_EDIT=null,TKLOJA=null,TKADS=null;
 let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null,QG=null,TKAPP=null,PAG=null,LOTES=null,CAIXA=null,BOT=null,DOCS=null,PUB=null;
 const TESTE={}; // resultado do ultimo teste por rede (so em memoria)
 const PROVA={}; // ultimo teste real das APIs do TikTok, por familia
@@ -876,6 +876,62 @@ const head=(t,p,acts)=>`<div class="page-head"><div class="ph-txt">`+
 /* O TikTok tem três apps separados (login, anúncios e loja), cada um com autorização
    própria — por isso ele aparece como bloco, e não como mais uma linha de credencial. */
 const TK_NOME={open:'Login Kit / Display',business:'Business (Ads)',shop:'Shop (produtos)'};
+/* TikTok Shop. O motor ja fazia tudo isto; faltava porta — o painel alcancava
+   2 das 10 capacidades do modulo, e "catalogo" e vendido no Modulo A. */
+function tiktokLojaCard(){
+  const s=TK?.familias?.shop;
+  if(!s?.autorizado) return '';
+  const d=TKLOJA;
+  return `<div class="card" style="margin-bottom:16px">
+    ${cardH('estoque',`TikTok Shop · catálogo`,`Os produtos que a sua loja do TikTok mostra. O estoque do painel é a fonte — aqui você empurra pra lá.`,2,
+      d?.pronto?`<span class="badge b-ok">${(d.produtos||[]).length} produto(s)</span>`:'<span class="badge b-warn">falta escolher a loja</span>')}
+    ${!d?'<p class="hint">Carregando…</p>':(!d.pronto?`
+      <p class="hint" style="margin-bottom:10px">${esc(d.motivo||'')}. A conta pode ter mais de uma loja — busque e escolha qual é a desta operação.</p>
+      ${botao({t:'Buscar minhas lojas',ic:'atualizar',v:'p',on:'descobrirLojaTiktok()'})}`:`
+      ${d.config?.shopNome?linha('Loja ativa','onde os produtos vão parar',esc(d.config.shopNome),'b-ok'):''}
+      ${(d.produtos||[]).length?`<div class="tbl-wrap" style="margin-top:10px"><table class="tbl">
+        <thead><tr><th>Produto</th><th>Situação</th><th>Preço</th></tr></thead><tbody>
+        ${d.produtos.slice(0,30).map(p=>`<tr><td><b>${esc(p.title||p.nome||p.id||'—')}</b></td>
+          <td><span class="badge ${/ACTIVATE|LIVE|ACTIVE/i.test(p.status||'')?'b-ok':''}">${esc(p.status||'—')}</span></td>
+          <td>${esc(p.price?.original_price||p.preco||'—')}</td></tr>`).join('')}
+        </tbody></table></div>`:'<p class="hint" style="margin-top:10px">Nenhum produto na loja ainda.</p>'}
+      ${d.motivo?`<p class="hint" style="margin-top:10px;color:var(--err)">${esc(d.motivo)}</p>`:''}
+      <div class="form-grid" style="margin-top:12px">
+        ${botao({t:'Atualizar lista',ic:'atualizar',v:'g',on:'carregarTiktokLoja()'})}
+        ${botao({t:'Trocar de loja',ic:'seta',v:'g',on:'descobrirLojaTiktok()'})}
+      </div>`)}
+  </div>`;
+}
+
+/* TikTok Ads. Mesma historia do Shop: escrito, testado e sem porta. */
+function tiktokCampanhasCard(){
+  const s=TK?.familias?.business;
+  if(!s?.autorizado) return '';
+  const d=TKADS;
+  return `<div class="card" style="margin-bottom:16px">
+    ${cardH('relatorios',`TikTok Ads · campanhas`,`O que está no ar, o que gastou e o que trouxe. Campanha custa dinheiro de verdade — por isso o painel não cria nenhuma sem orçamento.`,4,
+      d?.pronto?`<span class="badge b-ok">${(d.campanhas||[]).length} campanha(s)</span>`:'<span class="badge b-warn">falta escolher a conta</span>')}
+    ${!d?'<p class="hint">Carregando…</p>':(!d.pronto?`
+      <p class="hint" style="margin-bottom:10px">${esc(d.motivo||'')}.</p>
+      ${botao({t:'Buscar contas de anúncio',ic:'atualizar',v:'p',on:'descobrirAnuncianteTiktok()'})}`:`
+      ${d.config?.anuncianteNome?linha('Conta de anúncio','onde a campanha nasce',esc(d.config.anuncianteNome),'b-ok'):''}
+      ${d.periodo?linha('Período do relatório','últimos 30 dias',`${esc(d.periodo.de)} a ${esc(d.periodo.ate)}`,''):''}
+      ${(d.campanhas||[]).length?`<div class="tbl-wrap" style="margin-top:10px"><table class="tbl">
+        <thead><tr><th>Campanha</th><th>Situação</th><th>Orçamento</th></tr></thead><tbody>
+        ${d.campanhas.slice(0,30).map(c=>`<tr><td><b>${esc(c.campaign_name||c.nome||'—')}</b></td>
+          <td><span class="badge ${/ENABLE|ACTIVE/i.test(c.operation_status||c.status||'')?'b-ok':''}">${esc(c.operation_status||c.status||'—')}</span></td>
+          <td>${esc(c.budget!=null?brl(Number(c.budget)):'—')}</td></tr>`).join('')}
+        </tbody></table></div>`:'<p class="hint" style="margin-top:10px">Nenhuma campanha ainda.</p>'}
+      <div class="form-grid" style="margin-top:12px">
+        <div class="field"><label>Nome da campanha *</label><input id="tkCampNome" placeholder="Ex.: Lançamento setembro"></div>
+        <div class="field"><label>Orçamento diário (R$) *</label><input id="tkCampOrc" placeholder="50,00"></div>
+        ${botao({t:'Criar campanha',ic:'salvar',v:'p',on:'criarCampanhaTiktok()'})}
+        ${botao({t:'Atualizar',ic:'atualizar',v:'g',on:'carregarTiktokAds()'})}
+      </div>
+      <p class="hint" style="margin-top:8px">A campanha nasce <b>pausada</b> na TikTok — quem liga é você, lá, depois de conferir. Dinheiro não começa a sair por causa de um clique aqui.</p>`)}
+  </div>`;
+}
+
 function tiktokCard(){
   if(!TK) return '';
   const app=TKAPP;
@@ -935,6 +991,8 @@ function tiktokCard(){
     ${linha('Pronto pra','o que já dá pra fazer pela API',pronto.length?pronto.join(', '):'nada ainda',pronto.length?'b-ok':'b-warn')}
     ${TK.lojaAtiva?linha('Loja ativa','shop_cipher',esc(TK.lojaAtiva),'b-ok'):''}
     ${TK.anuncianteAtivo?linha('Conta de anúncio ativa','advertiser_id',esc(TK.anuncianteAtivo),'b-ok'):''}</div>
+  ${tiktokLojaCard()}
+  ${tiktokCampanhasCard()}
   ${app?`<div class="card" style="margin-bottom:16px">
     ${cardH('auditor',`Verificação de domínio`,
       `A TikTok só aceita a URL de retorno depois de provar que o domínio é seu.
@@ -964,6 +1022,79 @@ function tiktokCard(){
   ${bloco('open','Login e conteúdo',[['clientKey','Client key','do app em developers.tiktok.com'],['clientSecret','Client secret','']],'publicar vídeo, ler perfil e métricas')}
   ${bloco('business','Anúncios (Ads)',[['appId','App ID','de business-api.tiktok.com'],['secret','Secret','']],'campanhas, conjuntos e relatórios')}
   ${bloco('shop','Loja (produtos)',[['appKey','App key','de partner.tiktokshop.com'],['appSecret','App secret',''],['serviceId','Service ID','do painel do app']],'catálogo, estoque e preço')}`;
+}
+
+async function carregarTiktokLoja(){
+  TKLOJA=await api('tiktok/loja').catch(()=>({pronto:false,motivo:'não consegui falar com o painel'}));
+  render();
+}
+async function carregarTiktokAds(){
+  TKADS=await api('tiktok/campanhas').catch(()=>({pronto:false,motivo:'não consegui falar com o painel'}));
+  render();
+}
+
+async function descobrirLojaTiktok(){
+  try{
+    const r=await api('tiktok/descobrir-loja',{});
+    const lojas=r.lojas||[];
+    if(!lojas.length){
+      abrirModal('Nenhuma loja encontrada',
+        `<p class="hint">Esta conta do TikTok não administra nenhuma loja do TikTok Shop, ou o app não tem
+          permissão para vê-las.</p>`,
+        `<button class="btn btn-p" onclick="fecharModal()">${ico('check')}Entendi</button>`);
+      return;
+    }
+    /* Uma conta pode ter varias lojas. Escolher a primeira sozinho poria produto
+       na loja errada — e "produto errado na loja errada" e do tipo que so se
+       descobre pelo cliente reclamando. */
+    abrirModal('Qual é a loja desta operação?',
+      `<p class="hint" style="margin-bottom:12px">Os produtos publicados daqui vão para a loja escolhida.</p>
+       <ul class="notas">${lojas.map(l=>`<li><button class="btn btn-s" style="margin:2px"
+         onclick="fecharModal();escolherLojaTiktok('${esc(l.cipher)}','${esc(l.id||'')}','${esc(l.name||'')}')">${esc(l.name||l.id)}</button></li>`).join('')}</ul>`,
+      `<button class="btn btn-g" onclick="fecharModal()">Agora não</button>`);
+  }catch(e){ flash(e.message,'err'); }
+}
+async function escolherLojaTiktok(cipher,id,nome){
+  try{ await api('tiktok/loja-ativa',{cipher,id,nome}); flash(`Loja "${nome}" selecionada.`,'ok'); await carregarTiktokLoja(); }
+  catch(e){ flash(e.message,'err'); }
+}
+
+async function descobrirAnuncianteTiktok(){
+  try{
+    const r=await api('tiktok/descobrir-anunciante',{});
+    const contas=r.anunciantes||[];
+    if(!contas.length){
+      abrirModal('Nenhuma conta de anúncio',
+        `<p class="hint">Esta conta do TikTok não tem conta de anúncios vinculada ao app.</p>`,
+        `<button class="btn btn-p" onclick="fecharModal()">${ico('check')}Entendi</button>`);
+      return;
+    }
+    abrirModal('Qual conta de anúncio usar?',
+      `<p class="hint" style="margin-bottom:12px">É dela que vai sair o dinheiro das campanhas criadas aqui.</p>
+       <ul class="notas">${contas.map(c=>`<li><button class="btn btn-s" style="margin:2px"
+         onclick="fecharModal();escolherAnuncianteTiktok('${esc(c.advertiser_id)}','${esc(c.advertiser_name||'')}')">${esc(c.advertiser_name||c.advertiser_id)}</button></li>`).join('')}</ul>`,
+      `<button class="btn btn-g" onclick="fecharModal()">Agora não</button>`);
+  }catch(e){ flash(e.message,'err'); }
+}
+async function escolherAnuncianteTiktok(id,nome){
+  try{ await api('tiktok/anunciante-ativo',{id,nome}); flash(`Conta "${nome}" selecionada.`,'ok'); await carregarTiktokAds(); }
+  catch(e){ flash(e.message,'err'); }
+}
+
+function criarCampanhaTiktok(){
+  const el=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
+  return salvar({
+    titulo:'Não consegui criar a campanha',
+    campos:[
+      {id:'tkCampNome',rotulo:'Nome da campanha',obrigatorio:true},
+      {id:'tkCampOrc',rotulo:'Orçamento',obrigatorio:true,numero:true,min:1,
+       mensagem:'O orçamento diário precisa ser pelo menos R$ 1,00.'},
+    ],
+    rota:'tiktok/campanha',
+    corpo:()=>({nome:el('tkCampNome'),orcamentoCentavos:Math.round(Number(el('tkCampOrc').replace(/\./g,'').replace(',','.'))*100)}),
+    sucesso:'Campanha criada — ela nasce PAUSADA na TikTok, quem liga é você lá.',
+    depois:()=>{ carregarTiktokAds(); },
+  });
 }
 
 async function publicarNoTiktok(){
@@ -3620,6 +3751,11 @@ async function carregar(){
     // e o resto do painel continua funcionando normalmente.
     QG=await api('quebragalho').catch(()=>null);
     TKAPP=await api('tiktok/app').catch(()=>null);
+    /* So busca Shop e Ads se a familia correspondente estiver autorizada: bater
+       na API sem token devolve erro e encheria a tela de vermelho por algo que
+       ainda nem foi configurado. */
+    if(TK?.familias?.shop?.autorizado) TKLOJA=await api('tiktok/loja').catch(()=>null);
+    if(TK?.familias?.business?.autorizado) TKADS=await api('tiktok/campanhas').catch(()=>null);
     PAG=await api('pagamentos').catch(()=>null);
     LOTES=await api('estoque/lotes').catch(()=>null);
     PUB=await api('estoque/publicados').catch(()=>null);

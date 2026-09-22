@@ -680,6 +680,43 @@ const server = createServer(async (req, res) => {
       const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
       return json(res, 200, { arquivos: midia.listar().map((a) => ({ ...a, url: `${origem}/midia/${a.arquivo}` })), maxBytes: midia.MAX_BYTES });
     }
+    /* Catalogo e campanhas EXISTIAM no motor e nao tinham porta: o painel
+       alcancava 2 das 10 capacidades do modulo. Vender "catalogo e campanhas"
+       no Modulo A com o codigo pronto e sem rota e prometer o que nao se
+       entrega — nao por falta de codigo, por falta de porta. */
+    if (req.method === 'GET' && rota === '/crm/api/tiktok/loja') {
+      const cfg = tk.getConfig();
+      /* Sem loja escolhida NAO se chama a API: a TikTok responde erro cru e a
+         tela mostraria falha onde o que falta e um passo de configuracao. */
+      if (!cfg.shopCipher) {
+        return json(res, 200, { pronto: false, motivo: 'nenhuma loja do TikTok Shop selecionada ainda', produtos: [], config: cfg });
+      }
+      const r = await tk.listarProdutos({ pageSize: 50 });
+      return json(res, 200, {
+        pronto: true, config: cfg,
+        produtos: r.ok ? (r.dados?.products || r.produtos || []) : [],
+        ...(r.ok ? {} : { motivo: r.motivo }),
+      });
+    }
+    if (req.method === 'GET' && rota === '/crm/api/tiktok/campanhas') {
+      const cfg = tk.getConfig();
+      if (!cfg.anuncianteId) {
+        return json(res, 200, { pronto: false, motivo: 'nenhuma conta de anuncio selecionada ainda', campanhas: [], config: cfg });
+      }
+      const lista = await tk.listarCampanhas({});
+      /* O relatorio e complemento: campanha sem numero ainda e campanha. Se ele
+         falhar, a lista continua aparecendo em vez de a tela inteira sumir. */
+      const hoje = new Date().toISOString().slice(0, 10);
+      const de = new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10);
+      const rel = await tk.relatorioCampanhas({ de, ate: hoje }).catch(() => ({ ok: false }));
+      return json(res, 200, {
+        pronto: true, config: cfg,
+        campanhas: lista.ok ? (lista.dados?.list || lista.campanhas || []) : [],
+        ...(lista.ok ? {} : { motivo: lista.motivo }),
+        relatorio: rel.ok ? (rel.dados?.list || rel.relatorio || []) : [],
+        periodo: { de, ate: hoje },
+      });
+    }
     if (req.method === 'GET' && rota === '/crm/api/tiktok/publicacao') {
       const id = new URL(req.url, 'http://x').searchParams.get('id') || '';
       return json(res, 200, await tk.statusPublicacao(id));
@@ -909,6 +946,21 @@ const server = createServer(async (req, res) => {
           // Pix so tem QR depois de criada a cobranca — por isso vem aqui, nao antes.
           const qr = String(d.metodo).toUpperCase() === 'PIX' ? await pagar.qrPix(cob.pagamento.id) : null;
           r = { ...cob, clienteReusado: c.reusado, pix: qr?.ok ? qr.pix : null, pixErro: qr && !qr.ok ? qr.motivo : null };
+          break;
+        }
+        case '/crm/api/tiktok/descobrir-loja': r = await tk.descobrirLoja({}); break;
+        case '/crm/api/tiktok/descobrir-anunciante': r = await tk.descobrirAnunciante({}); break;
+        case '/crm/api/tiktok/loja-ativa': r = tk.salvarConfig({ shopCipher: d.cipher, shopId: d.id, shopNome: d.nome }); break;
+        case '/crm/api/tiktok/anunciante-ativo': r = tk.salvarConfig({ anuncianteId: d.id, anuncianteNome: d.nome }); break;
+        case '/crm/api/tiktok/produto': r = await tk.cadastrarProduto(d); break;
+        case '/crm/api/tiktok/campanha': {
+          /* Campanha custa dinheiro de verdade. Orcamento ausente ou zerado nao
+             pode virar chamada: a TikTok recusa com erro cru, e o pior caso e
+             ela NAO recusar. */
+          const orcamento = Number(d.orcamentoCentavos || 0);
+          if (!String(d.nome || '').trim()) { r = { ok: false, motivo: 'dê um nome à campanha' }; break; }
+          if (!(orcamento > 0)) { r = { ok: false, motivo: 'informe o orçamento diário — campanha sem orçamento não é criada' }; break; }
+          r = await tk.criarCampanha(d);
           break;
         }
         case '/crm/api/tiktok/publicar': {
