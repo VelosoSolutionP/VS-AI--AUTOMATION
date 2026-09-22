@@ -31,6 +31,7 @@ import { reservarEvento } from './idempotencia.mjs';
 import * as atendimento from './atendimento.mjs';
 import * as canais from './canais.mjs';
 import * as operadores from '../engine/vsoperadores/index.mjs';
+import * as proto from '../engine/vsprotocolo/index.mjs';
 import * as planos from '../engine/vsplanos/index.mjs';
 import * as pagar from '../engine/vspagamentos/index.mjs';
 import * as fin from '../engine/vsfinanceiro/index.mjs';
@@ -733,6 +734,10 @@ const server = createServer(async (req, res) => {
             desde: fila?.desde || null,
             departamento: fila?.departamento || null,
             contexto: fila?.contexto || {},
+            /* O protocolo na lista e o que o atendente le em voz alta quando o
+               cliente liga. Sem ele na tela, ele teria que caçar no historico. */
+            protocolo: (proto.aberto(l.telefone) || proto.ultimoEncerrado(l.telefone) || {}).numero || null,
+            protocoloEstado: (proto.aberto(l.telefone) || proto.ultimoEncerrado(l.telefone) || {}).estado || null,
             historico: l.historico || [],
           };
         })
@@ -946,6 +951,28 @@ const server = createServer(async (req, res) => {
           break;
         }
         case '/crm/api/atendimentos/devolver': r = bot.devolverAoBot(String(d.telefone || '').replace(/\D/g, '')); break;
+        /* O ATENDENTE encerra. Ate agora so o silencio encerrava, e quem
+           resolveu o caso em dois minutos ficava preso na fila esperando o
+           relogio — ocupando lugar que era de outra pessoa. */
+        case '/crm/api/atendimentos/encerrar': {
+          const tel = String(d.telefone || '').replace(/\D/g, '');
+          const p = proto.aberto(tel);
+          if (!p) { r = { ok: false, motivo: 'não há atendimento aberto para este cliente' }; break; }
+          const fechado = proto.encerrarPorNumero(p.numero, { motivo: d.motivo || 'encerrado pelo atendente' });
+          bot.devolverAoBot(tel);
+          /* Avisar com o numero e o que permite a pessoa voltar pro mesmo
+             lugar. Encerrar calado deixaria ela achando que foi largada. */
+          let avisado = false;
+          if (d.avisar !== false) {
+            const env = await canais.enviar({
+              para: fechado.endereco || tel,
+              texto: proto.textoDeEncerramento(fechado),
+            }).catch((e) => ({ ok: false, erro: e.message }));
+            avisado = env?.ok === true;
+          }
+          r = { ok: true, protocolo: fechado.numero, avisado };
+          break;
+        }
         case '/crm/api/bot/config': r = bot.salvarConfig(d); break;
         case '/crm/api/bot/regra': r = bot.salvarRegra(d); break;
         case '/crm/api/bot/regra-excluir': r = bot.excluirRegra(d.id); break;

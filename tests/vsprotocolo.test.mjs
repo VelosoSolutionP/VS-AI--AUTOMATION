@@ -215,3 +215,46 @@ test('duas pessoas diferentes nao se misturam', () => {
   P.aoChegar('5531900002', { quando: T0 });
   assert.notEqual(P.aberto('5531900001').numero, P.aberto('5531900002').numero);
 });
+
+/* ---- encerrar pelo atendente ----
+
+   Ate aqui so o silencio encerrava. Quem resolvia o caso em dois minutos ficava
+   preso na fila esperando o relogio bater cinco — ocupando um lugar que era de
+   outra pessoa, e recebendo depois um "vou encerrar por inatividade" que e
+   mentira: o atendimento acabou porque foi resolvido. */
+
+test('o atendente encerra na hora, sem esperar o relogio', () => {
+  P.aoChegar('5531900003', { quando: T0 });
+  const numero = P.aberto('5531900003').numero;
+  const fechado = P.encerrarPorNumero(numero, { motivo: 'encerrado pelo atendente', quando: mais(T0, 1) });
+  assert.equal(fechado.estado, ESTADOS.ENCERRADO);
+  assert.equal(fechado.motivoEncerramento, 'encerrado pelo atendente');
+  assert.equal(P.aberto('5531900003'), null);
+});
+
+test('encerrar pelo atendente NAO quebra a retomada', () => {
+  const numero = P.ultimoEncerrado('5531900003').numero;
+  const r = P.aoChegar('5531900003', { quando: mais(T0, 30) });
+  assert.equal(r.retomado, true);
+  assert.equal(r.protocolo.numero, numero, 'resolvido nao e esquecido: o cliente volta no mesmo caso');
+});
+
+test('encerrar o que ja esta encerrado nao inventa um segundo encerramento', () => {
+  const numero = P.aberto('5531900003').numero;
+  P.encerrarPorNumero(numero, { quando: mais(T0, 31) });
+  assert.equal(P.encerrarPorNumero(numero, { quando: mais(T0, 32) }), null);
+});
+
+test('encerrar numero que nao existe devolve null em vez de fingir', () => {
+  assert.equal(P.encerrarPorNumero('VS-999999-ZZZZ'), null);
+});
+
+test('quem encerrou COM GENTE volta pra fila, mesmo tendo sido o atendente a fechar', () => {
+  P.aoChegar('5531900004', { quando: T0 });
+  const n = P.aberto('5531900004').numero;
+  P.anotar(n, { estado: ESTADOS.COM_HUMANO, departamento: 'suporte', contexto: { problema: 'nao abre' } });
+  P.encerrarPorNumero(n, { motivo: 'encerrado pelo atendente', quando: mais(T0, 5) });
+  const r = P.aoChegar('5531900004', { quando: mais(T0, 15) });
+  assert.equal(r.volta.acao, 'voltar_fila');
+  assert.deepEqual(r.volta.contexto, { problema: 'nao abre' });
+});

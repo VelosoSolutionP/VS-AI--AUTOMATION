@@ -3006,6 +3006,7 @@ const S={
     <div class="cv-top"><b>${esc(c.nome||'+'+c.telefone)}</b><small>${dia(c.ultima?.quando)} ${hora(c.ultima?.quando)}</small></div>
     <div class="cv-msg">${c.ultima?.direcao==='saida'?'<span class="cv-eu">você: </span>':''}${esc(String(c.ultima?.texto||'').replace(/\n/g,' ').slice(0,58))}</div>
     ${c.esperandoGente?`<div class="cv-espera">${ico('relogio')}esperando${c.departamento?' · '+esc(c.departamento):''}</div>`:''}
+    ${c.protocolo?`<div class="cv-espera" style="font-family:ui-monospace,monospace;opacity:.7">${esc(c.protocolo)}</div>`:''}
   </button>`;
 
   const bolha=(h)=>`<div class="bolha ${h.direcao==='saida'?'b-nossa':'b-cliente'}">
@@ -3035,6 +3036,8 @@ const S={
       <div class="cv-cab">
         <div class="chip" style="--ct:var(--t1);--ct-bg:var(--t1-bg)">${ico('crm')}</div>
         <div class="cv-cab-t"><b>${esc(sel.nome||('+'+sel.telefone))}</b><small>+${esc(sel.telefone)} · ${esc(sel.etapa||'sem etapa')}</small></div>
+        ${sel.protocolo?`<span class="badge" title="Protocolo deste atendimento — é este número que o cliente tem"
+          style="font-family:ui-monospace,monospace">${esc(sel.protocolo)}</span>`:''}
         ${sel.esperandoGente
           ? `<span class="badge b-err">esperando desde ${hora(sel.desde)}</span>`
           : '<span class="badge b-ok">com a Micaela</span>'}
@@ -3046,6 +3049,9 @@ const S={
         <div class="responder-acoes">
           ${botao({t:'Enviar',ic:'enviar',v:'p',on:`responderCliente('${esc(sel.telefone)}')`,off:!online,id:'btResponder'})}
           ${sel.esperandoGente?botao({t:'Devolver pra Micaela',ic:'bot',v:'g',on:`devolverAoBot('${esc(sel.telefone)}')`}):''}
+          ${sel.protocoloEstado&&sel.protocoloEstado!=='encerrado'
+            ?botao({t:'Encerrar atendimento',ic:'check',v:'g',on:`encerrarAtendimento('${esc(sel.telefone)}','${esc(sel.protocolo||'')}')`,
+              tit:'Fecha o caso e manda o protocolo pro cliente'}):''}
         </div>
       </div>`:''}
     </div>
@@ -3915,6 +3921,37 @@ async function salvar({titulo,campos=[],rota,corpo,sucesso,depois,botao}){
 }
 
 function abrirConversa(tel){ CONVERSA=tel; render(); }
+
+/* Encerrar e uma porta de mao unica pro cliente: ele recebe a despedida com o
+   protocolo. Por isso confirma antes, e por isso a confirmacao DIZ o que vai
+   acontecer em vez de perguntar "tem certeza?". */
+function encerrarAtendimento(tel,numero){
+  abrirModal('Encerrar este atendimento?',
+    `<p class="hint" style="margin-bottom:12px">O cliente vai receber a mensagem de encerramento com o
+      protocolo <b>${esc(numero||'')}</b>. Se ele voltar a escrever em até 24 horas, a conversa continua
+      de onde parou — ele não precisa repetir nada.</p>
+     <p class="hint">Se ainda houver algo pendente, responda antes de encerrar.</p>`,
+    `<button class="btn btn-g" onclick="fecharModal()">Voltar</button>
+     <button class="btn btn-p" onclick="fecharModal();confirmarEncerramento('${esc(tel)}')">${ico('check')}Encerrar e avisar</button>`);
+}
+
+async function confirmarEncerramento(tel){
+  try{
+    const r=await api('atendimentos/encerrar',{telefone:tel});
+    /* "Encerrei mas nao avisei" e diferente de "encerrei": no primeiro caso o
+       cliente ficou sem o numero, e o atendente precisa saber pra passar por
+       outro caminho. */
+    flash(r.avisado?`Atendimento ${r.protocolo} encerrado — o cliente recebeu o protocolo.`
+                   :`Atendimento ${r.protocolo} encerrado, mas NÃO consegui avisar o cliente.`,
+          r.avisado?'ok':'err');
+    CONVERSA=null;
+    await carregar();
+  }catch(e){
+    abrirModal('Não consegui encerrar',
+      `<p class="hint" style="margin-bottom:12px">${esc(e.message)}</p>`,
+      `<button class="btn btn-p" onclick="fecharModal()">${ico('check')}Entendi</button>`);
+  }
+}
 
 async function responderCliente(tel){
   const campo=document.getElementById('respTexto');
