@@ -12,8 +12,13 @@ import * as R from '../engine/vsbot/regras.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'vsbot-'));
 process.env.VSBOT_DIR = dir;
+/* O bot abre PROTOCOLO a cada mensagem. Sem apontar o armazem pra ca, o teste
+   escreveria na casa de quem roda — e, pior, um caso comecaria "retomando" o
+   protocolo que o caso anterior deixou aberto. */
+const dirProto = mkdtempSync(join(tmpdir(), 'vsbot-proto-'));
+process.env.VSPROTOCOLO_DIR = dirProto;
 const bot = await import('../engine/vsbot/index.mjs');
-test.after(() => rmSync(dir, { recursive: true, force: true }));
+test.after(() => { rmSync(dir, { recursive: true, force: true }); rmSync(dirProto, { recursive: true, force: true }); });
 
 /* ---- casamento ---- */
 
@@ -255,4 +260,58 @@ test('com numero proprio a assinatura se desliga', () => {
   const r = bot.atender('1', { de: '5531900000012' });
   assert.doesNotMatch(r.texto, /^\*Micaela:\*/);
   bot.salvarConfig({ assinarMensagens: true });
+});
+
+/* ---- protocolo e retomada, ponta a ponta no bot ----
+
+   A promessa: "continua de onde paramos". Quebrar isso e pior do que nunca ter
+   prometido — e e o comportamento padrao de quase todo atendimento automatico,
+   que manda voce repetir tudo desde o "digite 1". */
+
+const proto = await import('../engine/vsprotocolo/index.mjs');
+
+test('a primeira resposta ja vem com protocolo', () => {
+  bot.apagarFluxo();
+  bot.salvarConfig({ ativo: true, nome: 'Micaela' });
+  bot.salvarFluxo([
+    { id: 'inicio', mensagem: 'Oi! Sou a Micaela.', opcoes: [
+      { tecla: '1', texto: 'Financeiro', vaiPara: 'fin' },
+      { tecla: '2', texto: 'Suporte', vaiPara: 'sup' } ] },
+    { id: 'fin', mensagem: 'Qual o assunto?', acao: 'coletar', vaiPara: 'fila_fin' },
+    { id: 'fila_fin', mensagem: 'Passando pro financeiro.', acao: 'encaminhar', departamento: 'financeiro' },
+    { id: 'sup', mensagem: 'Passando pro suporte.', acao: 'encaminhar', departamento: 'suporte' },
+  ]);
+  const r = bot.atender('oi', { de: '5531900100' });
+  assert.match(r.protocolo, /^VS-\d{6}-[0-9A-Z]{4}$/);
+});
+
+test('encerrado por silencio, voltar retoma o MESMO protocolo no passo certo', () => {
+  bot.atender('1', { de: '5531900100' });            // entrou no financeiro
+  const numero = proto.aberto('5531900100').numero;
+  proto.varrerInativos({ quando: new Date(Date.now() + 10 * 60000).toISOString() });
+  assert.equal(proto.aberto('5531900100'), null, 'encerrou');
+
+  const volta = bot.atender('oi de novo', { de: '5531900100' });
+  assert.equal(volta.protocolo, numero, 'mesmo problema, mesmo protocolo');
+  assert.match(volta.texto, /continuar de onde paramos/i);
+});
+
+test('quem ja estava na FILA volta pra fila — nao passa pela Micaela de novo', () => {
+  bot.atender('oi', { de: '5531900200' });  // a primeira mensagem sempre abre o menu
+  bot.atender('2', { de: '5531900200' });  // suporte: encaminha na hora
+  const numero = proto.aberto('5531900200').numero;
+  assert.equal(proto.aberto('5531900200').estado, proto.ESTADOS.NA_FILA);
+
+  proto.varrerInativos({ quando: new Date(Date.now() + 10 * 60000).toISOString() });
+  const volta = bot.atender('oi', { de: '5531900200' });
+  assert.equal(volta.handoff, true, 'nao pode cair no menu de novo');
+  assert.equal(volta.departamento, 'suporte');
+  assert.equal(volta.protocolo, numero);
+  assert.match(volta.texto, /guardei seu lugar|de volta na fila/i);
+});
+
+test('o simulador NAO deixa protocolo de mentira no historico', () => {
+  const antes = proto.listar().length;
+  bot.simular(['oi', '1']);
+  assert.equal(proto.listar().length, antes, 'testar nao pode encher o historico');
 });

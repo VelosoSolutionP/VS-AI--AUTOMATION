@@ -13,6 +13,8 @@ import { criarGateway } from '../engine/canais/gateway.mjs';
 import { criarWhatsAppWebProvider } from '../engine/canais/whatsapp-web/index.mjs';
 import { reservarEvento } from './idempotencia.mjs';
 import * as atendimento from './atendimento.mjs';
+import * as proto from '../engine/vsprotocolo/index.mjs';
+import * as bot from '../engine/vsbot/index.mjs';
 
 /** Pedaco curto da mensagem: o log serve pra diagnosticar, nao pra guardar
     conversa de cliente. */
@@ -168,6 +170,41 @@ export async function retomar({ produtos } = {}) {
     console.warn(`[canais] sessao em "${st.estado}" depois de retomar — acompanhar`);
   }
   return { ok: true, retomado: true, ...st };
+}
+
+/**
+ * Varre os atendimentos parados e encerra, avisando o cliente com o protocolo.
+ *
+ * Chamada de tempos em tempos pelo painel. O aviso e a metade que importa: um
+ * atendimento que fecha em silencio deixa a pessoa achando que foi ignorada —
+ * e sem o numero ela nao tem como voltar pro mesmo lugar.
+ *
+ * Quem nao tem por onde ser avisado (protocolo antigo, sem endereco guardado)
+ * e encerrado do mesmo jeito: melhor fechar calado do que deixar atendimento
+ * fantasma ocupando a fila pra sempre.
+ */
+export async function encerrarParados({ agora } = {}) {
+  const encerrados = proto.varrerInativos(agora ? { quando: agora } : {});
+  if (!encerrados.length) { return { encerrados: 0 }; }
+
+  let avisados = 0;
+  for (const p of encerrados) {
+    /* A conversa do bot tambem se fecha: sem isso a pessoa voltaria e cairia no
+       meio da arvore antiga, com o protocolo dizendo outra coisa. */
+    bot.devolverAoBot(p.de);
+    const para = p.endereco || p.de;
+    if (!para || !whatsappWeb) { continue; }
+    try {
+      const r = await whatsappWeb.enviarTexto({ para, texto: proto.textoDeEncerramento(p) });
+      if (r?.ok) { avisados += 1; } else {
+        console.warn(`[protocolo] ${p.numero} encerrado, mas nao avisei: ${r?.erro || 'sem motivo'}`);
+      }
+    } catch (e) {
+      console.warn(`[protocolo] ${p.numero} encerrado, mas nao avisei: ${e.message}`);
+    }
+  }
+  console.log(`[protocolo] ${encerrados.length} atendimento(s) encerrado(s) por silencio, ${avisados} avisado(s)`);
+  return { encerrados: encerrados.length, avisados };
 }
 
 export function estado() {

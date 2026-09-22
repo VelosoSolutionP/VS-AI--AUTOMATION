@@ -141,6 +141,12 @@ export async function receberMensagem(msg, deps = {}) {
   const r = bot.atender(msg.texto, {
     // `de` e o que permite o fluxo lembrar ONDE esta pessoa parou na arvore.
     de: t.telefone,
+    /* Por ONDE responder. Com cliente que chega por LID o telefone nao serve
+       pra enviar nada — e a varredura de inatividade precisa avisar o cliente
+       DEPOIS, quando nao ha mais mensagem nenhuma na mao. Sem guardar isto, o
+       encerramento seria silencioso e o protocolo nunca chegaria a quem
+       precisa dele. */
+    endereco: msg.endereco || null,
     nome: msg.nome || lead?.nome || 'Cliente',
     empresa,
     produtos: produtos(),

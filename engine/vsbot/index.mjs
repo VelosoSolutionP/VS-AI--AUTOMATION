@@ -18,6 +18,8 @@ const save = (n, d) => { mkdirSync(dir(), { recursive: true, mode: 0o700 }); wri
 
 export { responder, conversar, GATILHOS };
 
+import * as proto from '../vsprotocolo/index.mjs';
+
 const PADRAO = {
   nome: 'Atendente',
   persona: 'Atende de forma direta e educada, sem prometer o que a loja não faz.',
@@ -98,6 +100,11 @@ export function simular(mensagens = [], ctx = {}) {
       }
     } finally {
       salvarConversa(rascunho, null);
+      /* O rascunho gera protocolo como qualquer conversa — e assim que o
+         simulador mostra o que o cliente veria. Mas ele nao pode ficar: encheria
+         o historico de protocolo de mentira e faria a simulacao seguinte
+         "retomar" a anterior. */
+      proto.apagarDe(rascunho);
     }
     return { ok: true, persona: { nome: cfg.nome, saudacao: cfg.saudacao }, turnos, comFluxo: true };
   }
@@ -210,6 +217,38 @@ export function atender(texto, ctx = {}) {
   const de = ctx.de || null;
 
   if (fx && de) {
+    /* O PROTOCOLO nasce na primeira mensagem, nao no fim. Protocolo criado no
+       encerramento nao existe justamente quando a pessoa precisa dele — no meio
+       da espera, quando ela pergunta "qual e o meu numero?". E se o sistema cair
+       no meio, atendimento sem protocolo e atendimento que nao aconteceu. */
+    const ap = proto.aoChegar(de, { quando: new Date().toISOString(), endereco: ctx.endereco || null });
+
+    /* Voltou depois de encerrado por silencio. Aqui esta a promessa inteira
+       deste modulo: ninguem repete o que ja contou. */
+    if (ap.retomado && ap.volta.acao === 'voltar_fila') {
+      /* Quem ja tinha falado com gente NAO passa pela Micaela outra vez. Volta
+         pra fila, com o contexto — e o atendente abre a conversa sabendo tudo. */
+      salvarConversa(de, {
+        handoffEm: ap.volta.filaDesde,
+        contexto: { ...(ap.volta.contexto || {}), protocolo: ap.protocolo.numero },
+        departamento: ap.volta.departamento,
+      });
+      return {
+        tipo: 'fluxo:encaminhar',
+        texto: proto.textoDeRetomada(ap.protocolo, ap.volta),
+        handoff: true,
+        acao: 'encaminhar',
+        departamento: ap.volta.departamento,
+        protocolo: ap.protocolo.numero,
+        contexto: ap.volta.contexto || {},
+      };
+    }
+    if (ap.retomado && ap.volta.acao === 'retomar_bot') {
+      /* Volta pro passo em que parou. A mensagem que ela acabou de mandar NAO e
+         descartada: e respondida a seguir, ja de dentro do passo certo. */
+      salvarConversa(de, { passo: ap.volta.passo, coletando: false, contexto: ap.volta.contexto || {} });
+    }
+
     const guardada = conversas()[de] || null;
     /* O silencio pos-handoff continua valendo mesmo em conversa fria: ele
        protege o atendente humano, e 4h e sempre menos que 12h. */
@@ -225,9 +264,11 @@ export function atender(texto, ctx = {}) {
        comando — "quero cancelar meu plano" ali e a descricao do problema dela. */
     if (!atual?.coletando && pediuHumano(texto)) {
       salvarConversa(de, { handoffEm: new Date().toISOString(), contexto: atual?.contexto || {}, departamento: 'humano' });
+      proto.anotar(ap.protocolo.numero, { estado: proto.ESTADOS.NA_FILA, departamento: 'humano', contexto: atual?.contexto || {} });
       return {
         tipo: 'fluxo:encaminhar',
         texto: assinar(preencher(cfg.mensagemHandoff, ctx), cfg),
+        protocolo: ap.protocolo.numero,
         handoff: true,
         acao: 'encaminhar',
         departamento: 'humano',
@@ -262,6 +303,19 @@ export function atender(texto, ctx = {}) {
       if (!saida.texto) { saida.texto = cfg.mensagemCatalogo; }
     }
     saida.texto = assinar(saida.texto, cfg);
+
+    /* Anota ONDE parou. E isto que o retorno vai ler daqui a cinco minutos ou
+       daqui a vinte horas — e sem isto o protocolo seria so um numero bonito. */
+    proto.anotar(ap.protocolo.numero, {
+      passo: r.passo || null,
+      contexto,
+      departamento: saida.departamento || undefined,
+      estado: saida.handoff ? proto.ESTADOS.NA_FILA : proto.ESTADOS.COM_BOT,
+    });
+    saida.protocolo = ap.protocolo.numero;
+    if (ap.retomado && ap.volta.acao === 'retomar_bot') {
+      saida.texto = `${proto.textoDeRetomada(ap.protocolo, ap.volta)}\n\n${saida.texto}`;
+    }
     return saida;
   }
 

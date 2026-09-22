@@ -1055,4 +1055,13 @@ server.listen(PORT, () => {
      demorar ou falhar, o painel ja esta de pe e a tela mostra o estado. */
   canais.retomar({ produtos: () => estoque.daVitrine().slice(0, 10) })
     .catch((e) => console.error(`[canais] falhei ao retomar o canal: ${e.message}`));
+
+  /* Um minuto e resolucao suficiente pra um limite de cinco: varrer mais rapido
+     so gasta disco, e mais devagar faria o cliente esperar o dobro do prometido
+     pelo aviso de encerramento. `unref` pra este relogio nunca segurar o
+     processo de pe sozinho. */
+  const relogio = setInterval(() => {
+    canais.encerrarParados().catch((e) => console.error(`[protocolo] varredura falhou: ${e.message}`));
+  }, 60000);
+  relogio.unref?.();
 });

@@ -3,6 +3,16 @@
  * monta. Tudo puro — nada de canal, nada de disco.
  */
 import test from 'node:test';
+/* Este arquivo faz o bot atender, e atender ABRE PROTOCOLO. Sem apontar o
+   armazem pra uma pasta descartavel, o teste escreveria na casa de quem roda
+   — e um caso comecaria "retomando" o protocolo que o anterior deixou aberto. */
+import { mkdtempSync as _mkd, rmSync as _rm } from 'node:fs';
+import { tmpdir as _tmp } from 'node:os';
+import { join as _join } from 'node:path';
+const _dirProto = _mkd(_join(_tmp(), 'proto-iso-'));
+process.env.VSPROTOCOLO_DIR = _dirProto;
+process.on('exit', () => { try { _rm(_dirProto, { recursive: true, force: true }); } catch { /* ja foi */ } });
+
 import assert from 'node:assert/strict';
 import { validarFluxo, avancar, desenhar, ACOES } from '../engine/vsbot/fluxo.mjs';
 import { fluxoDeCsv, partirLinha, modeloCsv } from '../engine/vsbot/fluxo-csv.mjs';
