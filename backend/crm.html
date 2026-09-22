@@ -860,6 +860,39 @@ const SECAO={}; GRUPOS.forEach(g=>g.itens.forEach(m=>{SECAO[m.id]=g.secao;(m.fil
  * Sem isto, cada tela inventava a sua resposta a partir de `STATUS.whatsapp`,
  * que so conhece a API oficial da Meta.
  */
+/**
+ * Dois numeros brasileiros sao o MESMO?
+ *
+ * O WhatsApp entrega celular brasileiro sem o nono digito: 553175127978 e
+ * 5531975127978 sao a mesma linha. Comparar como texto acusava divergencia de
+ * contrato onde nao havia — e um alerta que grita errado ensina todo mundo a
+ * ignorar alerta.
+ */
+function mesmoNumero(a,b){
+  const so=(x)=>String(x||'').replace(/\D/g,'');
+  const sem9=(x)=>{
+    const d=so(x);
+    // 55 + DDD(2) + 9 + 8 digitos = 13. Tira o 9 pra comparar com o formato antigo.
+    if(d.length===13&&d.startsWith('55')&&d[4]==='9') return d.slice(0,4)+d.slice(5);
+    if(d.length===11&&d[2]==='9') return d.slice(0,2)+d.slice(3); // sem DDI
+    return d;
+  };
+  const x=so(a), y=so(b);
+  if(!x||!y) return true;                    // faltando dado nao e divergencia
+  return x===y||sem9(x)===sem9(y)||sem9(x).slice(-10)===sem9(y).slice(-10);
+}
+
+/** Numero bonito pra tela: +55 (31) 97512-7978. */
+function numeroBonito(n){
+  const d=String(n||'').replace(/\D/g,'');
+  if(d.length<10) return d?'+'+d:'—';
+  const ddi=d.length>11?d.slice(0,d.length-11)||'55':'55';
+  const resto=d.slice(-11).length===11?d.slice(-11):d.slice(-10);
+  const ddd=resto.slice(0,2), linha=resto.slice(2);
+  const meio=linha.length===9?linha.slice(0,5):linha.slice(0,4);
+  return `+${ddi} (${ddd}) ${meio}-${linha.slice(meio.length)}`;
+}
+
 function canalWhatsApp(){
   const web=(CANAIS?.canais||[]).find(c=>c.provider==='whatsapp-web');
   if(web?.estado==='conectado') return {no_ar:true,via:'WhatsApp Web',numero:web.numero||null,rotulo:'no ar · WhatsApp Web',oficial:false};
@@ -3044,8 +3077,12 @@ const S={
       <div class="field"><label>Nome da operação <small>(aparece nos relatórios)</small></label>
         <input id="cnApelido" value="${esc(CANAIS?.config?.apelido||'')}" placeholder="Suporte Veloso"></div>
       ${botao({t:'Salvar',ic:'salvar',v:'s',on:'salvarCanalConfig()'})}
+      <div id="cnEco" style="grid-column:1/-1;font-size:13px;min-height:18px"></div>
     </div>
-    ${c?.numero&&CANAIS?.config?.numero&&String(c.numero)!==String(CANAIS.config.numero).replace(/\D/g,'')
+    <p class="hint" style="margin-top:2px">Pode colar com <code>+</code>, espaço ou parênteses — eu guardo só os
+      dígitos, que é o formato que o WhatsApp usa. E celular brasileiro aparece pareado <b>sem o 9</b>:
+      <code>553175127978</code> e <code>5531975127978</code> são a mesma linha, e o painel sabe disso.</p>
+    ${c?.numero&&CANAIS?.config?.numero&&!mesmoNumero(c.numero,CANAIS.config.numero)
       ? `<p class="hint" style="margin-top:10px;color:var(--err)">O número pareado (<b>+${esc(c.numero)}</b>) é diferente do previsto no contrato (<b>${esc(CANAIS.config.numero)}</b>). Confira antes de atender cliente.</p>`:''}
   </div>
 
@@ -4358,16 +4395,35 @@ async function assinarPlano(code){
 
 async function salvarCanalConfig(){
   const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
-  return salvar({
+  /* O aviso de sucesso ficava so no canto da tela, some em 4s, e quem acabou de
+     clicar esta olhando pro BOTAO. Resultado pratico: "clico em salvar e nao da
+     mensagem nenhuma". Agora a confirmacao nasce colada no botao, com o numero
+     guardado escrito por extenso — e some sozinha depois. */
+  const eco=(txt,erro)=>{
+    const el=document.getElementById('cnEco');
+    if(!el) return;
+    el.innerHTML=`<span style="color:var(--${erro?'err':'ok'})">${erro?'✕':'✓'} ${esc(txt)}</span>`;
+    if(!erro) setTimeout(()=>{ const x=document.getElementById('cnEco'); if(x) x.innerHTML=''; },8000);
+  };
+  eco('salvando…');
+  const r=await salvar({
     titulo:'Salvar a configuração do canal',
     campos:[{id:'cnNumero',rotulo:'Número previsto no contrato',
       regra:(x)=>String(x).replace(/\D/g,'').length>=10,
-      mensagem:'Informe o número com DDD (e DDI, se tiver) — só dígitos bastam.'}],
+      mensagem:'Informe o número com DDD (e DDI, se tiver) — só dígitos bastam. O "+" pode colar, eu tiro.'}],
     rota:'canais/config',
     corpo:()=>({numero:v('cnNumero').replace(/\D/g,''),apelido:v('cnApelido'),
       setores:v('cnSetores').split('\n').map(x=>x.trim()).filter(Boolean)}),
     sucesso:'Configuração do canal salva.',
+    depois:async(resp)=>{
+      const n=resp?.config?.numero;
+      eco(n?`guardado: ${numeroBonito(n)}`:'guardado (sem número previsto)');
+      await carregar();
+      eco(n?`guardado: ${numeroBonito(n)}`:'guardado (sem número previsto)');
+    },
   });
+  if(r&&r.ok===false) eco(r.validacao?'confira os campos marcados':(r.erro||'não consegui salvar'),true);
+  return r;
 }
 
 async function personalizarCanal(){
