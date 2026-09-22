@@ -66,10 +66,17 @@ export function validarProvider(p) {
  */
 
 /** Molde vazio — evita que cada provider invente um formato meio parecido. */
-export function mensagem({ id, de, nome = null, tipo = 'text', texto = '', quando, canal }) {
+export function mensagem({ id, de, endereco = null, nome = null, tipo = 'text', texto = '', quando, canal }) {
   return {
     id: String(id || ''),
+    /* `de` e QUEM (identidade, pro CRM) e `endereco` e ONDE RESPONDER. Eram a
+       mesma coisa enquanto todo mundo tinha telefone visivel. Com a privacidade
+       nova do WhatsApp o remetente chega so como LID: da pra conversar com ele
+       normalmente, mas nao da pra saber o numero. Exigir o numero pra poder
+       responder — que era o que este contrato fazia — calava a conversa inteira
+       por falta de um dado que serve pra OUTRA coisa. */
     de: String(de || '').replace(/\D/g, ''),
+    endereco: endereco || null,
     nome: nome || null,
     tipo: tipo || 'text',
     texto: String(texto || ''),

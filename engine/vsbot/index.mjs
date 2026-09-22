@@ -29,6 +29,10 @@ const PADRAO = {
      quem mandou — e e o que acontecia. Responder o que da pra fazer e mais
      honesto que silencio, e custa zero: transcrever audio exige IA paga. */
   mensagemSemTexto: 'Ainda não consigo ouvir áudio nem ler imagem — me escreve em texto, por favor? Se preferir falar com uma pessoa, escreva *atendente*.',
+  /* Assina enquanto o numero for compartilhado com gente de verdade. No dia em
+     que o atendimento ganhar linha propria, com a foto e o nome dela na conta,
+     a assinatura vira repeticao — e ai e so desligar aqui. */
+  assinarMensagens: true,
   usarCatalogo: true,
   limiteCatalogo: 5,
   falhasAteHumano: 2,
@@ -179,6 +183,27 @@ const esfriou = (c) => c?.em && (Date.now() - new Date(c.em).getTime()) > HORAS_
  * Tem fluxo cadastrado? A arvore conduz. Nao tem? Vale a regra por palavra,
  * como antes. Os dois nunca disputam a mesma mensagem.
  */
+/**
+ * Quem esta falando, quando o numero e compartilhado.
+ *
+ * No WhatsApp a foto e o nome sao DA CONTA, nao da mensagem. Enquanto a Micaela
+ * mora no numero pessoal do dono, o cliente ve a cara dele em tudo que ela
+ * escreve — e acha que e ele digitando. Assinar e o que empresa seria faz
+ * quando gente e robo dividem a mesma linha.
+ *
+ * Nao assina quando o proprio texto ja se apresenta (a saudacao diz o nome),
+ * pra nao ficar "Micaela: Ola! Sou a Micaela". E some inteiro quando o canal
+ * ganhar numero proprio: e so desligar.
+ */
+function assinar(texto, cfg) {
+  const t = String(texto || '').trim();
+  const nome = String(cfg.nome || '').trim();
+  if (!t || !nome || cfg.assinarMensagens === false) { return texto; }
+  const semAcento = (x) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (semAcento(t).includes(semAcento(nome))) { return texto; }
+  return `*${nome}:* ${t}`;
+}
+
 export function atender(texto, ctx = {}) {
   const cfg = { ...getConfig(), regras: regras() };
   const fx = getFluxo();
@@ -202,7 +227,7 @@ export function atender(texto, ctx = {}) {
       salvarConversa(de, { handoffEm: new Date().toISOString(), contexto: atual?.contexto || {}, departamento: 'humano' });
       return {
         tipo: 'fluxo:encaminhar',
-        texto: preencher(cfg.mensagemHandoff, ctx),
+        texto: assinar(preencher(cfg.mensagemHandoff, ctx), cfg),
         handoff: true,
         acao: 'encaminhar',
         departamento: 'humano',
@@ -236,6 +261,7 @@ export function atender(texto, ctx = {}) {
       saida.produtos = (ctx.produtos || []).slice(0, cfg.limiteCatalogo || 5);
       if (!saida.texto) { saida.texto = cfg.mensagemCatalogo; }
     }
+    saida.texto = assinar(saida.texto, cfg);
     return saida;
   }
 

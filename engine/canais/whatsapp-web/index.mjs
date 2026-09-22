@@ -192,16 +192,33 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
       cliente.onMessage?.(async (m) => {
         ultimaAtividade = agora();
         const filtro = deveAtender(m);
-        if (!filtro.ok) { return; }
+        if (!filtro.ok) {
+          /* Este era o ultimo ponto cego: mensagem descartada aqui sumia sem
+             UMA linha. Quem testava mandando do proprio celular caia no "eco da
+             propria resposta" e via a Micaela muda, com o log em branco — nao da
+             pra distinguir "nao chegou" de "chegou e eu joguei fora". Toda
+             mensagem que entra deixa rastro agora, sem excecao. */
+          console.log(`[whatsapp-web] ignorada (${filtro.motivo}) — de ${m.from || '?'}`);
+          return;
+        }
         const canonica = normalizar(m);
 
-        /* LID -> telefone. Sem isto a resposta sai pro identificador, que parece
-           numero e nao e, e o cliente nunca recebe nada. */
+        /* Descobrir o TELEFONE vale a pena — e ele que identifica o cliente no
+           CRM e junta a conversa de hoje com a de semana passada. Mas nao ter o
+           telefone NAO cala o atendimento: a resposta vai pro endereco de onde
+           a mensagem veio, que e a propria conversa.
+
+           Foi exatamente aqui que se perdeu meia manha: o codigo exigia
+           telefone pra responder, e a conta nova do WhatsApp nao entrega
+           telefone nenhum — so o LID. Primeiro isso virou resposta pro numero
+           errado; depois, silencio. Os dois por confundir QUEM E o cliente com
+           ONDE SE RESPONDE. */
         if (ehLid(m.from) || !pareceTelefone(canonica.de)) {
           const real = await resolverTelefone(m);
-          if (real) { canonica.de = real; } else {
-            console.error(`[whatsapp-web] nao consegui descobrir o telefone de "${m.from}" — mensagem ignorada pra nao responder pro vazio`);
-            return;
+          if (real) {
+            canonica.de = real;
+          } else {
+            console.warn(`[whatsapp-web] sem telefone para "${m.from}" — atendo assim mesmo, respondendo na propria conversa`);
           }
         }
 
@@ -354,23 +371,55 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
       console.log(`[whatsapp-web] telefone do cliente veio de ${caminho}`);
       return d;
     }
+    /* Ultimo recurso: perguntar pra propria lib quem e esse contato. Em conta
+       nova o WhatsApp entrega o remetente so como LID, e nenhum campo da
+       mensagem carrega o telefone — mas o contato, consultado, carrega. */
+    for (const [caminho, buscar] of [
+      ['getContact', async () => cliente?.getContact?.(m.from)],
+      ['getChatById', async () => (await cliente?.getChatById?.(m.from))?.contact],
+    ]) {
+      try {
+        const c = await buscar();
+        for (const v of [c?.id?.user, c?.number, c?.phoneNumber, c?.id?._serialized]) {
+          const d = soDigitos(v);
+          if (pareceTelefone(d) && !(numero && d === numero)) {
+            console.log(`[whatsapp-web] telefone do cliente veio de ${caminho}`);
+            return d;
+          }
+        }
+      } catch { /* a lib nao soube: segue */ }
+    }
+
     if (recusados.length) { console.warn(`[whatsapp-web] caminhos recusados: ${recusados.join('; ')}`); }
+    /* Quando NADA resolve, o log precisa mostrar o que a mensagem trazia — sem
+       isso a investigacao vira adivinhacao, e foi o que custou a manha de hoje.
+       Só os nomes dos campos e os identificadores; o texto da conversa fica de
+       fora, que log nao e lugar de guardar mensagem de cliente. */
+    const espiar = (o) => Object.keys(o || {}).join(', ');
+    console.warn(`[whatsapp-web] campos da mensagem: ${espiar(m)}`);
+    console.warn(`[whatsapp-web] ids vistos: from=${m.from} | to=${m.to} | author=${m.author} | chatId=${JSON.stringify(m.chatId)} | sender=${espiar(m.sender)} | sender.id=${JSON.stringify(m.sender?.id)}`);
     return null;
   }
 
   async function enviarTexto({ para, texto }) {
-    const destino = soDigitos(para);
-    if (!destino) { return { ok: false, erro: 'destino vazio' }; }
-    /* Numero fora do padrao quase sempre e LID que escapou. Enviar seria falar
-       com o vazio e ainda registrar na trilha que o cliente foi respondido. */
-    if (!pareceTelefone(destino)) {
-      return { ok: false, erro: `"${destino}" não é um telefone válido (${destino.length} dígitos) — provavelmente é um identificador interno do WhatsApp, não o número do cliente` };
+    const cru = String(para || '').trim();
+    if (!cru) { return { ok: false, erro: 'destino vazio' }; }
+
+    /* Duas formas de endereco chegam aqui, e as duas sao legitimas:
+       - um JID pronto (`...@c.us` ou `...@lid`), que e a conversa de onde a
+         mensagem veio — responder nele e o caminho natural e sempre funciona;
+       - um telefone solto, quando alguem inicia a conversa a partir do painel.
+       Exigir telefone nos dois casos era o que calava a Micaela com cliente que
+       chega por LID: da pra conversar com ele, so nao da pra saber o numero. */
+    const destino = cru.includes('@') ? cru : soDigitos(cru);
+    if (!cru.includes('@') && !pareceTelefone(destino)) {
+      return { ok: false, erro: `"${destino}" não é um telefone válido (${destino.length} dígitos) — para iniciar conversa é preciso o número do cliente` };
     }
     if (estado !== ESTADOS.CONECTADO || !cliente) {
       return { ok: false, erro: `canal ${estado} — nada foi enviado` };
     }
     try {
-      const r = await cliente.sendText(`${destino}@c.us`, String(texto));
+      const r = await cliente.sendText(destino.includes('@') ? destino : `${destino}@c.us`, String(texto));
       ultimaAtividade = agora();
       return { ok: true, id: r?.id?.id || r?.id || null };
     } catch (e) {

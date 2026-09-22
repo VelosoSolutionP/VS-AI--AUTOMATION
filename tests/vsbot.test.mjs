@@ -217,3 +217,42 @@ test('duas simulacoes seguidas comecam do zero — a segunda nao herda a primeir
   const b = bot.simular(['oi']);
   assert.equal(a.turnos[0].texto, b.turnos[0].texto, 'senao a segunda responderia no meio do assunto da primeira');
 });
+
+/* ---- assinatura: quem esta falando, no numero compartilhado ----
+
+   Enquanto a Micaela mora no numero pessoal do dono, o WhatsApp mostra a foto
+   e o nome DELE em tudo que ela escreve. O cliente acha que e ele digitando.
+   Assinar e o que empresa seria faz quando gente e robo dividem a linha. */
+
+test('mensagem do fluxo sai assinada', () => {
+  bot.apagarFluxo();
+  bot.salvarConfig({ ativo: true, nome: 'Micaela', assinarMensagens: true });
+  bot.salvarFluxo([
+    { id: 'inicio', mensagem: 'Qual assunto?', opcoes: [{ tecla: '1', texto: 'Financeiro', vaiPara: 'fin' }] },
+    { id: 'fin', mensagem: 'Passando pro financeiro.', acao: 'encaminhar', departamento: 'financeiro' },
+  ]);
+  const r = bot.atender('1', { de: '5531900000010' });
+  assert.match(r.texto, /^\*Micaela:\* /, 'o cliente precisa saber com quem fala');
+});
+
+test('quando o texto JA se apresenta, nao assina — "Micaela: Sou a Micaela" e bobo', () => {
+  bot.salvarFluxo([
+    { id: 'inicio', mensagem: 'Olá! Sou a Micaela, da Veloso Solution.', opcoes: [
+      { tecla: '1', texto: 'Financeiro', vaiPara: 'fin' }] },
+    { id: 'fin', mensagem: 'Passando pro financeiro.', acao: 'encaminhar', departamento: 'financeiro' },
+  ]);
+  const r = bot.atender('oi', { de: '5531900000011' });
+  assert.doesNotMatch(r.texto, /^\*Micaela:\*/);
+  assert.match(r.texto, /Sou a Micaela/);
+});
+
+test('com numero proprio a assinatura se desliga', () => {
+  bot.salvarConfig({ assinarMensagens: false });
+  bot.salvarFluxo([
+    { id: 'inicio', mensagem: 'Qual assunto?', opcoes: [{ tecla: '1', texto: 'Financeiro', vaiPara: 'fin' }] },
+    { id: 'fin', mensagem: 'Passando pro financeiro.', acao: 'encaminhar', departamento: 'financeiro' },
+  ]);
+  const r = bot.atender('1', { de: '5531900000012' });
+  assert.doesNotMatch(r.texto, /^\*Micaela:\*/);
+  bot.salvarConfig({ assinarMensagens: true });
+});

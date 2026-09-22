@@ -402,7 +402,17 @@ test('mensagem com LID: o telefone real e descoberto pelo tradutor da lib', asyn
   assert.equal(recebidas[0].de, '5531975127978', 'tinha de virar o telefone de verdade');
 });
 
-test('sem conseguir descobrir o telefone, a mensagem NAO vira atendimento', async () => {
+/* A regra mudou, e a mudanca e o conserto:
+
+   ANTES: sem telefone, descarta. Parecia prudente. Na conta nova do WhatsApp o
+   remetente vem SO como LID e telefone nao existe em campo nenhum — entao
+   "prudente" virou "nao atende ninguem", com cliente esperando do outro lado.
+
+   AGORA: sem telefone, atende do mesmo jeito e responde no endereco de onde a
+   mensagem veio. Perde-se a identidade no CRM, nao o atendimento. Calar o
+   cliente por falta de um dado de CADASTRO e trocar problema nosso por
+   problema dele. */
+test('sem telefone, a mensagem VIRA atendimento e a resposta vai pro endereco de origem', async () => {
   const lib = libFalsa();
   const criar = async (cfg) => {
     const c = await lib.criar(cfg);
@@ -415,7 +425,12 @@ test('sem conseguir descobrir o telefone, a mensagem NAO vira atendimento', asyn
   await p.conectar();
   lib.cbs.onMessage({ id: { id: 'M2' }, from: '173916127502499@lid', type: 'chat', body: 'oi' });
   await new Promise((r) => setTimeout(r, 20));
-  assert.equal(recebidas.length, 0, 'melhor nao atender do que responder pro vazio');
+  assert.equal(recebidas.length, 1, 'cliente sem telefone visivel continua sendo cliente');
+  assert.equal(recebidas[0].endereco, '173916127502499@lid', 'e pra ELE que se responde');
+
+  const env = await p.enviarTexto({ para: recebidas[0].endereco, texto: 'oi!' });
+  assert.equal(env.ok, true);
+  assert.equal(lib.enviadas[0].para, '173916127502499@lid', 'jid pronto vai como veio, sem virar @c.us');
 });
 
 test('o telefone tambem e achado no contato que veio junto da mensagem', async () => {
@@ -429,13 +444,14 @@ test('o telefone tambem e achado no contato que veio junto da mensagem', async (
   assert.equal(recebidas[0].de, '5531988887777');
 });
 
-test('NAO envia pra identificador interno — e explica o que aconteceu', async () => {
+test('numero solto invalido continua recusado — iniciar conversa exige telefone de verdade', async () => {
   const lib = libFalsa();
   const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
   await p.conectar();
+  // Sem "@": isto e alguem tentando INICIAR conversa por um numero digitado.
   const r = await p.enviarTexto({ para: '173916127502499', texto: 'oi' });
   assert.equal(r.ok, false);
-  assert.match(r.erro, /identificador interno/);
+  assert.match(r.erro, /não é um telefone válido/);
   assert.equal(lib.enviadas.length, 0, 'nao podia ter tentado enviar');
 });
 
@@ -465,8 +481,9 @@ test('LID sem telefone resolvivel NAO vira o nosso proprio numero', async () => 
     type: 'chat',
   });
 
-  assert.equal(recebidas.length, 0, 'sem telefone do cliente, melhor ignorar que responder pra si mesmo');
-  assert.equal(lib.enviadas.length, 0, 'e nada pode ter sido enviado');
+  assert.equal(recebidas.length, 1, 'a conversa acontece pelo endereco, nao pelo telefone');
+  assert.notEqual(recebidas[0].de, '5531999990000', 'o NOSSO numero nunca pode virar a identidade do cliente');
+  assert.equal(recebidas[0].endereco, '173916127502499@lid', 'responde na conversa de origem');
 });
 
 test('mensagem que aponta pra nossa propria conta e descartada', async () => {
@@ -484,7 +501,8 @@ test('mensagem que aponta pra nossa propria conta e descartada', async () => {
     type: 'chat',
   });
 
-  assert.equal(recebidas.length, 0, 'cliente nunca escreve do numero que atende');
+  assert.equal(recebidas.length, 1);
+  assert.notEqual(recebidas[0].de, '5531999990000', 'cliente nunca escreve do numero que atende');
 });
 
 test('LID COM telefone resolvivel passa normal — o conserto nao pode calar quem existe', async () => {

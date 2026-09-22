@@ -45,10 +45,10 @@ export function criarGateway({ entregar, reservar } = {}) {
       const chave = `${provider.nome}:${msg.id}`;
       if (!msg.id || jaVi(chave)) { return; }
       try {
-        const r = await entregar(msg, { canal: provider.nome, responder: (texto) => provider.enviarTexto({ para: msg.de, texto }) });
+        const r = await entregar(msg, { canal: provider.nome, responder: (texto) => provider.enviarTexto({ para: msg.endereco || msg.de, texto }) });
         // O domínio pode devolver um texto pra responder. Se não devolver, tudo
         // bem: nem toda mensagem merece resposta automática.
-        if (r && r.responder) { await provider.enviarTexto({ para: msg.de, texto: r.responder }); }
+        if (r && r.responder) { await provider.enviarTexto({ para: msg.endereco || msg.de, texto: r.responder }); }
       } catch (e) {
         console.error(`[gateway] ${provider.nome} entregou e o dominio quebrou: ${e.message}`);
       }

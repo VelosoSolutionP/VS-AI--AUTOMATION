@@ -2153,7 +2153,8 @@ async function salvarBot(){
     ],
     rota:'bot/config',
     corpo:()=>({nome:v('bcNome'),saudacao:v('bcSaud'),mensagemFallback:v('bcFall'),
-      mensagemHandoff:v('bcHand'),falhasAteHumano:Number(v('bcFalhas')||2),ativo:ck('bcAtivo'),usarCatalogo:ck('bcCat')}),
+      mensagemHandoff:v('bcHand'),falhasAteHumano:Number(v('bcFalhas')||2),ativo:ck('bcAtivo'),
+      usarCatalogo:ck('bcCat'),assinarMensagens:ck('bcAssina')}),
     sucesso:`Comportamento salvo. ${ck('bcAtivo')?'O bot está ligado.':'O bot segue desligado — ligue quando quiser que ele atenda.'}`,
   });
 }
@@ -2708,6 +2709,12 @@ const S={
         <input type="checkbox" id="bcAtivo" style="width:auto;margin:0"${c.ativo?' checked':''}> Bot ligado</label></div>
       <div class="field"><label style="display:flex;align-items:center;gap:7px;font-weight:400;cursor:pointer;padding-bottom:9px">
         <input type="checkbox" id="bcCat" style="width:auto;margin:0"${c.usarCatalogo?' checked':''}> Responder com o catálogo</label></div>
+      <div class="field" style="grid-column:1/-1"><label style="display:flex;align-items:center;gap:7px;font-weight:400;cursor:pointer;padding-bottom:4px">
+        <input type="checkbox" id="bcAssina" style="width:auto;margin:0"${c.assinarMensagens!==false?' checked':''}>
+        Assinar as respostas com o nome dela</label>
+        <small class="hint">O WhatsApp mostra a foto e o nome <b>da conta</b> em toda mensagem. Enquanto o
+        atendimento dividir o número com uma pessoa, assinar é o que deixa claro para o cliente com quem ele
+        está falando. Quando o atendimento tiver número próprio, desligue.</small></div>
       <button class="btn btn-p" onclick="salvarBot()">${ico('salvar')}Salvar</button>
     </div>
     <p class="hint" style="margin-top:10px">Use <code>{nome}</code>, <code>{empresa}</code> nas respostas — são trocados

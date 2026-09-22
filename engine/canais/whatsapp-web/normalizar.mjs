@@ -77,6 +77,10 @@ export function normalizar(m, canal = 'whatsapp-web') {
   return mensagem({
     id: m.id?.id || m.id || '',
     de: soDigitos(m.from),
+    /* O jid cru, do jeito que o WhatsApp mandou — e pra ELE que se responde.
+       Pode ser telefone@c.us ou LID@lid; o canal nao precisa saber qual, so
+       precisa devolver a mensagem na mesma conversa. */
+    endereco: m.from || null,
     nome: m.notifyName || m.sender?.pushname || m.sender?.name || null,
     tipo,
     texto,
