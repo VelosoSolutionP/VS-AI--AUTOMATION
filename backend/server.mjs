@@ -30,6 +30,7 @@ import * as tk from '../engine/vstiktok/index.mjs';
 import { reservarEvento } from './idempotencia.mjs';
 import * as atendimento from './atendimento.mjs';
 import * as canais from './canais.mjs';
+import * as operadores from '../engine/vsoperadores/index.mjs';
 import * as planos from '../engine/vsplanos/index.mjs';
 import * as pagar from '../engine/vspagamentos/index.mjs';
 import * as fin from '../engine/vsfinanceiro/index.mjs';
@@ -691,6 +692,19 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && rota === '/crm/api/planos') {
       return json(res, 200, { ...planos.tabela(), assinatura: planos.assinatura(), limiteAtendentes: planos.limiteDeAtendentes() });
     }
+    if (req.method === 'GET' && rota === '/crm/api/operadores') {
+      /* Os setores vem do FLUXO, nao de uma lista cravada: e o fluxo que decide
+         pra onde o cliente e encaminhado, entao e ele que diz quais setores
+         precisam de gente. Setor no fluxo sem operador = cliente transferido
+         pro vazio, e isso tem de aparecer na tela. */
+      const fx = bot.getFluxo();
+      const setores = new Set((canais.estado().config?.setores || []).map((x) => operadores.norm(x)));
+      for (const p of fx?.passos || []) {
+        if (p.departamento) { setores.add(operadores.norm(p.departamento)); }
+        for (const o of p.opcoes || []) { if (o.departamento) { setores.add(operadores.norm(o.departamento)); } }
+      }
+      return json(res, 200, operadores.painel([...setores]));
+    }
     if (req.method === 'GET' && rota === '/crm/api/canais') {
       return json(res, 200, { ...canais.estado(), saude: await canais.saude() });
     }
@@ -914,6 +928,8 @@ const server = createServer(async (req, res) => {
         case '/crm/api/canais/enviar': r = await canais.enviar(d); break;
         case '/crm/api/canais/personalizar': r = await canais.personalizar(d); break;
         case '/crm/api/canais/config': r = canais.salvarConfigCanal(d); break;
+        case '/crm/api/operadores/salvar': r = operadores.salvar(d); break;
+        case '/crm/api/operadores/remover': r = operadores.remover(d.id); break;
         case '/crm/api/planos/assinar': r = planos.assinar(d); break;
         case '/crm/api/planos/salvar': r = planos.salvarPlano(d); break;
         case '/crm/api/planos/versionar': r = planos.versionarPlano(d.code, d.mudancas || {}, d.sufixo || 'v2'); break;

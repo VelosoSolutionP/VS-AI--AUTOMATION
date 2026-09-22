@@ -812,7 +812,7 @@ const TITULO={};
 MENU.forEach(m=>{TITULO[m.id]=[m.nome];(m.filhos||[]).forEach(f=>TITULO[f.id]=[m.nome,f.nome]);});
 const PAI={}; MENU.forEach(m=>(m.filhos||[]).forEach(f=>PAI[f.id]=m.id));
 
-let CANAIS=null,ATEND=null,CONVERSA=null,PLANOS_CAT=null,CICLO='mensal';
+let CANAIS=null,ATEND=null,CONVERSA=null,PLANOS_CAT=null,CICLO='mensal',OPERADORES=null,OP_EDIT=null;
 let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null,QG=null,TKAPP=null,PAG=null,LOTES=null,CAIXA=null,BOT=null,DOCS=null,PUB=null;
 const TESTE={}; // resultado do ultimo teste por rede (so em memoria)
 const PROVA={}; // ultimo teste real das APIs do TikTok, por familia
@@ -2810,7 +2810,8 @@ const S={
     ${cardH('crm',`Atendentes e setores`,`Quantas pessoas podem atender e em que setores. O limite vem do contrato — ampliar é adendo, não configuração.`,1,
       `<span class="badge ${(CANAIS?.plano?.atendentes||0)>0?'b-ok':'b-warn'}">${CANAIS?.plano?.atendentes??'—'} atendente(s)</span>`)}
     ${linha('Atendentes contratados','quantas pessoas podem responder',String(CANAIS?.plano?.atendentes??'—'),'b-ok')}
-    ${linha('Em uso agora','cadastrados no painel',String((CANAIS?.config?.setores||[]).length?CANAIS.config.atendentesEmUso||0:0),'')}
+    ${linha('Em uso agora','operadores ativos cadastrados',esc(OPERADORES?.uso?.texto||'—'),
+      OPERADORES?.uso?.alerta==='cheio'?'b-err':(OPERADORES?.uso?.alerta?'b-warn':'b-ok'))}
     <div class="form-grid" style="margin-top:12px">
       <div class="field" style="grid-column:1/-1"><label>Setores <small>(um por linha — viram as filas do encaminhamento)</small></label>
         <textarea id="cnSetores" rows="3" placeholder="Suporte&#10;Comercial&#10;Financeiro">${esc((CANAIS?.config?.setores||[]).join('\n'))}</textarea></div>
@@ -2819,6 +2820,8 @@ const S={
     </div>
     <p class="hint" style="margin-top:10px">Os setores aqui são os mesmos que o fluxo usa em <code>encaminhar_&lt;setor&gt;</code>.</p>
   </div>
+
+  ${operadoresHtml()}
 
   <div class="card" style="margin-bottom:16px">
     ${cardH('perfil',`A cara da Micaela`,`Foto, nome e recado que o cliente vê no topo da conversa. Isto <b>só funciona neste canal</b> — na API oficial da Meta a foto vem do WhatsApp Manager e nenhum código muda.`,3,
@@ -3616,6 +3619,7 @@ async function carregar(){
     PUB=await api('estoque/publicados').catch(()=>null);
     BOT=await api('bot').catch(()=>null);
     CANAIS=await api('canais').catch(()=>null);
+    OPERADORES=await api('operadores').catch(()=>null);
     ATEND=await api('atendimentos').catch(()=>null);
     PLANOS_CAT=await api('planos').catch(()=>null);
     DOCS=await api('documentos').catch(()=>null);
@@ -3945,6 +3949,97 @@ async function devolverAoBot(tel){
    isto que dava pra ver que arte com texto nos cantos perde metade no corte
    circular do WhatsApp — descobrir isso depois de aplicar custa uma troca de
    foto na frente do cliente. */
+/* Operadores humanos: quem recebe o cliente quando a Micaela passa adiante.
+   Fica AQUI, colado no contrato e nos setores, porque o teto e contratual e o
+   setor e o que liga a pessoa ao encaminhamento. Espalhar isso por outra tela
+   faria alguem cadastrar gente sem ver o limite que esta estourando. */
+function operadoresHtml(){
+  const o=OPERADORES||{operadores:[],uso:{},porSetor:{},setoresSemGente:[]};
+  const setores=[...new Set([...(CANAIS?.config?.setores||[]).map(x=>x.toLowerCase().trim()),
+    ...Object.keys(o.porSetor||{}),...(o.setoresSemGente||[])])].filter(Boolean).sort();
+  const cheio=o.uso?.cheio===true;
+  const e=OP_EDIT||{};
+  return `<div class="card" style="margin-bottom:16px">
+    ${cardH('crm',`Operadores humanos`,`Quem recebe o cliente quando a Micaela passa adiante. O teto vem do contrato — ampliar é adendo, não configuração.`,2,
+      `<span class="badge ${cheio?'b-err':(o.uso?.alerta?'b-warn':'b-ok')}">${esc(o.uso?.texto||'—')}</span>`)}
+
+    ${(o.setoresSemGente||[]).length?`<p class="hint" style="margin-top:2px;color:var(--err)">
+      <b>Sem ninguém para receber:</b> ${o.setoresSemGente.map(s=>`<code>${esc(s)}</code>`).join(', ')}.
+      O fluxo encaminha para esses setores e o cliente ficaria esperando alguém que não existe.</p>`:''}
+
+    ${(o.operadores||[]).length?`<div class="tbl-wrap" style="margin-top:10px"><table class="tbl">
+      <thead><tr><th>Nome</th><th>Setor</th><th>Contato</th><th>Situação</th><th></th></tr></thead><tbody>
+      ${o.operadores.map(op=>`<tr${op.ativo===false?' style="opacity:.55"':''}>
+        <td><b>${esc(op.nome)}</b></td>
+        <td><code>${esc(op.setor)}</code></td>
+        <td>${esc(op.telefone||op.email||'—')}</td>
+        <td><span class="badge ${op.ativo===false?'':'b-ok'}">${op.ativo===false?'desativado':'atende'}</span></td>
+        <td style="text-align:right;white-space:nowrap">
+          ${botao({t:'Editar',ic:'editar',v:'g',sz:'xs',on:`editarOperador('${esc(op.id)}')`})}
+          ${botao({t:op.ativo===false?'Reativar':'Desativar',ic:'poder',v:'g',sz:'xs',on:`alternarOperador('${esc(op.id)}')`})}
+        </td></tr>`).join('')}
+      </tbody></table></div>`:'<p class="hint" style="margin-top:10px">Nenhum operador cadastrado ainda. Sem eles, tudo que a Micaela encaminhar fica sem dono.</p>'}
+
+    <div class="form-grid" style="margin-top:14px">
+      <div class="field"><label>Nome *</label>
+        <input id="opNome" value="${esc(e.nome||'')}" placeholder="Ex.: Joana Ribeiro"></div>
+      <div class="field"><label>Setor *</label>
+        <input id="opSetor" list="opSetores" value="${esc(e.setor||'')}" placeholder="financeiro">
+        <datalist id="opSetores">${setores.map(x=>`<option value="${esc(x)}">`).join('')}</datalist></div>
+      <div class="field"><label>Telefone <small>(opcional, com DDD)</small></label>
+        <input id="opTel" value="${esc(e.telefone||'')}" placeholder="31 90000-0000"></div>
+      <div class="field"><label>E-mail <small>(opcional)</small></label>
+        <input id="opMail" value="${esc(e.email||'')}" placeholder="joana@empresa.com.br"></div>
+      ${botao({t:e.id?'Salvar alterações':'Adicionar operador',ic:'salvar',v:'p',on:'salvarOperador()',
+        off:cheio&&!e.id, tit:cheio&&!e.id?'O contrato está cheio — amplie ou desative alguém':''})}
+      ${e.id?botao({t:'Cancelar',ic:'fechar',v:'g',on:'OP_EDIT=null;render()'}):''}
+      ${cheio&&!e.id?botao({t:'Ampliar no contrato',ic:'seta',v:'g',on:"ir('pl-comprar')"}):''}
+    </div>
+    <p class="hint" style="margin-top:10px">O setor tem de bater com o que o fluxo usa em
+      <code>encaminhar_&lt;setor&gt;</code>. Quem sai da empresa deve ser <b>desativado</b>, não apagado —
+      assim o histórico do atendimento continua fazendo sentido, e a vaga do contrato volta a ficar livre.</p>
+  </div>`;
+}
+
+function editarOperador(id){ OP_EDIT=(OPERADORES?.operadores||[]).find(o=>o.id===id)||null; render(); }
+
+async function alternarOperador(id){
+  const op=(OPERADORES?.operadores||[]).find(o=>o.id===id);
+  if(!op) return;
+  const ligando=op.ativo===false;
+  try{
+    await api('operadores/salvar',{...op,ativo:ligando});
+    flash(ligando?`${op.nome} voltou a atender.`:`${op.nome} não recebe mais clientes.`,'ok');
+    await carregar();
+  }catch(e){
+    /* Reativar pode esbarrar no teto do contrato, e isso NAO pode passar como
+       avisinho que some: a pessoa voltou pra equipe e continuaria sem receber
+       cliente nenhum, sem ninguem entender por que. */
+    abrirModal('Não consegui reativar',
+      `<p class="hint" style="margin-bottom:12px">${esc(e.message)}</p>`,
+      `<button class="btn btn-g" onclick="fecharModal()">Fechar</button>
+       <button class="btn btn-p" onclick="fecharModal();ir('pl-comprar')">${ico('seta')}Ampliar contrato</button>`);
+  }
+}
+
+function salvarOperador(){
+  const el=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
+  return salvar({
+    titulo:OP_EDIT?.id?'Não consegui salvar o operador':'Não consegui adicionar o operador',
+    campos:[
+      {id:'opNome',rotulo:'Nome',obrigatorio:true},
+      {id:'opSetor',rotulo:'Setor',obrigatorio:true},
+      {id:'opTel',rotulo:'Telefone',regra:v=>{const d=v.replace(/\D/g,'');return d.length>=10&&d.length<=13;},
+        mensagem:'Telefone precisa do DDD — ex.: 31 90000-0000.'},
+    ],
+    rota:'operadores/salvar',
+    corpo:()=>({id:OP_EDIT?.id||undefined,nome:el('opNome'),setor:el('opSetor'),
+      telefone:el('opTel'),email:el('opMail'),ativo:OP_EDIT?OP_EDIT.ativo!==false:true}),
+    sucesso:OP_EDIT?.id?'Operador atualizado.':'Operador cadastrado — já pode receber cliente.',
+    depois:()=>{ OP_EDIT=null; carregar(); },
+  });
+}
+
 function previewPerfil(){
   const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
   const nome=document.getElementById('pvNome');
