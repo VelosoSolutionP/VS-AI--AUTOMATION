@@ -85,6 +85,10 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
      mensagem `fromMe` — inclusive as nossas. Sem separar as duas coisas, a
      resposta da propria Micaela seria lida como "o dono digitou". */
   const enviadosPorNos = new Set();
+  /* Minutos de idade acima dos quais a mensagem NAO e mais conversa viva.
+     Ao reconectar, o WhatsApp entrega tudo que ficou pendente de uma vez — e
+     sem este corte o bot responde o historico inteiro num segundo so. */
+  const janelaMin = opcoes.janelaMinutos ?? 10;
   const ouvintesDono = [];
   let reconectando = null;  // timer
 
@@ -221,6 +225,25 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
             }
           }
           return;
+        }
+
+        /* MENSAGEM VELHA NAO SE RESPONDE.
+           Aconteceu em campo: o canal reconectou e, sete segundos depois, sairam
+           21 respostas no mesmo segundo pra duas pessoas — o WhatsApp tinha
+           entregue todo o historico pendente de uma vez e o bot respondeu cada
+           mensagem antiga como se fosse nova. Alem de constrangedor, isso e o
+           caminho curto pro numero ser bloqueado por spam.
+
+           Quem mandou ha uma hora ja seguiu a vida; responder agora nao ajuda
+           ninguem. O atendimento continua na trilha — o que nao acontece e a
+           enxurrada. */
+        const quando = Number(m.t || m.timestamp || 0) * 1000;
+        if (quando > 0) {
+          const idadeMin = (Date.now() - quando) / 60000;
+          if (idadeMin > janelaMin) {
+            console.log(`[whatsapp-web] ignorada (mensagem de ${Math.round(idadeMin)} min atras, fora da janela de ${janelaMin}) — de ${m.from || '?'}`);
+            return;
+          }
         }
 
         const filtro = deveAtender(m);

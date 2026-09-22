@@ -614,3 +614,76 @@ test('mensagem do dono NAO entra como mensagem de cliente', async () => {
     to: '5531977776666@c.us', body: 'oi', type: 'chat' });
   assert.equal(recebidas.length, 0);
 });
+
+/* ---- a enxurrada da reconexao ----
+
+   Incidente em campo: o canal reconectou e, SETE SEGUNDOS depois, sairam 21
+   respostas no mesmo segundo para duas pessoas — 16 para uma delas. O WhatsApp
+   entrega todo o historico pendente de uma vez quando a sessao volta, e o bot
+   respondeu cada mensagem antiga como se fosse nova. Alem de constrangedor para
+   o dono, e o caminho curto pro numero ser bloqueado por spam. */
+
+const agoraSeg = () => Math.floor(Date.now() / 1000);
+
+test('mensagem VELHA nao e respondida — quem escreveu ha uma hora ja seguiu a vida', async () => {
+  const lib = libFalsa();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+  const recebidas = [];
+  p.aoReceber((m) => recebidas.push(m));
+
+  await lib.cbs.onMessage({ id: { id: 'VELHA' }, from: '5531977776666@c.us',
+    t: agoraSeg() - 3600, body: 'oi', type: 'chat' });
+
+  assert.equal(recebidas.length, 0, 'uma hora atras nao e conversa viva');
+});
+
+test('mensagem de agora passa normal — o corte nao pode matar o atendimento', async () => {
+  const lib = libFalsa();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+  const recebidas = [];
+  p.aoReceber((m) => recebidas.push(m));
+
+  await lib.cbs.onMessage({ id: { id: 'NOVA' }, from: '5531977776666@c.us',
+    t: agoraSeg() - 30, body: 'oi', type: 'chat' });
+
+  assert.equal(recebidas.length, 1);
+});
+
+test('mensagem SEM data passa — nao se descarta por falta de informacao nossa', async () => {
+  const lib = libFalsa();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+  const recebidas = [];
+  p.aoReceber((m) => recebidas.push(m));
+
+  await lib.cbs.onMessage({ id: { id: 'SEMDATA' }, from: '5531977776666@c.us', body: 'oi', type: 'chat' });
+  assert.equal(recebidas.length, 1, 'na duvida, atende: calar cliente por falta de um campo e pior');
+});
+
+test('a janela e configuravel — operacao lenta pode querer outra', async () => {
+  const lib = libFalsa();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar, janelaMinutos: 120 });
+  await p.conectar();
+  const recebidas = [];
+  p.aoReceber((m) => recebidas.push(m));
+  await lib.cbs.onMessage({ id: { id: 'UMAHORA' }, from: '5531977776666@c.us',
+    t: agoraSeg() - 3600, body: 'oi', type: 'chat' });
+  assert.equal(recebidas.length, 1);
+});
+
+test('a enxurrada inteira da reconexao e barrada de uma vez', async () => {
+  const lib = libFalsa();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+  const recebidas = [];
+  p.aoReceber((m) => recebidas.push(m));
+
+  // Como o WhatsApp entrega: 16 mensagens pendentes de horas atras, de uma vez.
+  for (let i = 0; i < 16; i += 1) {
+    await lib.cbs.onMessage({ id: { id: `PEND${i}` }, from: '5531977776666@c.us',
+      t: agoraSeg() - (600 + i * 60), body: `mensagem ${i}`, type: 'chat' });
+  }
+  assert.equal(recebidas.length, 0, '16 respostas num segundo e spam, nao atendimento');
+});

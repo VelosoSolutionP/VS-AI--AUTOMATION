@@ -193,8 +193,19 @@ export function avancar(fluxo, estado, texto) {
     if (ehSaudacao(texto)) { return entrar(fluxo, atual); }
 
     /* "Nao entendi a escolha" poe a culpa em quem escreveu. Quem nao entendeu
-       fui eu, e o que resolve nao e a bronca — e a lista. */
-    return { texto: `Me ajuda a te levar pro lugar certo — qual desses é o seu caso?\n\n${desenhar(atual)}`, passo: atual.id, erroDeEscolha: true };
+       fui eu, e o que resolve nao e a bronca — e a lista.
+
+       E REPETIR O QUE A PESSOA ESCREVEU muda tudo: em campo, alguem respondeu
+       o NOME DA EMPRESA num menu e recebeu de volta uma frase generica. Sem ver
+       a propria resposta citada, ela nao entende se a mensagem chegou torta, se
+       o bot travou, ou se ela e que fez besteira — e tenta de novo igual. */
+    const dito = String(texto ?? '').replace(/\s+/g, ' ').trim();
+    const eco = dito && dito.length <= 60 ? `Não achei "${dito}" nas opções. ` : '';
+    return {
+      texto: `${eco}Me ajuda a te levar pro lugar certo — responda com o número de uma das opções:\n\n${desenhar(atual)}`,
+      passo: atual.id,
+      erroDeEscolha: true,
+    };
   }
 
   return seguir(fluxo, escolhida);

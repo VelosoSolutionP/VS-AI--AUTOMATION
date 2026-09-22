@@ -352,6 +352,7 @@ test('escolha errada DE VERDADE continua avisando — senao o cliente fica no es
   assert.equal(r.erroDeEscolha, true);
   assert.match(r.texto, /Me ajuda a te levar pro lugar certo/);
   assert.doesNotMatch(r.texto, /Não entendi/, 'a culpa nao e de quem escreveu');
+  assert.match(r.texto, /Não achei "xpto 9" nas opções/, 'citar o que a pessoa escreveu e o que faz ela entender');
 });
 
 test('saudacao nao atropela opcao valida que comeca parecido', () => {
@@ -359,4 +360,19 @@ test('saudacao nao atropela opcao valida que comeca parecido', () => {
   // "Já sou cliente" continua escolhendo a opcao 1, nao caindo na saudacao.
   const r = avancar(f, { passo: 'inicio' }, 'Já sou cliente');
   assert.equal(r.passo, 'cliente');
+});
+
+test('resposta longa demais NAO e ecoada de volta — devolver um texto enorme e pior que nao citar', () => {
+  const f = exemplo();
+  const r = avancar(f, { passo: 'inicio' }, 'x'.repeat(200));
+  assert.equal(r.erroDeEscolha, true);
+  assert.doesNotMatch(r.texto, /xxxxx/);
+  assert.match(r.texto, /responda com o número/i);
+});
+
+test('quem responde o nome da empresa ouve o proprio nome de volta', () => {
+  const f = exemplo();
+  const r = avancar(f, { passo: 'inicio' }, 'Duby Turismo');
+  assert.match(r.texto, /Não achei "Duby Turismo" nas opções/);
+  assert.match(r.texto, /1 - |Responda com o número/);
 });
