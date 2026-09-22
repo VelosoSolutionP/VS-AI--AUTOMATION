@@ -4555,6 +4555,34 @@ async function salvarCanalConfig(){
   return r;
 }
 
+/**
+ * Deixa a foto no tamanho que o WhatsApp usa, ANTES de mandar.
+ *
+ * A foto de perfil do WhatsApp e um quadrado pequeno. Mandar o arquivo original
+ * era o que dava HTTP 413: uma imagem de 600 KB vira 800 KB em base64 e estoura
+ * o teto de 256 KB da requisicao — e foto tirada no celular tem 3 a 5 MB.
+ *
+ * Corta pelo CENTRO em vez de espremer: rosto espremido fica grotesco, e a foto
+ * de perfil e redonda no WhatsApp — o que sobra nas pontas ia sumir de qualquer
+ * jeito.
+ */
+async function prepararFoto(arquivo, lado=640, qualidade=0.86){
+  const bitmap=await createImageBitmap(arquivo);
+  const corte=Math.min(bitmap.width,bitmap.height);
+  const cv=document.createElement('canvas');
+  cv.width=lado; cv.height=lado;
+  const ctx=cv.getContext('2d');
+  ctx.imageSmoothingQuality='high';
+  ctx.drawImage(bitmap,(bitmap.width-corte)/2,(bitmap.height-corte)/2,corte,corte,0,0,lado,lado);
+  bitmap.close?.();
+  let url=cv.toDataURL('image/jpeg',qualidade);
+  /* Cinto e suspensorio: se ainda assim ficar perto do teto, baixa a qualidade
+     em vez de deixar o servidor recusar na cara da pessoa. */
+  let q=qualidade;
+  while(url.length>180*1024&&q>0.5){ q-=0.12; url=cv.toDataURL('image/jpeg',q); }
+  return url;
+}
+
 async function personalizarCanal(){
   limparErros();
   const nome=(document.getElementById('pfNome')||{}).value?.trim()||'';
@@ -4570,8 +4598,8 @@ async function personalizarCanal(){
   try{
     let foto=null;
     if(arq){
-      if(arq.size>5*1024*1024){ avisoErro('Não consegui concluir','A foto passa de 5 MB — o WhatsApp recusa.'); return; }
-      foto=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(arq); });
+      if(arq.size>15*1024*1024){ avisoErro('Foto grande demais','Essa imagem passa de 15 MB. Escolha outra, ou tire um print dela.'); return; }
+      foto=await prepararFoto(arq);
     }
     const r=await api('canais/personalizar',{canal:'whatsapp-web',foto,nome,recado});
     /* Sucesso PARCIAL e o caso comum: o WhatsApp recusa foto fora do formato e

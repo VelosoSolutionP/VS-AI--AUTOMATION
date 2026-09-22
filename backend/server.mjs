@@ -108,7 +108,18 @@ async function readBody(req) {
 /** true se o handler já respondeu por corpo grande demais. */
 function corpoEstourou(res, raw) {
   if (raw !== CORPO_GRANDE) { return false; }
-  json(res, 413, { error: `corpo acima de ${CORPO_MAX_BYTES} bytes` });
+  /* O campo TEM de se chamar `erro`: e o que o painel le. Chamando de `error`,
+     a tela caia no generico e mostrava "HTTP 413" pro dono do negocio — um
+     numero que nao diz nem o que aconteceu nem o que fazer.
+
+     E a frase e em portugues, com o tamanho em KB: "corpo acima de 262144
+     bytes" nao ajuda quem escolheu uma foto no celular. */
+  const kb = Math.round(CORPO_MAX_BYTES / 1024);
+  json(res, 413, {
+    erro: `o que você enviou passou do limite de ${kb} KB por requisição`,
+    comoResolver: 'Se for uma imagem, escolha uma menor ou deixe o painel reduzir para você.',
+    limiteBytes: CORPO_MAX_BYTES,
+  });
   return true;
 }
 
