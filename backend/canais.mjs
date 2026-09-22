@@ -33,6 +33,29 @@ function motivoDoSilencio(r) {
   return 'o fluxo nao produziu resposta';
 }
 
+/**
+ * Ultima fala enviada a cada pessoa, pra nao repetir a mesma coisa em seguida.
+ *
+ * Em campo: o cliente mandou varios audios seguidos e recebeu a MESMA frase
+ * ("ainda nao consigo ouvir audio") uma vez por audio, e o mesmo menu cinco
+ * vezes. Cada resposta estava individualmente certa; o conjunto parecia defeito.
+ * Repetir nao informa nada novo — so faz parecer que o outro lado travou.
+ */
+const ultimaFala = new Map();
+const MIN_SEM_REPETIR = 5;
+
+function jaDisseAgora(para, texto) {
+  const t = String(texto || '').trim();
+  if (!t) { return false; }
+  const antes = ultimaFala.get(para);
+  const agora = Date.now();
+  if (antes && antes.texto === t && (agora - antes.em) / 60000 < MIN_SEM_REPETIR) { return true; }
+  ultimaFala.set(para, { texto: t, em: agora });
+  /* Teto: uma sessao fica meses no ar e isto nao pode virar vazamento. */
+  if (ultimaFala.size > 500) { ultimaFala.delete(ultimaFala.keys().next().value); }
+  return false;
+}
+
 let gateway = null;
 let whatsappWeb = null;
 
@@ -61,6 +84,13 @@ function montar({ produtos } = {}) {
              ficava mudo e a conclusao virava "o bot nao funciona". Cada tentativa
              passa a deixar rastro — a que deu certo e, principalmente, a que nao. */
           enviar: async ({ texto }) => {
+            /* Dizer a mesma coisa de novo, em seguida, nao acrescenta nada — e
+               empilhado na tela do cliente parece robo quebrado. */
+            if (jaDisseAgora(msg.endereco || msg.de, texto)) {
+              console.log(`[canais] nao repeti a mesma frase pra ${quem}: ${trecho(texto)}`);
+              respondidas += 1;
+              return { ok: true, repetida: true };
+            }
             const env = await ctx.responder(texto);
             if (env && env.ok === false) {
               falha = env.erro || env.motivo || 'motivo nao informado';
