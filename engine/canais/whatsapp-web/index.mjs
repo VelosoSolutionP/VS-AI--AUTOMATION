@@ -380,12 +380,35 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
    * @param {{foto?:string, nome?:string, recado?:string}} perfil
    *        foto = data URL ou caminho de arquivo
    */
+  /**
+   * A cara que o numero tem AGORA, antes de a gente trocar.
+   *
+   * O WhatsApp nao guarda a foto anterior: trocou, sumiu. Sem ler antes, o
+   * painel so sabe aplicar — e voltar atras viraria tarefa manual no celular,
+   * o que e meio caminho e deixa a pessoa com medo de clicar.
+   */
+  async function perfilAtual() {
+    if (estado !== ESTADOS.CONECTADO || !cliente) { return null; }
+    const wid = numero ? `${numero}@c.us` : await cliente.getWid?.().catch(() => null);
+    const pegar = async (fn) => { try { return await fn(); } catch { return null; } };
+    return {
+      foto: await pegar(() => cliente.getProfilePicFromServer?.(wid)),
+      nome: await pegar(() => cliente.getProfileName?.()),
+      recado: await pegar(() => cliente.getProfileStatus?.()),
+      em: agora(),
+    };
+  }
+
   async function personalizar({ foto, nome, recado } = {}) {
     if (estado !== ESTADOS.CONECTADO || !cliente) {
       return { ok: false, erro: `canal ${estado} — conecte antes de personalizar` };
     }
     const feito = [];
     const falhas = [];
+    /* Le o que esta la ANTES de escrever por cima. Se isto falhar, a troca
+       acontece do mesmo jeito — perder o backup e chato, nao poder trocar a
+       foto por causa dele seria pior. */
+    const anterior = await perfilAtual().catch(() => null);
     const tentar = async (rotulo, fn) => {
       try { await fn(); feito.push(rotulo); } catch (e) { falhas.push(`${rotulo}: ${e.message}`); }
     };
@@ -395,7 +418,7 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     if (!feito.length && !falhas.length) { return { ok: false, erro: 'nada pra mudar' }; }
     /* Sucesso parcial e o caso normal aqui: a TikTok/WhatsApp recusa foto fora do
        formato mas aceita o nome. Dizer so "ok" esconderia metade do resultado. */
-    return { ok: falhas.length === 0, feito, falhas };
+    return { ok: falhas.length === 0, feito, falhas, anterior };
   }
 
   /**
@@ -509,6 +532,7 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     saude,
     enviarTexto,
     personalizar,
+    perfilAtual,
     aoReceber: (fn) => { ouvintesMsg.push(fn); },
     /** Avisado quando o DONO digita numa conversa — o canal nao decide o que
         fazer com isso, quem decide e o dominio. */

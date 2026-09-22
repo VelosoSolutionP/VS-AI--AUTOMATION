@@ -738,3 +738,72 @@ test('audio sem id e sem corpo tambem passa — e o caso que apareceu em campo',
   assert.equal(recebidas.length, 1);
   assert.equal(recebidas[0].tipo, 'audio');
 });
+
+/* ---- voltar a cara anterior ----
+
+   "Essa foto vai pro meu perfil ou e so pra mostrar?" — a pergunta do dono
+   depois de clicar. Aplicar era automatico e desfazer era tarefa manual no
+   celular: meio caminho, e meio caminho deixa a pessoa com medo de clicar nos
+   dois. O WhatsApp nao guarda a foto anterior, entao quem tem de guardar somos
+   nos, ANTES de escrever por cima. */
+
+function libComPerfil({ conectaDireto = true } = {}) {
+  const espiao = libFalsa({ conectaDireto });
+  const criarBase = espiao.criar;
+  espiao.perfil = { foto: 'https://exemplo/foto-antiga.jpg', nome: 'Fabiano', recado: 'no ar' };
+  espiao.criar = async (cfg) => {
+    const c = await criarBase(cfg);
+    c.getProfilePicFromServer = async () => espiao.perfil.foto;
+    c.getProfileName = async () => espiao.perfil.nome;
+    c.getProfileStatus = async () => espiao.perfil.recado;
+    c.setProfilePic = async (v) => { espiao.perfil.foto = v; };
+    c.setProfileName = async (v) => { espiao.perfil.nome = v; };
+    c.setProfileStatus = async (v) => { espiao.perfil.recado = v; };
+    return c;
+  };
+  return espiao;
+}
+
+test('personalizar devolve a cara ANTERIOR junto — e o que permite voltar', async () => {
+  const lib = libComPerfil();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+
+  const r = await p.personalizar({ foto: 'data:image/jpeg;base64,MICAELA', nome: 'Micaela' });
+  assert.equal(r.ok, true);
+  assert.equal(r.anterior.foto, 'https://exemplo/foto-antiga.jpg');
+  assert.equal(r.anterior.nome, 'Fabiano');
+  assert.equal(lib.perfil.nome, 'Micaela', 'e a troca aconteceu de verdade');
+});
+
+test('a leitura do perfil anterior NAO pode impedir a troca', async () => {
+  const lib = libComPerfil();
+  const criarBase = lib.criar;
+  lib.criar = async (cfg) => {
+    const c = await criarBase(cfg);
+    c.getProfilePicFromServer = async () => { throw new Error('WhatsApp recusou ler a foto'); };
+    return c;
+  };
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+  const r = await p.personalizar({ nome: 'Micaela' });
+  assert.equal(r.ok, true, 'perder o backup e chato; nao poder trocar seria pior');
+  assert.equal(lib.perfil.nome, 'Micaela');
+});
+
+test('restaurar devolve exatamente o que estava guardado', async () => {
+  const lib = libComPerfil();
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+  const r = await p.personalizar({ foto: 'data:image/jpeg;base64,MICAELA', nome: 'Micaela', recado: 'assistente' });
+
+  await p.personalizar({ foto: r.anterior.foto, nome: r.anterior.nome, recado: r.anterior.recado });
+  assert.equal(lib.perfil.nome, 'Fabiano');
+  assert.equal(lib.perfil.foto, 'https://exemplo/foto-antiga.jpg');
+  assert.equal(lib.perfil.recado, 'no ar');
+});
+
+test('perfilAtual sem sessao devolve null em vez de estourar', async () => {
+  const p = criarWhatsAppWebProvider({ criarSessao: libComPerfil().criar });
+  assert.equal(await p.perfilAtual(), null);
+});

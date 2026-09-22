@@ -3213,7 +3213,15 @@ const S={
           <input id="pfRecado" placeholder="Assistente virtual — atendo 24h, e chamo gente quando precisa" oninput="previewPerfil()"></div>
         <div class="field" style="grid-column:1/-1"><label>Foto <small>(quadrada, JPG ou PNG, até 5 MB)</small></label>
           <input type="file" id="pfFoto" accept="image/png,image/jpeg" onchange="previewPerfil()"></div>
+        <div style="grid-column:1/-1;padding:11px 13px;border-radius:var(--r-sm);
+          background:var(--warn-bg,var(--panel));border:1px solid var(--err-line);font-size:13px">
+          <b>Isto troca o perfil de verdade.</b> O que está acima é só um preview — ao aplicar, a foto, o nome e o
+          recado passam a valer no WhatsApp <b>${esc(c?.numero?('+'+c.numero):'deste número')}</b> e aparecem para
+          <b>todos os contatos dele</b>: cliente, amigo, grupo da família. Não existe "aplicar só para testar".
+        </div>
         ${botao({t:'Aplicar no número',ic:'salvar',v:'p',on:'personalizarCanal()',off:est!=='conectado'})}
+        ${CANAIS?.perfilAnterior?botao({t:'Voltar a cara anterior',ic:'atualizar',v:'g',on:'restaurarPerfil()',
+          off:est!=='conectado',tit:`guardada em ${esc(String(CANAIS.perfilAnterior.em||'').slice(0,16).replace('T',' '))}`}):''}
       </div>
       <!-- Preview: e aqui que se descobre que o WhatsApp corta em CIRCULO, antes
            de subir uma arte com texto nos cantos e ver metade sumir. -->
@@ -4581,6 +4589,29 @@ async function prepararFoto(arquivo, lado=640, qualidade=0.86){
   let q=qualidade;
   while(url.length>180*1024&&q>0.5){ q-=0.12; url=cv.toDataURL('image/jpeg',q); }
   return url;
+}
+
+/* Voltar atras tem de morar do lado de aplicar. Enquanto so existia o "aplicar",
+   desfazer era tarefa manual no celular — e isso deixa a pessoa com medo de
+   clicar em qualquer um dos dois. */
+function restaurarPerfil(){
+  const p=CANAIS?.perfilAnterior||{};
+  confirmar({
+    titulo:'Voltar a cara anterior do número?',
+    texto:`Vou devolver a foto, o nome e o recado que este número tinha antes de o painel trocar${p.em?` (guardado em ${esc(String(p.em).slice(0,16).replace('T',' '))})`:''}.`,
+    consequencia:'A cara da Micaela sai do ar para todos os contatos.',
+    rotulo:'Voltar a anterior', icone:'atualizar', perigo:false,
+    aoConfirmar:async()=>{
+      const r=await api('canais/restaurar-perfil',{canal:'whatsapp-web'});
+      const ok=(r.feito||[]).join(', ');
+      if(r.falhas&&r.falhas.length){
+        avisoErro('Voltou pela metade',`Devolvido: ${ok||'nada'}.`,r.falhas);
+      }else{
+        avisoOk('Pronto',`Perfil anterior devolvido (${ok||'nada'}). Pode levar alguns minutos para aparecer em todos os contatos.`);
+      }
+      await carregar();
+    },
+  });
 }
 
 async function personalizarCanal(){

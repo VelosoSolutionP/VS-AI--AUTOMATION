@@ -773,7 +773,7 @@ const server = createServer(async (req, res) => {
       return json(res, 200, operadores.painel([...setores]));
     }
     if (req.method === 'GET' && rota === '/crm/api/canais') {
-      return json(res, 200, { ...canais.estado(), saude: await canais.saude() });
+      return json(res, 200, { ...canais.estado(), saude: await canais.saude(), perfilAnterior: canais.perfilAnterior() });
     }
     /* Caixa de entrada do atendente. Junta o que o CRM sabe do lead com o que a
        Micaela coletou antes de chamar gente — e e por isso que o especialista
@@ -1034,6 +1034,7 @@ const server = createServer(async (req, res) => {
         case '/crm/api/canais/desconectar': r = await canais.desconectar({ canal: d.canal }); break;
         case '/crm/api/canais/enviar': r = await canais.enviar(d); break;
         case '/crm/api/canais/personalizar': r = await canais.personalizar(d); break;
+        case '/crm/api/canais/restaurar-perfil': r = await canais.restaurarPerfil({ canal: d.canal }); break;
         case '/crm/api/canais/config': r = canais.salvarConfigCanal(d); break;
         case '/crm/api/operadores/salvar': r = operadores.salvar(d); break;
         case '/crm/api/operadores/remover': r = operadores.remover(d.id); break;

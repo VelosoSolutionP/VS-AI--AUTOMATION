@@ -327,7 +327,56 @@ export async function personalizar({ canal = 'whatsapp-web', foto, nome, recado 
   const p = gateway.obter(canal);
   if (!p) { return { ok: false, erro: `canal "${canal}" não existe` }; }
   if (typeof p.personalizar !== 'function') { return { ok: false, erro: `o canal "${canal}" não permite mudar foto e nome` }; }
-  return p.personalizar({ foto, nome, recado });
+
+  /* Isto muda a CARA PUBLICA do numero, pra todos os contatos da pessoa — e nao
+     deixava rastro nenhum. Quando o dono perguntou "essa foto vai pro meu
+     perfil ou e so preview?", o log nao soube responder, e essa e justamente a
+     pergunta que um registro existe pra responder. */
+  const oQue = [foto ? 'foto' : null, nome ? 'nome' : null, recado ? 'recado' : null].filter(Boolean);
+  console.log(`[canais] TROCANDO o perfil do numero (${oQue.join(', ') || 'nada'}) — isto aparece para todos os contatos`);
+
+  const r = await p.personalizar({ foto, nome, recado });
+  const feito = (r?.feito || []).join(', ') || 'nada';
+  const falhas = (r?.falhas || []).join('; ');
+  console.log(`[canais] perfil: aplicado ${feito}${falhas ? ` | recusado pelo WhatsApp: ${falhas}` : ''}`);
+
+  /* Guarda a cara ANTERIOR — e so a primeira vez. Salvar a cada aplicacao
+     faria o backup virar a Micaela depois da segunda troca, e aí nao haveria
+     mais pra onde voltar. O que se quer guardar e o perfil de ANTES do produto
+     entrar no numero. */
+  if ((r?.feito || []).length && r.anterior && !lerConfig().perfilAnterior) {
+    const cfg = { ...lerConfig(), perfilAnterior: r.anterior };
+    mkdirSync(dirname(arqConfig()), { recursive: true, mode: 0o700 });
+    writeFileSync(arqConfig(), JSON.stringify(cfg, null, 2));
+    console.log('[canais] perfil anterior guardado — da pra voltar pelo painel');
+  }
+  return r;
+}
+
+/** Existe um perfil guardado pra onde voltar? A tela pergunta isto. */
+export function perfilAnterior() {
+  const a = lerConfig().perfilAnterior || null;
+  return a ? { em: a.em, temFoto: Boolean(a.foto), nome: a.nome || null, recado: a.recado || null } : null;
+}
+
+/**
+ * Devolve o numero a cara que ele tinha antes.
+ *
+ * Aplicar era automatico e voltar era tarefa manual no celular — meio caminho,
+ * e meio caminho deixa a pessoa com medo de clicar. Agora as duas pontas vivem
+ * no mesmo lugar.
+ */
+export async function restaurarPerfil({ canal = 'whatsapp-web' } = {}) {
+  const a = lerConfig().perfilAnterior;
+  if (!a) { return { ok: false, erro: 'não tenho a cara anterior guardada — ela só é salva na primeira vez que o painel troca o perfil' }; }
+  if (!gateway) { return { ok: false, erro: 'nenhum canal conectado' }; }
+  const p = gateway.obter(canal);
+  if (!p) { return { ok: false, erro: `canal "${canal}" não existe` }; }
+
+  console.log('[canais] RESTAURANDO o perfil anterior do numero');
+  const r = await p.personalizar({ foto: a.foto || null, nome: a.nome || null, recado: a.recado || null });
+  console.log(`[canais] perfil restaurado: ${(r?.feito || []).join(', ') || 'nada'}${(r?.falhas || []).length ? ` | recusado: ${r.falhas.join('; ')}` : ''}`);
+  return r;
 }
 
 /** Usado quando o atendente responde pelo painel, fora do fluxo do bot. */
