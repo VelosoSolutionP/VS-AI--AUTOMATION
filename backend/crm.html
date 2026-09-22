@@ -2856,11 +2856,24 @@ const S={
   `<div class="grid g-kpi" style="margin-bottom:16px">
     ${kpi('Regras',BOT.total,`${BOT.ativas} ativa(s)`)}
     ${kpi('Chamam gente',BOT.comHandoff,'passam pro humano')}
-    ${kpi('Estado',c.ativo?'ligado':'desligado',BOT.pronto?'respondendo':'não responde ainda')}
+    ${(()=>{
+      /* "Bot ligado" com o canal fora nao atende ninguem — e as duas telas
+         diziam a verdade SEPARADAMENTE, o que juntas vira mentira: quem olha
+         aqui ve "ligado" e vai embora tranquilo enquanto o cliente fala
+         sozinho. Aconteceu em campo. */
+      const w=canalWhatsApp();
+      if(c.ativo&&!w.no_ar) return kpi('Estado','ligado, mas MUDO',`o canal está ${esc(w.rotulo)} — ninguém é atendido`);
+      return kpi('Estado',c.ativo?'ligado':'desligado',BOT.pronto?'respondendo':'não responde ainda');
+    })()}
     ${kpi('Canal','nenhum','o WhatsApp entra depois')}
   </div>
   ${BOT.aviso?`<div class="card" style="margin-bottom:16px;border-style:dashed">
     ${cardH('alerta',`Atenção`,``,5)}${linha('Bot ligado sem regra',esc(BOT.aviso),'corrigir','b-err')}</div>`:''}
+  ${(()=>{const w=canalWhatsApp();return c.ativo&&!w.no_ar?`<div class="card" style="margin-bottom:16px;border-style:dashed">
+    ${cardH('alerta',`O bot está ligado, mas não tem por onde falar`,
+      `O canal de WhatsApp está <b>${esc(w.rotulo)}</b>. Enquanto isso, mensagem de cliente não chega aqui e nada é respondido — o bot ligado não muda isso.`,5,
+      '<span class="badge b-err">ninguém é atendido</span>')}
+    ${botao({t:'Ir para o canal',ic:'whats',v:'p',on:"ir('canais')"})}</div>`:'';})()}
 
   <div class="card" style="margin-bottom:16px">
     ${cardH('whats',`Testar a conversa`,`Escreva como um cliente escreveria. O bot responde com as regras de verdade e com o seu catálogo real — sem precisar de WhatsApp nem de token nenhum.`,3)}
@@ -2983,15 +2996,27 @@ const S={
   const quando=(x)=>x?String(x).slice(0,16).replace('T',' '):'—';
 
   return head('Canais de atendimento','Onde o cliente fala com você. A mensagem entra por aqui, vira lead e vai pro bot — o atendente trabalha no painel, não no WhatsApp Web.',
+      /* Faltava saida pra quem esta preso em "esperando o QR" ou "caiu": o unico
+         botao era "Conectar", que nao reabre a sessao travada. Reconectar
+         DERRUBA e sobe de novo — e e o que gera QR novo, ja que o antigo expira
+         em segundos. */
       est==='conectado'
         ? botao({t:'Desconectar',ic:'power',v:'s',on:"desconectarCanal()"})
-        : botao({t:'Conectar WhatsApp',ic:'whats',v:'p',on:"conectarCanal()"}))+
+        : ['aguardando_qr','caido','conectando'].includes(est)
+          ? botao({t:'Reconectar (gera QR novo)',ic:'atualizar',v:'p',on:"reconectarCanal()"})
+            +botao({t:'Desligar o canal',ic:'power',v:'g',on:"desconectarCanal()"})
+          : botao({t:'Conectar WhatsApp',ic:'whats',v:'p',on:"conectarCanal()"}))+
   `<div class="grid g-kpi" style="margin-bottom:16px">
     ${kpi('Estado',rotulo,c?.provider||'nenhum canal montado')}
     ${kpi('Número',c?.numero?'+'+esc(c.numero):'—',est==='conectado'?'aparelho pareado':'ninguém pareado ainda')}
     ${kpi('Conectado desde',quando(c?.desde),c?.desde?'sessão em pé':'—')}
     ${kpi('Última atividade',quando(c?.ultimaAtividade),'última mensagem que passou')}
   </div>
+
+  ${est==='aguardando_qr'&&!c?.qr?`<div class="card" style="margin-bottom:16px;border-style:dashed">
+    ${cardH('alerta',`Esperando o QR, mas o código já expirou`,
+      `O QR do WhatsApp dura poucos segundos. Clique em <b>Reconectar</b> aí em cima para gerar um novo — ele aparece aqui mesmo, sem sair da tela.`,5)}
+    ${botao({t:'Gerar QR novo',ic:'atualizar',v:'p',on:'reconectarCanal()'})}</div>`:''}
 
   ${est==='aguardando_qr'&&c?.qr?`<div class="card" style="margin-bottom:16px;text-align:center">
     ${cardH('whats',`Leia com o seu WhatsApp`,`Abra o WhatsApp no celular → <b>Aparelhos conectados</b> → <b>Conectar um aparelho</b> e aponte pro código. Ele expira em segundos: se sumir, é só clicar em Conectar de novo.`,2)}
@@ -4375,6 +4400,23 @@ async function personalizarCanal(){
     carregar();
   }catch(e){ flash(e.message,'err'); }
 }
+/* Reconectar e derrubar e subir: sessao travada em "esperando o QR" nao se
+   conserta mandando conectar de novo — o provider ja se acha conectando. */
+async function reconectarCanal(){
+  try{
+    flash('Derrubando a sessão para subir uma nova…','ok');
+    await api('canais/desconectar',{canal:'whatsapp-web'}).catch(()=>null);
+    await new Promise(r=>setTimeout(r,1200));
+    await api('canais/conectar',{canal:'whatsapp-web'});
+    await carregar();
+    flash('Pronto. Se pedir QR, ele aparece aqui nesta tela.','ok');
+  }catch(e){
+    abrirModal('Não consegui reconectar',
+      `<p class="hint" style="margin-bottom:12px">${esc(e.message)}</p>`,
+      `<button class="btn btn-p" onclick="fecharModal()">${ico('check')}Entendi</button>`);
+  }
+}
+
 async function desconectarCanal(){
   if(!confirm('Desconectar o WhatsApp? O bot para de receber mensagem até você parear de novo.')) return;
   try{
