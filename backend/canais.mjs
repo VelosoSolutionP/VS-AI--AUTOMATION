@@ -28,7 +28,15 @@ const trecho = (t) => {
 function motivoDoSilencio(r) {
   if (!r) { return 'o atendimento nao devolveu resultado'; }
   if (r.botDesligado) { return 'o bot esta DESLIGADO na configuracao'; }
-  if (r.emSilencio || r.silenciado) { return 'conversa em silencio pos-handoff'; }
+  /* O motor devolve `calado`/`tipo: silencio` quando a conversa esta com uma
+     pessoa. Sem conferir esses dois, o log dizia "o fluxo decidiu nao
+     responder" — tecnicamente verdade e praticamente inutil: quem le precisa
+     saber que ha um ATENDENTE ali, nao que o fluxo se calou por conta propria.
+     Foi o que apareceu no teste em campo, e um log que descreve errado atrasa
+     o diagnostico seguinte. */
+  if (r.calado || r.tipo === 'silencio' || r.emSilencio || r.silenciado) {
+    return 'conversa esta com uma pessoa (silencio pos-handoff)';
+  }
   if (r.respondeu === false) { return 'o fluxo decidiu nao responder esta mensagem'; }
   return 'o fluxo nao produziu resposta';
 }

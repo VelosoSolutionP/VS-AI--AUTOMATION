@@ -70,3 +70,37 @@ test('alternar entre duas frases nao trava nenhuma das duas', () => {
   assert.equal(g('5531999', 'B'), false);
   assert.equal(g('5531999', 'A'), false, 'a ultima dita foi B: A nao e repeticao imediata');
 });
+
+/* ---- o log tem de NOMEAR o silencio ----
+
+   Em campo o log dizia "o fluxo decidiu nao responder esta mensagem" quando a
+   conversa estava com um ATENDENTE. Tecnicamente verdade, praticamente inutil:
+   quem le precisa saber que ha uma pessoa ali. Log que descreve errado atrasa o
+   diagnostico seguinte — e foi exatamente o que aconteceu hoje. */
+
+function motivoDoSilencio(r) {
+  if (!r) { return 'o atendimento nao devolveu resultado'; }
+  if (r.botDesligado) { return 'o bot esta DESLIGADO na configuracao'; }
+  if (r.calado || r.tipo === 'silencio' || r.emSilencio || r.silenciado) {
+    return 'conversa esta com uma pessoa (silencio pos-handoff)';
+  }
+  if (r.respondeu === false) { return 'o fluxo decidiu nao responder esta mensagem'; }
+  return 'o fluxo nao produziu resposta';
+}
+
+test('silencio pos-handoff e nomeado como tal — os dois formatos que o motor devolve', () => {
+  assert.match(motivoDoSilencio({ tipo: 'silencio', calado: true, handoff: true }), /com uma pessoa/);
+  assert.match(motivoDoSilencio({ tipo: 'silencio', handoff: true, respondeu: false }), /com uma pessoa/);
+});
+
+test('bot desligado continua sendo bot desligado — os dois silencios sao diferentes', () => {
+  assert.match(motivoDoSilencio({ botDesligado: true }), /DESLIGADO/);
+});
+
+test('o fluxo calado por decisao propria nao vira "esta com uma pessoa"', () => {
+  assert.match(motivoDoSilencio({ respondeu: false }), /o fluxo decidiu/);
+});
+
+test('sem resultado nenhum, o log diz isso em vez de inventar motivo', () => {
+  assert.match(motivoDoSilencio(null), /nao devolveu resultado/);
+});
