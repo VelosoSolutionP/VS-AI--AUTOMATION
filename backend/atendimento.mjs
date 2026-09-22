@@ -124,12 +124,21 @@ export async function receberMensagem(msg, deps = {}) {
      defeito: a pessoa mandou áudio, nada voltou, e ninguém soube dizer por quê.
      Agora ele diz o que consegue fazer e oferece a saída. */
   if (!msg.texto) {
+    /* O silencio pos-handoff vale AQUI TAMBEM. Em campo: a pessoa pediu para
+       falar com gente, foi encaminhada, mandou um audio em seguida — e o bot
+       respondeu por cima do atendente com "nao consigo ouvir audio". Quem
+       assumiu a conversa consegue ouvir; o bot entrar ali so atrapalha os dois.
+
+       Este caminho e anterior ao motor do bot, entao a regra tinha de ser
+       conferida de novo — foi por isso que passou batido. */
+    const calado = bot.estaComGente(t.telefone);
     const aviso = cfg.mensagemSemTexto;
-    const envio = cfg.ativo && aviso ? await enviar({ phone: t.telefone, texto: aviso }) : { ok: false };
+    const envio = cfg.ativo && aviso && !calado ? await enviar({ phone: t.telefone, texto: aviso }) : { ok: false };
     if (lead && envio.ok) { crm.interagir(lead.id, { canal: 'whatsapp', direcao: 'saida', texto: aviso }); }
     return {
       ok: true, telefone: t.telefone, leadId: lead?.id || null, leadNovo, semCrm,
       semTexto: true, tipo: msg.tipo || 'midia', handoff: true, respondeu: envio.ok, envio,
+      ...(calado ? { calado: true, motivo: 'atendimento ja esta com uma pessoa' } : {}),
     };
   }
 

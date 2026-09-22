@@ -180,8 +180,17 @@ export function avancar(fluxo, estado, texto) {
     /* Ainda no comeco da conversa? Entao procura o assunto na arvore INTEIRA.
        Quem escreve "o sistema travou" nao tem como saber que Suporte mora
        dentro de "Ja sou cliente" — e nao deveria precisar saber. */
-    if (String(atual.id) === String(fluxo.inicio)) {
-      const salto = entenderNoFluxo(texto, fluxo, { ignorar: fluxo.inicio });
+    /* Vale em QUALQUER menu, nao so no inicial. Em campo: a pessoa estava no
+       menu do financeiro, escreveu "o sistema travou e nao consigo entrar", e
+       ouviu "nao achei isso nas opcoes" — ela tinha mudado de assunto, e mudar
+       de assunto e direito de quem esta conversando.
+
+       O que continua proibido e saltar enquanto a pergunta e ABERTA: ali o que
+       ela escreve e a RESPOSTA, e trocar o assunto na cara dela seria jogar
+       fora o que acabou de contar. Esse caso nem chega aqui — passo que coleta
+       nao tem opcoes. */
+    if (ops.length) {
+      const salto = entenderNoFluxo(texto, fluxo, { ignorar: atual.id });
       if (salto.opcao) { return { ...seguir(fluxo, salto.opcao), saltou: true }; }
       if (salto.passo) { return { ...entrar(fluxo, salto.passo), saltou: true }; }
     }

@@ -195,6 +195,18 @@ export function assumirConversa(de, { endereco } = {}) {
   return { ok: true, novo };
 }
 
+/**
+ * Esta conversa está com uma pessoa agora?
+ *
+ * Existe porque o caminho de áudio/imagem é anterior ao motor do fluxo e
+ * precisava conferir a mesma regra — sem isto, mídia furava o silêncio e o bot
+ * falava por cima do atendente.
+ */
+export function estaComGente(de) {
+  const c = conversas()[de] || null;
+  return Boolean(c?.handoffEm) && aindaEmSilencio(c);
+}
+
 /** Devolve a conversa pro bot: o atendente terminou e o fluxo pode recomeçar. */
 export function devolverAoBot(telefone) {
   if (!telefone) { return { ok: false, erro: 'telefone vazio' }; }
@@ -326,6 +338,13 @@ export function atender(texto, ctx = {}) {
       acao: r.acao || null,
       departamento: r.departamento || null,
       contexto,
+      /* Como a arvore chegou nesta resposta interessa a quem esta ajustando o
+         fluxo: "nao entendeu", "pulou pro galho certo" e "seguiu o menu" sao
+         tres coisas diferentes, e sem estes sinais o simulador mostrava as tres
+         iguais. */
+      ...(r.erroDeEscolha ? { erroDeEscolha: true } : {}),
+      ...(r.saltou ? { saltou: true } : {}),
+      ...(r.desambiguando ? { desambiguando: true } : {}),
     };
     // Catalogo no meio do fluxo usa a mesma vitrine das regras.
     if (r.acao === ACOES.CATALOGO) {

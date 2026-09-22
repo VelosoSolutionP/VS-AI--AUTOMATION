@@ -348,3 +348,62 @@ test('devolver pra Micaela faz ela voltar a atender', () => {
   bot.devolverAoBot(cliente);
   assert.match(bot.atender('oi', { de: cliente }).texto, /Sou a Micaela/);
 });
+
+/* ---- mudar de assunto no meio do menu ----
+
+   Em campo, no teste do cliente: a pessoa estava no menu do financeiro e
+   escreveu "o sistema travou e nao consigo entrar". Ouviu "nao achei isso nas
+   opcoes". Ela tinha MUDADO DE ASSUNTO — e mudar de assunto e direito de quem
+   esta conversando, nao erro de digitacao. */
+
+test('mudar de assunto dentro de um menu leva pro galho novo', () => {
+  bot.apagarFluxo();
+  bot.salvarConfig({ ativo: true, nome: 'Micaela' });
+  bot.salvarFluxo([
+    { id: 'inicio', mensagem: 'Oi!', opcoes: [
+      { tecla: '1', texto: 'Financeiro', vaiPara: 'financeiro' },
+      { tecla: '2', texto: 'Suporte', vaiPara: 'suporte' } ] },
+    { id: 'financeiro', mensagem: 'Qual o assunto financeiro?', opcoes: [
+      { tecla: '1', texto: 'Boleto', acao: 'encaminhar', departamento: 'financeiro' } ] },
+    { id: 'suporte', mensagem: 'Qual situação descreve o problema?', opcoes: [
+      { tecla: '1', texto: 'Não abre', acao: 'encaminhar', departamento: 'suporte' } ] },
+  ]);
+  const de = '5531901000';
+  bot.atender('oi', { de });
+  bot.atender('1', { de });                       // entrou no financeiro
+  const r = bot.atender('o sistema travou e nao consigo entrar', { de });
+  assert.match(r.texto, /Qual situação descreve/, 'mudou de assunto: vai pro suporte');
+});
+
+test('o que NAO casa com nada continua devolvendo o menu do lugar onde esta', () => {
+  const de = '5531901001';
+  bot.atender('oi', { de });
+  bot.atender('1', { de });
+  const r = bot.atender('xpto banana 42', { de });
+  assert.equal(r.erroDeEscolha, true);
+  assert.match(r.texto, /Qual o assunto financeiro/, 'nao pode jogar a pessoa de volta pro inicio');
+});
+
+/* ---- audio depois do handoff ----
+
+   Em campo: a pessoa pediu para falar com gente, foi encaminhada, mandou um
+   audio em seguida — e o bot respondeu por cima do atendente com "nao consigo
+   ouvir audio". Quem assumiu a conversa CONSEGUE ouvir. */
+
+test('depois do handoff, estaComGente diz que o bot tem de ficar fora', () => {
+  const de = '5531901002';
+  bot.atender('oi', { de });
+  assert.equal(bot.estaComGente(de), false);
+  bot.assumirConversa(de);
+  assert.equal(bot.estaComGente(de), true);
+});
+
+test('devolver pra Micaela libera o caminho de novo', () => {
+  const de = '5531901002';
+  bot.devolverAoBot(de);
+  assert.equal(bot.estaComGente(de), false);
+});
+
+test('quem nunca conversou nao esta com gente', () => {
+  assert.equal(bot.estaComGente('5531909999'), false);
+});
