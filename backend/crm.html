@@ -896,6 +896,40 @@ function tiktokLojaCard(){
           <td>${esc(p.price?.original_price||p.preco||'—')}</td></tr>`).join('')}
         </tbody></table></div>`:'<p class="hint" style="margin-top:10px">Nenhum produto na loja ainda.</p>'}
       ${d.motivo?`<p class="hint" style="margin-top:10px;color:var(--err)">${esc(d.motivo)}</p>`:''}
+
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
+        <h3 style="font-size:14px">Mandar do estoque daqui pra loja de lá</h3>
+        ${(!d.config?.categoriaId||!d.config?.armazemId)?`
+          <p class="hint" style="margin-bottom:10px">Antes do primeiro envio, escolha <b>categoria</b> e <b>armazém</b>
+            da TikTok. São obrigatórios lá e não existem no estoque daqui — sem eles a TikTok recusa com um código
+            que não ajuda ninguém.</p>
+          <div class="form-grid">
+            ${botao({t:'Escolher categoria',ic:'estoque',v:'p',on:'escolherCategoriaTiktok()'})}
+            ${botao({t:'Escolher armazém',ic:'estoque',v:'p',on:'escolherArmazemTiktok()'})}
+          </div>`:`
+          ${linha('Categoria da TikTok','vale para os produtos enviados daqui',esc(d.config.categoriaNome||d.config.categoriaId),'b-ok')}
+          ${linha('Armazém','de onde sai o estoque informado',esc(d.config.armazemNome||d.config.armazemId),'b-ok')}
+          ${(d.doEstoque||[]).length?`<div class="tbl-wrap" style="margin-top:10px"><table class="tbl">
+            <thead><tr><th>Produto no painel</th><th>Disponível</th><th>Na TikTok</th><th></th></tr></thead><tbody>
+            ${d.doEstoque.map(p=>{
+              const pub=(d.publicados||{})[p.sku];
+              const disp=Math.max(0,(p.quantidade||0)-(p.reservado||0));
+              return `<tr><td><b>${esc(p.nome)}</b><br><small>${esc(p.sku)}</small></td>
+                <td>${disp}${p.reservado?` <small>(${p.reservado} reservado)</small>`:''}</td>
+                <td>${pub?`<span class="badge b-ok">publicado</span>`:'<span class="badge">ainda não</span>'}</td>
+                <td style="text-align:right">${botao({t:pub?'Republicar':'Publicar',ic:'publicar',v:pub?'g':'p',sz:'xs',
+                  on:`publicarProdutoTiktok('${esc(p.sku)}')`})}</td></tr>`;
+            }).join('')}
+            </tbody></table></div>
+            <p class="hint" style="margin-top:8px">Republicar <b>edita</b> o produto que já está lá, não cria outro —
+              dois produtos iguais disputariam a busca entre si e dividiriam as avaliações.</p>`
+            :'<p class="hint" style="margin-top:10px">Nenhum produto no estoque do painel ainda.</p>'}
+          <div class="form-grid" style="margin-top:10px">
+            ${botao({t:'Trocar categoria',ic:'seta',v:'g',on:'escolherCategoriaTiktok()'})}
+            ${botao({t:'Trocar armazém',ic:'seta',v:'g',on:'escolherArmazemTiktok()'})}
+          </div>`}
+      </div>
+
       <div class="form-grid" style="margin-top:12px">
         ${botao({t:'Atualizar lista',ic:'atualizar',v:'g',on:'carregarTiktokLoja()'})}
         ${botao({t:'Trocar de loja',ic:'seta',v:'g',on:'descobrirLojaTiktok()'})}
@@ -1057,6 +1091,59 @@ async function descobrirLojaTiktok(){
 async function escolherLojaTiktok(cipher,id,nome){
   try{ await api('tiktok/loja-ativa',{cipher,id,nome}); flash(`Loja "${nome}" selecionada.`,'ok'); await carregarTiktokLoja(); }
   catch(e){ flash(e.message,'err'); }
+}
+
+async function escolherCategoriaTiktok(){
+  try{
+    const r=await api('tiktok/categorias',{});
+    const lista=(r.dados?.categories||r.categorias||[]).filter(c=>c.is_leaf!==false).slice(0,60);
+    if(!lista.length){ flash('A TikTok não devolveu categorias para esta loja.','err'); return; }
+    abrirModal('Categoria dos produtos enviados daqui',
+      `<p class="hint" style="margin-bottom:12px">A TikTok exige categoria em todo produto. Escolha a que mais se
+        aproxima do que você vende — dá pra trocar depois.</p>
+       <ul class="notas">${lista.map(c=>`<li><button class="btn btn-s" style="margin:2px"
+         onclick="fecharModal();salvarPadraoTiktok({categoriaId:'${esc(c.id)}',categoriaNome:'${esc(c.local_name||c.name||c.id)}'})">${esc(c.local_name||c.name||c.id)}</button></li>`).join('')}</ul>`,
+      `<button class="btn btn-g" onclick="fecharModal()">Agora não</button>`);
+  }catch(e){ flash(e.message,'err'); }
+}
+
+async function escolherArmazemTiktok(){
+  try{
+    const r=await api('tiktok/armazens',{});
+    const lista=r.dados?.warehouses||r.armazens||[];
+    if(!lista.length){ flash('Nenhum armazém cadastrado na sua loja do TikTok.','err'); return; }
+    abrirModal('De qual armazém sai o estoque?',
+      `<p class="hint" style="margin-bottom:12px">É o endereço que a TikTok usa para calcular frete e prazo.</p>
+       <ul class="notas">${lista.map(w=>`<li><button class="btn btn-s" style="margin:2px"
+         onclick="fecharModal();salvarPadraoTiktok({armazemId:'${esc(w.id)}',armazemNome:'${esc(w.name||w.id)}'})">${esc(w.name||w.id)}</button></li>`).join('')}</ul>`,
+      `<button class="btn btn-g" onclick="fecharModal()">Agora não</button>`);
+  }catch(e){ flash(e.message,'err'); }
+}
+
+async function salvarPadraoTiktok(d){
+  try{ await api('tiktok/padroes',d); flash('Pronto, guardado.','ok'); await carregarTiktokLoja(); }
+  catch(e){ flash(e.message,'err'); }
+}
+
+async function publicarProdutoTiktok(sku){
+  try{
+    const r=await api('tiktok/publicar-produto',{sku});
+    /* Aviso NAO e erro, mas tambem nao pode sumir: "promocao sem data de fim" e
+       "reservado ficou de fora" mudam o que o lojista precisa fazer depois. */
+    if((r.avisos||[]).length){
+      abrirModal(r.editado?'Produto atualizado na TikTok':'Produto publicado na TikTok',
+        `<p class="hint" style="margin-bottom:12px">Deu certo. Só preste atenção nisto:</p>
+         <ul class="notas">${r.avisos.map(a=>`<li>${esc(a)}</li>`).join('')}</ul>`,
+        `<button class="btn btn-p" onclick="fecharModal()">${ico('check')}Entendi</button>`);
+    }else{
+      flash(r.editado?'Produto atualizado na TikTok.':'Produto publicado na TikTok.','ok');
+    }
+    await carregarTiktokLoja();
+  }catch(e){
+    abrirModal('Não consegui publicar',
+      `<p class="hint" style="margin-bottom:12px">${esc(e.message)}</p>`,
+      `<button class="btn btn-p" onclick="fecharModal()">${ico('check')}Entendi</button>`);
+  }
 }
 
 async function descobrirAnuncianteTiktok(){

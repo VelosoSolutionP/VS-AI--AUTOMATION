@@ -14,12 +14,17 @@ import * as produtos from './produtos.mjs';
 import * as campanhas from './campanhas.mjs';
 import * as conteudo from './conteudo.mjs';
 import * as metricas from './metricas.mjs';
+import * as ponte from './ponte.mjs';
 
 const CREDENCIAIS = 'credenciais';
 const TOKENS = 'tokens';
 const CONFIG = 'config';
+/* Mapa SKU -> id do produto na loja. Mora junto dos tokens porque e estado da
+   INTEGRACAO, nao do catalogo: o estoque nao tem por que saber que existe
+   TikTok. */
+const PUBLICADOS = 'publicados';
 
-export { produtos, campanhas, conteudo, metricas, auth };
+export { produtos, campanhas, conteudo, metricas, auth, ponte };
 
 /* ---------------- credenciais do app ---------------- */
 
@@ -261,6 +266,61 @@ export async function descobrirAnunciante(opts = {}) {
     return { ok: true, anunciantes: lista };
   });
 }
+
+/** Categorias e armazens da loja — o que a TikTok exige e o estoque nao sabe. */
+export async function categoriasDaLoja(opts = {}) {
+  return comCtx('shop', opts, (ctx) => produtos.categorias(ctx, opts));
+}
+export async function armazensDaLoja(opts = {}) {
+  return comCtx('shop', opts, (ctx) => produtos.armazens(ctx));
+}
+
+/**
+ * Publica um produto DO ESTOQUE na TikTok Shop.
+ *
+ * Ciclo inteiro: envia as imagens, traduz o produto, cria (ou EDITA, se este
+ * SKU ja foi publicado antes) e guarda o id. Publicar duas vezes sem guardar o
+ * id criaria dois produtos iguais na loja, disputando busca entre si e
+ * dividindo as avaliacoes.
+ */
+export async function publicarProdutoDoEstoque(prod, opts = {}) {
+  const cfg = getConfig();
+  return comCtx('shop', opts, async (ctx) => {
+    /* As imagens vao ANTES: a TikTok so aceita URI dela propria, e descobrir
+       isso depois de montar o resto e refazer tudo. */
+    const uris = [];
+    const baixar = opts.baixarImagem;
+    for (const url of (prod.imagens || []).slice(0, 9)) {
+      if (!baixar) { break; }
+      const bytes = await baixar(url).catch(() => null);
+      if (!bytes) { return { ok: false, motivo: `nao consegui ler a imagem ${url}` }; }
+      const env = await produtos.enviarImagem(ctx, bytes, opts);
+      if (!env.ok) { return { ok: false, motivo: `a TikTok recusou a imagem: ${env.motivo}` }; }
+      uris.push(env.dados?.uri || env.uri);
+    }
+
+    const t = ponte.paraTiktok(prod, {
+      categoriaId: cfg.categoriaId,
+      armazemId: cfg.armazemId,
+      imagensUri: uris,
+    });
+    if (t.erros.length) { return { ok: false, motivo: t.erros.join('; '), erros: t.erros, avisos: t.avisos }; }
+
+    const mapa = load(PUBLICADOS, {});
+    const antes = ponte.jaPublicado(mapa, prod.sku);
+    const r = antes
+      ? await produtos.editar(ctx, antes.produtoId, t.produto)
+      : await produtos.criar(ctx, t.produto);
+    if (!r.ok) { return { ...r, avisos: t.avisos }; }
+
+    const id = r.dados?.product_id || antes?.produtoId || null;
+    if (id) { save(PUBLICADOS, ponte.registrarPublicado(mapa, prod.sku, id)); }
+    return { ok: true, produtoId: id, editado: Boolean(antes), avisos: t.avisos };
+  });
+}
+
+/** O que ja foi publicado na loja, por SKU. */
+export const publicados = () => load(PUBLICADOS, {});
 
 export async function cadastrarProduto(p, opts = {}) {
   return comCtx('shop', opts, (ctx) => produtos.criar(ctx, p));

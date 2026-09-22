@@ -696,6 +696,11 @@ const server = createServer(async (req, res) => {
         pronto: true, config: cfg,
         produtos: r.ok ? (r.dados?.products || r.produtos || []) : [],
         ...(r.ok ? {} : { motivo: r.motivo }),
+        /* O estoque daqui, com a marca de quem ja foi pra la — e o que permite
+           a tela mostrar "publicar" e "republicar" em vez de deixar o lojista
+           adivinhar o que ja subiu. */
+        doEstoque: estoque.listar().slice(0, 200),
+        publicados: tk.publicados(),
       });
     }
     if (req.method === 'GET' && rota === '/crm/api/tiktok/campanhas') {
@@ -953,6 +958,27 @@ const server = createServer(async (req, res) => {
         case '/crm/api/tiktok/loja-ativa': r = tk.salvarConfig({ shopCipher: d.cipher, shopId: d.id, shopNome: d.nome }); break;
         case '/crm/api/tiktok/anunciante-ativo': r = tk.salvarConfig({ anuncianteId: d.id, anuncianteNome: d.nome }); break;
         case '/crm/api/tiktok/produto': r = await tk.cadastrarProduto(d); break;
+        case '/crm/api/tiktok/categorias': r = await tk.categoriasDaLoja({}); break;
+        case '/crm/api/tiktok/armazens': r = await tk.armazensDaLoja({}); break;
+        case '/crm/api/tiktok/padroes': r = tk.salvarConfig({ categoriaId: d.categoriaId, categoriaNome: d.categoriaNome, armazemId: d.armazemId, armazemNome: d.armazemNome }); break;
+        /* O CICLO FECHADO: produto do estoque daqui vira produto na loja de la.
+           As imagens sao baixadas do proprio painel e reenviadas pra TikTok, que
+           so aceita URI dela. */
+        case '/crm/api/tiktok/publicar-produto': {
+          const prod = estoque.obter(String(d.sku || ''));
+          if (!prod) { r = { ok: false, motivo: `produto "${d.sku}" nao existe no estoque` }; break; }
+          r = await tk.publicarProdutoDoEstoque(prod, {
+            /* Baixar a imagem e I/O, entao entra por injecao: o modulo continua
+               testavel sem rede, como o resto da casa. */
+            baixarImagem: async (url) => {
+              const abs = /^https?:/i.test(url) ? url : `${process.env.PAINEL_URL || 'https://painel.velososolution.com.br'}${url.startsWith('/') ? '' : '/'}${url}`;
+              const res = await fetch(abs);
+              if (!res.ok) { return null; }
+              return Buffer.from(await res.arrayBuffer());
+            },
+          });
+          break;
+        }
         case '/crm/api/tiktok/campanha': {
           /* Campanha custa dinheiro de verdade. Orcamento ausente ou zerado nao
              pode virar chamada: a TikTok recusa com erro cru, e o pior caso e
