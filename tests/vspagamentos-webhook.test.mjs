@@ -110,8 +110,32 @@ test('configurar valida percentual, base e tamanho do token', () => {
 test('diagnostico diz o que falta antes de tentar cobrar', () => {
   const d = vs.diagnostico();
   assert.equal(d.pronto, false);
-  assert.ok(d.faltando.some((f) => /apiKey/.test(f)));
-  assert.ok(d.faltando.some((f) => /evento forjado/.test(f)));
+  assert.ok(d.faltando.some((f) => /chave de API|apiKey/.test(f)));
+  assert.ok(d.faltando.some((f) => /token do webhook/.test(f)));
+});
+
+/* Em producao isto travava TODA cobranca do Mercado Pago: o diagnostico conferia
+   chave de Asaas mesmo com o MP selecionado, e `cobrar` recusava pedindo a
+   credencial de um gateway que nao estava em uso. Nao havia como sair disso
+   configurando o MP — so trocando de provedor. */
+test('o que falta e o que falta PRO PROVEDOR ESCOLHIDO, nao pro outro', () => {
+  const antes = { ...process.env };
+  const cfgAntes = vs.getConfig();
+  try {
+    process.env.MP_AMBIENTE = 'teste';
+    process.env.MP_ACCESS_TOKEN_TESTE = 'TEST-token-de-mentira';
+    process.env.MP_WEBHOOK_SECRET = 'segredo-de-mentira-com-tamanho-ok';
+    vs.configurar({ provedor: 'mercadopago', modelo: 'direto' });
+    const d = vs.diagnostico();
+    assert.equal(d.provedor, 'mercadopago');
+    assert.ok(!d.faltando.some((f) => /Asaas/i.test(f)), `nao pode pedir chave do Asaas: ${d.faltando.join('; ')}`);
+    assert.equal(d.pronto, true, d.faltando.join('; '));
+  } finally {
+    process.env = antes;
+    // Devolve a config INTEIRA: deixar `modelo: direto` pra tras quebrava os
+    // testes de split que rodam depois — e o motivo nao apareceria neles.
+    vs.configurar({ provedor: cfgAntes.provedor || 'asaas', modelo: cfgAntes.modelo || 'split' });
+  }
 });
 
 test('configuracao completa deixa pronto, e o segredo volta mascarado', () => {

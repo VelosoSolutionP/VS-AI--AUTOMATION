@@ -25,6 +25,7 @@ export const ACOES = Object.freeze({
   COLETAR: 'coletar',       // a PRÓXIMA mensagem é texto livre e vira contexto
   CATALOGO: 'catalogo',     // manda os produtos da vitrine
   CONFIRMAR: 'confirmar',   // pede/confirma os dados do cliente
+  COBRAR: 'cobrar',         // pede uma cobrança de verdade ao gateway e manda o link
   NOTA: 'nota',             // marca algo no contexto e segue (sem efeito externo)
   FIM: 'fim',               // encerra sem chamar ninguém
 });
@@ -52,6 +53,9 @@ export function validarFluxo(passos = []) {
 
   const conhecidos = new Set(ids);
   const validos = Object.values(ACOES);
+  /* Existe preço em ALGUM lugar da árvore? Se existe, o passo de cobrança pode
+     tirar o valor do carrinho; se não existe nenhum, ele não teria de onde. */
+  const temPreco = passos.some((p) => (p.opcoes || []).some((o) => o.valorCentavos != null) || p.valorCentavos != null);
   const conferir = (onde, o) => {
     if (o.acao && !validos.includes(o.acao)) {
       erros.push(`${onde}: ação "${o.acao}" não existe (use ${validos.join(', ')})`);
@@ -62,6 +66,11 @@ export function validarFluxo(passos = []) {
     }
     // Coletar sem destino deixa a resposta do cliente sem para onde ir.
     if (o.acao === ACOES.COLETAR && !o.vaiPara) { erros.push(`${onde}: "coletar" precisa de vai_para — senão a resposta do cliente não leva a lugar nenhum`); }
+    /* Cobrar sem saber quanto so poderia gerar link de R$ 0 — e o dono so
+       descobriria pelo extrato vazio. Melhor recusar a planilha. */
+    if (o.acao === ACOES.COBRAR && o.valorCentavos == null && !temPreco) {
+      erros.push(`${onde}: "cobrar" precisa de um valor (coluna valor) ou de alguma opção com preço antes dele — do jeito que está, o link sairia de R$ 0,00`);
+    }
   };
 
   for (const p of passos) {
@@ -78,13 +87,17 @@ export function validarFluxo(passos = []) {
   return { erros: [], fluxo: { inicio: ids[0], passos } };
 }
 
+export const emReais = (c) => `R$ ${(c / 100).toFixed(2).replace('.', ',')}`;
+
 /** Desenha o passo — mensagem + opções numeradas. */
 export function desenhar(passo) {
   const linhas = [String(passo.mensagem || '').trim()];
   const ops = passo.opcoes || [];
   if (ops.length) {
     linhas.push('');
-    ops.forEach((o, i) => linhas.push(`${o.tecla || i + 1} - ${o.texto}`));
+    /* Preço ao lado da opção: é assim que o cliente decide sem perguntar, e é
+       exatamente o que dispensa chamar alguém pra dizer quanto custa. */
+    ops.forEach((o, i) => linhas.push(`${o.tecla || i + 1} - ${o.texto}${o.valorCentavos ? ` — ${emReais(o.valorCentavos)}` : ''}`));
     linhas.push('');
     linhas.push('Responda com o número da opção.');
   }
@@ -92,6 +105,22 @@ export function desenhar(passo) {
 }
 
 const acharPasso = (fluxo, id) => (fluxo.passos || []).find((p) => String(p.id).trim() === String(id).trim()) || null;
+
+/**
+ * Preço escrito por gente vira centavos.
+ *
+ * Na planilha da lanchonete o preço aparece como "39,90", "R$ 39,90", "39.90" ou
+ * só "39". Ler isso com `Number()` dava NaN em metade dos casos — e cobrança com
+ * valor errado é pior que cobrança que não sai.
+ */
+export function valorEmCentavos(bruto) {
+  if (bruto == null || bruto === '') { return null; }
+  if (typeof bruto === 'number') { return Number.isFinite(bruto) ? Math.round(bruto * 100) : null; }
+  const limpo = String(bruto).replace(/r\$/i, '').replace(/\s/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.');
+  const n = Number(limpo);
+  if (!Number.isFinite(n) || n <= 0) { return null; }
+  return Math.round(n * 100);
+}
 
 /** Entra num passo: devolve o que dizer e como fica o estado. */
 function entrar(fluxo, passo) {
@@ -103,6 +132,7 @@ function entrar(fluxo, passo) {
   // Passo sem opção: a ação dele manda.
   saida.acao = passo.acao || null;
   saida.departamento = passo.departamento || null;
+  if (passo.valorCentavos != null) { saida.valorCentavos = passo.valorCentavos; }
 
   /* COLETAR e CONFIRMAR são a mesma mecânica: a pergunta sai agora e a RESPOSTA
      vem na próxima mensagem. Se não esperassem, o cliente responderia pro vazio —
@@ -223,12 +253,17 @@ export function avancar(fluxo, estado, texto) {
 /** Levar a conversa pela opção escolhida — por tecla, por texto ou por entendimento. */
 function seguir(fluxo, escolhida) {
   const fala = String(escolhida.resposta || '').trim();
+  /* Escolher um item com preço É pedir aquele item. O carrinho nasce daqui, e
+     não de adivinhar preço no texto livre depois. */
+  const item = escolhida.valorCentavos
+    ? { nome: escolhida.texto, valorCentavos: escolhida.valorCentavos }
+    : null;
 
   if (escolhida.vaiPara) {
     const prox = acharPasso(fluxo, escolhida.vaiPara);
     if (!prox) { return { texto: 'Desculpe, me perdi aqui. Vou chamar uma pessoa do time.', passo: null, acao: ACOES.ENCAMINHAR, handoff: true }; }
     const seguinte = entrar(fluxo, prox);
-    return { ...seguinte, texto: [fala, seguinte.texto].filter(Boolean).join('\n\n'), acaoAnterior: escolhida.acao || null };
+    return { ...seguinte, ...(item ? { item } : {}), texto: [fala, seguinte.texto].filter(Boolean).join('\n\n'), acaoAnterior: escolhida.acao || null };
   }
 
   // Opção terminal.
@@ -237,6 +272,7 @@ function seguir(fluxo, escolhida) {
     passo: null,
     acao: escolhida.acao || null,
     departamento: escolhida.departamento || null,
+    ...(item ? { item } : {}),
     handoff: ENCERRA_COM_GENTE(escolhida.acao),
   };
 }

@@ -108,15 +108,17 @@ export function configurar(mudancas = {}) {
 export function diagnostico() {
   const prov = provedorAtual();
   const c = getConfig();
-  const faltando = [];
-  if (!c.apiKey) { faltando.push('apiKey do Asaas'); }
-  if (!c.webhookToken) { faltando.push('token do webhook (sem ele o endpoint aceita evento forjado)'); }
+  /* O que falta e o que falta PRO PROVEDOR ESCOLHIDO. Conferir chave de Asaas
+     com o Mercado Pago selecionado travava toda cobranca pedindo a credencial
+     de um gateway que nao esta em uso — e nao havia caminho pra sair disso. */
+  const faltando = [...prov.faltando];
   if (divideComTerceiro(c.modelo || 'split')) {
     if (c.percentualPrestador == null) { faltando.push('percentual do prestador (BDR-01)'); }
     if (!c.baseSplit) { faltando.push('base do split: quem absorve a taxa do gateway'); }
   }
   return {
-    ambiente: c.ambiente || 'sandbox',
+    provedor: prov.nome,
+    ambiente: prov.ambiente || c.ambiente || 'sandbox',
     modelo: c.modelo || 'split',
     custodia: c.modelo === 'custodia',
     divideComTerceiro: divideComTerceiro(c.modelo || 'split'),
@@ -127,7 +129,7 @@ export function diagnostico() {
     faltando,
     pronto: faltando.length === 0,
     // Produção é decisão consciente: sandbox não move dinheiro.
-    emProducao: (c.ambiente || 'sandbox') === 'producao',
+    emProducao: prov.emProducao,
   };
 }
 
@@ -246,12 +248,41 @@ export async function cobrar(e = {}, opts = {}) {
     referencia: e.referencia,
     split: splitAsaas,
     idempotencyKey: e.idempotencyKey,
+    /* O Mercado Pago precisa destes pra montar o checkout e pra saber onde
+       avisar que pagaram. Sem passar, nascia cobranca sem aviso de retorno. */
+    nome: e.nome,
+    email: e.email,
+    webhookUrl: e.webhookUrl,
   });
   if (!r.ok) { return r; }
 
+  /* Os dois gateways respondem em formatos diferentes: o Asaas devolve o corpo
+     cru em `dados`, o Mercado Pago devolve `pagamento` ja traduzido. Ler so o
+     formato do Asaas fazia toda cobranca do MP nascer SEM id e SEM link — com
+     `ok: true` na cara de quem pediu. Cobranca que ninguem consegue pagar e
+     pior que erro: o erro pelo menos aparece. */
+  const doGateway = r.pagamento || null;
+  const id = doGateway?.id || r.dados?.id || null;
+  const link = doGateway?.linkPagamento || r.dados?.invoiceUrl || null;
+  const pix = doGateway?.pix || null;
+  /* SEM ID nao da pra seguir: e por ele que o webhook reconhece o pagamento e
+     que o repasse acha a cobranca. Cobranca anonima vira dinheiro que entra e
+     nunca aparece na tela. */
+  if (!id) {
+    return {
+      ok: false,
+      motivo: 'o gateway aceitou a cobrança mas não devolveu identificador — sem ele o pagamento nunca seria reconhecido aqui',
+      respostaDoGateway: doGateway || r.dados || null,
+    };
+  }
+  /* Sem link NEM QR o cliente ainda nao tem como pagar. Nem sempre e defeito: no
+     Asaas o Pix nasce assim e o QR vem depois, por `qrPix`. Entao isto vira
+     AVISO, e quem fala com o cliente confere antes de prometer link. */
+  const semFormaDePagamento = !link && !pix?.payload;
+
   const pagamento = {
-    id: r.dados?.id,
-    estado: 'CRIADO',
+    id: String(id),
+    estado: doGateway?.estado || 'CRIADO',
     modelo: c.modelo,
     metodo: String(e.metodo || '').toUpperCase(),
     valorCentavos: e.valorCentavos,
@@ -261,14 +292,23 @@ export async function cobrar(e = {}, opts = {}) {
     walletIdPrestador: e.walletIdPrestador || null,
     split: calc.split,
     // Link de pagamento (Pix/cartão) vem do gateway — não é construído por nós.
-    linkPagamento: r.dados?.invoiceUrl || null,
+    linkPagamento: link,
+    // Quando o QR nasce no gateway (Pix direto), ele ja vem aqui.
+    pix: doGateway?.pix || null,
+    viaCheckout: !!r.viaCheckout,
     criadoEm: new Date().toISOString(),
     atualizadoEm: new Date().toISOString(),
     historico: [],
     repassado: false,
   };
   save(PAGAMENTOS, [...listar(), pagamento]);
-  return { ok: true, pagamento, avisos: calc.avisos };
+  return {
+    ok: true,
+    pagamento,
+    ...(semFormaDePagamento ? { semFormaDePagamento: true } : {}),
+    avisos: [...calc.avisos, doGateway?.aviso,
+      semFormaDePagamento ? 'o gateway ainda não devolveu link nem QR: o cliente só consegue pagar depois que um dos dois existir' : null].filter(Boolean),
+  };
 }
 
 /**

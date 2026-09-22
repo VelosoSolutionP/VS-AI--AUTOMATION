@@ -27,6 +27,8 @@ import * as crm from '../engine/vscrm/index.mjs';
 import * as bot from '../engine/vsbot/index.mjs';
 import { reservarEvento } from './idempotencia.mjs';
 import { enviarTexto } from './whatsapp.mjs';
+import * as pagamentos from '../engine/vspagamentos/index.mjs';
+import { emReais } from '../engine/vsbot/fluxo.mjs';
 
 /**
  * Confere a assinatura da Meta (X-Hub-Signature-256 = HMAC-SHA256 do corpo CRU
@@ -172,9 +174,37 @@ export async function receberMensagem(msg, deps = {}) {
 
   // Catálogo vem com produtos: vira uma linha por item, senão o cliente recebe
   // "olha o que temos:" e mais nada.
-  const texto = r.produtos?.length
+  let texto = r.produtos?.length
     ? r.texto + '\n\n' + r.produtos.map((p) => `• ${p.nome} — ${p.vigenteFormatado || p.precoFormatado || ''}`.trim()).join('\n')
     : r.texto;
+
+  /* PAGAMENTO. O bot pediu a cobrança; quem tem rede é este módulo. A cobrança
+     acontece ANTES do envio de propósito: mandar "segue o link" e só depois
+     descobrir que o gateway recusou deixaria o cliente esperando um link que
+     nunca vem. Se falhar, ele ouve a verdade e o pedido não se perde. */
+  let cobranca = null;
+  if (r.cobranca) {
+    const criar = deps.cobrar || pagamentos.cobrar;
+    const c = await criar({
+      valorCentavos: r.cobranca.valorCentavos,
+      metodo: 'PIX',
+      descricao: r.cobranca.descricao,
+      referencia: r.cobranca.referencia,
+      nome: msg.nome || lead?.nome || undefined,
+      webhookUrl: process.env.VS_URL_WEBHOOK_PAGAMENTO || undefined,
+    });
+    if (c?.ok && c.pagamento?.linkPagamento) {
+      cobranca = c.pagamento;
+      texto = [texto, `Total: ${emReais(c.pagamento.valorCentavos)}`, '', `Paga por aqui: ${c.pagamento.linkPagamento}`,
+        'Assim que o pagamento cair eu te aviso por aqui. 👍'].filter(Boolean).join('\n');
+    } else {
+      /* O pedido NÃO vira fumaça porque o gateway falhou: entrega segue, o
+         pagamento fica pra entrega. É o que o dono faria no balcão. */
+      console.error(`[pagamento] nao consegui gerar o link de ${r.cobranca.referencia}: ${c?.motivo || 'motivo nao informado'}`);
+      texto = [texto, `Total: ${emReais(r.cobranca.valorCentavos)}`, '',
+        'Não consegui gerar o link de pagamento agora — pode pagar na entrega, combinado?'].filter(Boolean).join('\n');
+    }
+  }
 
   const envio = await enviar({ phone: t.telefone, texto });
   // Só registra a saída se saiu mesmo (ver cabeçalho do arquivo).
@@ -192,6 +222,8 @@ export async function receberMensagem(msg, deps = {}) {
     handoff: r.handoff === true,
     respondeu: envio.ok,
     envio,
+    ...(cobranca ? { cobranca: { id: cobranca.id, valorCentavos: cobranca.valorCentavos, linkPagamento: cobranca.linkPagamento } } : {}),
+    ...(r.cobrancaImpossivel ? { cobrancaImpossivel: r.cobrancaImpossivel } : {}),
   };
 }
 

@@ -17,7 +17,7 @@
  * Aceita `;` além de `,` porque Excel em português salva com ponto e vírgula —
  * e quem exporta do Excel não tem por que saber disso.
  */
-import { validarFluxo, ACOES } from './fluxo.mjs';
+import { validarFluxo, ACOES, valorEmCentavos } from './fluxo.mjs';
 
 /**
  * O vocabulario de quem escreve a planilha nao e o do motor — e nem deveria
@@ -32,6 +32,7 @@ const SINONIMOS = [
   [/^coletar.*$|^texto[_ -]?livre$/, () => ({ acao: ACOES.COLETAR })],
   [/^(catalogo|produtos|vitrine)$/, () => ({ acao: ACOES.CATALOGO })],
   [/^confirmar.*$/, () => ({ acao: ACOES.CONFIRMAR })],
+  [/^(cobrar.*|cobranca.*|pagar.*|pagamento.*|link[_ -]?de[_ -]?pagamento)$/, () => ({ acao: ACOES.COBRAR })],
   [/^(fim|finalizar.*|encerrar.*)$/, () => ({ acao: ACOES.FIM })],
   [/^(consultar[_ -]?base.*|.*_kb|apresentar[_ -]?solucao.*|tentativa[_ -]?base)$/, () => ({ acao: ACOES.NOTA, pendente: 'base de conhecimento' })],
   [/^(satisfacao|avaliacao|nota|resolvido)$/, () => ({ acao: ACOES.NOTA })],
@@ -60,6 +61,7 @@ const COLUNAS = {
   vaiPara: ['vai_para', 'vaipara', 'proximo', 'destino', 'ir_para'],
   acao: ['acao', 'action', 'fim'],
   resposta: ['resposta', 'mensagem_final', 'despedida'],
+  valor: ['valor', 'preco', 'preço', 'price', 'valor_rs', 'r$'],
 };
 
 /**
@@ -78,7 +80,46 @@ export function partirLinha(linha, sep) {
     } else if (c === sep && !dentro) { out.push(campo); campo = ''; } else { campo += c; }
   }
   out.push(campo);
-  return out.map((x) => x.trim());
+  /* Tira espaço das pontas mas PRESERVA a quebra de linha do meio: ela é o que
+     faz um cardápio ser legível no WhatsApp. */
+  return out.map((x) => x.replace(/^[ \t]+|[ \t]+$/g, '').replace(/^\n+|\n+$/g, ''));
+}
+
+/**
+ * Parte o arquivo em REGISTROS, não em linhas.
+ *
+ * Célula com quebra de linha é o normal, não a exceção: um cardápio, um menu
+ * com opções, qualquer mensagem de mais de uma frase. O Excel e o Google
+ * Planilhas exportam isso entre aspas, com o \n dentro — e partir por \n antes
+ * de olhar as aspas rasgava a mensagem no meio.
+ *
+ * O estrago era pior que perder a quebra: cada pedaço virava um "passo" sem
+ * mensagem, e a importação devolvia trinta erros sobre passos que nunca
+ * existiram. Quem lia aquilo não tinha como adivinhar que o problema era uma
+ * quebra de linha.
+ */
+export function partirRegistros(texto) {
+  const regs = [];
+  let atual = '';
+  let dentro = false;
+  for (let i = 0; i < texto.length; i += 1) {
+    const c = texto[i];
+    if (c === '"') {
+      if (dentro && texto[i + 1] === '"') { atual += '""'; i += 1; continue; }
+      dentro = !dentro;
+      atual += c;
+      continue;
+    }
+    if ((c === '\n' || c === '\r') && !dentro) {
+      if (c === '\r' && texto[i + 1] === '\n') { i += 1; }
+      if (atual.trim()) { regs.push(atual); }
+      atual = '';
+      continue;
+    }
+    atual += c;
+  }
+  if (atual.trim()) { regs.push(atual); }
+  return regs;
 }
 
 const detectarSeparador = (cabecalho) => ((cabecalho.match(/;/g) || []).length > (cabecalho.match(/,/g) || []).length ? ';' : ',');
@@ -89,7 +130,7 @@ export function fluxoDeCsv(texto) {
      bytes, e ela gruda na PRIMEIRA coluna do cabecalho: "passo" vira "\uFEFFpasso"
      e a importacao falha dizendo que nao achou a coluna que esta ali na cara. */
   const cru = String(texto || '').replace(/^\uFEFF/, '');
-  const linhas = cru.split(/\r?\n/).filter((l) => l.trim());
+  const linhas = partirRegistros(cru);
   if (linhas.length < 2) { return { erros: ['a planilha está vazia ou só tem o cabeçalho'] }; }
 
   const sep = detectarSeparador(linhas[0]);
@@ -133,11 +174,21 @@ export function fluxoDeCsv(texto) {
     if (trad?.pendente) { pendentes.add(`${trad.pendente} (usada como "${brutaAcao}")`); }
     const textoOpcao = v('textoOpcao');
 
+    /* Preço escrito e ilegível é erro na hora, não surpresa na cobrança: quem
+       digitou "39,90 reais" precisa saber agora, não quando o link sair errado. */
+    const bruto = v('valor');
+    const valorCentavos = valorEmCentavos(bruto);
+    if (bruto && valorCentavos == null) {
+      erros.push(`linha ${n + 2}: não entendi o valor "${bruto}" (escreva como 39,90)`);
+      return;
+    }
+
     // Linha sem opção = a própria ação do passo (fim de galho ou passagem).
     if (!textoOpcao) {
       if (trad) { passo.acao = trad.acao; passo.departamento = trad.departamento || null; }
       if (v('vaiPara')) { passo.vaiPara = v('vaiPara'); }
       if (v('resposta')) { passo.resposta = v('resposta'); }
+      if (valorCentavos != null) { passo.valorCentavos = valorCentavos; }
       return;
     }
     passo.opcoes.push({
@@ -147,6 +198,7 @@ export function fluxoDeCsv(texto) {
       acao: trad?.acao || null,
       departamento: trad?.departamento || null,
       resposta: v('resposta') || null,
+      ...(valorCentavos != null ? { valorCentavos } : {}),
     });
   });
 

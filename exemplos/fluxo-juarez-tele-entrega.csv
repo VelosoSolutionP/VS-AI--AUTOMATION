@@ -1,0 +1,52 @@
+passo,mensagem,opcao,texto_opcao,vai_para,acao,resposta,valor
+inicio,"Opa! Aqui é a Mica, do Juarez Tele-Entrega. 🍔
+
+Peço tudo por aqui mesmo, em 1 minuto:",1,"Fazer meu pedido",cardapio,,,
+inicio,,2,"Onde vocês entregam",area,,,
+inicio,,3,"Acompanhar meu pedido",rastreio,,,
+cardapio,"Escolhe por onde começar:",1,"Lanches",lanches,,,
+cardapio,,2,"Da chapa",chapa,,,
+cardapio,,3,"Massas e porções",massas,,,
+lanches,"🍔 *LANCHES* — escolhe o número:",1,"X-Tudo",bebida,,,"28,00"
+lanches,,2,"X-Salada",bebida,,,"22,00"
+lanches,,3,"X-Egg",bebida,,,"20,00"
+lanches,,4,"Hambúrguer simples",bebida,,,"16,00"
+lanches,,5,"Ver o resto do cardápio",cardapio,,,
+chapa,"🍝 *DA CHAPA* — escolhe o número:",1,"Macarrão na chapa",bebida,,,"32,00"
+chapa,,2,"Tropeiro",bebida,,,"30,00"
+chapa,,3,"Filé na chapa",bebida,,,"38,00"
+chapa,,4,"Ver o resto do cardápio",cardapio,,,
+massas,"🥘 *MASSAS E PORÇÕES* — escolhe o número:",1,"Lasanha (serve 2)",bebida,,,"45,00"
+massas,,2,"Mega Blaster (serve 3) 🔥",bebida,,,"62,00"
+massas,,3,"Ver o resto do cardápio",cardapio,,,
+bebida,"Anotado! 🥤 Bebida?",1,"Refrigerante lata",pedido_obs,,,"6,00"
+bebida,,2,"Refrigerante 2L",pedido_obs,,,"14,00"
+bebida,,3,"Água",pedido_obs,,,"4,00"
+bebida,,4,"Sem bebida",pedido_obs,,,
+bebida,,5,"Quero mais um item",cardapio,,,
+pedido_obs,"Alguma observação? (sem cebola, ponto da carne, troco...)
+
+Se não tiver, escreve *não*.",,,pedido_endereco,coletar,,
+pedido_endereco,"Agora o endereço completo, com número e ponto de referência:",,,taxa_entrega,coletar,,
+taxa_entrega,"Taxa de entrega — pelo seu endereço:",1,"Até 3 km (Centro, Savassi, Funcionários, Santo Antônio, Cruzeiro)",pedido_pagamento,,,"6,00"
+taxa_entrega,,2,"Acima de 3 km (Serra, Sion, Anchieta, Carmo, Lourdes)",pedido_pagamento,,,"9,00"
+pedido_pagamento,"Última coisa: como você prefere pagar?",1,"Pix agora (mando o link)",pedido_cobranca,,,
+pedido_pagamento,,2,"Cartão na entrega",pedido_fecha,,,
+pedido_pagamento,,3,"Dinheiro na entrega",pedido_fecha,,,
+pedido_cobranca,"Fechou! 🎉 Já mandei pra cozinha.
+
+Entrega em *40 a 60 min*.",,,,cobrar,,
+pedido_fecha,"Fechou! 🎉 Já mandei pra cozinha.
+
+Entrega em *40 a 60 min*. Qualquer coisa é só me chamar aqui — e se quiser acompanhar, escreve *acompanhar*.",,,,fim,,
+area,"A gente entrega em:
+
+✅ Centro, Savassi, Funcionários, Santo Antônio, Cruzeiro
+✅ Serra, Sion, Anchieta, Carmo, Lourdes
+
+Taxa: R$ 6 até 3 km · R$ 9 acima disso.
+Pedido mínimo: R$ 25.",1,"Meu bairro tá na lista, quero pedir",cardapio,,,
+area,,2,"Meu bairro não tá aí",area_fora,,,
+area_fora,"Me diz qual é o seu bairro que eu confiro com o entregador:",,,,encaminhar_entrega,"Vou confirmar com o pessoal da entrega e já te falo!",
+rastreio,"Me passa o nome que tá no pedido que eu consulto pra você:",,,rastreio_resposta,coletar,,
+rastreio_resposta,"Achei aqui! Assim que o entregador sair, eu te aviso com o tempo estimado. 🛵",,,,fim,,

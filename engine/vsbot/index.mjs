@@ -371,6 +371,13 @@ export function atender(texto, ctx = {}) {
        perguntar de novo o que ja foi dito. */
     const contexto = { ...(atual?.contexto || {}) };
     if (r.coleta) { contexto[r.coleta.chave] = r.coleta.valor; }
+    /* CARRINHO. Cada opção com preço que a pessoa escolhe entra aqui, e é a soma
+       disto que vira a cobrança lá na frente. Guardar no contexto (e não numa
+       variável) é o que faz o pedido sobreviver a ela sumir e voltar depois. */
+    if (r.item) {
+      contexto.itens = [...(contexto.itens || []), r.item];
+      contexto.totalCentavos = (contexto.itens || []).reduce((a, i) => a + (i.valorCentavos || 0), 0);
+    }
 
     salvarConversa(de, r.passo
       ? { passo: r.passo, coletando: r.coletando === true, contexto }
@@ -391,6 +398,24 @@ export function atender(texto, ctx = {}) {
       ...(r.saltou ? { saltou: true } : {}),
       ...(r.desambiguando ? { desambiguando: true } : {}),
     };
+    /* COBRAR nao cobra aqui. Este modulo nao fala com gateway nenhum — ele so
+       diz "cobre isto", e quem tem rede (o canal) executa e devolve o link. Sem
+       essa separacao, simular uma conversa criaria cobranca de verdade. */
+    if (r.acao === ACOES.COBRAR) {
+      const total = r.valorCentavos ?? contexto.totalCentavos ?? 0;
+      if (total > 0) {
+        saida.cobranca = {
+          valorCentavos: total,
+          descricao: (contexto.itens || []).map((i) => i.nome).join(' + ') || (cfg.nomeEmpresa || 'Pedido'),
+          itens: contexto.itens || [],
+          referencia: `${ap.protocolo.numero}`,
+        };
+      } else {
+        /* Sem valor nao se manda link: manda-se a verdade. Link de R$ 0,00 faz o
+           cliente achar que o pedido foi de graca. */
+        saida.cobrancaImpossivel = 'pedido sem valor';
+      }
+    }
     // Catalogo no meio do fluxo usa a mesma vitrine das regras.
     if (r.acao === ACOES.CATALOGO) {
       saida.produtos = (ctx.produtos || []).slice(0, cfg.limiteCatalogo || 5);
