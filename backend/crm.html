@@ -2418,6 +2418,16 @@ async function conferirAceite(id){
 
 /* ---- bot ---- */
 
+/** Quantos caminhos da arvore terminam com uma pessoa assumindo. */
+function contarEncaminhamentos(fluxo){
+  let n=0;
+  for(const p of fluxo?.passos||[]){
+    if(p.acao==='encaminhar') n++;
+    for(const o of p.opcoes||[]) if(o.acao==='encaminhar') n++;
+  }
+  return n;
+}
+
 function simulacaoHtml(){
   if(!SIMULACAO.length) return '<p class="hint">Nenhuma mensagem ainda. Escreva acima e veja o que o cliente receberia.</p>';
   /* Com fluxo cadastrado a simulação passa pela ÁRVORE, e os tipos que voltam
@@ -3058,10 +3068,24 @@ const S={
   if(!BOT) return head('Bot','Atendimento automático: regras, respostas e quando chamar gente.')+
     vazio('bot','Backend sem a rota do bot','Atualize o servidor.',['Subir o backend novo','Recarregar']);
   const c=BOT.config;
-  return head('Bot','Atendimento automático: regras, respostas e quando chamar gente. Funciona aqui antes de ligar em qualquer canal.')+
+  /* O subtitulo tambem falava so de regras. Com fluxo no ar, ele descrevia um
+     bot que nao e o que esta atendendo — e quem le acha que veio na tela errada. */
+  return head('Bot',(BOT.fluxo?.passos||[]).length
+      ? 'A árvore de atendimento no ar, o que ela responde e quando chama gente. Teste aqui antes de qualquer cliente ver.'
+      : 'Atendimento automático: regras, respostas e quando chamar gente. Funciona aqui antes de ligar em qualquer canal.')+
   `<div class="grid g-kpi" style="margin-bottom:16px">
-    ${kpi('Regras',BOT.total,`${BOT.ativas} ativa(s)`)}
-    ${kpi('Chamam gente',BOT.comHandoff,'passam pro humano')}
+    ${(()=>{
+      /* Esta tela nasceu para o bot de REGRAS por palavra e nunca soube do
+         FLUXO. Com uma arvore de 40 passos no ar, ela mostrava "Regras 0" e
+         "Chamam gente 0" — dizendo que o bot nao faz nada enquanto ele atende
+         cliente de verdade. O motor usa um OU outro, nunca os dois: a tela tem
+         de contar o que esta valendo. */
+      const passos=(BOT.fluxo?.passos||[]).length;
+      if(passos) return kpi('Fluxo',passos+' passos','a árvore que conduz a conversa')
+        +kpi('Encaminham',contarEncaminhamentos(BOT.fluxo),'passam pro humano');
+      return kpi('Regras',BOT.total,`${BOT.ativas} ativa(s)`)
+        +kpi('Chamam gente',BOT.comHandoff,'passam pro humano');
+    })()}
     ${(()=>{
       /* "Bot ligado" com o canal fora nao atende ninguem — e as duas telas
          diziam a verdade SEPARADAMENTE, o que juntas vira mentira: quem olha
@@ -3071,7 +3095,13 @@ const S={
       if(c.ativo&&!w.no_ar) return kpi('Estado','ligado, mas MUDO',`o canal está ${esc(w.rotulo)} — ninguém é atendido`);
       return kpi('Estado',c.ativo?'ligado':'desligado',BOT.pronto?'respondendo':'não responde ainda');
     })()}
-    ${kpi('Canal','nenhum','o WhatsApp entra depois')}
+    ${(()=>{
+      /* Estava CRAVADO em "nenhum". A tela dizia que nao havia canal com a
+         Micaela pareada e conversando — e quem le o painel confia nele. */
+      const w=canalWhatsApp();
+      return kpi('Canal',w.no_ar?(w.via||'no ar'):'nenhum',
+        w.no_ar?(w.numero?'+'+esc(w.numero):'conectado'):esc(w.rotulo));
+    })()}
   </div>
   ${BOT.aviso?`<div class="card" style="margin-bottom:16px;border-style:dashed">
     ${cardH('alerta',`Atenção`,``,5)}${linha('Bot ligado sem regra',esc(BOT.aviso),'corrigir','b-err')}</div>`:''}
