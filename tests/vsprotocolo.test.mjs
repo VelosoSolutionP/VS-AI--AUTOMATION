@@ -258,3 +258,37 @@ test('quem encerrou COM GENTE volta pra fila, mesmo tendo sido o atendente a fec
   assert.equal(r.volta.acao, 'voltar_fila');
   assert.deepEqual(r.volta.contexto, { problema: 'nao abre' });
 });
+
+/* ---- por onde avisar ----
+
+   Em producao, um protocolo encerrou e o aviso nao saiu:
+     "179340671226006" nao e um telefone valido (15 digitos)
+   Ele tentou avisar usando o LID como se fosse telefone, porque o ENDERECO da
+   conversa nunca tinha chegado ate aqui — o objeto montado a mao no canal
+   engolia o campo. Resultado: o cliente fica sem o numero do protocolo, que e
+   justamente o que permite ele voltar pro mesmo lugar. */
+
+test('o endereco da conversa e guardado desde a primeira mensagem', () => {
+  P.aoChegar('90000000000001', { quando: T0, endereco: '90000000000001@lid' });
+  assert.equal(P.aberto('90000000000001').endereco, '90000000000001@lid');
+});
+
+test('o encerramento sabe por onde avisar, mesmo sem telefone', () => {
+  // A varredura fecha TODOS os parados; o que importa aqui e o deste caso.
+  const f = P.varrerInativos({ quando: mais(T0, 10) }).find((x) => x.de === '90000000000001');
+  assert.ok(f, 'o protocolo tinha de ter sido encerrado pela varredura');
+  assert.equal(f.endereco, '90000000000001@lid', 'e por ele que a despedida sai');
+  assert.notEqual(f.endereco, f.de, 'o LID cru seria recusado no envio');
+});
+
+test('voltar mantem o endereco, e um endereco novo substitui o antigo', () => {
+  P.aoChegar('90000000000001', { quando: mais(T0, 20), endereco: '90000000000001@c.us' });
+  assert.equal(P.aberto('90000000000001').endereco, '90000000000001@c.us',
+    'se a pessoa passou a chegar por outro caminho, e o novo que vale');
+});
+
+test('sem endereco novo, o guardado NAO e apagado', () => {
+  P.aoChegar('90000000000001', { quando: mais(T0, 21) });
+  assert.equal(P.aberto('90000000000001').endereco, '90000000000001@c.us',
+    'perder o endereco por uma mensagem sem ele deixaria a conversa sem volta');
+});

@@ -85,7 +85,13 @@ function montar({ produtos } = {}) {
       let respondidas = 0;
       let falha = null;
       const r = await atendimento.receberMensagem(
-        { id: msg.id, de: msg.de, nome: msg.nome, texto: msg.texto, tipo: msg.tipo },
+        /* `endereco` TEM de atravessar. Sem ele o protocolo nasce sem saber por
+           onde falar com a pessoa, e o encerramento por silencio tenta avisar
+           usando o LID como se fosse telefone — recusado, e o cliente fica sem
+           o numero do protocolo. Visto em producao:
+             "179340671226006" nao e um telefone valido (15 digitos)
+           A montagem manual deste objeto foi o que engoliu o campo. */
+        { id: msg.id, de: msg.de, endereco: msg.endereco, nome: msg.nome, texto: msg.texto, tipo: msg.tipo },
         {
           /* O ENVIO e o unico passo que some quando falha: a mensagem entrou, a
              trilha registrou, e o cliente nunca viu nada. Do lado de ca o log
