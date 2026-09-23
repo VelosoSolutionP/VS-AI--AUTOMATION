@@ -2613,8 +2613,80 @@ async function excluirRegra(id,nome){
   });
 }
 
+/**
+ * Trocar o nome do assistente deixa o nome ANTIGO escrito nas mensagens.
+ *
+ * A saudacao, o "nao entendi" e o handoff sao escritos com o nome DENTRO. Trocar
+ * a persona de "Micaela" para "Paulao" fazia o cliente continuar sendo recebido
+ * por "Olá! Eu sou a Micaela" — o painel dizia uma coisa e a conversa outra.
+ *
+ * A troca e OFERECIDA, nao imposta: quem escreveu aquele texto pode ter posto o
+ * nome de proposito. As duas saidas salvam; o que muda e se os textos vao junto.
+ */
+const CAMPOS_COM_NOME=[['pzSaud','saudação'],['pzFall','quando não entende'],
+  ['pzHand','ao passar pra uma pessoa'],['pzCat','catálogo'],['pzSemTexto','áudio e imagem']];
+
+const escapaRe=(t)=>String(t).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+
+/**
+ * O que procurar quando o nome muda.
+ *
+ * A persona costuma ser "Micaela · Veloso Solution" ou "Micaela (demonstração)",
+ * e a saudação diz só "Micaela". Procurar o nome INTEIRO nao achava nada — e a
+ * tela dizia que estava tudo certo com o nome velho na saudação. Entao procura
+ * do mais especifico pro mais curto: o nome cheio, depois o primeiro pedaco.
+ */
+function apelidos(nome){
+  const inteiro=String(nome||'').trim();
+  const primeiro=inteiro.split(/[\s·|(,\-–—]+/)[0]||'';
+  const lista=[inteiro];
+  if(primeiro.length>=3&&primeiro.toLowerCase()!==inteiro.toLowerCase()) lista.push(primeiro);
+  return lista;
+}
+
+function camposComNomeAntigo(antigo){
+  const res=apelidos(antigo).map((a)=>new RegExp(escapaRe(a),'i'));
+  return CAMPOS_COM_NOME.filter(([id])=>{
+    const el=document.getElementById(id);
+    return el&&el.value&&res.some((re)=>re.test(el.value));
+  });
+}
+
+function aplicarNomeNosTextos(antigo,novo){
+  /* Do mais LONGO pro mais curto: trocar "Micaela" antes de
+     "Micaela (demonstração)" deixaria "Paulão (demonstração)" pra tras. */
+  const alvos=apelidos(antigo).sort((a,b)=>b.length-a.length);
+  for(const [id] of camposComNomeAntigo(antigo)){
+    const el=document.getElementById(id);
+    for(const a of alvos){ el.value=el.value.replace(new RegExp(escapaRe(a),'gi'),novo); }
+  }
+}
+
+/** Resolve true se a pessoa quiser trocar os textos junto, false se nao. */
+function perguntarTrocaDeNome(antigo,novo,afetados){
+  return new Promise((resolve)=>{
+    const id='tn'+Math.random().toString(36).slice(2,9);
+    window[id]=(trocar)=>{ fecharModal(); delete window[id]; resolve(trocar); };
+    abrirModal(`O nome antigo ainda está nos textos`,
+      `<p class="hint">Você trocou <b>${esc(antigo)}</b> por <b>${esc(novo)}</b>, mas "${esc(antigo)}" continua escrito em: `+
+      `<b>${afetados.map(([,r])=>esc(r)).join('</b>, <b>')}</b>.</p>`+
+      `<p class="hint" style="margin-top:8px">Sem trocar, o cliente continua sendo recebido por <b>${esc(antigo)}</b>.</p>`,
+      `<button class="btn btn-s" onclick="window['${id}'](false)">${ico('salvar')}<span>Só o nome</span></button>`+
+      `<button class="btn btn-p" onclick="window['${id}'](true)">${ico('atualizar')}<span>Trocar nos textos também</span></button>`);
+  });
+}
+
 async function salvarPersonalizacao(){
   const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
+  /* ANTES de salvar: depois seria tarde, a mensagem ja teria ido pro ar. */
+  const antigo=String(BOT?.config?.nome||'').trim();
+  const agora=v('pzNome');
+  if(antigo&&agora&&antigo.toLowerCase()!==agora.toLowerCase()){
+    const afetados=camposComNomeAntigo(antigo);
+    if(afetados.length&&await perguntarTrocaDeNome(antigo,agora,afetados)){
+      aplicarNomeNosTextos(antigo,agora);
+    }
+  }
   return salvar({
     titulo:'Salvar a personalização',
     campos:[
@@ -4986,8 +5058,34 @@ function trocarNumeroCanal(){
       }else{
         avisoErro('A sessão nova não chegou a pedir QR',`Estado atual: <b>${esc(r.estado||'?')}</b>. Tente "Reconectar (gera QR novo)".`);
       }
+      /* Numero novo costuma ser CLIENTE NOVO. Perguntar aqui poupa a descoberta
+         ruim: parear o chip do escritorio de advocacia e a Micaela receber os
+         clientes dele pelo nome da lanchonete. */
+      perguntarNomeDoAssistente();
     },
   });
+}
+
+/**
+ * Depois de trocar o número, oferece trocar o nome do assistente.
+ *
+ * Não força: quem só mudou de chip mantém o mesmo atendimento. Mas quem trocou
+ * de número porque trocou de cliente quase sempre quer trocar o nome junto — e
+ * descobrir isso pela primeira conversa é tarde.
+ */
+function perguntarNomeDoAssistente(){
+  const atual=String(BOT?.config?.nome||'').trim();
+  const id='nq'+Math.random().toString(36).slice(2,9);
+  window[id]=(ir)=>{
+    fecharModal(); delete window[id];
+    if(ir) location.hash='#wa-personalizar';
+  };
+  abrirModal('Quer trocar o nome do assistente?',
+    `<p class="hint">O número mudou, mas o atendimento continua se chamando <b>${esc(atual||'sem nome')}</b>.</p>`
+    +`<p class="hint" style="margin-top:8px">Se este número é de outro cliente ou de outra operação, vale trocar o nome, `
+    +`a saudação e o perfil — é o que o cliente vê na primeira mensagem.</p>`,
+    `<button class="btn btn-s" onclick="window['${id}'](false)">${ico('fechar')}<span>Manter ${esc(atual||'como está')}</span></button>`
+    +`<button class="btn btn-p" onclick="window['${id}'](true)">${ico('person')}<span>Trocar o nome</span></button>`);
 }
 
 async function reconectarCanal(){
