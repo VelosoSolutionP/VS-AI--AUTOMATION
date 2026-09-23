@@ -62,6 +62,7 @@ const COLUNAS = {
   acao: ['acao', 'action', 'fim'],
   resposta: ['resposta', 'mensagem_final', 'despedida'],
   valor: ['valor', 'preco', 'preço', 'price', 'valor_rs', 'r$'],
+  sku: ['sku', 'codigo', 'código', 'cod', 'produto'],
 };
 
 /**
@@ -199,6 +200,9 @@ export function fluxoDeCsv(texto) {
       departamento: trad?.departamento || null,
       resposta: v('resposta') || null,
       ...(valorCentavos != null ? { valorCentavos } : {}),
+      /* Com SKU o preço vem do catálogo na hora do pedido — a planilha para de
+         ser a dona do preço, e uma promoção passa a valer sem reimportar nada. */
+      ...(v('sku') ? { sku: v('sku') } : {}),
     });
   });
 

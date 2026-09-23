@@ -1560,6 +1560,8 @@ let EDITANDO_LANC=null;
 let PERIODO={de:'',ate:''};
 let EDITANDO_REGRA=null;
 let SIMULACAO=[];
+/* Desligado por padrao: conferir o fluxo nao pode criar cobranca sem querer. */
+let SIM_COBRAR=false;
 
 const campoProduto={eNome:'nome',ePreco:'preco',ePromo:'precoPromocional',eQtd:'quantidade',
   eMarca:'marca',eCat:'categoria',eGtin:'gtin',eLink:'link',eImgs:'imagens',eDesc:'descricao'};
@@ -2456,6 +2458,15 @@ function simulacaoHtml(){
           border-radius:14px 14px 14px 3px;font-size:14px">${esc(t.texto)}
           ${(t.produtos||[]).length?`<ul style="margin:8px 0 0;padding-left:18px">
             ${t.produtos.map(p=>`<li>${esc(p.nome)} — ${esc(brl(p.precoCentavos/100))}</li>`).join('')}</ul>`:''}
+          ${t.pagamento?`<div style="margin-top:9px;padding-top:9px;border-top:1px solid var(--line)">
+            <div style="font-weight:600">Total: ${esc(brl(t.pagamento.valorCentavos/100))}</div>
+            <a href="${esc(t.pagamento.linkPagamento)}" target="_blank" rel="noopener"
+              style="font-size:13px;word-break:break-all">${esc(t.pagamento.linkPagamento)}</a></div>`:''}
+          ${t.cobrancaSimulada?`<div class="hint" style="margin-top:9px">
+            Aqui sairia uma cobrança de <b>${esc(brl(t.cobrancaSimulada.valorCentavos/100))}</b>.
+            Marque a caixa acima pra gerar o link de verdade.</div>`:''}
+          ${t.cobrancaRecusada?`<div class="hint" style="margin-top:9px;color:var(--err)">
+            Sem link: ${esc(t.cobrancaRecusada)}</div>`:''}
         </div>
         <div style="margin-top:5px">${marca(t)}</div>
       </div>`).join('')}
@@ -2470,7 +2481,7 @@ async function simular(){
     // Manda a conversa INTEIRA: o contador de falhas seguidas depende do que veio
     // antes, e mandar so a ultima mensagem faria o bot nunca chamar gente.
     const msgs=[...SIMULACAO.map(t=>t.recebida),txt];
-    const r=await api('bot/simular',{mensagens:msgs});
+    const r=await api('bot/simular',{mensagens:msgs,cobrar:SIM_COBRAR});
     SIMULACAO=r.turnos||[];
     campo.value='';
     render();
@@ -3118,6 +3129,11 @@ const S={
       <button class="btn btn-p" onclick="simular()">${ico('enviar')}Enviar</button>
       <button class="btn btn-s" onclick="SIMULACAO=[];render()">${ico('limpar')}Limpar</button>
     </div>
+    <label class="hint" style="display:flex;align-items:center;gap:7px;margin-top:10px;cursor:pointer">
+      <input type="checkbox" id="simCobrar" ${SIM_COBRAR?'checked':''} onchange="SIM_COBRAR=this.checked">
+      Gerar link de pagamento de verdade quando o fluxo chegar na cobrança
+      <span class="badge">ambiente de teste</span>
+    </label>
     <div id="simSaida" style="margin-top:14px">${simulacaoHtml()}</div></div>
 
   <div class="card" style="margin-bottom:16px">

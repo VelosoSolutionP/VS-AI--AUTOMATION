@@ -27,7 +27,7 @@
  */
 import { load, save, mascarar } from './store.mjs';
 import { criarGateway as gatewayAsaas, validarWebhook as validarAsaas } from './asaas.mjs';
-import { criarGateway as gatewayMercadoPago } from './mercadopago.mjs';
+import { criarGateway as gatewayMercadoPago, conferirCredencial as mpConferirCredencial } from './mercadopago.mjs';
 
 /* Dois provedores de recebimento, mesmo contrato. O cliente escolhe qual usa —
    quem ja tem conta no Mercado Pago nao precisa abrir uma no Asaas so por causa
@@ -59,6 +59,7 @@ export const divideComTerceiro = (modelo) => modelo !== 'direto';
    quebrar quem ja importava daqui; o do Mercado Pago sai com nome proprio. */
 export { calcularSplit, paraAsaas, conferir, traduzirEvento };
 export { gatewayAsaas as criarGateway, gatewayMercadoPago };
+export { conferirCredencial as conferirCredencialMercadoPago } from './mercadopago.mjs';
 
 export function getConfig() {
   return load(CONFIG, { modelo: 'split', ambiente: 'sandbox' });
@@ -203,6 +204,47 @@ export function provedorAtual() {
     faltando: [!c.apiKey ? 'chave de API do Asaas' : null, !c.webhookToken ? 'token do webhook' : null].filter(Boolean),
     emProducao: (c.ambiente || 'sandbox') === 'producao',
     suportaCustodia: true,
+  };
+}
+
+/**
+ * As duas chaves do Mercado Pago, conferidas NA FONTE.
+ *
+ * Responde a pergunta que estava custando caro: "a chave que eu colei no campo
+ * de produção é mesmo de produção?". Quem responde é o Mercado Pago, e a
+ * resposta vem com o que cada conta CONSEGUE fazer — porque conta de teste não
+ * faz Pix direto nem abre o checkout pra quem não está logado, e descobrir isso
+ * no meio de um teste parece defeito do produto.
+ */
+export async function conferirCredenciais(opts = {}) {
+  const c = getConfig();
+  const alvos = [
+    { campo: 'teste', esperado: 'teste', token: c.mpAccessTokenTeste || process.env.MP_ACCESS_TOKEN_TESTE },
+    { campo: 'producao', esperado: 'producao', token: c.mpAccessToken || process.env.MP_ACCESS_TOKEN },
+  ];
+  const chaves = [];
+  for (const alvo of alvos) {
+    if (!alvo.token) { chaves.push({ campo: alvo.campo, preenchido: false }); continue; }
+    const r = await mpConferirCredencial(alvo.token, opts);
+    chaves.push({
+      campo: alvo.campo,
+      preenchido: true,
+      ...r,
+      /* O erro que mais custou tempo: chave certa, campo errado. Em vez de
+         "não funciona", a tela passa a dizer QUAL campo está trocado. */
+      noCampoErrado: r.ok === true && r.ambiente !== alvo.esperado,
+    });
+  }
+  const trocadas = chaves.filter((k) => k.noCampoErrado).map((k) => k.campo);
+  return {
+    ok: true,
+    chaves,
+    ambienteAtivo: (c.mpAmbiente || process.env.MP_AMBIENTE || 'teste'),
+    trocadas,
+    avisos: [
+      trocadas.length === 2 ? 'as duas chaves estão trocadas de campo: a de teste está no lugar da de produção e vice-versa' : null,
+      trocadas.length === 1 ? `a chave do campo "${trocadas[0]}" é de ${chaves.find((k) => k.noCampoErrado).ambiente}` : null,
+    ].filter(Boolean),
   };
 }
 

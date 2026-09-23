@@ -8,7 +8,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { responder, conversar, validarRegra, escolher, GATILHOS, pediuHumano, preencher } from './regras.mjs';
-import { validarFluxo, avancar, ACOES } from './fluxo.mjs';
+import { validarFluxo, avancar, ACOES, comPrecosDoCatalogo } from './fluxo.mjs';
 import { fluxoDeCsv } from './fluxo-csv.mjs';
 
 const dir = () => process.env.VSBOT_DIR || dentroDaCasa('vsbot');
@@ -79,7 +79,8 @@ export function excluirRegra(id) {
  */
 export function simular(mensagens = [], ctx = {}) {
   const cfg = { ...getConfig(), regras: regras() };
-  const fx = getFluxo();
+  // O simulador tem de ver os MESMOS preços que o cliente veria.
+  const fx = comPrecosDoCatalogo(getFluxo(), ctx.produtos || []);
 
   /* O simulador testava so as REGRAS por palavra — nunca a arvore. Quem abria a
      tela pra conferir a Micaela via uma Micaela que nao existe, e so descobria o
@@ -300,7 +301,10 @@ function assinar(texto, cfg) {
 
 export function atender(texto, ctx = {}) {
   const cfg = { ...getConfig(), regras: regras() };
-  const fx = getFluxo();
+  /* O preço entra AQUI, uma vez, antes de qualquer decisão: assim o menu que o
+     cliente lê, o item que entra no carrinho e o total da cobrança olham todos
+     para o mesmo catálogo, no mesmo instante. */
+  const fx = comPrecosDoCatalogo(getFluxo(), ctx.produtos || []);
   const de = ctx.de || null;
 
   if (fx && de) {

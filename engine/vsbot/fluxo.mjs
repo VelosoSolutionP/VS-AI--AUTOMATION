@@ -55,7 +55,7 @@ export function validarFluxo(passos = []) {
   const validos = Object.values(ACOES);
   /* Existe preço em ALGUM lugar da árvore? Se existe, o passo de cobrança pode
      tirar o valor do carrinho; se não existe nenhum, ele não teria de onde. */
-  const temPreco = passos.some((p) => (p.opcoes || []).some((o) => o.valorCentavos != null) || p.valorCentavos != null);
+  const temPreco = passos.some((p) => (p.opcoes || []).some((o) => o.valorCentavos != null || o.sku) || p.valorCentavos != null);
   const conferir = (onde, o) => {
     if (o.acao && !validos.includes(o.acao)) {
       erros.push(`${onde}: ação "${o.acao}" não existe (use ${validos.join(', ')})`);
@@ -89,6 +89,33 @@ export function validarFluxo(passos = []) {
 
 export const emReais = (c) => `R$ ${(c / 100).toFixed(2).replace('.', ',')}`;
 
+/**
+ * Preço da árvore vem do CATÁLOGO, não da planilha.
+ *
+ * Preço cravado no CSV envelhece calado: o dono sobe o X-Tudo pra R$ 32 no
+ * catálogo e a Mica continua vendendo por R$ 28 — a diferença sai do bolso dele,
+ * e ninguém percebe até fechar o mês. Opção com `sku` passa a valer o preço
+ * vigente (com promoção, se houver) no instante do pedido.
+ *
+ * Quem não tem `sku` continua com o valor da planilha: taxa de entrega, serviço,
+ * qualquer coisa que não seja item de estoque.
+ */
+export function comPrecosDoCatalogo(fluxo, produtos = []) {
+  if (!fluxo?.passos) { return fluxo; }
+  const porSku = new Map((produtos || []).map((p) => [String(p.sku).trim(), p]));
+  const resolver = (o) => {
+    const sku = String(o.sku || '').trim();
+    if (!sku) { return o; }
+    const p = porSku.get(sku);
+    /* SKU que não existe no catálogo NÃO vira item de graça: vira indisponível.
+       O erro fica visível pra quem cuida do fluxo em vez de virar prejuízo. */
+    if (!p) { return { ...o, indisponivel: true, motivoIndisponivel: 'fora do catálogo' }; }
+    if (p.esgotado) { return { ...o, texto: o.texto || p.nome, indisponivel: true, motivoIndisponivel: 'esgotado' }; }
+    return { ...o, texto: o.texto || p.nome, valorCentavos: p.precoCentavos ?? o.valorCentavos ?? null };
+  };
+  return { ...fluxo, passos: fluxo.passos.map((passo) => ({ ...passo, opcoes: (passo.opcoes || []).map(resolver) })) };
+}
+
 /** Desenha o passo — mensagem + opções numeradas. */
 export function desenhar(passo) {
   const linhas = [String(passo.mensagem || '').trim()];
@@ -97,7 +124,12 @@ export function desenhar(passo) {
     linhas.push('');
     /* Preço ao lado da opção: é assim que o cliente decide sem perguntar, e é
        exatamente o que dispensa chamar alguém pra dizer quanto custa. */
-    ops.forEach((o, i) => linhas.push(`${o.tecla || i + 1} - ${o.texto}${o.valorCentavos ? ` — ${emReais(o.valorCentavos)}` : ''}`));
+    /* Item indisponível continua NA LISTA, dizendo que acabou. Sumir com ele faz
+       o cliente perguntar "cadê o X-Tudo?" — e aí precisa de gente pra responder
+       o que a própria lista podia ter dito. */
+    ops.forEach((o, i) => linhas.push(`${o.tecla || i + 1} - ${o.texto}${o.indisponivel
+      ? ` — ${o.motivoIndisponivel === 'esgotado' ? 'esgotado hoje' : 'indisponível'}`
+      : (o.valorCentavos ? ` — ${emReais(o.valorCentavos)}` : '')}`));
     linhas.push('');
     linhas.push('Responda com o número da opção.');
   }
@@ -187,6 +219,16 @@ export function avancar(fluxo, estado, texto) {
     const tecla = String(o.tecla || i + 1);
     return t === norm(tecla) || t === norm(o.texto) || (norm(o.texto).length > 3 && t.length > 3 && norm(o.texto).includes(t));
   });
+
+  /* Escolher o que acabou não pode virar pedido: sem isto o item entraria no
+     carrinho por R$ 0 e a cozinha receberia algo que não tem. */
+  if (escolhida?.indisponivel) {
+    return {
+      texto: `Poxa, ${escolhida.texto} ${escolhida.motivoIndisponivel === 'esgotado' ? 'acabou hoje' : 'não está disponível'}. 😕\n\nEscolhe outro:\n\n${desenhar(atual)}`,
+      passo: atual.id,
+      indisponivel: true,
+    };
+  }
 
   if (!escolhida) {
     /* Quem chega dizendo "oi" nao errou escolha nenhuma — nao viu menu nenhum.

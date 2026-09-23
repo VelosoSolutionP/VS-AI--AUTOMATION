@@ -27,6 +27,10 @@ chmod 700 "$CASA"
 cd "$RAIZ"
 # Integracoes reais DESLIGADAS de proposito. O revisor testa o produto, nao
 # move dinheiro nem manda mensagem pra numero de gente.
+#
+# EXCECAO consciente: a credencial de TESTE do Mercado Pago entra, pra demo
+# conseguir mostrar o pagamento funcionando de ponta a ponta. Ela nao cobra
+# ninguem. A de PRODUCAO nunca entra aqui — nem por engano de variavel.
 nohup env \
   VS_HOME="$CASA" \
   PORT="$PORTA" \
@@ -35,6 +39,8 @@ nohup env \
   PAINEL_URL="${URL_DEMO:-https://demo.velososolution.com.br}" \
   WHATSAPP_PROVIDER=log \
   MP_AMBIENTE=teste \
+  MP_ACCESS_TOKEN_TESTE="${MP_ACCESS_TOKEN_TESTE:-}" \
+  MP_PUBLIC_KEY_TESTE="${MP_PUBLIC_KEY_TESTE:-}" \
   node backend/server.mjs > "$LOG" 2>&1 &
 
 sleep 3

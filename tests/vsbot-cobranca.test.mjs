@@ -125,3 +125,58 @@ test('gateway fora do ar não derruba o pedido: vira pagar na entrega', async ()
   assert.match(ultimo, /pagar na entrega/i, 'o pedido não pode evaporar porque o gateway caiu');
   assert.ok(!/https?:\/\//.test(ultimo), 'não se promete link que não existe');
 });
+
+/* ---- o preço mora no catálogo, não na planilha ---- */
+
+import { comPrecosDoCatalogo } from '../engine/vsbot/fluxo.mjs';
+
+const CSV_SKU = `passo,mensagem,opcao,texto_opcao,vai_para,acao,sku,valor
+inicio,"O que vai ser?",1,"X-Tudo",fecha,,JZ-XTUDO,
+inicio,,2,"Mega Blaster",fecha,,JZ-MEGA,
+inicio,,3,"Taxa fixa",fecha,,,"6,00"
+fecha,"Fechou!",,,,cobrar,,
+`;
+const CATALOGO = [
+  { sku: 'JZ-XTUDO', nome: 'X-Tudo', precoCentavos: 2800, esgotado: false },
+  { sku: 'JZ-MEGA', nome: 'Mega Blaster', precoCentavos: 6200, esgotado: true },
+];
+
+test('preço da opção vem do catálogo no instante do pedido', () => {
+  const { fluxo } = fluxoDeCsv(CSV_SKU);
+  const comPreco = comPrecosDoCatalogo(fluxo, CATALOGO);
+  const ops = comPreco.passos[0].opcoes;
+  assert.equal(ops[0].valorCentavos, 2800);
+  // Quem não tem SKU continua com o valor da planilha — taxa não é item de estoque.
+  assert.equal(ops[2].valorCentavos, 600);
+});
+
+test('promoção no catálogo vale na hora, sem reimportar planilha', () => {
+  const { fluxo } = fluxoDeCsv(CSV_SKU);
+  const caro = comPrecosDoCatalogo(fluxo, CATALOGO);
+  const barato = comPrecosDoCatalogo(fluxo, [{ ...CATALOGO[0], precoCentavos: 1990 }, CATALOGO[1]]);
+  assert.equal(caro.passos[0].opcoes[0].valorCentavos, 2800);
+  assert.equal(barato.passos[0].opcoes[0].valorCentavos, 1990);
+});
+
+test('esgotado continua na lista dizendo que acabou — e não vira pedido', () => {
+  const { fluxo } = fluxoDeCsv(CSV_SKU);
+  const comPreco = comPrecosDoCatalogo(fluxo, CATALOGO);
+  const texto = desenhar(comPreco.passos[0]);
+  assert.match(texto, /Mega Blaster — esgotado hoje/, 'sumir com o item faz o cliente perguntar pra uma pessoa');
+
+  bot.salvarFluxo(comPreco.passos);
+  const de = '5531900000006';
+  bot.atender('oi', { de, produtos: CATALOGO });
+  const r = bot.atender('2', { de, produtos: CATALOGO });
+  assert.match(r.texto, /acabou hoje/);
+  assert.equal(r.cobranca, undefined, 'item esgotado entraria no carrinho por R$ 0 e a cozinha receberia o que não tem');
+});
+
+test('SKU fora do catálogo não vira item de graça', () => {
+  const { fluxo } = fluxoDeCsv(CSV_SKU);
+  const semNada = comPrecosDoCatalogo(fluxo, []);
+  const o = semNada.passos[0].opcoes[0];
+  assert.equal(o.indisponivel, true);
+  assert.equal(o.motivoIndisponivel, 'fora do catálogo');
+  assert.equal(o.valorCentavos, undefined);
+});

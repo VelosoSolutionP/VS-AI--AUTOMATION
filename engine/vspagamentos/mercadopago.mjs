@@ -87,6 +87,57 @@ export function validarWebhook(headers = {}, query = {}, segredo) {
   return { ok: true, conferida: true };
 }
 
+/**
+ * De quem é esta chave, afinal.
+ *
+ * Discutir "isso é de teste ou de produção?" olhando o texto da chave é perda de
+ * tempo e fonte de erro: no Mercado Pago as DUAS começam com `APP_USR-`. O que
+ * separa é a CONTA — a de teste vem marcada com a tag `test_user`. Então quem
+ * responde isso passa a ser o Mercado Pago, não a memória de quem colou.
+ *
+ * Existe porque foi exatamente aqui que se perdeu tempo: credencial certa no
+ * campo certo, e mesmo assim ninguém conseguia afirmar qual era qual.
+ */
+export async function conferirCredencial(token, cfg = {}) {
+  const t = String(token || '').trim();
+  if (!t) { return { ok: false, motivo: 'nenhuma chave informada' }; }
+  const fetchImpl = cfg.fetchImpl || globalThis.fetch;
+  const ctrl = new AbortController();
+  const prazo = setTimeout(() => ctrl.abort(), cfg.timeoutMs ?? 10000);
+  try {
+    const res = await fetchImpl(BASE + '/users/me', {
+      headers: { authorization: `Bearer ${t}` },
+      signal: ctrl.signal,
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { ok: false, status: res.status, motivo: res.status === 401
+        ? 'o Mercado Pago recusou esta chave (401) — ela foi revogada ou está incompleta'
+        : explicarErro(res.status, d) };
+    }
+    const tags = d.tags || [];
+    const ehTeste = tags.includes('test_user');
+    return {
+      ok: true,
+      conta: String(d.id ?? ''),
+      apelido: d.nickname || null,
+      site: d.site_id || null,
+      ehTeste,
+      ambiente: ehTeste ? 'teste' : 'producao',
+      /* A conta de teste NAO faz Pix direto: o /v1/payments dela responde 401
+         "Unauthorized use of live credentials". Dizer isso ANTES evita a
+         conclusao errada de que o Pix do produto esta quebrado. */
+      fazPixDireto: !ehTeste,
+      /* E o Checkout dela so abre pra quem esta logado como comprador de teste —
+         abrir deslogado mostra "Hubo un error accediendo a esta pagina". */
+      checkoutAbrePublicamente: !ehTeste,
+    };
+  } catch (e) {
+    const abortou = e?.name === 'AbortError';
+    return { ok: false, motivo: abortou ? 'o Mercado Pago não respondeu a tempo' : 'falha de rede: ' + (e?.message || e) };
+  } finally { clearTimeout(prazo); }
+}
+
 export function criarGateway(cfg = {}) {
   const fetchImpl = cfg.fetchImpl || globalThis.fetch;
   const timeoutMs = cfg.timeoutMs ?? 15000;
@@ -168,7 +219,14 @@ export function criarGateway(cfg = {}) {
       pagamento: {
         id: String(pref.dados.id), estado: 'CRIADO', estadoOriginal: 'preference',
         valorCentavos: e.valorCentavos, metodo, referencia: e.referencia || null,
-        linkPagamento: pref.dados.init_point || pref.dados.sandbox_init_point || null,
+        /* Em TESTE o link tem de ser o de sandbox. O `init_point` aponta pro
+           checkout de producao, que recusa uma preferencia criada com credencial
+           de teste e mostra "Hubo un error accediendo a esta pagina" — a pagina
+           carrega com HTTP 200, entao conferir so o status diz que esta tudo
+           bem. Foi exatamente assim que isto passou batido aqui. */
+        linkPagamento: (cfg.ambiente === 'teste'
+          ? (pref.dados.sandbox_init_point || pref.dados.init_point)
+          : (pref.dados.init_point || pref.dados.sandbox_init_point)) || null,
         pix: null,
         /* A tela precisa saber que o QR nasce no MP, nao aqui — senao ela mostra
            "aguardando QR" pra sempre. */

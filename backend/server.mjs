@@ -380,7 +380,7 @@ const server = createServer(async (req, res) => {
        idempotencia, que e feita pelo id da mensagem la dentro. */
     json(res, 200, { received: true });
 
-    atendimento.processarEvento(evento, { produtos: () => estoque.daVitrine().slice(0, 10) })
+    atendimento.processarEvento(evento, { produtos: () => estoque.daVitrine() })
       .then((r) => {
         for (const x of r.resultados) {
           if (x.duplicado) { console.log(`[whatsapp] reentrega ignorada (${x.telefone})`); continue; }
@@ -974,6 +974,10 @@ const server = createServer(async (req, res) => {
         /* A chave do Asaas ENTRA por aqui e nunca mais sai: o diagnostico so
            devolve mascarado. Guardar e inevitavel — cobranca e chamada autenticada. */
         case '/crm/api/pagamentos/config': r = pagar.configurar(d); break;
+        /* Quem responde "esta chave e de teste ou de producao?" passa a ser o
+           Mercado Pago. Antes isso dependia de lembrar onde cada uma foi colada
+           — e chave de teste e de producao comecam as duas com APP_USR-. */
+        case '/crm/api/pagamentos/conferir': r = await pagar.conferirCredenciais(); break;
         case '/crm/api/pagamentos/cobrar': {
           // Cliente primeiro: o Asaas recusa cobranca sem `customer`, e o
           // documento e obrigatorio do lado dele.
@@ -1049,11 +1053,11 @@ const server = createServer(async (req, res) => {
         case '/crm/api/documentos/aceite': r = docs.registrarAceite(d.tipo, d.quem || {}); break;
         case '/crm/api/documentos/conferir': r = docs.conferirAceite(d.id); break;
         case '/crm/api/canais/conectar':
-          r = await canais.conectar({ canal: d.canal, produtos: () => estoque.daVitrine().slice(0, 10) });
+          r = await canais.conectar({ canal: d.canal, produtos: () => estoque.daVitrine() });
           break;
         case '/crm/api/canais/desconectar': r = await canais.desconectar({ canal: d.canal }); break;
         case '/crm/api/canais/trocar-numero':
-          r = await canais.trocarNumero({ canal: d.canal, produtos: () => estoque.daVitrine().slice(0, 10) });
+          r = await canais.trocarNumero({ canal: d.canal, produtos: () => estoque.daVitrine() });
           break;
         case '/crm/api/canais/enviar': r = await canais.enviar(d); break;
         case '/crm/api/canais/personalizar': r = await canais.personalizar(d); break;
@@ -1107,11 +1111,38 @@ const server = createServer(async (req, res) => {
         /* Simulador: o catalogo real entra como contexto, entao o teste mostra o
            que o cliente veria de verdade — nao um exemplo inventado. */
         case '/crm/api/bot/simular': {
-          r = { ok: true, ...bot.simular(d.mensagens || [], {
+          const sim = bot.simular(d.mensagens || [], {
             nome: d.nome || 'Cliente',
             empresa: process.env.VITRINE_NOME || 'nossa loja',
-            produtos: estoque.daVitrine().slice(0, 10),
-          }) };
+            produtos: estoque.daVitrine(),
+          });
+          /* Cobranca no simulador e OPT-IN, e so no ambiente de teste. Simular
+             uma conversa nao pode gerar cobranca por acidente — mas quem esta
+             conferindo o fluxo precisa poder ver o link chegar de verdade, que e
+             justamente o passo que ninguem confia sem ver. */
+          const querCobrar = d.cobrar === true;
+          const amb = pagar.provedorAtual();
+          for (const t of (sim.turnos || [])) {
+            if (!t.cobranca) { continue; }
+            if (!querCobrar) { t.cobrancaSimulada = t.cobranca; continue; }
+            if (amb.emProducao) {
+              t.cobrancaRecusada = 'o provedor está em PRODUÇÃO: simular não cobra dinheiro de verdade';
+              continue;
+            }
+            const c = await pagar.cobrar({
+              valorCentavos: t.cobranca.valorCentavos,
+              metodo: 'PIX',
+              descricao: t.cobranca.descricao,
+              referencia: t.cobranca.referencia,
+              webhookUrl: process.env.VS_URL_WEBHOOK_PAGAMENTO || undefined,
+            });
+            if (c.ok && c.pagamento?.linkPagamento) {
+              t.pagamento = { valorCentavos: c.pagamento.valorCentavos, linkPagamento: c.pagamento.linkPagamento };
+            } else {
+              t.cobrancaRecusada = c.motivo || 'o gateway não devolveu link';
+            }
+          }
+          r = { ok: true, ...sim, ambientePagamento: amb.ambiente, provedorPagamento: amb.rotulo };
           break;
         }
         case '/crm/api/caixa': r = fin.criar(d); break;
@@ -1206,7 +1237,7 @@ server.listen(PORT, () => {
   console.log(`[qa-gate-backend] ouvindo em :${PORT} (webhook /webhook, health /health)`);
   /* O canal volta sozinho se estava ligado. Nao trava o boot: se o navegador
      demorar ou falhar, o painel ja esta de pe e a tela mostra o estado. */
-  canais.retomar({ produtos: () => estoque.daVitrine().slice(0, 10) })
+  canais.retomar({ produtos: () => estoque.daVitrine() })
     .catch((e) => console.error(`[canais] falhei ao retomar o canal: ${e.message}`));
 
   /* Um minuto e resolucao suficiente pra um limite de cinco: varrer mais rapido

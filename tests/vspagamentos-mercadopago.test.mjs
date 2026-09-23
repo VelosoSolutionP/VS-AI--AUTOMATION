@@ -10,7 +10,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
-import { criarGateway, validarWebhook, ESTADO_MP } from '../engine/vspagamentos/mercadopago.mjs';
+import { criarGateway, validarWebhook, ESTADO_MP, conferirCredencial } from '../engine/vspagamentos/mercadopago.mjs';
 
 /** fetch de mentira que grava o que foi pedido e devolve o que mandarmos. */
 function fetchFalso(respostas = []) {
@@ -380,4 +380,44 @@ test('sem segredo no outro ambiente, nao acusa troca que nao houve', async () =>
   assert.equal(r.http, 401);
   assert.equal(r.segredoTrocado, undefined, 'mesmo segredo nos dois lados: nao ha troca a denunciar');
   process.env = antes;
+});
+
+/* Pegou aqui de verdade: o video da demo mostrou "Hubo un error accediendo a
+   esta pagina" no lugar do checkout. A pagina de erro responde HTTP 200, entao
+   conferir so o status dizia que estava tudo certo. */
+test('em teste o link e o de SANDBOX — o de producao recusa preferencia de teste', async () => {
+  const resposta = { id: 'pref_1', init_point: 'https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=pref_1',
+    sandbox_init_point: 'https://sandbox.mercadopago.com.br/checkout/v1/redirect?pref_id=pref_1' };
+  const fake = async () => ({ ok: true, status: 201, json: async () => resposta });
+
+  const teste = criarGateway({ apiKey: 'TEST-x', ambiente: 'teste', fetchImpl: fake });
+  const rt = await teste.criarCobranca({ valorCentavos: 7400, metodo: 'CREDIT_CARD', referencia: 'r1' });
+  assert.match(rt.pagamento.linkPagamento, /^https:\/\/sandbox\./);
+
+  const prod = criarGateway({ apiKey: 'APP_USR-x', ambiente: 'producao', fetchImpl: fake });
+  const rp = await prod.criarCobranca({ valorCentavos: 7400, metodo: 'CREDIT_CARD', referencia: 'r2' });
+  assert.match(rp.pagamento.linkPagamento, /^https:\/\/www\./);
+});
+
+/* A chave de teste e a de producao do Mercado Pago comecam AS DUAS com
+   `APP_USR-`. Olhar o texto da chave nao responde nada; quem responde e a conta. */
+test('conferir credencial diz de quem ela e — e o que aquela conta consegue fazer', async () => {
+  const conta = (tags) => async () => ({ ok: true, status: 200, json: async () => ({ id: 42, nickname: 'JUAREZ', site_id: 'MLB', tags }) });
+
+  const t = await conferirCredencial('APP_USR-parece-de-producao', { fetchImpl: conta(['test_user', 'normal']) });
+  assert.equal(t.ambiente, 'teste');
+  assert.equal(t.fazPixDireto, false, 'conta de teste responde 401 no Pix direto — dizer antes evita achar que o produto quebrou');
+  assert.equal(t.checkoutAbrePublicamente, false);
+
+  const p = await conferirCredencial('APP_USR-de-producao', { fetchImpl: conta(['normal']) });
+  assert.equal(p.ambiente, 'producao');
+  assert.equal(p.fazPixDireto, true);
+
+  const morta = await conferirCredencial('APP_USR-revogada', {
+    fetchImpl: async () => ({ ok: false, status: 401, json: async () => ({}) }),
+  });
+  assert.equal(morta.ok, false);
+  assert.match(morta.motivo, /revogada|401/);
+
+  assert.equal((await conferirCredencial('')).ok, false);
 });
