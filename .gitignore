@@ -38,3 +38,18 @@ backend/Mercado-Livre
 backend/MercadoLivreTeste
 backend/WebHooks
 **/Acessos*.md
+# Anotacoes de credencial que apareceram soltas no backend (client key, app id,
+# app secret do TikTok). Nao estavam rastreadas, mas tambem nao estavam
+# ignoradas — a um `git add .` distraido de irem pro GitHub.
+backend/Chave
+backend/Partner
+backend/Tik
+backend/Me
+# Rede larga: qualquer arquivo de credencial solto no backend fora de .mjs/.html.
+backend/*.ovpn
+license/*.original-*
+# Chave/segredo em texto: nunca versionar, em nenhuma pasta.
+**/*secret*.txt
+**/*.secret
+**/id_rsa
+**/*.ppk
