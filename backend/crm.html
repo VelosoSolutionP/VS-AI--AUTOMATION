@@ -3263,6 +3263,33 @@ const S={
     </label>
     <div id="simSaida" style="margin-top:14px">${simulacaoHtml()}</div></div>
 
+  ${(()=>{
+    /* TOMADA DE CONTA. Vem PRIMEIRO na tela quando existe: e a unica coisa aqui
+       que exige acao no celular, agora, e nao no painel. */
+    const inv=(CANAIS?.invasoes||[]);
+    if(!inv.length) return '';
+    const u=inv[0];
+    return `<div class="card" style="margin-bottom:16px;border-color:var(--err)">
+      ${cardH('alerta',`Alguém pode ter entrado na conta do WhatsApp`,
+        `A sessão caiu de um jeito que só acontece quando outro aparelho assume a conta. `+
+        `Isto é registro, não suposição — e ficou guardado.`,5,
+        `<span class="badge b-err">${inv.length} registro(s)</span>`)}
+      ${linha('Quando',esc(String(u.em||'').slice(0,16).replace('T',' ')),esc(u.tipo||''),'b-err')}
+      ${linha('O que aconteceu',esc(u.motivo||''),'','')}
+      ${u.numeroPareado?linha('Número que estava pareado','o que foi derrubado','+'+esc(u.numeroPareado),''):''}
+      ${u.ultimaAtividade?linha('Última atividade antes de cair','',esc(String(u.ultimaAtividade).slice(0,16).replace('T',' ')),''):''}
+      <div style="margin-top:12px;padding:11px 13px;border-radius:var(--r-sm);border:1px solid var(--err-line)">
+        <b>O que fazer agora, no celular:</b>
+        <ol style="margin:8px 0 0;padding-left:18px;font-size:13px;line-height:1.7">
+          <li>WhatsApp → <b>Aparelhos conectados</b> → desconecte o que não for seu</li>
+          <li>WhatsApp → Configurações → Conta → <b>Verificação em duas etapas</b> → ativar</li>
+        </ol>
+        <p class="hint" style="margin-top:8px">Não dá para saber daqui <b>quem</b> entrou — o WhatsApp não
+          entrega isso para a sessão derrubada. Quem mostra o aparelho é a própria lista no celular.</p>
+      </div>
+    </div>`;
+  })()}
+
   <!-- SEGURANCA. Fica VISIVEL porque e o tipo de protecao que ninguem sabe que
        tem ate precisar — e ai e tarde pra descobrir que estava desligada. -->
   <div class="card" style="margin-bottom:16px">

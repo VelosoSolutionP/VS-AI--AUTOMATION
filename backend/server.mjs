@@ -851,7 +851,10 @@ const server = createServer(async (req, res) => {
       return json(res, 200, operadores.painel([...setores]));
     }
     if (req.method === 'GET' && rota === '/crm/api/canais') {
-      return json(res, 200, { ...canais.estado(), saude: await canais.saude(), perfilAnterior: canais.perfilAnterior() });
+      return json(res, 200, { ...canais.estado(), saude: await canais.saude(), perfilAnterior: canais.perfilAnterior(),
+        /* Sobe junto: alerta de tomada de conta que so existe no log e alerta
+           que ninguem ve a tempo. */
+        invasoes: canais.invasoes() });
     }
     /* Rota PROPRIA porque ler o perfil baixa a FOTO do servidor da Meta: pendurar
        isso no status faria a tela inteira esperar por uma imagem. */

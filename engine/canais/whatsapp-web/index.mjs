@@ -89,6 +89,10 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
      mensagem `fromMe` — inclusive as nossas. Sem separar as duas coisas, a
      resposta da propria Micaela seria lida como "o dono digitou". */
   const enviadosPorNos = new Set();
+  /* Guarda a ultima queda suspeita pra tela poder mostrar. Sem isto, o unico
+     registro seria uma linha de log que ninguem le a tempo. */
+  let quedaSuspeita = null;
+  const ouvintesInvasao = [];
   /* Minutos de idade acima dos quais a mensagem NAO e mais conversa viva.
      Ao reconectar, o WhatsApp entrega tudo que ficou pendente de uma vez — e
      sem este corte o bot responde o historico inteiro num segundo so. */
@@ -121,6 +125,9 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
          Request na cara de quem só perguntou como o canal está. */
       ultimoErro,
       tentativas,
+      /* A queda com cara de tomada de conta sobe no STATUS, nao so no log:
+         alerta que mora em arquivo de log e alerta que ninguem ve a tempo. */
+      quedaSuspeita,
     };
   }
 
@@ -286,14 +293,35 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
         }
       });
 
-      // Queda de sessão detectada pela própria lib.
+      /* Queda de sessão detectada pela própria lib.
+       *
+       * E aqui mora um SINAL DE INVASAO que estava sendo jogado fora. Nem toda
+       * queda e igual:
+       *
+       *   UNPAIRED / UNPAIRED_IDLE — o aparelho foi REMOVIDO da conta. Ou o dono
+       *     fez isso, ou alguem entrou no WhatsApp dele e removeu.
+       *   CONFLICT — a mesma sessao foi aberta em OUTRO lugar.
+       *
+       * Os dois sao a assinatura classica de tomada de conta no Brasil: o
+       * golpista consegue o codigo de 6 digitos, entra na conta e derruba quem
+       * estava. Tratar isso como "caiu a internet" e perder o unico aviso que se
+       * tem — e quem descobre depois e o cliente, recebendo pedido de dinheiro.
+       */
       cliente.onStateChange?.((s) => {
-        if (!['UNPAIRED', 'UNPAIRED_IDLE', 'CONFLICT'].includes(String(s))) { return; }
+        const estadoLib = String(s);
+        if (!['UNPAIRED', 'UNPAIRED_IDLE', 'CONFLICT'].includes(estadoLib)) { return; }
         /* Desligado de proposito nao e queda. Marcar CAIDO aqui poria um erro
            vermelho na tela por uma decisao do dono — e alguem "consertaria"
            religando o que ele desligou. */
         if (intencional) { return; }
-        mudar(ESTADOS.CAIDO);
+        const suspeita = estadoLib === 'CONFLICT'
+          ? 'a sessão foi aberta em OUTRO aparelho'
+          : 'este aparelho foi REMOVIDO da conta pelo WhatsApp';
+        quedaSuspeita = { em: agora(), estadoLib, motivo: suspeita };
+        console.error(`[whatsapp-web] ⚠ QUEDA SUSPEITA (${estadoLib}): ${suspeita}. `
+          + 'Se não foi você, sua conta pode ter sido tomada — confira "Aparelhos conectados" no WhatsApp.');
+        mudar(ESTADOS.CAIDO, { quedaSuspeita });
+        for (const fn of ouvintesInvasao) { try { fn(quedaSuspeita); } catch { /* ouvinte nao derruba canal */ } }
         agendarReconexao();
       });
 
@@ -656,6 +684,10 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     saude,
     enviarTexto,
     enviarImagem,
+    /** A ultima queda com cara de tomada de conta, ou null. */
+    quedaSuspeita: () => quedaSuspeita,
+    /** Avisado quando a sessao cai de um jeito que parece invasao. */
+    aoSuspeitarInvasao: (fn) => { ouvintesInvasao.push(fn); },
     personalizar,
     perfilAtual,
     esquecerAparelho,

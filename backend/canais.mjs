@@ -175,6 +175,38 @@ function montar({ produtos } = {}) {
      duas pessoas respondendo a mesma pergunta — e uma delas e um robo cortando
      o assunto com um menu. Reusa o MESMO silencio pos-handoff: a regra ja
      existia, so nunca tinha sido ligada neste gatilho. */
+  /**
+   * TOMADA DE CONTA: registra e avisa.
+   *
+   * Quando a sessao cai como UNPAIRED ou CONFLICT, alguem entrou na conta e
+   * derrubou quem estava. O evento vira REGISTRO em disco, com hora, tipo e
+   * qual numero estava pareado — e o registro sobrevive ao reinicio, porque e
+   * isto que se leva pro WhatsApp, pra delegacia ou pro advogado.
+   *
+   * O que NAO da pra saber daqui, e nao vou fingir que da: QUEM entrou. O
+   * WhatsApp nao entrega o aparelho invasor pra sessao que acabou de ser
+   * derrubada. Esse dado esta em "Aparelhos conectados", no celular do dono —
+   * e e a primeira coisa que ele tem de abrir.
+   */
+  whatsappWeb.aoSuspeitarInvasao((ev) => {
+    const registro = {
+      em: ev.em,
+      tipo: ev.estadoLib,
+      motivo: ev.motivo,
+      numeroPareado: whatsappWeb.status?.().numero || null,
+      /* Quanto tempo a sessao durou antes de cair ajuda a separar "derrubaram
+         agora" de "estava fora do ar ha dias". */
+      sessaoDesde: whatsappWeb.status?.().desde || null,
+      ultimaAtividade: whatsappWeb.status?.().ultimaAtividade || null,
+    };
+    const cfg = lerConfig();
+    const lista = [...(cfg.invasoes || []), registro].slice(-50);
+    gravarConfig({ ...cfg, invasoes: lista });
+    console.error('[canais] ⚠ POSSIVEL TOMADA DE CONTA — registrado:', JSON.stringify(registro));
+    console.error('[canais]   abra o WhatsApp do numero -> Aparelhos conectados -> desconecte o que nao for seu,');
+    console.error('[canais]   e ligue a verificacao em duas etapas. Registro em ' + arqConfig());
+  });
+
   whatsappWeb.aoDonoEscrever(({ de, endereco }) => {
     const chave = de || endereco;
     if (!chave) { return; }
@@ -209,6 +241,15 @@ import { join, dirname } from 'node:path';
 import { dentroDaCasa } from '../engine/casa.mjs';
 const arqConfig = () => dentroDaCasa('canais', 'config.json');
 const lerConfig = () => { try { return JSON.parse(readFileSync(arqConfig(), 'utf8')); } catch { return {}; } };
+/* Grava a config do canal. Existe separado porque o registro de invasao precisa
+   escrever SEM passar pela validacao de numero do formulario. */
+const gravarConfig = (cfg) => {
+  try { mkdirSync(dirname(arqConfig()), { recursive: true }); } catch { /* ja existe */ }
+  writeFileSync(arqConfig(), JSON.stringify(cfg, null, 2));
+};
+
+/** O que foi registrado de tomada de conta, do mais recente pro mais antigo. */
+export const invasoes = () => [...(lerConfig().invasoes || [])].reverse();
 
 export function salvarConfigCanal(d = {}) {
   const numero = String(d.numero || '').replace(/\D/g, '');
