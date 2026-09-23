@@ -44,7 +44,7 @@ export function escolher(regras = [], texto) {
   return candidatas.sort((a, b) => (b.prioridade || 0) - (a.prioridade || 0))[0];
 }
 
-/** Troca {nome}, {produto}, {empresa}... pelo que o contexto tiver. */
+/** Troca {nome}, {produto}, {empresa}, {assistente}... pelo que o contexto tiver. */
 export function preencher(texto, ctx = {}) {
   return String(texto ?? '').replace(/\{(\w+)\}/g, (inteiro, chave) => {
     const v = ctx[chave];
@@ -66,8 +66,13 @@ export function pediuHumano(texto) {
  * Responde uma mensagem.
  * @returns {{tipo:'regra'|'humano'|'catalogo'|'fallback', texto:string, regraId?:string, produtos?:Array}}
  */
-export function responder(msg, cfg = {}, ctx = {}) {
+export function responder(msg, cfg = {}, ctxCru = {}) {
   const texto = String(msg ?? '');
+  /* `{assistente}` sai da PERSONA, sempre — quem chama nao precisa saber disso.
+     Sem ele, o unico jeito de a saudacao dizer o nome do bot era escrever o nome
+     dentro do texto; ai trocar a persona no painel nao mudava a saudacao, e o
+     cliente continuava sendo recebido pelo nome antigo. */
+  const ctx = { assistente: cfg.nome, ...ctxCru };
 
   if (pediuHumano(texto)) {
     return {

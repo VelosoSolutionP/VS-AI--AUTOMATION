@@ -358,7 +358,7 @@ export function atender(texto, ctx = {}) {
       proto.anotar(ap.protocolo.numero, { estado: proto.ESTADOS.NA_FILA, departamento: 'humano', contexto: atual?.contexto || {} });
       return {
         tipo: 'fluxo:encaminhar',
-        texto: assinar(preencher(cfg.mensagemHandoff, ctx), cfg),
+        texto: assinar(preencher(cfg.mensagemHandoff, { assistente: cfg.nome, ...ctx }), cfg),
         protocolo: ap.protocolo.numero,
         handoff: true,
         acao: 'encaminhar',
