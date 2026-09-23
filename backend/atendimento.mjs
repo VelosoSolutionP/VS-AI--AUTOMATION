@@ -195,13 +195,29 @@ export async function receberMensagem(msg, deps = {}) {
     });
     if (c?.ok && c.pagamento?.linkPagamento) {
       cobranca = c.pagamento;
-      texto = [texto, `Total: ${emReais(c.pagamento.valorCentavos)}`, '', `Paga por aqui: ${c.pagamento.linkPagamento}`,
-        'Assim que o pagamento cair eu te aviso por aqui. 👍'].filter(Boolean).join('\n');
+      /* NUMERO DO PEDIDO na mensagem. Sem ele o cliente nao tem como cobrar
+         nada depois — "meu pedido" nao identifica pedido nenhum, e quem atende
+         fica perguntando telefone e horario pra achar. E o mesmo numero que vai
+         na referencia da cobranca, entao o extrato e a conversa batem. */
+      const pix = c.pagamento.pix?.payload;
+      texto = [
+        texto,
+        `Pedido *${r.cobranca.referencia}*`,
+        `Total: ${emReais(c.pagamento.valorCentavos)}`,
+        '',
+        /* Pix com QR: o codigo copia-e-cola vai NA CONVERSA. O cliente segura o
+           dedo, copia e paga no banco dele sem sair do WhatsApp. Mandar so link
+           quando existe copia-e-cola e jogar fora o melhor do Pix. */
+        pix ? 'Copia e cola no seu banco:' : `Paga por aqui: ${c.pagamento.linkPagamento}`,
+        pix || null,
+        '',
+        'Assim que o pagamento cair eu te aviso por aqui. 👍',
+      ].filter((l) => l !== null && l !== undefined).join('\n');
     } else {
       /* O pedido NÃO vira fumaça porque o gateway falhou: entrega segue, o
          pagamento fica pra entrega. É o que o dono faria no balcão. */
       console.error(`[pagamento] nao consegui gerar o link de ${r.cobranca.referencia}: ${c?.motivo || 'motivo nao informado'}`);
-      texto = [texto, `Total: ${emReais(r.cobranca.valorCentavos)}`, '',
+      texto = [texto, `Pedido *${r.cobranca.referencia}*`, `Total: ${emReais(r.cobranca.valorCentavos)}`, '',
         'Não consegui gerar o link de pagamento agora — pode pagar na entrega, combinado?'].filter(Boolean).join('\n');
     }
   }
