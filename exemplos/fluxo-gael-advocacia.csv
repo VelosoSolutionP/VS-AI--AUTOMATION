@@ -1,0 +1,48 @@
+passo,mensagem,opcao,texto_opcao,vai_para,acao,resposta,valor,sku
+inicio,"Olá! Aqui é o Gael, do escritório. 👋
+
+Me diz o que você precisa que eu te encaminho certo:",1,"Tenho uma urgência agora",urgencia,,,,
+inicio,,2,"Quero falar sobre um caso criminal",criminal,,,,
+inicio,,3,"É trabalhista",trabalhista,,,,
+inicio,,4,"Já sou cliente e quero saber do meu processo",cliente_processo,,,,
+inicio,,5,"Quero marcar uma consulta",consulta,,,,
+urgencia,"Entendi. Me diz qual é a situação:",1,"Alguém foi preso agora",preso,,,,
+urgencia,,2,"Audiência é hoje ou amanhã",audiencia_perto,,,,
+urgencia,,3,"Recebi uma intimação com prazo curto",intimacao,,,,
+urgencia,,4,"Não é nada disso",inicio,,,,
+preso,"Isso é urgente e não pode esperar mensagem.
+
+Me manda agora, em uma mensagem só:
+• nome completo de quem foi preso
+• onde está (delegacia ou unidade)
+• desde quando",,,preso_aviso,coletar,,,
+preso_aviso,"Anotado. Estou chamando alguém do escritório *agora* — não desligue o celular.",,,,encaminhar_urgencia,"Recebi. Já estou acionando.",,
+audiencia_perto,"Audiência marcada não se remarca por mensagem. Me diz o número do processo e a data que eu passo direto pra equipe:",,,,encaminhar_urgencia,"Já estou passando pra equipe.",,
+intimacao,"Prazo corre. Me manda o número do processo e o dia em que você recebeu:",,,,encaminhar_urgencia,"Recebi, já estou passando.",,
+criminal,"O escritório atende criminal. Pra eu te encaminhar certo:",1,"É sobre mim",criminal_quem,,,,
+criminal,,2,"É sobre um familiar",criminal_quem,,,,
+criminal,,3,"Quero só entender como funciona",como_funciona,,,,
+criminal_quem,"Me conta em poucas palavras o que aconteceu. Não precisa de detalhe agora — só o suficiente pra eu levar pra pessoa certa:",,,criminal_fase,coletar,,,
+criminal_fase,"Obrigado. E em que pé está?",1,"Ainda não virou processo",consulta,,,,
+criminal_fase,,2,"Já tem processo correndo",consulta,,,,
+criminal_fase,,3,"Não sei dizer",consulta,,,,
+trabalhista,"Trabalhista é com o sócio do escritório — quem cuida disso é outra pessoa, e ela responde melhor que eu.
+
+Me diz seu nome e o assunto em uma frase que eu passo pra ela:",,,,encaminhar_trabalhista,"Passei pra ela. Ela te responde por aqui mesmo.",,
+como_funciona,"Funciona assim, sem enrolação:
+
+1️⃣ *Consulta* — você conta o caso, a doutora avalia e diz o que dá pra fazer
+2️⃣ *Proposta* — se houver trabalho a fazer, você recebe o valor e o que está incluído, por escrito
+3️⃣ *Contrato* — só depois de você concordar
+
+Nenhum valor é cobrado antes da consulta, e ninguém promete resultado — quem promete resultado em processo está te enganando.",1,"Quero marcar a consulta",consulta,,,,
+como_funciona,,2,"Voltar",inicio,,,,
+consulta,"Vamos marcar. Me diz seu *nome completo*:",,,consulta_contato,coletar,,,
+consulta_contato,"E o melhor dia e período pra você — manhã ou tarde?",,,consulta_fecha,coletar,,,
+consulta_fecha,"Perfeito! Anotei aqui. A confirmação do horário chega por este mesmo WhatsApp.
+
+Se precisar remarcar, é só me chamar.",,,,fim,,,
+cliente_processo,"Me passa o *número do processo* (aquele com pontos e traços) que eu consulto pra você:",,,cliente_processo_resposta,coletar,,,
+cliente_processo_resposta,"Achei aqui. Assim que houver movimentação nova, eu te aviso por aqui — você não precisa ficar perguntando. 👍
+
+Se quiser falar com a doutora sobre o andamento, é só escrever *falar com a doutora*.",,,,fim,,,

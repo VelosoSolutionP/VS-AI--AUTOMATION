@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { responder, conversar, validarRegra, escolher, GATILHOS, pediuHumano, preencher } from './regras.mjs';
 import { validarFluxo, avancar, ACOES, comPrecosDoCatalogo } from './fluxo.mjs';
+import * as moderacao from './moderacao.mjs';
 import { fluxoDeCsv } from './fluxo-csv.mjs';
 
 const dir = () => process.env.VSBOT_DIR || dentroDaCasa('vsbot');
@@ -338,6 +339,24 @@ export function atender(texto, ctx = {}) {
       /* Volta pro passo em que parou. A mensagem que ela acabou de mandar NAO e
          descartada: e respondida a seguir, ja de dentro do passo certo. */
       salvarConversa(de, { passo: ap.volta.passo, coletando: false, contexto: ap.volta.contexto || {} });
+    }
+
+    /* RESPEITO vem antes de tudo — antes do fluxo, antes do protocolo, antes do
+       handoff. Responder um menu pra quem acabou de xingar quem atende e o
+       comportamento que faz o dono desligar o bot. */
+    const conv = conversas()[de] || null;
+    const mod = moderacao.avaliar(texto, conv || {}, { temContrato: ctx.temContrato === true });
+    if (mod.acao === 'calado') {
+      return { tipo: 'silencio', texto: '', calado: true, motivo: `em silêncio até ${mod.ate}` };
+    }
+    if (mod.acao === 'avisa' || mod.acao === 'encerra') {
+      salvarConversa(de, { ...(conv || {}), ...mod.marcar });
+      return {
+        tipo: mod.acao === 'encerra' ? 'moderacao:encerrou' : 'moderacao:aviso',
+        texto: assinar(mod.texto, cfg),
+        moderacao: mod.acao,
+        ...(mod.ate ? { silenciadoAte: mod.ate } : {}),
+      };
     }
 
     const guardada = conversas()[de] || null;
