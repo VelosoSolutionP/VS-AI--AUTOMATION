@@ -2,6 +2,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bolso Cheio — Veloso Solution</title>
+<link rel="icon" type="image/png" href="/crm/favicon.png?v=1">
+<link rel="apple-touch-icon" href="/crm/simbolo.png?v=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234f46e5'/%3E%3Ctext x='16' y='22' font-family='system-ui,sans-serif' font-size='15' font-weight='700' fill='%23fff' text-anchor='middle'%3EVS%3C/text%3E%3C/svg%3E">
 <style>
 /* ── Sistema visual do console ────────────────────────────────────────────
@@ -100,6 +102,43 @@ aside{width:var(--sidebar);flex:0 0 var(--sidebar);background:var(--panel);borde
 .mark{width:32px;height:32px;border-radius:10px;flex:0 0 32px;display:grid;place-items:center;font-weight:750;font-size:12px;
   letter-spacing:-.03em;background:linear-gradient(145deg,var(--ac-2),var(--ac));color:var(--ac-fg);
   box-shadow:var(--sh-ac)}
+/* O simbolo entra como IMAGEM, entao nao leva o fundo em degrade nem a sombra
+   que existiam pra dar corpo as duas letras. Com eles, a logo ficava colada num
+   quadrado colorido que briga com ela. */
+.mark-img{background:none;box-shadow:none;border-radius:0;object-fit:contain;
+  width:34px;height:34px;flex:0 0 34px}
+/* Logo da tela de entrada: manda na largura e deixa a altura seguir, senao ela
+   estica em tela estreita. */
+.entrar-logo{display:block;width:min(260px,72vw);height:auto;margin:0 auto 6px}
+/* Titulo que so o leitor de tela ve: a marca esta na imagem, mas a pagina nao
+   pode ficar sem <h1> pra quem navega por audio. */
+.sr-oculto{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0 0 0 0);white-space:nowrap;border:0}
+/* GRADE DE CANAIS. `auto-fill` com minimo de 232px: no celular vira uma coluna,
+   no monitor enche a largura sem esticar cartao. */
+.g-canais{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));margin-top:12px}
+.canal{border:1px solid var(--line);border-radius:12px;padding:13px 14px;background:var(--panel);
+  display:flex;flex-direction:column;gap:8px;transition:border-color .15s,transform .15s}
+.canal:hover{border-color:var(--ac);transform:translateY(-1px)}
+/* Canal que ainda nao existe nao pisca nem convida o clique. */
+.canal-breve{opacity:.62}
+.canal-breve:hover{border-color:var(--line);transform:none}
+.canal-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.canal-h b{font-size:13.5px;letter-spacing:-.01em}
+.canal-ic{width:26px;height:26px;flex:0 0 26px;display:grid;place-items:center;border-radius:8px;
+  background:var(--t2-bg);color:var(--t2)}
+.canal-ic svg{width:15px;height:15px}
+.canal .hint{margin:0;flex:1}
+.canal-a{margin-top:2px}
+.canal-a .btn{width:100%;justify-content:center}
+/* Quem chegou pelo "Configurar" precisa ver ONDE chegou. */
+.piscou>.card{outline:2px solid var(--ac);outline-offset:3px;border-radius:14px;
+  transition:outline-color .6s ease}
+.sair{display:flex;align-items:center;gap:8px;width:100%;margin-top:10px;padding:9px 11px;
+  border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--mut);
+  font:inherit;font-size:12.5px;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
+.sair:hover{background:var(--err-bg,rgba(220,38,38,.08));color:var(--err,#dc2626);border-color:currentColor}
+.sair svg{width:15px;height:15px;flex:0 0 15px}
 .brand b{display:block;font-size:13.5px;line-height:1.3;letter-spacing:-.015em}
 .brand span{display:block;font-size:11px;color:var(--dim)}
 nav{flex:1;overflow-y:auto;padding:10px 10px 4px}
@@ -661,7 +700,7 @@ body.sem-nav main,body.sem-nav .main{margin-left:0!important}
 </div>
 <div class="shell">
   <aside id="side">
-    <div class="brand"><div class="mark">BC</div><div><b>Bolso Cheio</b><span>por Veloso Solution</span></div></div>
+    <div class="brand"><img class="mark mark-img" src="/crm/simbolo.png?v=1" alt="" width="34" height="34"><div><b>Bolso Cheio</b><span>por Veloso Solution</span></div></div>
     <nav id="nav"></nav>
     <div class="side-foot">
       <div class="theme">
@@ -669,6 +708,12 @@ body.sem-nav main,body.sem-nav .main{margin-left:0!important}
         <button id="thDark" onclick="setTema('dark')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>Escuro</button>
       </div>
       <div class="env"><span class="dot" id="envDot"></span><small><b id="envName">verificando…</b><span id="envSub">backend</span></small></div>
+      <!-- SAIR. A funcao `sairDoPainel` existia desde sempre e nunca esteve
+           ligada a botao nenhum: nao havia como encerrar a sessao pela tela.
+           Em maquina compartilhada isso e acesso aberto a dado de cliente. -->
+      <button class="sair" onclick="sairDoPainel()" title="Encerrar a sessão neste navegador">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15 17l5-5-5-5"/><path d="M20 12H9"/><path d="M12 19H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6"/></svg>Sair
+      </button>
     </div>
   </aside>
 
@@ -3372,33 +3417,101 @@ const S={
     ${linha('Grupo e status','não viram atendimento, de propósito','ignorados','b-ok')}</div>`;
  },
  redes:()=>{
-  const c=REDES?.credenciais||{};
-  const linhas=Object.keys(c).map(r=>{
-    const res=TESTE[r];
-    const campos=c[r].campos.map(f=>`<div class="field"><label>${esc(f)}</label><input id="rc-${esc(r)}-${esc(f)}" placeholder="${esc(c[r].ajuda)}" autocomplete="off"></div>`).join('');
-    const badge=!res?'<span class="badge">não testado</span>'
-      :res.ok?`<span class="badge b-ok">conectado${res.conta?' · '+esc(res.conta):''}</span>`
-      :`<span class="badge b-err">${esc(res.motivo)}</span>`;
-    return `<div class="card" style="margin-bottom:12px">
-      ${cardH('integra',c[r].nome,esc(c[r].ajuda),2,badge)}
-      <div class="form-grid">${campos}
-        <button class="btn btn-p" onclick="testarRede('${esc(r)}')">${ico('testar')}Testar conexão</button></div></div>`;
-  }).join('');
-  return head('Conexões com redes sociais','Cole a credencial e teste. A chamada sai daqui de verdade — se a rede responder, você vê o nome da conta; se recusar, vê o motivo.')+
-  `<div class="card" style="margin-bottom:16px">
-    ${cardH('versao',`O que já existia no VSinfluence`,``,3)}${linha('Formato de corte por rede','1080×1920 para TikTok, Reels e Shorts','pronto','b-ok')}
-    ${linha('Agenda de publicação','5 redes, varredura por cron','pronto','b-ok')}
-    ${linha('Normalizador de métrica','YouTube, Instagram, TikTok e Facebook','pronto','b-ok')}
-    ${linha('Chamada nas APIs','o coletor que faltava','novo','b-ok')}
-    ${linha('OAuth completo','TikTok: autorização e renovação automática de token','no TikTok','b-ok')}
-    ${linha('Publicação automática','TikTok: postar vídeo pela API','no TikTok','b-ok')}
-    ${linha('Catálogo e campanhas','TikTok Shop e TikTok Ads','no TikTok','b-ok')}
-    ${linha('Demais redes','YouTube, Instagram, Facebook: só leitura','ainda não','b-warn')}</div>
-  ${tiktokShopCard()}
-  ${tiktokCard()}
-  <div class="card" style="margin-bottom:16px;border-style:dashed">
-    ${cardH('integra',`Teste rápido — a credencial abaixo não fica gravada`,`Vale para os formulários desta seção: o token vai até este servidor, é usado na chamada e descartado. Serve para conferir se uma credencial funciona, não para deixar a integração ligada. <b>A integração completa do TikTok é o bloco acima</b>, com OAuth e token renovado sozinho.`,2)}</div>
-  ${linhas}`;
+  /* ESTA TELA era uma colcha de retalhos: um card de changelog do VSinfluence,
+     dois blocos do TikTok, um tracejado de "teste rapido" e formularios soltos.
+     Nao parecia o resto do console, e o pior: o botao ficava habilitado em canal
+     que nao tem como conectar — quem clicava concluia que o sistema quebrou.
+
+     Agora e uma GRADE por famila, montada de uma LISTA. Canal novo e uma linha
+     aqui embaixo, e o estado de cada um sai do que o backend responde, nunca de
+     texto fixo. */
+  const w=canalWhatsApp();
+  const tkFam=(f)=>TK?.familias?.[f]||null;
+  const shop=tkFam('shop'), open=tkFam('open'), ads=tkFam('business');
+
+  const EM_BREVE='em breve';
+  const CANAIS_LISTA=[
+    {fam:'Atendimento',itens:[
+      {id:'whatsapp',nome:'WhatsApp',ic:'whats',oq:'Atende, cobra e responde cliente. É por onde a Micaela fala.',
+       estado:w.no_ar?'ok':'pendente',rotulo:w.no_ar?(w.numero?'+'+w.numero:'conectado'):w.rotulo,
+       acao:{t:w.no_ar?'Gerenciar':'Conectar',on:"ir('canais')",ic:w.no_ar?'config':'power'}},
+    ]},
+    {fam:'Vendas e marketplaces',itens:[
+      {id:'tiktokshop',nome:'TikTok Shop',ic:'vender',oq:'Publica o catálogo e recebe pedido da loja do TikTok.',
+       estado:shop?.autorizado?'ok':(shop?.credenciais?'pendente':'falta'),
+       rotulo:shop?.autorizado?'autorizado':(shop?.credenciais?'falta autorizar a loja':'sem credencial'),
+       acao:{t:'Configurar',on:"rolarAteCard('tiktok-shop')",ic:'config'}},
+      {id:'mercadolivre',nome:'Mercado Livre',ic:'comprar',oq:'Anúncio, pedido e pergunta do comprador.',
+       estado:'breve',rotulo:'credencial validada · módulo em construção'},
+      {id:'shopee',nome:'Shopee',ic:'comprar',oq:'Anúncio e pedido.',estado:'breve',rotulo:EM_BREVE},
+      {id:'aliexpress',nome:'AliExpress',ic:'comprar',oq:'Anúncio e pedido.',estado:'breve',rotulo:EM_BREVE},
+    ]},
+    {fam:'Entrega',itens:[
+      {id:'99',nome:'99',ic:'seta',oq:'Corrida de entrega, prazo e rastreio.',estado:'breve',rotulo:EM_BREVE},
+      {id:'zedelivery',nome:'Zé Delivery',ic:'seta',oq:'Pedido de bebida e entrega.',estado:'breve',rotulo:EM_BREVE},
+    ]},
+    {fam:'Conteúdo e redes sociais',itens:[
+      {id:'tiktok',nome:'TikTok',ic:'publicar',oq:'Publica vídeo pela API, com token renovado sozinho.',
+       estado:open?.autorizado?'ok':(open?.credenciais?'pendente':'falta'),
+       rotulo:open?.autorizado?'autorizado':(open?.credenciais?'falta autorizar':'sem credencial'),
+       acao:{t:'Configurar',on:"rolarAteCard('tiktok-open')",ic:'config'}},
+      {id:'tiktokads',nome:'TikTok Ads',ic:'indicacao',oq:'Campanha paga e métrica de anúncio.',
+       estado:ads?.autorizado?'ok':'falta',rotulo:ads?.autorizado?'autorizado':'sem autorização',
+       acao:{t:'Configurar',on:"rolarAteCard('tiktok-open')",ic:'config'}},
+      {id:'instagram',nome:'Instagram',ic:'publicar',oq:'Métrica de post. Publicação ainda não.',estado:'parcial',rotulo:'só leitura'},
+      {id:'youtube',nome:'YouTube',ic:'publicar',oq:'Métrica de vídeo. Publicação ainda não.',estado:'parcial',rotulo:'só leitura'},
+      {id:'facebook',nome:'Facebook',ic:'publicar',oq:'Métrica de página. Publicação ainda não.',estado:'parcial',rotulo:'só leitura'},
+      {id:'kwai',nome:'Kwai',ic:'publicar',oq:'Corte e agenda já preveem o formato.',estado:'breve',rotulo:EM_BREVE},
+    ]},
+  ];
+
+  const TOM={ok:'b-ok',pendente:'b-warn',parcial:'b-warn',falta:'',breve:''};
+  const tile=(c)=>{
+    /* BOTAO SO EXISTE SE HA O QUE FAZER. Canal "em breve" com botao habilitado
+       foi o que fez o dono clicar e achar que o sistema tinha quebrado. */
+    const acao=c.acao
+      ? botao({...c.acao,v:c.estado==='ok'?'s':'p',sz:'s'})
+      : botao({t:'Em breve',ic:'relogio',v:'s',sz:'s',off:true,tit:'ainda não construímos este canal'});
+    return `<div class="canal${c.estado==='breve'?' canal-breve':''}">
+      <div class="canal-h"><span class="canal-ic">${ico(c.ic)}</span>
+        <b>${esc(c.nome)}</b><span class="badge ${TOM[c.estado]||''}">${esc(c.rotulo)}</span></div>
+      <p class="hint">${esc(c.oq)}</p>
+      <div class="canal-a">${acao}</div></div>`;
+  };
+
+  const grades=CANAIS_LISTA.map(g=>`<div class="card" style="margin-bottom:16px">
+    ${cardH('integra',g.fam,'',2)}
+    <div class="grid g-canais">${g.itens.map(tile).join('')}</div></div>`).join('');
+
+  const ligados=CANAIS_LISTA.flatMap(g=>g.itens).filter(c=>c.estado==='ok').length;
+  const total=CANAIS_LISTA.flatMap(g=>g.itens).length;
+
+  return head('Conexões','Cada canal por onde a empresa vende, atende ou publica. O estado vem do backend — o que aparece aqui é o que está valendo agora.')+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Canais ligados',`${ligados}/${total}`,'respondendo agora')}
+    ${kpi('Atendimento',w.no_ar?'no ar':'parado',w.no_ar?(w.numero?'+'+esc(w.numero):esc(w.rotulo)):esc(w.rotulo))}
+    ${kpi('Em construção',String(CANAIS_LISTA.flatMap(g=>g.itens).filter(c=>c.estado==='breve').length),'entram por aqui quando prontos')}
+  </div>
+  ${grades}
+  <div id="tiktok-shop">${tiktokShopCard()}</div>
+  <div id="tiktok-open">${tiktokCard()}</div>
+  ${(()=>{
+    const c=REDES?.credenciais||{};
+    if(!Object.keys(c).length) return '';
+    const linhas=Object.keys(c).map(r=>{
+      const res=TESTE[r];
+      const campos=c[r].campos.map(f=>`<div class="field"><label>${esc(f)}</label><input id="rc-${esc(r)}-${esc(f)}" placeholder="${esc(c[r].ajuda)}" autocomplete="off"></div>`).join('');
+      const badge=!res?'<span class="badge">não testado</span>'
+        :res.ok?`<span class="badge b-ok">conectado${res.conta?' · '+esc(res.conta):''}</span>`
+        :`<span class="badge b-err">${esc(res.motivo)}</span>`;
+      return `<div class="card" style="margin-bottom:12px">
+        ${cardH('testar',c[r].nome,esc(c[r].ajuda),4,badge)}
+        <div class="form-grid">${campos}
+          <button class="btn btn-p" onclick="testarRede('${esc(r)}')">${ico('testar')}Testar conexão</button></div></div>`;
+    }).join('');
+    return `<div class="card" style="margin-bottom:12px;border-style:dashed">
+      ${cardH('testar','Teste rápido de credencial','A credencial abaixo <b>não fica gravada</b>: vai até o servidor, é usada na chamada e descartada. Serve para conferir se funciona — não para deixar a integração ligada.',4)}</div>${linhas}`;
+  })()}`;
  },
  quebragalho:()=>{
   if(!QG) return head('Quebra-Galho','Marketplace de serviços locais — BH e Grande BH.')+
@@ -3934,8 +4047,8 @@ function telaEntrar(){
       <div class="entrar-grade" aria-hidden="true"></div>
 
       <div>
-        <div class="brand-badge">BC</div>
-        <h1>Bolso Cheio</h1>
+        <img class="entrar-logo" src="/crm/logo.png?v=1" alt="Sistema Bolso Cheio" width="260">
+        <h1 class="sr-oculto">Bolso Cheio</h1>
         <p>Console de operação. O que a empresa vende, atende, cobra e publica
            — num lugar só, com trilha de auditoria.</p>
 
@@ -4852,6 +4965,16 @@ async function desconectarCanal(){
   });
 }
 function copiar(t){navigator.clipboard?.writeText(t).then(()=>avisoErro('Não consegui concluir','Link copiado.','ok'),()=>flash('Copie manualmente: '+t));}
+
+/* Leva a tela ate o bloco de configuracao daquele canal. A grade e um indice:
+   clicar em "Configurar" tem de ir pro lugar, nao abrir outra pagina. */
+function rolarAteCard(id){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.scrollIntoView({behavior:'smooth',block:'start'});
+  el.classList.add('piscou');
+  setTimeout(()=>el.classList.remove('piscou'),1400);
+}
 
 function sairDoPainel(){
   TOKEN='';sessionStorage.removeItem('crm_token');telaEntrar();

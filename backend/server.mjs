@@ -108,6 +108,14 @@ const HOSTS_CONSOLE = new Set([
 ].map((u) => { try { return new URL(u.trim()).hostname.toLowerCase(); } catch { return ''; } }).filter(Boolean));
 const CRM_TOKEN = process.env.CRM_TOKEN || '';
 
+/** Arquivos da marca servidos pelo console. Caminho -> nome do arquivo. */
+const RAIZ_ASSETS = join(dirname(fileURLToPath(import.meta.url)), 'assets');
+const MARCA = Object.freeze({
+  '/crm/logo.png': 'bolsocheio.png',
+  '/crm/simbolo.png': 'bolsocheio-simbolo.png',
+  '/crm/favicon.png': 'favicon.png',
+});
+
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://velososolution.online';
 function cors(res) {
   res.setHeader('access-control-allow-origin', CORS_ORIGIN);
@@ -599,6 +607,30 @@ const server = createServer(async (req, res) => {
   // ---- VScrm (opt-in: CRM_ENABLED=1) ----
   if (CRM_ENABLED && req.url.split('?')[0].startsWith('/crm')) {
     const rota = req.url.split('?')[0];
+
+    /* A MARCA — logo, símbolo e favicon.
+     *
+     * Ficam em arquivo e não embutidos no HTML: o console é uma página só, e
+     * enfiar 300 KB de PNG em base64 dentro dela faria a tela inteira baixar de
+     * novo a cada abertura. Aqui o navegador guarda a imagem e recarrega só o
+     * HTML, que é o que muda.
+     *
+     * Antes da senha, de propósito: a tela de entrada precisa da marca, e quem
+     * ainda não entrou também vê logo.
+     */
+    if (req.method === 'GET' && MARCA[rota]) {
+      try {
+        const arq = readFileSync(join(RAIZ_ASSETS, MARCA[rota]));
+        res.writeHead(200, {
+          'content-type': 'image/png',
+          /* Logo muda uma vez por ano. Um dia de cache poupa o download a cada
+             abertura, e o `?v=` no HTML força a troca quando mudar mesmo. */
+          'cache-control': 'public, max-age=86400',
+        });
+        return res.end(arq);
+      } catch { return json(res, 404, { erro: 'imagem não encontrada' }); }
+    }
+
     if (req.method === 'GET' && rota === '/crm') {
       try {
         res.writeHead(200, {
