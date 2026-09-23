@@ -422,7 +422,7 @@ export async function processarWebhook(headers = {}, corpo = {}, opts = {}) {
      Mercado Pago manda HMAC sobre um manifesto com id, request-id e timestamp.
      Conferir com o validador ERRADO e o mesmo que nao conferir. */
   const v = (c.provedor === 'mercadopago')
-    ? gateway(opts).validarWebhook(headers, opts.query || {})
+    ? gateway(opts).validarWebhook(headers, opts.query || {}, corpo)
     : validarAsaas(headers, c.webhookToken);
   if (!v.ok) {
     /* Um 401 aqui e caro: e pagamento REAL nao virando lancamento. Antes de
@@ -436,9 +436,12 @@ export async function processarWebhook(headers = {}, corpo = {}, opts = {}) {
       const aviso = `a assinatura confere com o segredo de ${trocado.outro}, e este endereço é de ${trocado.atual}`
         + ` — no painel do Mercado Pago, a assinatura secreta é uma por modo`;
       console.warn(`[pagamentos] ${aviso}`);
-      return { ok: false, http: 401, motivo: `${v.motivo}: ${aviso}`, segredoTrocado: trocado };
+      return { ok: false, http: 401, motivo: `${v.motivo}: ${aviso}`, segredoTrocado: trocado, presenca: v.presenca };
     }
-    return { ok: false, http: 401, motivo: v.motivo };
+    /* `presenca` sobe junto: e o que transforma um 401 mudo em "faltou o
+       request-id" ou "o id nao veio em lugar nenhum". Nao carrega segredo
+       nem a assinatura recebida. */
+    return { ok: false, http: 401, motivo: v.motivo, presenca: v.presenca };
   }
   if (v.conferida === false) { console.warn(`[pagamentos] ${v.motivo}`); }
 

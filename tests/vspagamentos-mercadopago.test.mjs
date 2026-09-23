@@ -10,7 +10,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
-import { criarGateway, validarWebhook, ESTADO_MP, conferirCredencial } from '../engine/vspagamentos/mercadopago.mjs';
+import { criarGateway, validarWebhook, ESTADO_MP, conferirCredencial, normalizarIdDoManifesto } from '../engine/vspagamentos/mercadopago.mjs';
 
 /** fetch de mentira que grava o que foi pedido e devolve o que mandarmos. */
 function fetchFalso(respostas = []) {
@@ -420,4 +420,63 @@ test('conferir credencial diz de quem ela e — e o que aquela conta consegue fa
   assert.match(morta.motivo, /revogada|401/);
 
   assert.equal((await conferirCredencial('')).ok, false);
+});
+
+/* ---- o 401 que o simulador oficial do Mercado Pago deu em order.processed ---- */
+
+
+const SEGREDO_ORD = 'segredo-de-assinatura-do-mercado-pago';
+const assinarManifesto = (manifesto, ts) => `ts=${ts},v1=${createHmac('sha256', SEGREDO_ORD).update(manifesto).digest('hex')}`;
+
+test('id alfanumerico das Orders entra em MINUSCULAS no manifesto', () => {
+  // Era isto: `payment` (id numerico) passava e `order.processed` dava 401.
+  assert.equal(normalizarIdDoManifesto('ORD01JQ8XYZ'), 'ord01jq8xyz');
+  assert.equal(normalizarIdDoManifesto('123456789'), '123456789', 'id numerico nao se mexe');
+  assert.equal(normalizarIdDoManifesto(''), '');
+
+  const id = 'ORD01JQ8XYZ';
+  const ts = '1737000000';
+  const req = 'abc-123';
+  const headers = { 'x-signature': assinarManifesto(`id:${id.toLowerCase()};request-id:${req};ts:${ts};`, ts), 'x-request-id': req };
+  const r = validarWebhook(headers, { 'data.id': id }, SEGREDO_ORD);
+  assert.equal(r.ok, true, r.motivo);
+});
+
+test('campo ausente SAI do manifesto — mandar "id:;" muda o HMAC inteiro', () => {
+  const ts = '1737000001';
+  // Sem request-id: o gabarito vira `id:...;ts:...;`, sem o pedaco do meio.
+  const headers = { 'x-signature': assinarManifesto(`id:abc123;ts:${ts};`, ts) };
+  assert.equal(validarWebhook(headers, { 'data.id': 'abc123' }, SEGREDO_ORD).ok, true);
+
+  // Sem id nenhum: so `ts:...;`.
+  const ts2 = '1737000002';
+  const so = { 'x-signature': assinarManifesto(`ts:${ts2};`, ts2) };
+  assert.equal(validarWebhook(so, {}, SEGREDO_ORD).ok, true);
+});
+
+test('id no CORPO vale como reserva quando a query nao traz — mas a query manda', () => {
+  const ts = '1737000003';
+  const req = 'r-9';
+  const headers = { 'x-signature': assinarManifesto(`id:ord-do-corpo;request-id:${req};ts:${ts};`, ts), 'x-request-id': req };
+  const r = validarWebhook(headers, {}, SEGREDO_ORD, { data: { id: 'ORD-DO-CORPO' } });
+  assert.equal(r.ok, true, r.motivo);
+
+  // Com os dois presentes, o da QUERY e o que vale.
+  const ts2 = '1737000004';
+  const h2 = { 'x-signature': assinarManifesto(`id:da-query;request-id:${req};ts:${ts2};`, ts2), 'x-request-id': req };
+  assert.equal(validarWebhook(h2, { 'data.id': 'DA-QUERY' }, SEGREDO_ORD, { data: { id: 'do-corpo' } }).ok, true);
+});
+
+test('assinatura invalida continua 401 — e o diagnostico nao vaza segredo', () => {
+  const r = validarWebhook(
+    { 'x-signature': 'ts=1737000005,v1=' + 'f'.repeat(64), 'x-request-id': 'r-1' },
+    { 'data.id': 'ORD1' }, SEGREDO_ORD,
+  );
+  assert.equal(r.ok, false);
+  assert.equal(r.conferida, true);
+  const texto = JSON.stringify(r);
+  assert.ok(!texto.includes(SEGREDO_ORD), 'o segredo nao pode aparecer no diagnostico');
+  assert.ok(!texto.includes('f'.repeat(64)), 'a assinatura recebida tambem nao');
+  assert.equal(r.presenca.xRequestId, true);
+  assert.equal(r.presenca.idNaQuery, true);
 });

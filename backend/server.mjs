@@ -431,6 +431,13 @@ const server = createServer(async (req, res) => {
       if (l.ok && !l.repetido) { console.log(`[caixa] entrada de ${r.pagamento.id} lancada`); }
     }
     console.log(`[mercadopago${mpAmbiente ? '/' + mpAmbiente : ''}] ${evento.type || evento.topic || '?'} ${evento.data?.id || ''} -> ${r.ok ? (r.estado || 'recebido') : 'recusado: ' + r.motivo}`);
+    /* Quando a assinatura NAO confere, o 401 sozinho nao diz o que faltou. Este
+       log mostra so a PRESENCA de cada peca — nunca o segredo, nunca a
+       assinatura recebida. Sem ele, investigar o 401 do simulador oficial era
+       adivinhacao. */
+    if (r.presenca) {
+      console.log(`[mercadopago] assinatura recusada — ${Object.entries(r.presenca).map(([k, v]) => `${k}=${v}`).join(' ')}`);
+    }
     return json(res, r.http || (r.ok ? 200 : 400), r);
   }
 

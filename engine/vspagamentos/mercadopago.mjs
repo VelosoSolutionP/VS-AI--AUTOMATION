@@ -63,7 +63,7 @@ function explicarErro(status, dados) {
  * `x-signature` vem como `ts=...,v1=...`. Sem segredo configurado, devolve
  * `conferida:false` — pra quem chama gritar no log em vez de fingir que validou.
  */
-export function validarWebhook(headers = {}, query = {}, segredo) {
+export function validarWebhook(headers = {}, query = {}, segredo, corpo = {}) {
   if (!segredo) {
     return { ok: true, conferida: false, motivo: 'MP_WEBHOOK_SECRET ausente — assinatura não conferida' };
   }
@@ -76,15 +76,57 @@ export function validarWebhook(headers = {}, query = {}, segredo) {
   const v1 = partes.v1;
   if (!ts || !v1) { return { ok: false, conferida: true, motivo: 'x-signature fora do formato ts=...,v1=...' }; }
 
-  const id = String(query['data.id'] ?? query.id ?? '');
-  const manifesto = `id:${id};request-id:${requestId};ts:${ts};`;
+  /* O id vem na QUERY (`?data.id=...`). Nas Orders o simulador nem sempre
+     coloca lá, e o mesmo id está no corpo — por isso o corpo entra como
+     reserva, nunca como preferência: query primeiro, sempre. */
+  const idCru = query['data.id'] ?? query.id ?? corpo?.data?.id ?? '';
+  const id = normalizarIdDoManifesto(idCru);
+
+  /* O manifesto OMITE o que não veio. A documentação do Mercado Pago é
+     explícita: campo ausente sai do gabarito. Mandar `id:;` no lugar de nada
+     muda o HMAC inteiro — e o erro aparece como "assinatura não confere", que
+     manda procurar o segredo errado. */
+  const manifesto = [
+    id ? `id:${id};` : '',
+    requestId ? `request-id:${requestId};` : '',
+    `ts:${ts};`,
+  ].join('');
+
   const esperada = createHmac('sha256', segredo).update(manifesto).digest('hex');
   const a = Buffer.from(v1);
   const b = Buffer.from(esperada);
   if (a.length !== b.length || !timingSafeEqual(a, b)) {
-    return { ok: false, conferida: true, motivo: 'assinatura do webhook não confere' };
+    return {
+      ok: false,
+      conferida: true,
+      motivo: 'assinatura do webhook não confere',
+      /* Diagnóstico SEM segredo e SEM assinatura: só o que estava presente.
+         Sem isto, "401" não diz se faltou header, se o id não veio ou se o
+         segredo é de outro ambiente — e foi exatamente onde se perdeu tempo. */
+      presenca: {
+        xSignature: true,
+        xRequestId: !!requestId,
+        idNaQuery: query['data.id'] != null || query.id != null,
+        idNoCorpo: corpo?.data?.id != null,
+        idUsado: id ? 'sim' : 'nenhum',
+        manifesto: manifesto.replace(/:[^;]*/g, ':…'),
+      },
+    };
   }
   return { ok: true, conferida: true };
+}
+
+/**
+ * O `data.id` do manifesto, como o Mercado Pago espera.
+ *
+ * Id alfanumérico — o caso das Orders — entra em MINÚSCULAS. Id numérico, o dos
+ * pagamentos, fica como está. Foi isto que fez `order.processed` responder 401
+ * enquanto `payment` passava: os dois usavam o mesmo código e só um tinha letra.
+ */
+export function normalizarIdDoManifesto(bruto) {
+  const id = String(bruto ?? '').trim();
+  if (!id) { return ''; }
+  return /^\d+$/.test(id) ? id : id.toLowerCase();
 }
 
 /**
@@ -313,6 +355,6 @@ export function criarGateway(cfg = {}) {
     async saldo() { return naoSuportado('saldo de subconta'); },
     async transferir() { return naoSuportado('transferência entre contas'); },
 
-    validarWebhook: (headers, query) => validarWebhook(headers, query, cfg.webhookSecret),
+    validarWebhook: (headers, query, corpo) => validarWebhook(headers, query, cfg.webhookSecret, corpo),
   };
 }
