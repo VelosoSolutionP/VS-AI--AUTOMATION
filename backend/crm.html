@@ -3438,8 +3438,11 @@ const S={
     ]},
     {fam:'Vendas e marketplaces',itens:[
       {id:'tiktokshop',nome:'TikTok Shop',ic:'vender',oq:'Publica o catálogo e recebe pedido da loja do TikTok.',
-       estado:shop?.autorizado?'ok':(shop?.credenciais?'pendente':'falta'),
-       rotulo:shop?.autorizado?'autorizado':(shop?.credenciais?'falta autorizar a loja':'sem credencial'),
+       /* `appConfigurado` e o campo que o backend devolve — eu tinha escrito
+          `credenciais`, que nao existe, entao dava sempre falso e a tela dizia
+          "sem credencial" com as tres chaves gravadas. */
+       estado:shop?.autorizado?'ok':(shop?.appConfigurado?'pendente':'falta'),
+       rotulo:shop?.autorizado?'autorizado':(shop?.appConfigurado?'falta autorizar a loja':'sem credencial'),
        acao:{t:'Configurar',on:"rolarAteCard('tiktok-shop')",ic:'config'}},
       {id:'mercadolivre',nome:'Mercado Livre',ic:'comprar',oq:'Anúncio, pedido e pergunta do comprador.',
        estado:'breve',rotulo:'credencial validada · módulo em construção'},
@@ -3452,11 +3455,12 @@ const S={
     ]},
     {fam:'Conteúdo e redes sociais',itens:[
       {id:'tiktok',nome:'TikTok',ic:'publicar',oq:'Publica vídeo pela API, com token renovado sozinho.',
-       estado:open?.autorizado?'ok':(open?.credenciais?'pendente':'falta'),
-       rotulo:open?.autorizado?'autorizado':(open?.credenciais?'falta autorizar':'sem credencial'),
+       estado:open?.autorizado?'ok':(open?.appConfigurado?'pendente':'falta'),
+       rotulo:open?.autorizado?'autorizado':(open?.appConfigurado?'falta autorizar':'sem credencial'),
        acao:{t:'Configurar',on:"rolarAteCard('tiktok-open')",ic:'config'}},
       {id:'tiktokads',nome:'TikTok Ads',ic:'indicacao',oq:'Campanha paga e métrica de anúncio.',
-       estado:ads?.autorizado?'ok':'falta',rotulo:ads?.autorizado?'autorizado':'sem autorização',
+       estado:ads?.autorizado?'ok':(ads?.appConfigurado?'pendente':'falta'),
+       rotulo:ads?.autorizado?'autorizado':(ads?.appConfigurado?'falta autorizar':'sem credencial'),
        acao:{t:'Configurar',on:"rolarAteCard('tiktok-open')",ic:'config'}},
       {id:'instagram',nome:'Instagram',ic:'publicar',oq:'Métrica de post. Publicação ainda não.',estado:'parcial',rotulo:'só leitura'},
       {id:'youtube',nome:'YouTube',ic:'publicar',oq:'Métrica de vídeo. Publicação ainda não.',estado:'parcial',rotulo:'só leitura'},
