@@ -140,7 +140,15 @@ function montar({ produtos } = {}) {
           },
           /* Lê pelo ponteiro, não pela cópia: preço mudado no catálogo vale na
              próxima mensagem, sem reconectar nada. */
-          produtos: () => obterProdutos(),
+          produtos: () => {
+            const lista = obterProdutos();
+            /* QUANTOS produtos a Micaela enxergou nesta mensagem. Sem este
+               numero, "item indisponivel" nao diz se o catalogo esta vazio, se
+               o SKU esta errado ou se o item acabou — tres consertos
+               diferentes. Custou tempo demais adivinhar isso. */
+            console.log(`[canais] catalogo visto nesta mensagem: ${lista.length} produto(s)${lista.length ? ' — ' + lista.slice(0, 6).map((p) => p.sku).join(', ') : ''}`);
+            return lista;
+          },
         },
       );
       // O atendimento já respondeu por dentro (ele decide se responde e o quê).

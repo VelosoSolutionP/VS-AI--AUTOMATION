@@ -57,6 +57,18 @@ if [ -f "$ENV_FILE" ]; then
   echo "config carregada de $ENV_FILE"
 fi
 
+# Pasta TEMPORARIA nao pode virar casa de dado do painel.
+#
+# Um teste apontou VSESTOQUE_DIR pra um scratchpad em /tmp e a variavel ficou no
+# ambiente do processo. Como este script herda o ambiente do processo anterior,
+# ela se propagou em TODO restart seguinte — e o painel passou a ler o estoque de
+# uma pasta de teste com um produto chamado "teste". Na tela do cliente isso
+# apareceu como "produto indisponivel", que nao aponta pra lugar nenhum.
+for var in $(env | grep -oE '^[A-Za-z_][A-Za-z0-9_]*=/tmp/claude-[^ ]*' | cut -d= -f1); do
+  echo "descartada: $var apontava pra pasta temporaria (${!var})" >&2
+  unset "$var"
+done
+
 export PAINEL_URL="${PAINEL_URL:-https://painel.velososolution.com.br}"
 echo "ambiente recuperado: $n variaveis"
 
