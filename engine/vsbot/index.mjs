@@ -10,6 +10,7 @@ import { homedir } from 'node:os';
 import { responder, conversar, validarRegra, escolher, GATILHOS, pediuHumano, preencher } from './regras.mjs';
 import { validarFluxo, avancar, ACOES, comPrecosDoCatalogo } from './fluxo.mjs';
 import * as moderacao from './moderacao.mjs';
+import * as emergencia from './emergencia.mjs';
 import { fluxoDeCsv } from './fluxo-csv.mjs';
 
 const dir = () => process.env.VSBOT_DIR || dentroDaCasa('vsbot');
@@ -302,6 +303,39 @@ function assinar(texto, cfg) {
 
 export function atender(texto, ctx = {}) {
   const cfg = { ...getConfig(), regras: regras() };
+
+  /* SOCORRO GANHA DE TUDO — e fica no topo desta funcao de proposito.
+     Em campo, num escritorio criminal: depois do encaminhamento o bot entra em
+     silencio pra nao falar por cima do atendente. A pessoa escreveu "tao me
+     agredindo", "socorro", "vao me matar" — e recebeu SILENCIO. A regra estava
+     certa; a consequencia, nao.
+     Fica antes do silencio pos-handoff, antes da moderacao e antes do castigo:
+     quem esta sendo agredido nao perde o direito de resposta porque xingou o
+     atendimento ontem. */
+  const sos = emergencia.ligado(cfg) ? emergencia.detectar(texto) : { emergencia: false };
+  if (sos.emergencia) {
+    const de0 = ctx.de || null;
+    if (de0) {
+      const atualSos = conversas()[de0] || {};
+      salvarConversa(de0, {
+        ...atualSos,
+        handoffEm: new Date().toISOString(),
+        departamento: 'urgencia',
+        emergencia: { tipo: sos.tipo, em: new Date().toISOString(), trecho: sos.trecho },
+      });
+    }
+    return {
+      tipo: 'emergencia',
+      /* SEM assinatura: "*Gael:*" antes de "LIGUE 190" rouba a primeira linha,
+         que e a unica que alguem em perigo vai ler. */
+      texto: emergencia.resposta(sos, { nomeEscritorio: ctx.empresa, telefones: cfg.emergencia?.telefones }),
+      emergencia: sos.tipo,
+      handoff: true,
+      departamento: 'urgencia',
+      prioridade: 'maxima',
+    };
+  }
+
   /* O preço entra AQUI, uma vez, antes de qualquer decisão: assim o menu que o
      cliente lê, o item que entra no carrinho e o total da cobrança olham todos
      para o mesmo catálogo, no mesmo instante. */
@@ -345,9 +379,25 @@ export function atender(texto, ctx = {}) {
        handoff. Responder um menu pra quem acabou de xingar quem atende e o
        comportamento que faz o dono desligar o bot. */
     const conv = conversas()[de] || null;
-    const mod = moderacao.avaliar(texto, conv || {}, { temContrato: ctx.temContrato === true });
+    const mod = moderacao.avaliar(texto, conv || {}, {
+      temContrato: ctx.temContrato === true,
+      /* Ja encaminhado por urgencia = no meio de um problema serio. Nao se cala
+         essa pessoa por 12 horas porque ela perdeu a linha. */
+      emUrgencia: conv?.departamento === 'urgencia' || !!conv?.emergencia,
+    });
     if (mod.acao === 'calado') {
       return { tipo: 'silencio', texto: '', calado: true, motivo: `em silêncio até ${mod.ate}` };
+    }
+    /* A palavra "urgente" atravessa o castigo e chama gente. Castigo de robo nao
+       pode virar porta trancada pra quem tem um problema de verdade. */
+    if (mod.acao === 'urgencia') {
+      salvarConversa(de, { ...(conv || {}), handoffEm: new Date().toISOString(), departamento: 'humano' });
+      return {
+        tipo: 'moderacao:urgencia',
+        texto: assinar(mod.texto, cfg),
+        handoff: true,
+        departamento: 'humano',
+      };
     }
     if (mod.acao === 'avisa' || mod.acao === 'encerra') {
       salvarConversa(de, { ...(conv || {}), ...mod.marcar });
@@ -355,6 +405,10 @@ export function atender(texto, ctx = {}) {
         tipo: mod.acao === 'encerra' ? 'moderacao:encerrou' : 'moderacao:aviso',
         texto: assinar(mod.texto, cfg),
         moderacao: mod.acao,
+        ...(mod.tipo ? { motivoModeracao: mod.tipo } : {}),
+        /* Encerramento automatico que ninguem revisa vira cliente perdido em
+           silencio — entao ele sobe como handoff pra uma pessoa olhar. */
+        ...(mod.avisarPessoa ? { handoff: true, departamento: 'humano' } : {}),
         ...(mod.ate ? { silenciadoAte: mod.ate } : {}),
       };
     }

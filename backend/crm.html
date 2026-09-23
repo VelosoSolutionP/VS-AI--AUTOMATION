@@ -3263,6 +3263,29 @@ const S={
     </label>
     <div id="simSaida" style="margin-top:14px">${simulacaoHtml()}</div></div>
 
+  <!-- SEGURANCA. Fica VISIVEL porque e o tipo de protecao que ninguem sabe que
+       tem ate precisar — e ai e tarde pra descobrir que estava desligada. -->
+  <div class="card" style="margin-bottom:16px">
+    ${(()=>{
+      const e=BOT?.config?.emergencia||{};
+      const ligado=(e.ativo??true)===true;
+      return cardH('alerta',`Segurança de quem atende e de quem é atendido`,
+        `Vale para qualquer negócio que atende público — não só advocacia.`,5,
+        ligado?'<span class="badge b-ok">ligado</span>':'<span class="badge b-err">desligado</span>');
+    })()}
+    ${linha('Pedido de socorro',
+      'Reconhece "socorro", "estão me agredindo", "vão me matar" e responde com o telefone certo na primeira linha',
+      (BOT?.config?.emergencia?.ativo??true)?'190 · 180 · 192':'desligado',
+      (BOT?.config?.emergencia?.ativo??true)?'b-ok':'b-err')}
+    ${linha('Ganha de tudo','Passa por cima do silêncio pós-atendimento, da moderação e do bloqueio de 12h','sempre','b-ok')}
+    ${linha('Violência doméstica','Manda 180, não 190 — ligar para a polícia com o agressor ao lado nem sempre é seguro','180','b-ok')}
+    ${linha('Falta de respeito','1ª vez pede calma · 2ª encerra por 12h · quem tem contrato nunca é encerrado por robô','ativo','b-ok')}
+    ${linha('Cantada e assédio','Fecha a porta em vez de repetir o menu','ativo','b-ok')}
+    ${linha('Saída do bloqueio','Escrever <b>URGENTE</b> chama uma pessoa mesmo durante as 12h','sempre','b-ok')}
+    <p class="hint" style="margin-top:10px">Nasce ligado de propósito. O custo de estar ligado é uma mensagem
+      a mais num caso raro; o de estar desligado é silêncio para quem pediu socorro.</p>
+  </div>
+
   <div class="card" style="margin-bottom:16px">
     ${cardH('versao',`Fluxo de atendimento`,
       BOT.fluxo

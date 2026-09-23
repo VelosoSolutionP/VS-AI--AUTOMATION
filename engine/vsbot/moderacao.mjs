@@ -36,7 +36,34 @@ const OFENSAS = [
   'vagabundo', 'vagabunda', 'ladrao', 'ladra', 'safado', 'safada', 'corno',
   'babaca', 'escroto', 'escrota', 'desgraçado', 'desgracado', 'cuzao', 'cuzão',
   'puta que pariu voce', 'seu merda', 'sua merda',
+  /* Diminutivo nao suaviza: "sua cachorrinha" dirigido a quem atende e ofensa
+     igual. Passou batido no primeiro teste em campo. */
+  'cachorrinha', 'cachorra', 'cadela', 'piranha', 'vaca', 'vadia', 'rapariga',
+  'sua besta', 'seu besta', 'analfabeto', 'analfabeta', 'inutil', 'retardado', 'retardada',
 ];
+
+/**
+ * ASSÉDIO e cantada. Categoria propria porque a resposta e outra.
+ *
+ * Xingamento pede "vamos manter o respeito". Cantada pede uma porta fechada:
+ * responder com o menu, como acontecia, e o pior dos mundos — parece que a
+ * mensagem passou e convida a insistir. Numa advogada mulher, atendendo homem
+ * em situacao criminal, isso nao e hipotese remota.
+ */
+const ASSEDIO = [
+  'quero sair com a advogada', 'quero sair com a doutora', 'quero sair com voce',
+  'quer sair comigo', 'vamos sair', 'quero te conhecer melhor', 'quero te conhecer pessoalmente',
+  'voce e gostosa', 'voce e linda', 'que gata', 'manda foto sua', 'me manda uma foto sua',
+  'quero namorar', 'casa comigo', 'to afim de voce', 'tou afim de voce', 'estou afim de voce',
+  'me da seu numero pessoal', 'seu whatsapp pessoal', 'voce e solteira', 'e casada',
+  'quero sair com a dra', 'sair com a dra',
+];
+
+export function ehAssedio(texto) {
+  const t = norm(texto);
+  if (!t) { return false; }
+  return ASSEDIO.some((p) => t.includes(norm(p)));
+}
 
 /** Alvo: quem atende. "que merda de situação" nao conta — nao e com ninguem. */
 const DESABAFO = ['que merda', 'que saco', 'que droga', 'puta merda', 'caralho', 'porra'];
@@ -55,6 +82,13 @@ export function ehOfensa(texto) {
 
 export const HORAS_DE_SILENCIO = 12;
 
+/** A saida de emergencia do castigo. Curta e obvia, pra caber numa mensagem so. */
+const URGENCIA = ['urgente', 'emergencia', 'e urgente', 'socorro', 'preciso agora', 'me ajuda agora'];
+export const pediuUrgencia = (texto) => {
+  const t = norm(texto);
+  return !!t && URGENCIA.some((u) => t.includes(norm(u)));
+};
+
 /**
  * O que fazer com esta mensagem.
  * @param {string} texto
@@ -65,21 +99,44 @@ export const HORAS_DE_SILENCIO = 12;
 export function avaliar(texto, conversa = {}, opts = {}) {
   const agora = opts.agora ?? Date.now();
 
-  // Ainda de castigo? Nao responde nada — e o silencio que foi prometido.
+  /* Ainda de castigo. O bot cala; a PORTA nao tranca.
+     Quem esta do outro lado nao e um trote: e alguem num processo criminal, que
+     pode ter perdido a linha no pior dia da vida dele. Silencio de 12 horas com
+     saida nenhuma seria abandono — entao a palavra "urgente" atravessa e chama
+     gente. (Socorro de verdade nem chega aqui: e tratado antes de tudo.) */
   if (conversa.silenciadoAte && new Date(conversa.silenciadoAte).getTime() > agora) {
+    if (pediuUrgencia(texto)) {
+      return { acao: 'urgencia', texto: 'Entendi que é urgente. Estou chamando uma pessoa do escritório agora.' };
+    }
     return { acao: 'calado', ate: conversa.silenciadoAte };
   }
 
-  if (!ehOfensa(texto)) { return { acao: 'segue' }; }
+  const assedio = ehAssedio(texto);
+  if (!assedio && !ehOfensa(texto)) { return { acao: 'segue' }; }
 
   const avisos = Number(conversa.avisosDeRespeito || 0);
+
+  /* Cantada: porta fechada na primeira, sem menu junto. Repetir o menu depois
+     de uma cantada e o que fazia parecer que a mensagem tinha passado. */
+  if (assedio && avisos === 0) {
+    return {
+      acao: 'avisa',
+      tipo: 'assedio',
+      texto: 'Aqui é o atendimento do escritório, e é só para assuntos do escritório. '
+        + 'Se você precisa de ajuda jurídica, me diz que eu te encaminho.',
+      marcar: { avisosDeRespeito: 1, assedio: new Date(agora).toISOString() },
+    };
+  }
 
   /* CONTRATO ATIVO: nao encerra nunca. Marca e segue atendendo — quem decide
      romper um contrato e gente, com o contrato na mao. */
   if (opts.temContrato) {
     return {
       acao: 'avisa',
-      texto: 'Vamos manter o respeito, por favor — assim eu consigo te ajudar de verdade.',
+      tipo: assedio ? 'assedio' : 'ofensa',
+      texto: assedio
+        ? 'Aqui é o atendimento do escritório, e é só para assuntos do escritório.'
+        : 'Vamos manter o respeito, por favor — assim eu consigo te ajudar de verdade.',
       marcar: { avisosDeRespeito: avisos + 1, ofensaComContrato: new Date(agora).toISOString() },
     };
   }
@@ -87,17 +144,37 @@ export function avaliar(texto, conversa = {}, opts = {}) {
   if (avisos === 0) {
     return {
       acao: 'avisa',
+      tipo: 'ofensa',
       texto: 'Entendo que você possa estar nervoso, mas vamos manter o respeito — '
         + 'assim eu consigo te ajudar. 🙏',
       marcar: { avisosDeRespeito: 1 },
     };
   }
 
+  /* Caso urgente NAO leva castigo. Quem ja foi encaminhado por urgencia esta
+     no meio de um problema serio; calar essa pessoa por 12 horas e o tipo de
+     regra que so parece boa no papel. */
+  if (opts.emUrgencia) {
+    return {
+      acao: 'avisa',
+      tipo: assedio ? 'assedio' : 'ofensa',
+      texto: 'Vamos manter o respeito — estou aqui pra te ajudar com isso.',
+      marcar: { avisosDeRespeito: avisos + 1, ofensaEmUrgencia: new Date(agora).toISOString() },
+    };
+  }
+
   const ate = new Date(agora + HORAS_DE_SILENCIO * 3600 * 1000).toISOString();
   return {
     acao: 'encerra',
-    texto: `Vou encerrar o atendimento por aqui. Você pode voltar a falar comigo em ${HORAS_DE_SILENCIO} horas.`,
+    tipo: assedio ? 'assedio' : 'ofensa',
+    /* A saida fica NA PROPRIA mensagem de encerramento. Sem isto, quem tem um
+       problema de verdade e perdeu a linha ficaria 12 horas sem caminho. */
+    texto: `Vou encerrar o atendimento por aqui. Você pode voltar a falar comigo em ${HORAS_DE_SILENCIO} horas.\n\n`
+      + `Se for urgente, escreva *URGENTE* que eu chamo uma pessoa do escritório.`,
     ate,
+    /* Uma pessoa fica sabendo. Encerramento automatico que ninguem revisa vira
+       cliente perdido em silencio. */
+    avisarPessoa: true,
     marcar: { avisosDeRespeito: avisos + 1, silenciadoAte: ate },
   };
 }
