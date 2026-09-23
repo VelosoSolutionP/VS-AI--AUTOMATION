@@ -67,8 +67,22 @@ function jaDisseAgora(para, texto) {
 let gateway = null;
 let whatsappWeb = null;
 
+/**
+ * De onde sai o catálogo que a Micaela usa.
+ *
+ * Vive FORA do `montar` de propósito. Antes, a lista era capturada no primeiro
+ * `montar()` e as chamadas seguintes eram ignoradas (a função devolve cedo se o
+ * gateway já existe) — então quem montasse o canal antes do catálogo estar
+ * pronto ficava com ele vazio para sempre, e todo produto aparecia como
+ * "indisponível" até alguém desconectar e conectar de novo. Reconectar não devia
+ * ser o jeito de atualizar preço.
+ */
+let obterProdutos = () => [];
+
 /** Monta na primeira chamada. Sessão só abre quando alguém pedir "Conectar". */
 function montar({ produtos } = {}) {
+  // Sempre a mais recente, mesmo com o gateway já montado.
+  if (typeof produtos === 'function') { obterProdutos = produtos; }
   if (gateway) { return gateway; }
 
   gateway = criarGateway({
@@ -124,7 +138,9 @@ function montar({ produtos } = {}) {
             else { console.error(`[canais] NAO consegui mandar o QR pra ${quem}: ${env?.erro || 'motivo nao informado'}`); }
             return env;
           },
-          produtos: produtos || (() => []),
+          /* Lê pelo ponteiro, não pela cópia: preço mudado no catálogo vale na
+             próxima mensagem, sem reconectar nada. */
+          produtos: () => obterProdutos(),
         },
       );
       // O atendimento já respondeu por dentro (ele decide se responde e o quê).
