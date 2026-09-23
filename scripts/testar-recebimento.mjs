@@ -14,7 +14,8 @@
  * pagar: cobrança Pix não paga não gera lançamento.
  */
 import { writeFileSync } from 'node:fs';
-import { conferirCredencial, criarGateway } from '../engine/vspagamentos/mercadopago.mjs';
+import { conferirCredencial } from '../engine/vspagamentos/mercadopago.mjs';
+import * as pagamentos from '../engine/vspagamentos/index.mjs';
 
 const token = process.env.MP_ACCESS_TOKEN;
 const CENTAVOS = Number(process.env.VALOR_CENTAVOS || 100);
@@ -37,15 +38,25 @@ if (quem.ehTeste) {
   process.exit(1);
 }
 
-const g = criarGateway({ apiKey: token, ambiente: 'producao' });
-const r = await g.criarCobranca({
+/* Passa pelo MESMO caminho do produto, nao direto no gateway.
+   A primeira versao disto chamava o gateway na mao: o QR saia, mas a cobranca
+   nunca era gravada aqui — e quando o aviso de pagamento chegasse, o painel
+   responderia "essa cobranca nao e nossa". Um teste de recebimento que nao
+   fecha o ciclo nao testa recebimento. */
+const AVISO = process.env.VS_URL_WEBHOOK_PAGAMENTO
+  || 'https://api.velososolution.com.br/api/webhooks/mercadopago/producao';
+
+const r = await pagamentos.cobrar({
   valorCentavos: CENTAVOS,
   metodo: 'PIX',
   descricao: 'Veloso Solution — teste de recebimento',
   referencia: `TESTE-PIX-${Date.now()}`,
   email: process.env.MP_EMAIL_TESTE || undefined,
-  webhookUrl: process.env.VS_URL_WEBHOOK_PAGAMENTO || undefined,
-});
+  webhookUrl: AVISO,
+  /* O ambiente vem por AQUI, nao pelo env: assim o painel continua em teste
+     enquanto esta cobranca sozinha vai pra producao. Ninguem precisa reiniciar
+     nada, e a Micaela nao cai. */
+}, { mpAmbiente: 'producao' });
 
 if (!r.ok) {
   console.error(`não consegui criar a cobrança: ${r.motivo}`);
@@ -54,8 +65,10 @@ if (!r.ok) {
 
 const p = r.pagamento;
 console.log(`\nid     : ${p.id}`);
+console.log(`gravada: sim — o aviso de pagamento vai ser reconhecido`);
+console.log(`aviso   : ${AVISO}`);
 console.log(`valor  : R$ ${(p.valorCentavos / 100).toFixed(2)}`);
-console.log(`caminho: ${r.viaCheckout ? 'Checkout Pro (o QR nasce na página do MP)' : 'PIX DIRETO — QR gerado aqui'}`);
+console.log(`caminho: ${p.viaCheckout ? 'Checkout Pro (o QR nasce na página do MP)' : 'PIX DIRETO — QR gerado aqui'}`);
 
 if (p.pix?.imagemBase64) {
   const arquivo = 'pix-teste.png';
