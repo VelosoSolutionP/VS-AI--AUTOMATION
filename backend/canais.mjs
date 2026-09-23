@@ -470,6 +470,19 @@ export async function personalizar({ canal = 'whatsapp-web', foto, nome, recado 
 }
 
 /** Existe um perfil guardado pra onde voltar? A tela pergunta isto. */
+/**
+ * O perfil que esta NO NUMERO agora.
+ *
+ * A tela de perfil nascia vazia: so placeholder, e o preview caia num "Micaela"
+ * fixo. Quem abria nao sabia o que estava valendo, e ao sair do campo sem
+ * digitar nada o preview voltava pro texto inventado — parecia que os dados
+ * tinham sumido. Nao tinham: nunca chegaram.
+ */
+export async function perfilAtual() {
+  if (!whatsappWeb || typeof whatsappWeb.perfilAtual !== 'function') { return null; }
+  try { return await whatsappWeb.perfilAtual(); } catch { return null; }
+}
+
 export function perfilAnterior() {
   const a = lerConfig().perfilAnterior || null;
   return a ? { em: a.em, temFoto: Boolean(a.foto), nome: a.nome || null, recado: a.recado || null } : null;

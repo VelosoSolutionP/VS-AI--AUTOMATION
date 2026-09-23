@@ -3370,7 +3370,7 @@ const S={
   ${operadoresHtml()}
 
   <div class="card" style="margin-bottom:16px">
-    ${cardH('perfil',`A cara da Micaela`,`Foto, nome e recado que o cliente vê no topo da conversa. Isto <b>só funciona neste canal</b> — na API oficial da Meta a foto vem do WhatsApp Manager e nenhum código muda.`,3,
+    ${cardH('perfil',`Perfil do assistente virtual`,`Foto, nome e recado que o cliente vê no topo da conversa. Isto <b>só funciona neste canal</b> — na API oficial da Meta a foto vem do WhatsApp Manager e nenhum código muda.`,3,
       est==='conectado'?'':'<span class="badge b-warn">precisa conectar</span>')}
     <div class="perfil-grid">
       <div class="form-grid" style="align-content:start">
@@ -3739,7 +3739,7 @@ const S={
       Variável sem valor aparece como está, em vez de sumir.</p></div>
 
   <div class="card" style="border-style:dashed">
-    ${cardH('whats',`Foto e nome do número`,`Depende do canal: na <b>API oficial da Meta</b> a foto e o nome vêm do WhatsApp Manager e nenhum código daqui muda. No canal por <b>WhatsApp Web</b> a sessão é a própria conta, então dá para trocar em <b>Canais → A cara da Micaela</b>.`,2)}
+    ${cardH('whats',`Foto e nome do número`,`Depende do canal: na <b>API oficial da Meta</b> a foto e o nome vêm do WhatsApp Manager e nenhum código daqui muda. No canal por <b>WhatsApp Web</b> a sessão é a própria conta, então dá para trocar em <b>Canais → Perfil do assistente virtual</b>.`,2)}
     ${linha('Perfil do número',STATUS?.bot?.webhook?'API oficial: WhatsApp Manager da Meta':'canal WhatsApp Web: dá para trocar no painel',
       STATUS?.bot?.webhook?'fora daqui':'em Canais',STATUS?.bot?.webhook?'b-warn':'b-ok')}
     ${linha('Nome do atendente','aparece nas respostas do bot',esc(c.nome),'b-ok')}</div>`;
@@ -4013,6 +4013,10 @@ function render(){
   document.getElementById('crumb').innerHTML=t.map((x,i)=>i===t.length-1?`<b>${esc(x)}</b>`:`<span class="pai">${esc(x)} <i>/</i></span>`).join(' ');
   document.getElementById('view').innerHTML=(TELAS[rota]||telaVisao)();
   if(rota==='indicacao') trocaModelo();
+  /* O perfil do assistente e buscado DEPOIS de desenhar: ele baixa a foto do
+     servidor da Meta, e segurar a tela por causa de uma imagem faria o console
+     parecer travado. Os campos nascem vazios e se preenchem em seguida. */
+  if(rota==='canais'){ previewPerfil(); carregarPerfilDoNumero(); }
   /* Chat abre na ULTIMA mensagem, como qualquer app de conversa. Abrir no topo
      obrigaria a rolar ate embaixo toda vez so pra ver o que acabou de chegar. */
   const fluxo=document.querySelector('.conversa-fluxo');
@@ -4733,19 +4737,49 @@ function salvarOperador(){
   });
 }
 
+/* O que esta NO NUMERO agora. Serve de valor inicial dos campos e de reserva do
+   preview — sem isto, apagar o campo fazia a tela voltar pra um "Micaela"
+   inventado, e parecia que o dado salvo tinha sumido. */
+let PERFIL_NO_NUMERO=null;
+
 function previewPerfil(){
   const v=(id)=>(document.getElementById(id)||{}).value?.trim()||'';
   const nome=document.getElementById('pvNome');
   const recado=document.getElementById('pvRecado');
-  if(nome) nome.textContent=v('pfNome')||'Micaela';
-  if(recado) recado.textContent=v('pfRecado')||'online';
+  /* Campo vazio mostra O QUE ESTA VALENDO, nao um texto de exemplo: o preview
+     responde "como esta hoje", e so muda quando voce digita. */
+  if(nome) nome.textContent=v('pfNome')||PERFIL_NO_NUMERO?.nome||'sem nome';
+  if(recado) recado.textContent=v('pfRecado')||PERFIL_NO_NUMERO?.recado||'sem recado';
   const arq=(document.getElementById('pfFoto')||{}).files?.[0];
   const foto=document.getElementById('pvFoto');
-  if(arq&&foto){
+  if(!foto) return;
+  if(arq){
     const r=new FileReader();
     r.onload=()=>{ foto.style.backgroundImage=`url(${r.result})`; };
     r.readAsDataURL(arq);
+  }else if(PERFIL_NO_NUMERO?.foto){
+    foto.style.backgroundImage=`url(${PERFIL_NO_NUMERO.foto})`;
   }
+}
+
+/* Busca o perfil e PREENCHE os campos. Em rota propria porque ler isso baixa a
+   foto do servidor da Meta — pendurar no carregamento da tela faria tudo
+   esperar por uma imagem. */
+async function carregarPerfilDoNumero(){
+  const alvo=document.getElementById('pfNome');
+  if(!alvo) return;
+  try{
+    const r=await api('canais/perfil');
+    PERFIL_NO_NUMERO=r?.perfil||null;
+    if(!PERFIL_NO_NUMERO) return;
+    /* Nao atropela o que a pessoa ja digitou: se ela comecou a escrever
+       enquanto a foto baixava, o texto dela manda. */
+    const nome=document.getElementById('pfNome');
+    const recado=document.getElementById('pfRecado');
+    if(nome&&!nome.value) nome.value=PERFIL_NO_NUMERO.nome||'';
+    if(recado&&!recado.value) recado.value=PERFIL_NO_NUMERO.recado||'';
+    previewPerfil();
+  }catch{ /* sem perfil a tela segue util: da pra trocar do mesmo jeito */ }
 }
 
 async function trocarProvedor(){
@@ -4840,7 +4874,7 @@ function restaurarPerfil(){
   confirmar({
     titulo:'Voltar a cara anterior do número?',
     texto:`Vou devolver a foto, o nome e o recado que este número tinha antes de o painel trocar${p.em?` (guardado em ${esc(String(p.em).slice(0,16).replace('T',' '))})`:''}.`,
-    consequencia:'A cara da Micaela sai do ar para todos os contatos.',
+    consequencia:'O perfil do assistente sai do ar para todos os contatos.',
     rotulo:'Voltar a anterior', icone:'atualizar', perigo:false,
     aoConfirmar:async()=>{
       /* A tela pode estar velha: o canal cai sozinho e o dado da tela e o do

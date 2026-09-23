@@ -853,6 +853,11 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && rota === '/crm/api/canais') {
       return json(res, 200, { ...canais.estado(), saude: await canais.saude(), perfilAnterior: canais.perfilAnterior() });
     }
+    /* Rota PROPRIA porque ler o perfil baixa a FOTO do servidor da Meta: pendurar
+       isso no status faria a tela inteira esperar por uma imagem. */
+    if (req.method === 'GET' && rota === '/crm/api/canais/perfil') {
+      return json(res, 200, { ok: true, perfil: await canais.perfilAtual() });
+    }
     /* Caixa de entrada do atendente. Junta o que o CRM sabe do lead com o que a
        Micaela coletou antes de chamar gente — e e por isso que o especialista
        nao comeca perguntando "qual e o problema?". */
