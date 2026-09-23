@@ -83,6 +83,12 @@ export function configurar(mudancas = {}) {
   if (novo.provedor === 'mercadopago' && novo.modelo === 'custodia') {
     erros.push('o Mercado Pago não suporta o modelo "custódia": ele não tem subconta com saldo próprio. Use "direto" ou "split".');
   }
+  /* Ambiente errado escrito a mao cai CALADO em teste (`ambiente === 'producao'`
+     e falso pra qualquer outra coisa). O dono acharia que ligou o recebimento e
+     estaria gerando link que nao cobra ninguem. Barra aqui. */
+  if (novo.mpAmbiente != null && !['teste', 'producao'].includes(novo.mpAmbiente)) {
+    erros.push(`ambiente do Mercado Pago inválido: "${novo.mpAmbiente}" (use "teste" ou "producao", sem acento)`);
+  }
   if (novo.modelo && !MODELOS.includes(novo.modelo)) {
     erros.push(`modelo inválido: "${novo.modelo}" (use ${MODELOS.join(' ou ')})`);
   }

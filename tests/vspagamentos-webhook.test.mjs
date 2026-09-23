@@ -219,3 +219,17 @@ test('erro do Asaas vira frase acionavel', () => {
   assert.match(explicarErro(429, {}), /limite de chamadas/);
   assert.match(explicarErro(400, { errors: [{ description: 'customer inválido' }] }), /customer inválido/);
 });
+
+/* `ambiente === 'producao'` e falso pra qualquer outra coisa — entao um
+   "produção" com cedilha ligava o recebimento de mentira, calado. */
+test('ambiente do Mercado Pago escrito errado e recusado, nao ignorado', () => {
+  const cfgAntes = vs.getConfig();
+  try {
+    assert.ok(vs.configurar({ mpAmbiente: 'produção' }).erros.some((e) => /ambiente do Mercado Pago/.test(e)));
+    assert.ok(vs.configurar({ mpAmbiente: 'prod' }).erros.some((e) => /ambiente do Mercado Pago/.test(e)));
+    assert.equal(vs.configurar({ mpAmbiente: 'producao' }).ok, true);
+    assert.equal(vs.configurar({ mpAmbiente: 'teste' }).ok, true);
+  } finally {
+    vs.configurar({ mpAmbiente: cfgAntes.mpAmbiente || 'teste' });
+  }
+});
