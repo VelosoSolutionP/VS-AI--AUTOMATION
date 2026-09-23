@@ -451,9 +451,43 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     } catch { return null; }
   }
 
+  /**
+   * Espera o canal terminar de conectar.
+   *
+   * Reconexao leva ~7 segundos e a tela mostra o estado ANTERIOR. Quem clica
+   * nesse intervalo ouvia "canal nao esta conectado" olhando pra uma tela que
+   * dizia conectado — e concluia, com razao, que o sistema mente. Esperar uns
+   * segundos resolve sem o usuario precisar saber que existe reconexao.
+   */
+  async function esperarConectar(segundos = 20) {
+    /* Date.now(), nao `agora()`: aquele devolve texto ISO e a soma viraria
+       concatenacao — o laco rodaria uma vez so, calado. */
+    const limite = Date.now() + segundos * 1000;
+    while (Date.now() < limite) {
+      if (estado === ESTADOS.CONECTADO && cliente) { return true; }
+      // Estados que NAO viram conectado sozinhos: esperar neles e so enrolar.
+      if (estado === ESTADOS.DESCONECTADO || estado === ESTADOS.AGUARDANDO_QR) { return false; }
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    return estado === ESTADOS.CONECTADO && !!cliente;
+  }
+
   async function personalizar({ foto, nome, recado } = {}) {
     if (estado !== ESTADOS.CONECTADO || !cliente) {
-      return { ok: false, erro: `canal ${estado} — conecte antes de personalizar` };
+      const voltou = await esperarConectar();
+      if (!voltou) {
+        /* Reconectando e desconectado sao coisas diferentes, e a saida tambem:
+           uma pede paciencia, a outra pede parear de novo. Dizer "nao esta
+           conectado" nas duas mandava o dono refazer o QR sem precisar. */
+        const reconectando = [ESTADOS.CONECTANDO, ESTADOS.CAIDO].includes(estado);
+        return {
+          ok: false,
+          erro: reconectando
+            ? 'o canal está reconectando — tente de novo em alguns segundos'
+            : `canal ${estado} — conecte antes de personalizar`,
+          reconectando,
+        };
+      }
     }
     const feito = [];
     const falhas = [];
