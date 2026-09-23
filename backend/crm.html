@@ -934,6 +934,16 @@ function numeroBonito(n){
   return `+${ddi} (${ddd}) ${meio}-${linha.slice(meio.length)}`;
 }
 
+/**
+ * O nome do assistente, sempre da configuracao.
+ *
+ * "Micaela" estava CRAVADA em quinze lugares desta tela. E o nome do bot do
+ * dono desta instalacao — no escritorio de advocacia ou na lanchonete que
+ * comprar isto, a tela ficaria falando de uma pessoa que nao existe. O motor ja
+ * fazia certo (o padrao dele e "Atendente"); quem inventava era a tela.
+ */
+const nomeBot=()=>String(BOT?.config?.nome||'').trim()||'o atendimento';
+
 function canalWhatsApp(){
   const web=(CANAIS?.canais||[]).find(c=>c.provider==='whatsapp-web');
   if(web?.estado==='conectado') return {no_ar:true,via:'WhatsApp Web',numero:web.numero||null,rotulo:'no ar · WhatsApp Web',oficial:false};
@@ -2618,7 +2628,7 @@ async function salvarPersonalizacao(){
     corpo:()=>({nome:v('pzNome'),persona:v('pzPersona'),saudacao:v('pzSaud'),
       mensagemFallback:v('pzFall'),mensagemHandoff:v('pzHand'),mensagemCatalogo:v('pzCat'),
       mensagemSemTexto:v('pzSemTexto'),falhasAteHumano:Number(v('pzFalhas')||2)}),
-    sucesso:'Personalização salva. É assim que a Micaela vai se apresentar.',
+    sucesso:`Personalização salva. É assim que ${nomeBot()} vai se apresentar.`,
   });
 }
 
@@ -3334,7 +3344,7 @@ const S={
   </div>
 
   <div class="card" style="margin-bottom:16px">
-    ${cardH('whats',`O número deste canal`,`Qual telefone atende por aqui. É ele que o cliente vê e para onde a Micaela responde.`,2,
+    ${cardH('whats',`O número deste canal`,`Qual telefone atende por aqui. É ele que o cliente vê e para onde ${esc(nomeBot())} responde.`,2,
       c?.numero?`<span class="badge b-ok">+${esc(c.numero)}</span>`:'<span class="badge">nenhum pareado</span>')}
     ${linha('Número pareado agora','lido da sessão, não digitado',c?.numero?'+'+esc(c.numero):'—',c?.numero?'b-ok':'')}
     <div class="form-grid" style="margin-top:12px">
@@ -3375,7 +3385,7 @@ const S={
     <div class="perfil-grid">
       <div class="form-grid" style="align-content:start">
         <div class="field" style="grid-column:1/-1"><label>Nome que aparece</label>
-          <input id="pfNome" placeholder="Micaela · Veloso Solution" oninput="previewPerfil()"></div>
+          <input id="pfNome" placeholder="${esc(nomeBot())}" oninput="previewPerfil()"></div>
         <div class="field" style="grid-column:1/-1"><label>Recado <small>(o "status" do perfil)</small></label>
           <input id="pfRecado" placeholder="Assistente virtual — atendo 24h, e chamo gente quando precisa" oninput="previewPerfil()"></div>
         <div class="field" style="grid-column:1/-1"><label>Foto <small>(quadrada, JPG ou PNG, até 5 MB)</small></label>
@@ -3395,10 +3405,10 @@ const S={
       <div class="celular">
         <div class="cel-topo">
           <div class="cel-foto" id="pvFoto"></div>
-          <div class="cel-id"><b id="pvNome">Micaela</b><small id="pvRecado">online</small></div>
+          <div class="cel-id"><b id="pvNome">${esc(nomeBot())}</b><small id="pvRecado">online</small></div>
         </div>
         <div class="cel-conversa">
-          <div class="cel-bolha">Oi! Eu sou a Micaela, assistente virtual da Veloso Solution.</div>
+          <div class="cel-bolha">${esc(BOT?.config?.saudacao||`Oi! Eu sou ${nomeBot()}, o atendimento automático.`)}</div>
           <div class="cel-bolha cel-eu">oi</div>
         </div>
         <p class="hint" style="text-align:center;font-size:11px;margin-top:8px">é assim que ele vê no celular</p>
@@ -3432,7 +3442,7 @@ const S={
   const EM_BREVE='em breve';
   const CANAIS_LISTA=[
     {fam:'Atendimento',itens:[
-      {id:'whatsapp',nome:'WhatsApp',ic:'whats',oq:'Atende, cobra e responde cliente. É por onde a Micaela fala.',
+      {id:'whatsapp',nome:'WhatsApp',ic:'whats',oq:`Atende, cobra e responde cliente. É por onde ${nomeBot()} fala.`,
        estado:w.no_ar?'ok':'pendente',rotulo:w.no_ar?(w.numero?'+'+w.numero:'conectado'):w.rotulo,
        acao:{t:w.no_ar?'Gerenciar':'Conectar',on:"ir('canais')",ic:w.no_ar?'config':'power'}},
     ]},
@@ -3642,19 +3652,19 @@ const S={
   /* O contexto vai no TOPO da conversa, discreto: e a primeira coisa que quem
      atende precisa ler, e nao cabe depois da caixa de resposta. */
   const ctx=sel&&Object.keys(sel.contexto||{}).length
-    ? `<div class="ctx-micaela">${ico('registrar')}<div><b>A Micaela já apurou</b>
+    ? `<div class="ctx-micaela">${ico('registrar')}<div><b>${esc(nomeBot())} já apurou</b>
         ${Object.entries(sel.contexto).map(([k,v])=>`<span>${esc(k.replace(/_/g,' '))}: <i>${esc(String(v).slice(0,90))}</i></span>`).join('')}
        </div></div>`:'';
 
   if(!lista.length){
     return head('Atendimento','Quem escreve no WhatsApp aparece aqui.',
       online?'':botao({t:'Conectar o WhatsApp',ic:'whats',v:'p',on:"ir('canais')"}))+
-      vazio('whats','Nenhuma conversa ainda','Quando alguém escrever, a conversa abre aqui — com o que a Micaela já perguntou.',
+      vazio('whats','Nenhuma conversa ainda',`Quando alguém escrever, a conversa abre aqui — com o que ${nomeBot()} já perguntou.`,
         ['Conectar o WhatsApp em Canais','Mandar uma mensagem de outro número','Voltar aqui pra responder']);
   }
 
   return head('Atendimento',
-      dados.esperando?`<b>${dados.esperando}</b> pessoa(s) esperando você.`:'Ninguém esperando — a Micaela está dando conta.',
+      dados.esperando?`<b>${dados.esperando}</b> pessoa(s) esperando você.`:`Ninguém esperando — ${nomeBot()} está dando conta.`,
       online?botao({t:'Atualizar',ic:'atualizar',v:'s',on:'carregar()'})
             :botao({t:'Conectar o WhatsApp',ic:'whats',v:'p',on:"ir('canais')"}))+
   `<div class="inbox">
@@ -3667,7 +3677,7 @@ const S={
           style="font-family:ui-monospace,monospace">${esc(sel.protocolo)}</span>`:''}
         ${sel.esperandoGente
           ? `<span class="badge b-err">esperando desde ${hora(sel.desde)}</span>`
-          : '<span class="badge b-ok">com a Micaela</span>'}
+          : `<span class="badge b-ok">com ${esc(nomeBot())}</span>`}
       </div>
       ${ctx}
       <div class="conversa-fluxo">${(sel.historico||[]).filter(h=>h.tipo==='interacao').map(bolha).join('')}</div>
@@ -3675,7 +3685,7 @@ const S={
         <textarea id="respTexto" rows="2" placeholder="${online?'Escreva a resposta…':'Conecte o WhatsApp para responder'}" ${online?'':'disabled'}></textarea>
         <div class="responder-acoes">
           ${botao({t:'Enviar',ic:'enviar',v:'p',on:`responderCliente('${esc(sel.telefone)}')`,off:!online,id:'btResponder'})}
-          ${sel.esperandoGente?botao({t:'Devolver pra Micaela',ic:'bot',v:'g',on:`devolverAoBot('${esc(sel.telefone)}')`}):''}
+          ${sel.esperandoGente?botao({t:`Devolver pra ${nomeBot()}`,ic:'bot',v:'g',on:`devolverAoBot('${esc(sel.telefone)}')`}):''}
           ${sel.protocoloEstado&&sel.protocoloEstado!=='encerrado'
             ?botao({t:'Encerrar atendimento',ic:'check',v:'g',on:`encerrarAtendimento('${esc(sel.telefone)}','${esc(sel.protocolo||'')}')`,
               tit:'Fecha o caso e manda o protocolo pro cliente'}):''}
@@ -4433,8 +4443,15 @@ function acompanharCanal(){
   },3000);
 }
 function baixarModeloFluxo(){
-  const csv=['passo,mensagem,opcao,texto_opcao,vai_para,acao,resposta',
-  'inicio,"Boa noite! Sou a Micaela, atendente virtual da Veloso Solution. Em que posso te ajudar?",1,"Já sou cliente",cliente,,',
+  /* O modelo sai com o NOME configurado e a empresa do contrato. Vinha com
+     "Micaela" e "Veloso Solution" escritos dentro: quem baixasse numa outra
+     instalacao comecaria o proprio fluxo com o nome de outra empresa. */
+  /* `{empresa}` fica no texto de proposito: o motor troca pelo nome real na
+     hora de responder, e assim o modelo ja ensina o recurso em vez de chumbar
+     uma empresa dentro do arquivo que todo mundo baixa. */
+  const quem=nomeBot();
+  const csv=['passo,mensagem,opcao,texto_opcao,vai_para,acao,resposta,valor,sku',
+  `inicio,"Boa noite! Sou ${quem}, atendimento virtual da {empresa}. Em que posso te ajudar?",1,"Já sou cliente",cliente,,`,
   'inicio,,2,"Quero conhecer a solução",novo,,',
   'inicio,,3,"Falar com uma pessoa",,comercial,"Claro! Já estou chamando alguém do time."',
   'cliente,"Que bom te ver de novo! O que você precisa hoje?",1,"Suporte",,comercial,"Vou te passar pro suporte agora."',
@@ -4458,7 +4475,7 @@ async function importarFluxo(input){
 }
 async function apagarFluxo(){
   return confirmar({
-    titulo:'Apagar o fluxo da Micaela?',
+    titulo:`Apagar o fluxo de ${nomeBot()}?`,
     texto:'Ela volta a responder só pelas regras por palavra — sem árvore, sem triagem.',
     consequencia:'As conversas em andamento perdem o ponto onde pararam.',
     rotulo:'Apagar fluxo', icone:'excluir', perigo:true,
@@ -4631,12 +4648,12 @@ async function responderCliente(tel){
 
 async function devolverAoBot(tel){
   return confirmar({
-    titulo:'Devolver a conversa pra Micaela?',
+    titulo:`Devolver a conversa pra ${nomeBot()}?`,
     texto:'Ela volta a responder este número automaticamente.',
     consequencia:null,
     rotulo:'Devolver', icone:'bot', perigo:false,
     aoConfirmar:async()=>{
-      try{ await api('atendimentos/devolver',{telefone:tel}); flash('Conversa devolvida pra Micaela.','ok'); await carregar(); }
+      try{ await api('atendimentos/devolver',{telefone:tel}); flash(`Conversa devolvida pra ${nomeBot()}.`,'ok'); await carregar(); }
       catch(e){ avisoErro('Não consegui concluir',e.message); }
     },
   });
@@ -4657,7 +4674,7 @@ function operadoresHtml(){
   const cheio=o.uso?.cheio===true;
   const e=OP_EDIT||{};
   return `<div class="card" style="margin-bottom:16px">
-    ${cardH('crm',`Operadores humanos`,`Quem recebe o cliente quando a Micaela passa adiante. O teto vem do contrato — ampliar é adendo, não configuração.`,2,
+    ${cardH('crm',`Operadores humanos`,`Quem recebe o cliente quando ${esc(nomeBot())} passa adiante. O teto vem do contrato — ampliar é adendo, não configuração.`,2,
       `<span class="badge ${cheio?'b-err':(o.uso?.alerta?'b-warn':'b-ok')}">${esc(o.uso?.texto||'—')}</span>`)}
 
     ${(o.setoresSemGente||[]).length?`<p class="hint" style="margin-top:2px;color:var(--err)">
@@ -4675,7 +4692,7 @@ function operadoresHtml(){
           ${botao({t:'Editar',ic:'editar',v:'g',sz:'xs',on:`editarOperador('${esc(op.id)}')`})}
           ${botao({t:op.ativo===false?'Reativar':'Desativar',ic:'poder',v:'g',sz:'xs',on:`alternarOperador('${esc(op.id)}')`})}
         </td></tr>`).join('')}
-      </tbody></table></div>`:'<p class="hint" style="margin-top:10px">Nenhum operador cadastrado ainda. Sem eles, tudo que a Micaela encaminhar fica sem dono.</p>'}
+      </tbody></table></div>`:'<p class="hint" style="margin-top:10px">Nenhum operador cadastrado ainda. Sem eles, tudo que ${esc(nomeBot())} encaminhar fica sem dono.</p>'}
 
     <div class="form-grid" style="margin-top:14px">
       <div class="field"><label>Nome *</label>

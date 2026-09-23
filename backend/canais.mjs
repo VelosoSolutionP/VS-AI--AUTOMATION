@@ -179,7 +179,13 @@ function montar({ produtos } = {}) {
     const chave = de || endereco;
     if (!chave) { return; }
     const r = bot.assumirConversa(chave, { endereco });
-    if (r?.novo) { console.log(`[canais] voce assumiu a conversa com ${chave} — a Micaela fica quieta ate devolver`); }
+    /* Nome vem da configuracao tambem no LOG: numa instalacao de cliente, ler
+       "a Micaela fica quieta" sobre um bot chamado Paulao e confuso pra quem
+       esta lendo o log pra entender um atendimento. */
+    if (r?.novo) {
+      const quem = bot.painel?.().config?.nome || 'o atendimento';
+      console.log(`[canais] voce assumiu a conversa com ${chave} — ${quem} fica quieto ate devolver`);
+    }
   });
 
   whatsappWeb.aoMudarStatus((st) => {
