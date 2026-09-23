@@ -581,6 +581,38 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     }
   }
 
+  /**
+   * Manda uma IMAGEM.
+   *
+   * Existe por causa do Pix: o copia-e-cola resolve pra quem paga no mesmo
+   * aparelho, mas quem paga com OUTRO celular precisa apontar a câmera pra
+   * alguma coisa. Sem imagem, o QR do Pix simplesmente não existe pro cliente —
+   * e QR é como a maioria das pessoas paga.
+   */
+  async function enviarImagem({ para, dataUri, legenda = '', nome = 'imagem.png' }) {
+    const cru = String(para || '').trim();
+    if (!cru) { return { ok: false, erro: 'destino vazio' }; }
+    if (!dataUri) { return { ok: false, erro: 'nenhuma imagem para enviar' }; }
+    const destino = cru.includes('@') ? cru : soDigitos(cru);
+    if (estado !== ESTADOS.CONECTADO || !cliente) {
+      return { ok: false, erro: `canal ${estado} — nada foi enviado` };
+    }
+    try {
+      const r = await cliente.sendImageFromBase64(
+        destino.includes('@') ? destino : `${destino}@c.us`, dataUri, nome, String(legenda || ''),
+      );
+      ultimaAtividade = agora();
+      const idEnviado = r?.id?.id || r?.id || null;
+      if (idEnviado) {
+        enviadosPorNos.add(String(idEnviado));
+        if (enviadosPorNos.size > 300) { enviadosPorNos.delete(enviadosPorNos.values().next().value); }
+      }
+      return { ok: true, id: idEnviado };
+    } catch (e) {
+      return { ok: false, erro: e.message };
+    }
+  }
+
   return {
     nome: 'whatsapp-web',
     oficial: false,
@@ -589,6 +621,7 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     status,
     saude,
     enviarTexto,
+    enviarImagem,
     personalizar,
     perfilAtual,
     esquecerAparelho,

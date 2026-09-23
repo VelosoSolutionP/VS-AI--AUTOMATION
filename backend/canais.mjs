@@ -115,6 +115,15 @@ function montar({ produtos } = {}) {
             }
             return env;
           },
+          /* O canal e quem sabe mandar imagem; o atendimento so pede. E por
+             aqui que o QR do Pix chega na tela de quem vai pagar. */
+          enviarImagem: async ({ dataUri, legenda, nome }) => {
+            const para = msg.endereco || msg.de;
+            const env = await whatsappWeb.enviarImagem({ para, dataUri, legenda, nome });
+            if (env?.ok) { console.log(`[canais] mandei o QR do Pix pra ${quem}`); }
+            else { console.error(`[canais] NAO consegui mandar o QR pra ${quem}: ${env?.erro || 'motivo nao informado'}`); }
+            return env;
+          },
           produtos: produtos || (() => []),
         },
       );

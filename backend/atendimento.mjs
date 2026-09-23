@@ -193,7 +193,10 @@ export async function receberMensagem(msg, deps = {}) {
       nome: msg.nome || lead?.nome || undefined,
       webhookUrl: process.env.VS_URL_WEBHOOK_PAGAMENTO || undefined,
     });
-    if (c?.ok && c.pagamento?.linkPagamento) {
+    /* Ter FORMA DE PAGAR e o que importa, nao ter link. Exigir link descartava
+       uma cobranca Pix que veio so com QR e anunciava "nao consegui gerar o
+       link" com o QR na mao — o cliente pagaria na entrega sem precisar. */
+    if (c?.ok && (c.pagamento?.linkPagamento || c.pagamento?.pix?.payload)) {
       cobranca = c.pagamento;
       /* NUMERO DO PEDIDO na mensagem. Sem ele o cliente nao tem como cobrar
          nada depois — "meu pedido" nao identifica pedido nenhum, e quem atende
@@ -226,6 +229,24 @@ export async function receberMensagem(msg, deps = {}) {
   // Só registra a saída se saiu mesmo (ver cabeçalho do arquivo).
   if (lead && envio.ok) {
     crm.interagir(lead.id, { canal: 'whatsapp', direcao: 'saida', texto });
+  }
+
+  /* O QR do Pix vai como IMAGEM, depois do texto.
+     O copia-e-cola resolve pra quem paga no mesmo aparelho; quem paga com OUTRO
+     celular precisa apontar a câmera pra alguma coisa. Sem a imagem, o QR
+     simplesmente não existe pro cliente — e QR é como a maioria paga.
+     Vai DEPOIS de propósito: se a imagem falhar, o cliente ainda tem o código
+     colável na mensagem anterior, em vez de ficar sem nada. */
+  if (cobranca?.pix?.imagemBase64 && deps.enviarImagem) {
+    const img = await deps.enviarImagem({
+      phone: t.telefone,
+      dataUri: `data:image/png;base64,${cobranca.pix.imagemBase64}`,
+      legenda: `Pedido ${r.cobranca.referencia} — ${emReais(cobranca.valorCentavos)}`,
+      nome: `pix-${r.cobranca.referencia}.png`,
+    });
+    if (!img?.ok) {
+      console.error(`[pagamento] o QR de ${r.cobranca.referencia} nao foi enviado: ${img?.erro || 'motivo nao informado'}`);
+    }
   }
 
   return {

@@ -180,3 +180,53 @@ test('SKU fora do catálogo não vira item de graça', () => {
   assert.equal(o.motivoIndisponivel, 'fora do catálogo');
   assert.equal(o.valorCentavos, undefined);
 });
+
+/* ---- o QR tem que chegar como IMAGEM ---- */
+
+test('Pix com QR manda o codigo no texto E a imagem em seguida', async () => {
+  const { fluxo } = fluxoDeCsv(CSV);
+  bot.salvarFluxo(fluxo.passos);
+  const textos = [];
+  const imagens = [];
+  const enviar = async ({ texto }) => { textos.push(texto); return { ok: true }; };
+  const enviarImagem = async (e) => { imagens.push(e); return { ok: true }; };
+  const cobrar = async (e) => ({
+    ok: true,
+    pagamento: {
+      id: 'pay_qr', valorCentavos: e.valorCentavos, linkPagamento: 'https://mp/x',
+      pix: { payload: '00020126580014br.gov.bcb.pix...', imagemBase64: 'iVBORw0KGgo=' },
+    },
+  });
+  const de = '5531900000007';
+  for (const t of ['oi', '1', '1']) {
+    await atendimento.receberMensagem({ id: 'm' + Math.random(), de, texto: t, tipo: 'texto' }, { enviar, cobrar, enviarImagem });
+  }
+
+  const ultimo = textos.at(-1);
+  assert.match(ultimo, /Pedido \*VS-/, 'sem numero de pedido o cliente nao tem como cobrar nada depois');
+  assert.match(ultimo, /00020126580014br\.gov\.bcb\.pix/, 'o copia-e-cola tem que estar NO TEXTO');
+  assert.ok(!/Paga por aqui/.test(ultimo), 'havendo copia-e-cola, nao se manda link no lugar dele');
+
+  assert.equal(imagens.length, 1, 'quem paga com outro celular precisa apontar a camera pra alguma coisa');
+  assert.match(imagens[0].dataUri, /^data:image\/png;base64,/);
+  assert.match(imagens[0].legenda, /Pedido VS-.*R\$ 34,00/);
+});
+
+test('QR que nao sobe nao derruba o pedido — o codigo colavel ja foi', async () => {
+  const { fluxo } = fluxoDeCsv(CSV);
+  bot.salvarFluxo(fluxo.passos);
+  const textos = [];
+  const enviar = async ({ texto }) => { textos.push(texto); return { ok: true }; };
+  const enviarImagem = async () => ({ ok: false, erro: 'canal caiu' });
+  const cobrar = async (e) => ({
+    ok: true,
+    pagamento: { id: 'p2', valorCentavos: e.valorCentavos, pix: { payload: 'codigo-pix', imagemBase64: 'iVBORw0KGgo=' } },
+  });
+  const de = '5531900000008';
+  let ultimo;
+  for (const t of ['oi', '1', '2']) {
+    ultimo = await atendimento.receberMensagem({ id: 'm' + Math.random(), de, texto: t, tipo: 'texto' }, { enviar, cobrar, enviarImagem });
+  }
+  assert.equal(ultimo.ok, true);
+  assert.match(textos.at(-1), /codigo-pix/, 'o codigo tem que ter saido ANTES da imagem, senao a falha deixa o cliente sem nada');
+});
