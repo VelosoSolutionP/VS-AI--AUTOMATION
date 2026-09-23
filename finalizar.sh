@@ -10,7 +10,7 @@
 set -u
 RAIZ="$(cd "$(dirname "$0")" && pwd)"
 PORTA="${PORTA:-8787}"
-PUB="${PAINEL_URL:-https://painel.velososolution.com.br}"
+PUB="${PAINEL_URL:-https://bolsocheio.velososolution.com.br}"
 SO_CONFERIR=0
 [ "${1:-}" = "--conferir" ] && SO_CONFERIR=1
 
@@ -115,6 +115,11 @@ Falta o que so voce faz, fora desta maquina:
   1. developers.tiktok.com -> seu app -> Login Kit -> Redirect URI
      troque o trycloudflare morto por:
      https://painel.velososolution.com.br/oauth/callback/open
+
+     (Sim, `painel.` mesmo, e nao `bolsocheio.`: e o endereco CADASTRADO la.
+      O console mudou de nome, esta URL nao pode mudar sozinha — trocar aqui
+      sem trocar no app da TikTok derruba o login das redes. O `painel.`
+      continua servindo o console justamente por isso.)
 
   2. /mcp  (digitado no prompt do Claude Code, nao aqui)
      reconecta o vs-ia-dev pro qa_simulate pegar o conserto

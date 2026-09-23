@@ -69,7 +69,7 @@ for var in $(env | grep -oE '^[A-Za-z_][A-Za-z0-9_]*=/tmp/claude-[^ ]*' | cut -d
   unset "$var"
 done
 
-export PAINEL_URL="${PAINEL_URL:-https://painel.velososolution.com.br}"
+export PAINEL_URL="${PAINEL_URL:-https://bolsocheio.velososolution.com.br}"
 echo "ambiente recuperado: $n variaveis"
 
 kill "$PID" 2>/dev/null

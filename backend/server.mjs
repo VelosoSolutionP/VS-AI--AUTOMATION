@@ -76,13 +76,36 @@ function baseRedirect() {
     const c = tk.getConfig();
     if (c?.redirectBase) { return String(c.redirectBase).replace(/\/+$/, ''); }
   } catch { /* store indisponivel: cai no padrao */ }
-  return (process.env.TIKTOK_REDIRECT_BASE || process.env.PAINEL_URL || 'https://painel.velososolution.com.br').replace(/\/+$/, '');
+  /* O redirect do OAuth e CADASTRADO no painel de cada rede social. Trocar a
+     MARCA do console nao pode trocar esta URL: quem manda aqui e o que esta
+     registrado la, e mudar sem recadastrar derruba o login de todas elas de uma
+     vez. Por isso e constante, e nao deriva de PAINEL_URL. */
+  return (process.env.TIKTOK_REDIRECT_BASE || REDIRECT_OAUTH_REGISTRADO).replace(/\/+$/, '');
 }
 
-const HOST_PAINEL = (() => {
-  try { return new URL(process.env.PAINEL_URL || 'https://painel.velososolution.com.br').hostname.toLowerCase(); }
-  catch { return ''; }
-})();
+/** O que esta cadastrado no app da TikTok hoje. Só muda junto com o cadastro lá. */
+const REDIRECT_OAUTH_REGISTRADO = process.env.OAUTH_REDIRECT_BASE || 'https://painel.velososolution.com.br';
+
+/**
+ * Hosts que servem o CONSOLE (e nao a landing page).
+ *
+ * São vários de propósito. O console mudou de `painel.` para `bolsocheio.`, mas
+ * o endereço antigo continua valendo — ele está cadastrado como redirect de
+ * OAuth nas redes sociais, e um link antigo que passa a cair na página de venda
+ * faz o dono concluir que o console caiu.
+ */
+/** O endereço do produto. Constante porque não pode depender de env estar certo. */
+const HOST_CONSOLE_PADRAO = 'https://bolsocheio.velososolution.com.br';
+
+const HOSTS_CONSOLE = new Set([
+  /* O canônico entra SEMPRE, mesmo que PAINEL_URL aponte pro endereço antigo —
+     foi exatamente isso que fez o endereço novo cair na página de venda na
+     primeira tentativa. */
+  HOST_CONSOLE_PADRAO,
+  process.env.PAINEL_URL || HOST_CONSOLE_PADRAO,
+  REDIRECT_OAUTH_REGISTRADO,
+  ...String(process.env.CONSOLE_HOSTS_EXTRA || '').split(',').filter(Boolean),
+].map((u) => { try { return new URL(u.trim()).hostname.toLowerCase(); } catch { return ''; } }).filter(Boolean));
 const CRM_TOKEN = process.env.CRM_TOKEN || '';
 
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://velososolution.online';
@@ -192,12 +215,12 @@ const server = createServer(async (req, res) => {
 
   /**
    * No host do PAINEL, a raiz e o console — nao a pagina de venda do QA-Gate.
-   * O mesmo processo serve os dois, e quem digita "painel.velososolution.com.br"
+   * O mesmo processo serve os dois, e quem digita o endereço do console
    * esperando o CRM caia na landing page e conclui, com razao, que o console nao
    * carregou. O host vem de PAINEL_URL pra isto nao virar regra escondida no codigo.
    */
-  if (req.method === 'GET' && req.url === '/' && CRM_ENABLED && HOST_PAINEL
-      && String(req.headers.host || '').split(':')[0].toLowerCase() === HOST_PAINEL) {
+  if (req.method === 'GET' && req.url === '/' && CRM_ENABLED
+      && HOSTS_CONSOLE.has(String(req.headers.host || '').split(':')[0].toLowerCase())) {
     res.writeHead(302, { location: '/crm' });
     return res.end();
   }
@@ -703,12 +726,12 @@ const server = createServer(async (req, res) => {
         ? { padrao: '.jpg', maxBytes: midia.MAX_IMAGEM_BYTES }
         : { padrao: '.mp4', maxBytes: midia.MAX_BYTES });
       if (!r.ok) { return json(res, 413, { erro: r.motivo }); }
-      const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
+      const origem = process.env.PAINEL_URL || 'https://bolsocheio.velososolution.com.br';
       return json(res, 201, { ...r, imagem, url: `${origem}/midia/${r.arquivo}` });
     }
     if (req.method === 'GET' && rota === '/crm/api/midia') {
       if (!acesso.confere(req.headers['x-crm-token'])) { return json(res, 403, { erro: 'senha ausente ou invalida' }); }
-      const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
+      const origem = process.env.PAINEL_URL || 'https://bolsocheio.velososolution.com.br';
       return json(res, 200, { arquivos: midia.listar().map((a) => ({ ...a, url: `${origem}/midia/${a.arquivo}` })), maxBytes: midia.MAX_BYTES });
     }
     /* Catalogo e campanhas EXISTIAM no motor e nao tinham porta: o painel
@@ -845,7 +868,7 @@ const server = createServer(async (req, res) => {
       return json(res, 200, fin.painel({ de: u.searchParams.get('de'), ate: u.searchParams.get('ate') }));
     }
     if (req.method === 'GET' && rota === '/crm/api/pagamentos') {
-      const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
+      const origem = process.env.PAINEL_URL || 'https://bolsocheio.velososolution.com.br';
       const prov = pagar.provedorAtual();
       return json(res, 200, {
         painel: pagar.painel(),
@@ -870,14 +893,14 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { produto: p, historico: estoque.historico(sku, 20) });
     }
     if (req.method === 'GET' && rota === '/crm/api/estoque/publicados') {
-      const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
+      const origem = process.env.PAINEL_URL || 'https://bolsocheio.velososolution.com.br';
       return json(res, 200, { publicados: estoque.publicados(), urlVitrine: `${origem}/vitrine`, reservas: estoque.reservas().slice(0, 100) });
     }
     if (req.method === 'GET' && rota === '/crm/api/estoque/reservas') {
       return json(res, 200, { reservas: estoque.reservas(), excluidos: estoque.excluidos().map(estoque.resumir) });
     }
     if (req.method === 'GET' && rota === '/crm/api/estoque/lotes') {
-      const origem = process.env.PAINEL_URL || 'https://painel.velososolution.com.br';
+      const origem = process.env.PAINEL_URL || 'https://bolsocheio.velososolution.com.br';
       return json(res, 200, {
         lotes: estoque.lotes(),
         canais: estoque.FORMATOS,
@@ -1026,7 +1049,7 @@ const server = createServer(async (req, res) => {
             /* Baixar a imagem e I/O, entao entra por injecao: o modulo continua
                testavel sem rede, como o resto da casa. */
             baixarImagem: async (url) => {
-              const abs = /^https?:/i.test(url) ? url : `${process.env.PAINEL_URL || 'https://painel.velososolution.com.br'}${url.startsWith('/') ? '' : '/'}${url}`;
+              const abs = /^https?:/i.test(url) ? url : `${process.env.PAINEL_URL || 'https://bolsocheio.velososolution.com.br'}${url.startsWith('/') ? '' : '/'}${url}`;
               const res = await fetch(abs);
               if (!res.ok) { return null; }
               return Buffer.from(await res.arrayBuffer());
