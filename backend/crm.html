@@ -756,17 +756,32 @@ body.sem-nav #view{margin:0!important;padding:0!important;max-width:none!importa
 body.sem-nav .content{padding:0!important;max-width:none!important}
 body.sem-nav main,body.sem-nav .main{margin-left:0!important}
 
-#sireneTela{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:16px;background:rgba(185,28,28,.92);animation:sirenePisca .9s infinite}
-@keyframes sirenePisca{0%,100%{background:rgba(185,28,28,.94)}50%{background:rgba(127,29,29,.94)}}
-#sireneTela .sirene-caixa{max-width:640px;width:100%;background:#fff;color:#16161c;border-radius:16px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
-#sireneTela .sirene-titulo{font:800 26px/1.2 system-ui,sans-serif;color:#b91c1c;margin-bottom:14px}
-#sireneTela .sirene-item{border-left:4px solid #dc2626;padding:8px 12px;margin:8px 0;background:#fef2f2;border-radius:8px;font-size:14px}
-#sireneTela .sirene-item small{color:#5b5b66}
-#sireneTela .sirene-aviso{font-weight:700;color:#b91c1c;margin:10px 0 0}
+#sireneTela{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:16px;background:rgba(10,10,14,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+#sireneTela .sirene-caixa{position:relative;max-width:600px;width:100%;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:18px;padding:26px 24px 20px;box-shadow:var(--sh-3);overflow:hidden}
+#sireneTela .sirene-caixa::before{content:'';position:absolute;inset:0 0 auto;height:4px;background:var(--err)}
+#sireneTela .sirene-cab{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+#sireneTela .sirene-anel{position:relative;width:44px;height:44px;border-radius:50%;background:var(--err-bg);display:grid;place-items:center;font-size:20px;flex:none}
+#sireneTela .sirene-anel::after{content:'';position:absolute;inset:0;border-radius:50%;border:2px solid var(--err);animation:sireneAnel 1.6s ease-out infinite}
+@keyframes sireneAnel{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.7);opacity:0}}
+@media (prefers-reduced-motion:reduce){#sireneTela .sirene-anel::after{animation:none}}
+#sireneTela .sirene-titulo{font-weight:700;font-size:20px;line-height:1.25;letter-spacing:-.01em}
+#sireneTela .sirene-sub{color:var(--muted);font-size:13px;margin-top:2px}
+#sireneTela .sirene-item{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:8px 0;background:var(--panel-2);font-size:14px}
+#sireneTela .sirene-item small{color:var(--dim)}
+#sireneTela .sirene-aviso{font-weight:600;color:var(--err);margin:10px 0 0;font-size:13px}
 #sireneTela .sirene-botoes{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
-#sireneTela .sirene-botoes .btn{background:#dc2626;color:#fff;border-color:#dc2626;font-weight:700;padding:12px 16px}
-#sireneTela .sirene-botoes .btn+.btn{background:#fff;color:#b91c1c}
-#sireneTela .sirene-rodape{font-size:12px;color:#5b5b66;margin:14px 0 0}
+#sireneTela .sirene-botoes .btn{padding:11px 16px;font-weight:600}
+#sireneTela .sirene-botoes .sirene-parar{background:#b91c1c;color:#fff;border-color:#b91c1c}
+#sireneTela .sirene-rodape{font-size:12px;color:var(--dim);margin:14px 0 0}
+/* Card de segurança: a paleta da marca. Verde só onde é "deu certo". */
+#segCard .sw input:checked+.trilho{background:var(--ac)}
+#segCard .sw input:focus-visible+.trilho{outline-color:var(--ac)}
+#segCard .b-neutra{background:var(--raised);color:var(--muted);border-color:var(--line)}
+#segCard .seg-secao{font-weight:600;font-size:11px;line-height:1;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:22px 0 6px}
+#segCard .seg-fone{width:72px;text-align:center;border-radius:999px;padding:7px 8px;font-variant-numeric:tabular-nums}
+#segCard .seg-sos{margin-top:18px;padding:16px 18px;border:1px solid var(--line);border-left:3px solid var(--err);border-radius:12px;background:var(--panel-2);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+#segCard .seg-sos .btn{background:#b91c1c;color:#fff;border-color:#b91c1c;font-weight:600;padding:10px 18px}
+#segCard .seg-frase{margin:0 0 4px;padding:10px 12px;border-radius:10px;background:var(--ac-soft);color:var(--fg);font-size:13px}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
@@ -4999,10 +5014,11 @@ function pintarSeguranca(){
     ${cardH('alerta',`Segurança de quem atende e de quem é atendido`,
       `Vale para qualquer negócio que atende público.`,5,
       segSw('sgAtivo',ligado,ligado?'<b>ligado</b>':'<b style="color:var(--err)">desligado</b>',`onchange="segMudouMestre(this)"`))}
-    <p class="hint" style="margin:0 0 12px">O Bolso Cheio não substitui polícia, atendimento médico ou serviços de emergência.
+    <p class="seg-frase">O Bolso Cheio não substitui polícia, atendimento médico ou serviços de emergência.
       Ele <b>reduz o caminho entre um pedido de ajuda e quem pode agir</b>.</p>
 
     <div class="seg-bloco"${ligado?'':' style="opacity:.55"'}>
+      <div class="seg-secao">Emergências</div>
       ${SEG_TIPOS.map(([t,nome,desc,padrao])=>{
         const ct=(e.tipos||{})[t]||{}, on=ct.ativo!==false;
         const extras=((e.termosExtras||{})[t]||[]).join('\n');
@@ -5012,18 +5028,19 @@ function pintarSeguranca(){
               <textarea id="sgTermos_${t}" rows="3" placeholder="uma por linha — ex.: me tira daqui" style="margin-top:6px;width:100%">${esc(extras)}</textarea>
               <small class="hint">Somam às de fábrica. Use o jeito que o SEU público pede ajuda.</small></details></div>
           <div style="display:flex;align-items:center;gap:10px">
-            <input id="sgFone_${t}" value="${esc(ct.fone||(e.telefones||{})[t]||padrao)}" style="width:78px;text-align:center" title="Telefone que o bot manda ligar">
+            <input id="sgFone_${t}" class="seg-fone" value="${esc(ct.fone||(e.telefones||{})[t]||padrao)}" title="Telefone que o bot manda ligar" aria-label="Telefone de ${esc(nome)}">
             ${segSw('sgTipo_'+t,on,'')}
           </div></div>`;}).join('')}
-      ${linha('Ganha de tudo','Passa por cima do silêncio pós-atendimento, da moderação e da pausa','sempre','b-ok')}
+      ${linha('Ganha de tudo','Passa por cima do silêncio pós-atendimento, da moderação e da pausa','sempre','b-neutra')}
+      <div class="seg-secao">Respeito no atendimento</div>
       <div class="stat-row"><div class="lbl">Falta de respeito<small>${SEG.avisosAntesDePausa??2} aviso(s) · depois encerra e pausa por ${SEG.horasDePausa??2}h, sem fila · quem tem contrato nunca é encerrado por robô.
         Os números ficam em <a href="#" onclick="document.getElementById('bcAvisos')?.scrollIntoView({behavior:'smooth',block:'center'});return false">Respeito e brincadeira</a>.</small></div><div style="margin-left:auto">${segSw('sgOfensa',m.ofensa!==false,'')}</div></div>
       <div class="stat-row"><div class="lbl">Cantada e assédio<small>Fecha a porta na primeira, em vez de repetir o menu</small></div><div style="margin-left:auto">${segSw('sgAssedio',m.assedio!==false,'')}</div></div>
-      ${linha('Saída da pausa','Escrever <b>URGENTE</b> chama uma pessoa mesmo durante a pausa — e alerta os responsáveis','sempre','b-ok')}
+      ${linha('Saída da pausa','Escrever <b>URGENTE</b> chama uma pessoa mesmo durante a pausa — e alerta os responsáveis','sempre','b-neutra')}
       <div style="margin-top:12px">${botao({t:'Salvar segurança',ic:'salvar',v:'p',on:'salvarSeguranca()',id:'sgSalvar'})}</div>
     </div>
 
-    <h4 style="margin:22px 0 4px">Quem recebe os alertas</h4>
+    <div class="seg-secao">Quem recebe os alertas</div>
     <p class="hint" style="margin:0 0 10px">Pedido de socorro, <b>URGENTE</b> e SOS chegam no WhatsApp destas pessoas, na hora — e o painel aberto
       <b>toca uma sirene</b> até alguém clicar "Estou vendo".
       ${resp.length?'':'<b style="color:var(--err)">Ninguém cadastrado: hoje nenhum alerta sai — e o bot não diz ao cliente que avisou alguém.</b>'}</p>
@@ -5035,12 +5052,12 @@ function pintarSeguranca(){
       ${botao({t:'Testar sirene do painel',ic:'alerta',v:'s',on:'testarSirene()'})}
     </div>
 
-    <div class="seg-sos" style="margin-top:22px;padding:16px;border:1px solid var(--err);border-radius:12px;background:var(--err-bg,rgba(220,38,38,.06));display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+    <div class="seg-sos">
       <div style="flex:1;min-width:220px"><b>Botão SOS</b><p class="hint" style="margin:4px 0 0">O atendente está em perigo ou precisa de ajuda agora? Um clique alerta todos os responsáveis.</p></div>
-      <button class="btn" style="font-size:16px;padding:12px 22px;background:#dc2626;color:#fff;border-color:#dc2626;font-weight:700" onclick="abrirSos()">🆘 Acionar SOS</button>
+      <button class="btn" onclick="abrirSos()">Acionar SOS</button>
     </div>
 
-    <h4 style="margin:22px 0 6px">Auditoria</h4>
+    <div class="seg-secao">Auditoria</div>
     ${(SEG.auditoria||[]).length?`<div class="tabela-wrap" style="overflow-x:auto"><table class="tabela" style="width:100%;font-size:13px">
       <thead><tr><th style="text-align:left">Quando</th><th style="text-align:left">O quê</th><th style="text-align:left">Detalhe</th><th>Resultado</th></tr></thead>
       <tbody>${SEG.auditoria.map(a=>`<tr><td style="white-space:nowrap">${quando(a.em)}</td><td>${esc(segNomeEvento(a.tipo))}</td>
@@ -5098,11 +5115,11 @@ async function testarAlerta(){
   await carregarSeguranca();
 }
 function abrirSos(){
-  abrirModal('🆘 Acionar SOS',`<p class="hint" style="margin:0 0 10px">Todos os responsáveis recebem agora, no WhatsApp, que o atendimento pediu ajuda.</p>
+  abrirModal('Acionar SOS',`<p class="hint" style="margin:0 0 10px">Todos os responsáveis recebem agora, no WhatsApp, que o atendimento pediu ajuda.</p>
     <div class="field"><label for="sosMotivo">O que está acontecendo? (opcional)</label><textarea id="sosMotivo" rows="3" placeholder="Ex.: cliente ameaçando no balcão"></textarea></div>
     <p class="hint" style="margin-top:8px">Aqui é <b>silencioso</b>: a sirene toca nos outros computadores do painel, não neste.
       Se houver risco à vida, <b>ligue 190</b> também.</p>`,
-    `${BT.cancelar()}<button class="btn" id="sosBtn" style="background:#dc2626;color:#fff;border-color:#dc2626;font-weight:700" onclick="dispararSos()">🆘 Enviar alerta agora</button>`);
+    `${BT.cancelar()}<button class="btn" id="sosBtn" style="background:#b91c1c;color:#fff;border-color:#b91c1c;font-weight:600" onclick="dispararSos()">Enviar alerta agora</button>`);
 }
 async function dispararSos(){
   const b=document.getElementById('sosBtn'); if(b){ b.disabled=true; b.textContent='Enviando…'; }
@@ -5158,15 +5175,17 @@ function sireneTela(lista){
   if(!lista.length){ el?.remove(); document.title=document.title.replace(/^🚨 /,''); return; }
   if(!el){ el=document.createElement('div'); el.id='sireneTela'; document.body.appendChild(el); }
   const tocando=!!SIRENE.no, travado=SIRENE.ctx?.state!=='running';
-  el.innerHTML=`<div class="sirene-caixa">
-    <div class="sirene-titulo">${esc(SIRENE_TITULO[lista[0].tipo]||'🚨 ALERTA DE SEGURANÇA')}</div>
+  el.innerHTML=`<div class="sirene-caixa" role="alertdialog" aria-live="assertive">
+    <div class="sirene-cab"><div class="sirene-anel">🚨</div><div>
+      <div class="sirene-titulo">${esc((SIRENE_TITULO[lista[0].tipo]||'Alerta de segurança').replace(/^\S+\s/,''))}</div>
+      <div class="sirene-sub">${lista.length>1?`${lista.length} ocorrências sem ninguém ver`:'Alguém precisa de ajuda agora'}</div></div></div>
     ${lista.map(a=>`<div class="sirene-item"><b>${esc(SIRENE_TITULO[a.tipo]||a.tipo)}</b>
       ${a.cliente?` · ${esc(a.cliente)}`:''}${a.protocolo?` · ${esc(a.protocolo)}`:''}
       <div>${esc(a.detalhe||'')}</div><small>${new Date(a.em).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</small></div>`).join('')}
     ${travado&&!tocando?'<p class="sirene-aviso">Clique em qualquer lugar para ouvir a sirene.</p>':''}
     <div class="sirene-botoes">
-      <button class="btn" onclick="sireneVisto()">✋ Estou vendo — parar a sirene</button>
-      <button class="btn" onclick="sireneVisto('wa-atendimento')">💬 Parar e abrir o atendimento</button>
+      <button class="btn sirene-parar" onclick="sireneVisto()">Estou vendo — parar a sirene</button>
+      <button class="btn btn-s" onclick="sireneVisto('wa-atendimento')">Parar e abrir o atendimento</button>
     </div>
     <p class="sirene-rodape">Se houver risco à vida, ligue 190 (polícia), 192 (SAMU) ou 180 (violência contra a mulher).</p>
   </div>`;
