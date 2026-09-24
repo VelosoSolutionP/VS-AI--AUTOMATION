@@ -5032,11 +5032,11 @@ function telaEntrar(){
     <div class="entrar-form">
       <div class="entrar-box">
         <h2 id="lgTitulo">Entrar</h2>
-        <p class="entrar-sub" id="lgSub">Use o seu e-mail e a sua senha.</p>
+        <p class="entrar-sub" id="lgSub">Digite a sua senha. Cliente: informe também o e-mail.</p>
 
         <div class="field" style="margin-top:20px" id="lgCampoEmail">
-          <label for="lgEmail">E-mail</label>
-          <input id="lgEmail" type="email" autocomplete="username" placeholder="voce@empresa.com.br" autofocus>
+          <label for="lgEmail">E-mail <span style="font-weight:400;opacity:.7">(opcional)</span></label>
+          <input id="lgEmail" type="email" autocomplete="username" placeholder="voce@empresa.com.br">
         </div>
 
         <div class="field" style="margin-top:14px">
@@ -5169,7 +5169,6 @@ function telaEntrar(){
   };
 
   const enviar=async()=>{
-    if(!criando&&!emailCampo.value.trim()){ erro.textContent='Digite o seu e-mail.';erro.classList.add('on');return emailCampo.focus(); }
     if(!campo.value){ return mostrarErro(criando?'Escolha uma senha.':'Digite a sua senha.'); }
     if(criando){
       if(campo.value.length<8){ return mostrarErro('A senha precisa de pelo menos 8 caracteres.'); }
@@ -5182,7 +5181,9 @@ function telaEntrar(){
     btn.disabled=true;btn.textContent=criando?'Criando…':'Entrando…';limparErro();
     try{
       if(criando){ await api('criar-acesso',{senha:campo.value}); }
-      const r=await api('entrar',criando?{senha:campo.value}:{email:emailCampo.value.trim(),senha:campo.value});
+      /* Sem e-mail = dono, como sempre foi: só a senha e cai no dashboard. */
+      const em=emailCampo.value.trim();
+      const r=await api('entrar',criando||!em?{senha:campo.value}:{email:em,senha:campo.value});
       abrirPainel(r.token);
     }catch(e){
       btn.disabled=false;btn.textContent=criando?'Criar e entrar':'Entrar';
@@ -5198,7 +5199,7 @@ function telaEntrar(){
   campo.onkeydown=(e)=>{if(e.key==='Enter')enviar();};
   emailCampo.onkeydown=(e)=>{if(e.key==='Enter')campo.focus();};
   campo2.onkeydown=(e)=>{if(e.key==='Enter')enviar();};
-  emailCampo.focus();
+  campo.focus();
 
   // Pergunta o estado antes de mostrar a tela errada por meio segundo.
   fetch('/crm/api/auth').then(r=>r.json()).then(d=>{ if(d && d.precisaCriar){ virarCriacao(); } })
