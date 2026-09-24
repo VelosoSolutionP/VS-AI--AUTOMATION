@@ -15,6 +15,10 @@ import { reservarEvento } from './idempotencia.mjs';
 import * as atendimento from './atendimento.mjs';
 import * as proto from '../engine/vsprotocolo/index.mjs';
 import * as bot from '../engine/vsbot/index.mjs';
+import * as vigiaPix from './vigia-pix.mjs';
+import * as pagamentos from '../engine/vspagamentos/index.mjs';
+import * as fin from '../engine/vsfinanceiro/index.mjs';
+import { emReais } from '../engine/vsbot/fluxo.mjs';
 
 /** Pedaco curto da mensagem: o log serve pra diagnosticar, nao pra guardar
     conversa de cliente. */
@@ -80,6 +84,37 @@ let whatsappWeb = null;
 let obterProdutos = () => [];
 
 /** Monta na primeira chamada. Sessão só abre quando alguém pedir "Conectar". */
+/**
+ * Pix do bot pago: some o QR, sai o "pagamento recebido", o pedido vai pra
+ * equipe e entra no caixa. Chamado pela vigia (conferência) ou pelo webhook.
+ */
+async function avisarPixPago(reg, pagamento) {
+  for (const id of reg.mensagens || []) {
+    const a = await whatsappWeb?.apagarMensagem({ para: reg.para, id });
+    if (!a?.ok) { console.warn(`[pix] ${reg.referencia}: nao apaguei a mensagem ${id} — ${a?.erro || 'canal fora'}`); }
+  }
+  const cfg = bot.getConfig();
+  const texto = [
+    `${cfg.nome ? `*${cfg.nome}:* ` : ''}✅ *Pagamento recebido!*`,
+    '',
+    `Pedido *${reg.referencia}* — ${emReais(reg.totalCentavos || 0)}`,
+    bot.resumoDoPedido(reg.itens),
+    '',
+    cfg.mensagemPixPago || 'Seu pedido já foi pra cozinha. Obrigado! 🍔',
+  ].join('\n');
+  const env = await whatsappWeb?.enviarTexto({ para: reg.para, texto });
+  console.log(`[pix] ${reg.referencia}: PAGO — ${env?.ok ? 'avisei o cliente' : 'NAO consegui avisar o cliente: ' + (env?.erro || 'canal fora')}`);
+  bot.entregarParaEquipe(reg.de, { departamento: 'comercial', contexto: { itens: reg.itens, totalCentavos: reg.totalCentavos, pago: true, pagamentoId: reg.pagamentoId } });
+  proto.anotar(reg.referencia, { estado: proto.ESTADOS.NA_FILA, departamento: 'comercial' });
+  const l = fin.lancarPagamento(pagamento);
+  if (l?.ok && !l.repetido) { console.log(`[caixa] entrada de ${pagamento.id} lancada`); }
+}
+
+/** O webhook confirmou um pagamento: se for Pix do bot, o desfecho sai agora. */
+export function pixConfirmado(pagamento) {
+  return vigiaPix.confirmado(pagamento, { aoConfirmar: avisarPixPago });
+}
+
 function montar({ produtos } = {}) {
   // Sempre a mais recente, mesmo com o gateway já montado.
   if (typeof produtos === 'function') { obterProdutos = produtos; }
@@ -140,6 +175,7 @@ function montar({ produtos } = {}) {
             else { console.error(`[canais] NAO consegui mandar a imagem pra ${quem}: ${env?.erro || 'motivo nao informado'}`); }
             return env;
           },
+          vigiarPix: (reg) => { vigiaPix.registrar(reg); console.log(`[pix] ${reg.referencia}: conferindo o pagamento de ${emReais(reg.totalCentavos)} a cada 10s`); },
           /* Lê pelo ponteiro, não pela cópia: preço mudado no catálogo vale na
              próxima mensagem, sem reconectar nada. */
           produtos: () => {
@@ -166,6 +202,7 @@ function montar({ produtos } = {}) {
   });
 
   whatsappWeb = criarWhatsAppWebProvider();
+  vigiaPix.iniciar({ consultar: (id) => pagamentos.atualizarEstado(id), aoConfirmar: avisarPixPago });
 
   /* TODA mudanca de estado no log. Antes so a queda e a retomada no boot
      apareciam: quando a sessao se reerguia sozinha no meio do caminho, o log

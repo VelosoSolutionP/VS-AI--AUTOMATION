@@ -818,9 +818,29 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     }
   }
 
+  /**
+   * Apaga uma mensagem NOSSA para todos. Existe por causa do Pix: pago, o QR
+   * sai da conversa — QR que continua na tela depois de pago faz o cliente
+   * achar que não entrou, e ainda convida a pagar duas vezes.
+   */
+  async function apagarMensagem({ para, id }) {
+    const cru = String(para || '').trim();
+    if (!cru || !id) { return { ok: false, erro: 'faltou conversa ou id da mensagem' }; }
+    if (estado !== ESTADOS.CONECTADO || !cliente) { return { ok: false, erro: `canal ${estado} — nada foi apagado` }; }
+    const alvo = await resolverDestino(cru.includes('@') ? cru : soDigitos(cru));
+    if (!alvo.ok) { return { ok: false, erro: alvo.erro }; }
+    try {
+      await cliente.deleteMessage(alvo.jid, String(id), false, true);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, erro: e?.message || String(e) };
+    }
+  }
+
   return {
     nome: 'whatsapp-web',
     oficial: false,
+    apagarMensagem,
     conectar,
     desconectar,
     status,

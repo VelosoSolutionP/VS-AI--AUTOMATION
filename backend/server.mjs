@@ -561,6 +561,7 @@ const server = createServer(async (req, res) => {
       const l = fin.lancarPagamento(r.pagamento);
       if (l.ok && !l.repetido) { console.log(`[caixa] entrada de ${r.pagamento.id} lancada`); }
       await liberarSeForCliente(r.pagamento);
+      await canais.pixConfirmado(r.pagamento).catch((e) => console.warn(`[pix] aviso pelo webhook falhou: ${e.message}`));
     }
     console.log(`[mercadopago${mpAmbiente ? '/' + mpAmbiente : ''}] ${evento.type || evento.topic || '?'} ${evento.data?.id || ''} -> ${r.ok ? (r.estado || 'recebido') : 'recusado: ' + r.motivo}`);
     /* Quando a assinatura NAO confere, o 401 sozinho nao diz o que faltou. Este

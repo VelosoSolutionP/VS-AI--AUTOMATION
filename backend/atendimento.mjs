@@ -271,8 +271,9 @@ export async function receberMensagem(msg, deps = {}) {
      simplesmente não existe pro cliente — e QR é como a maioria paga.
      Vai DEPOIS de propósito: se a imagem falhar, o cliente ainda tem o código
      colável na mensagem anterior, em vez de ficar sem nada. */
+  let qr = null;
   if (cobranca?.pix?.imagemBase64 && deps.enviarImagem) {
-    const img = await deps.enviarImagem({
+    const img = qr = await deps.enviarImagem({
       phone: t.telefone,
       dataUri: `data:image/png;base64,${cobranca.pix.imagemBase64}`,
       legenda: `Pedido ${r.cobranca.referencia} — ${emReais(cobranca.valorCentavos)}`,
@@ -281,6 +282,20 @@ export async function receberMensagem(msg, deps = {}) {
     if (!img?.ok) {
       console.error(`[pagamento] o QR de ${r.cobranca.referencia} nao foi enviado: ${img?.erro || 'motivo nao informado'}`);
     }
+  }
+
+  /* Pix gerado: entra na vigia. Pago, o QR e o copia-e-cola somem da conversa
+     e sai o "pagamento recebido" (ver vigia-pix.mjs). */
+  if (cobranca && deps.vigiarPix) {
+    deps.vigiarPix({
+      pagamentoId: cobranca.id,
+      referencia: r.cobranca.referencia,
+      para: msg.endereco || t.telefone,
+      de: t.telefone,
+      mensagens: [envio?.id, qr?.id].filter(Boolean),
+      itens: r.cobranca.itens || [],
+      totalCentavos: cobranca.valorCentavos,
+    });
   }
 
   return {

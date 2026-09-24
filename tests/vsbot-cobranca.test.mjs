@@ -230,3 +230,22 @@ test('QR que nao sobe nao derruba o pedido — o codigo colavel ja foi', async (
   assert.equal(ultimo.ok, true);
   assert.match(textos.at(-1), /codigo-pix/, 'o codigo tem que ter saido ANTES da imagem, senao a falha deixa o cliente sem nada');
 });
+
+test('Pix gerado entra na vigia com as mensagens do texto e do QR (pra sumirem quando pagar)', async () => {
+  const { fluxo } = fluxoDeCsv(CSV);
+  bot.salvarFluxo(fluxo.passos);
+  let n = 0;
+  const enviar = async () => ({ ok: true, id: `txt${++n}` });
+  const enviarImagem = async () => ({ ok: true, id: 'qr1' });
+  const cobrar = async (e) => ({ ok: true, pagamento: { id: 'pay_v', valorCentavos: e.valorCentavos, pix: { payload: '000201...', imagemBase64: 'iVBORw0KGgo=' } } });
+  const vigiados = [];
+  const de = '5531900000008';
+  for (const t of ['oi', '1', '1']) {
+    await atendimento.receberMensagem({ id: 'm' + Math.random(), de, texto: t, tipo: 'texto' }, { enviar, cobrar, enviarImagem, vigiarPix: (r) => vigiados.push(r) });
+  }
+  assert.equal(vigiados.length, 1);
+  assert.equal(vigiados[0].pagamentoId, 'pay_v');
+  assert.equal(vigiados[0].de, de);
+  assert.deepEqual(vigiados[0].mensagens, [`txt${n}`, 'qr1']);
+  assert.match(vigiados[0].referencia, /^VS-/);
+});

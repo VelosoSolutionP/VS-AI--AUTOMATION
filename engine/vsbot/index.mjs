@@ -742,6 +742,12 @@ export function atender(texto, ctx = {}) {
   return responder(texto, cfg, ctx);
 }
 
+/** Pedido pago (ou resolvido fora do fluxo): a conversa passa pra equipe, com o contexto. */
+export function entregarParaEquipe(de, { departamento = 'humano', contexto = {} } = {}) {
+  salvarConversa(de, { handoffEm: new Date().toISOString(), contexto, departamento });
+  return { ok: true };
+}
+
 /** "2x X-Tudo — R$ 56,00", um por linha. O carrinho guarda item a item. */
 export function resumoDoPedido(itens = []) {
   const grupos = new Map();
