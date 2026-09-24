@@ -55,7 +55,7 @@ export function validarFluxo(passos = []) {
   const validos = Object.values(ACOES);
   /* Existe preço em ALGUM lugar da árvore? Se existe, o passo de cobrança pode
      tirar o valor do carrinho; se não existe nenhum, ele não teria de onde. */
-  const temPreco = passos.some((p) => (p.opcoes || []).some((o) => o.valorCentavos != null || o.sku) || p.valorCentavos != null);
+  const temPreco = passos.some((p) => p.categoria || (p.opcoes || []).some((o) => o.valorCentavos != null || o.sku) || p.valorCentavos != null);
   const conferir = (onde, o) => {
     if (o.acao && !validos.includes(o.acao)) {
       erros.push(`${onde}: ação "${o.acao}" não existe (use ${validos.join(', ')})`);
@@ -76,6 +76,8 @@ export function validarFluxo(passos = []) {
   for (const p of passos) {
     const id = String(p.id || '').trim();
     if (!id) { erros.push('há passo sem id'); continue; }
+    if (p.categoria && !p.vaiPara) { erros.push(`passo "${id}": cardápio por categoria precisa de vai_para — é pra onde vai quem escolhe um item`); }
+    if (p.sinal != null && !(Number(p.sinal) > 0 && Number(p.sinal) <= 100)) { erros.push(`passo "${id}": sinal tem que ser uma porcentagem entre 1 e 100`); }
     if (!String(p.mensagem || '').trim()) { erros.push(`passo "${id}" não tem mensagem`); }
     for (const o of p.opcoes || []) {
       if (!String(o.texto || '').trim()) { erros.push(`passo "${id}" tem opção sem texto`); continue; }
@@ -103,6 +105,19 @@ export const emReais = (c) => `R$ ${(c / 100).toFixed(2).replace('.', ',')}`;
 export function comPrecosDoCatalogo(fluxo, produtos = []) {
   if (!fluxo?.passos) { return fluxo; }
   const porSku = new Map((produtos || []).map((p) => [String(p.sku).trim(), p]));
+  /* CARDÁPIO DO DIA. Passo com `categoria` monta o menu com o que está ATIVO no
+     estoque naquela categoria, na hora. A marmitaria troca o prato do dia
+     ligando e desligando produto — sem reescrever fluxo todo dia. Esgotado
+     some daqui (é cardápio do dia, não vitrine), e o que o passo já tinha
+     escrito ("voltar", "falar com alguém") vem depois, renumerado. */
+  const doDia = (passo) => {
+    const cat = norm(passo.categoria);
+    const gerados = (produtos || [])
+      .filter((p) => norm(p.categoria) === cat && !p.esgotado && p.disponivel !== 0)
+      .map((p) => ({ texto: p.nome, sku: p.sku, vaiPara: passo.vaiPara || null, ...(passo.tipo ? { [passo.tipo]: true } : {}) }));
+    const todos = [...gerados, ...(passo.opcoes || [])];
+    return { ...passo, opcoes: todos.map((o, i) => ({ ...o, tecla: String(i + 1) })), ...(gerados.length ? {} : { vazio: true }) };
+  };
   const resolver = (o) => {
     const sku = String(o.sku || '').trim();
     if (!sku) { return o; }
@@ -113,7 +128,10 @@ export function comPrecosDoCatalogo(fluxo, produtos = []) {
     if (p.esgotado) { return { ...o, texto: o.texto || p.nome, indisponivel: true, motivoIndisponivel: 'esgotado' }; }
     return { ...o, texto: o.texto || p.nome, valorCentavos: p.precoCentavos ?? o.valorCentavos ?? null };
   };
-  return { ...fluxo, passos: fluxo.passos.map((passo) => ({ ...passo, opcoes: (passo.opcoes || []).map(resolver) })) };
+  return { ...fluxo, passos: fluxo.passos.map((passo) => {
+    const p = passo.categoria ? doDia(passo) : passo;
+    return { ...p, opcoes: (p.opcoes || []).map(resolver) };
+  }) };
 }
 
 /** Desenha o passo — mensagem + opções numeradas. */
@@ -131,8 +149,12 @@ export function desenhar(passo) {
       ? ` — ${o.motivoIndisponivel === 'esgotado' ? 'esgotado hoje' : 'indisponível'}`
       : (o.valorCentavos ? ` — ${emReais(o.valorCentavos)}` : '')}`));
     linhas.push('');
-    linhas.push('Responda com o número da opção.');
+    /* Quem quer 3 refris não devia escolher três vezes. A dica só aparece onde
+       faz sentido: menu de item com preço (não em meia a meia nem em bairro). */
+    const deItem = ops.some((o) => o.valorCentavos && !o.meia && !o.taxa && !o.indisponivel);
+    linhas.push(deItem ? 'Responda com o número. Quer mais de um? Ex.: *2x 1*' : 'Responda com o número da opção.');
   }
+  if (passo.vazio) { linhas.push('', '_Hoje não tem nada disponível aqui — fala com a gente que a gente te ajuda._'); }
   return linhas.join('\n');
 }
 
@@ -165,6 +187,7 @@ function entrar(fluxo, passo) {
   saida.acao = passo.acao || null;
   saida.departamento = passo.departamento || null;
   if (passo.valorCentavos != null) { saida.valorCentavos = passo.valorCentavos; }
+  if (passo.sinal) { saida.sinalPercent = Number(passo.sinal); }
 
   /* COLETAR e CONFIRMAR são a mesma mecânica: a pergunta sai agora e a RESPOSTA
      vem na próxima mensagem. Se não esperassem, o cliente responderia pro vazio —
@@ -246,6 +269,20 @@ export function avancar(fluxo, estado, texto) {
   const ops = atual.opcoes || [];
   if (!ops.length) { return entrar(fluxo, atual); }
 
+  /* QUANTIDADE numa frase só: "2x 1", "3 x-tudo", "2 refri". Só vale quando o
+     resto casa com uma opção de item com preço — "2" sozinho continua sendo a
+     opção 2, e "10 horas" num menu qualquer não vira pedido de nada. */
+  const q = t.match(/^(\d{1,2})\s*(?:x\s*|\s+)(.+)$/);
+  if (q) {
+    const qtd = Number(q[1]);
+    const resto = q[2].trim();
+    const alvo = ops.find((o, i) => resto === norm(String(o.tecla || i + 1)) || resto === norm(o.texto)
+      || (resto.length > 3 && norm(o.texto).includes(resto)));
+    if (alvo && alvo.valorCentavos && !alvo.meia && !alvo.taxa && !alvo.indisponivel && qtd >= 1 && qtd <= 50) {
+      return seguir(fluxo, alvo, estado, qtd);
+    }
+  }
+
   /* Aceita o número, a tecla e o texto da opção — gente responde "já sou
      cliente" em vez de "1" o tempo todo, e recusar isso é fazer o cliente
      trabalhar pra falar com a gente. */
@@ -274,7 +311,7 @@ export function avancar(fluxo, estado, texto) {
        precisa mais percorre-la tecla por tecla pra chegar onde ja disse que
        queria na primeira frase. */
     const palpite = entender(texto, ops);
-    if (palpite.escolhida) { return seguir(fluxo, palpite.escolhida); }
+    if (palpite.escolhida) { return seguir(fluxo, palpite.escolhida, estado); }
 
     /* Empate nao vira escolha. Mandar pro departamento errado com cara de
        certeza faz o cliente contar o problema duas vezes — pior que perguntar. */
@@ -297,7 +334,7 @@ export function avancar(fluxo, estado, texto) {
        nao tem opcoes. */
     if (ops.length) {
       const salto = entenderNoFluxo(texto, fluxo, { ignorar: atual.id });
-      if (salto.opcao) { return { ...seguir(fluxo, salto.opcao), saltou: true }; }
+      if (salto.opcao) { return { ...seguir(fluxo, salto.opcao, estado), saltou: true }; }
       if (salto.passo) { return { ...entrar(fluxo, salto.passo), saltou: true }; }
     }
 
@@ -323,23 +360,39 @@ export function avancar(fluxo, estado, texto) {
     };
   }
 
-  return seguir(fluxo, escolhida);
+  return seguir(fluxo, escolhida, estado);
 }
 
 /** Levar a conversa pela opção escolhida — por tecla, por texto ou por entendimento. */
-function seguir(fluxo, escolhida) {
+function seguir(fluxo, escolhida, estado = null, qtd = 1) {
   const fala = String(escolhida.resposta || '').trim();
   /* Escolher um item com preço É pedir aquele item. O carrinho nasce daqui, e
      não de adivinhar preço no texto livre depois. */
-  const item = escolhida.valorCentavos
-    ? { nome: escolhida.texto, valorCentavos: escolhida.valorCentavos }
+  let item = escolhida.valorCentavos
+    ? { nome: escolhida.texto, valorCentavos: escolhida.valorCentavos, ...(qtd > 1 ? { qtd } : {}) }
     : null;
+  let meia;
+  if (item && escolhida.adicional) { item = { ...item, nome: `+ ${escolhida.texto}` }; }
+  /* Taxa de entrega é UMA: trocar de bairro troca a taxa, não soma outra. */
+  if (item && escolhida.taxa) { item = { ...item, nome: `Entrega (${escolhida.texto})`, taxa: true }; }
+  /* MEIA A MEIA: a primeira metade fica esperando a segunda; a pizza entra no
+     carrinho inteira, pelo preço da metade mais cara — é a regra de quase toda
+     pizzaria, e cobrar a média dá prejuízo em toda meia de sabor especial. */
+  if (item && escolhida.meia) {
+    const primeira = estado?.contexto?.meia;
+    if (!primeira) { meia = { nome: escolhida.texto, valorCentavos: escolhida.valorCentavos }; item = null; }
+    else {
+      item = { nome: `Pizza meia ${primeira.nome} / meia ${escolhida.texto}`, valorCentavos: Math.max(primeira.valorCentavos, escolhida.valorCentavos) };
+      meia = null;
+    }
+  }
+  const extra = { ...(item ? { item } : {}), ...(meia !== undefined ? { meia } : {}) };
 
   if (escolhida.vaiPara) {
     const prox = acharPasso(fluxo, escolhida.vaiPara);
     if (!prox) { return { texto: 'Desculpe, me perdi aqui. Vou chamar uma pessoa do time.', passo: null, acao: ACOES.ENCAMINHAR, handoff: true }; }
     const seguinte = entrar(fluxo, prox);
-    return { ...seguinte, ...(item ? { item } : {}), texto: [fala, seguinte.texto].filter(Boolean).join('\n\n'), acaoAnterior: escolhida.acao || null };
+    return { ...seguinte, ...extra, texto: [fala, seguinte.texto].filter(Boolean).join('\n\n'), acaoAnterior: escolhida.acao || null };
   }
 
   // Opção terminal.
@@ -348,7 +401,7 @@ function seguir(fluxo, escolhida) {
     passo: null,
     acao: escolhida.acao || null,
     departamento: escolhida.departamento || null,
-    ...(item ? { item } : {}),
+    ...extra,
     handoff: ENCERRA_COM_GENTE(escolhida.acao),
   };
 }

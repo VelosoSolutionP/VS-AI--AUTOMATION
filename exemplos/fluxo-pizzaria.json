@@ -1,0 +1,229 @@
+[
+ {
+  "id": "inicio",
+  "mensagem": "Olá, {nome}! Aqui é da *Sua Pizzaria*. 🍕\nO que vai ser hoje?",
+  "opcoes": [
+   {
+    "tecla": "1",
+    "texto": "Pizza inteira",
+    "vaiPara": "pizza"
+   },
+   {
+    "tecla": "2",
+    "texto": "Pizza meia a meia",
+    "vaiPara": "meia1"
+   },
+   {
+    "tecla": "3",
+    "texto": "Bebidas",
+    "vaiPara": "bebidas"
+   },
+   {
+    "tecla": "4",
+    "texto": "Falar com um atendente",
+    "acao": "encaminhar",
+    "departamento": "humano",
+    "resposta": "Beleza! Já chamo alguém da equipe. 🙋"
+   }
+  ]
+ },
+ {
+  "id": "menu",
+  "mensagem": "Beleza! O que mais vai ser? 😋",
+  "opcoes": [
+   {
+    "tecla": "1",
+    "texto": "Pizza inteira",
+    "vaiPara": "pizza"
+   },
+   {
+    "tecla": "2",
+    "texto": "Pizza meia a meia",
+    "vaiPara": "meia1"
+   },
+   {
+    "tecla": "3",
+    "texto": "Bebidas",
+    "vaiPara": "bebidas"
+   }
+  ]
+ },
+ {
+  "id": "pizza",
+  "mensagem": "Escolha o sabor 👇",
+  "categoria": "Pizzas",
+  "vaiPara": "borda"
+ },
+ {
+  "id": "meia1",
+  "mensagem": "Primeira metade 👇 (a pizza sai pelo preço da metade mais cara)",
+  "categoria": "Pizzas",
+  "tipo": "meia",
+  "vaiPara": "meia2"
+ },
+ {
+  "id": "meia2",
+  "mensagem": "Agora a segunda metade 👇",
+  "categoria": "Pizzas",
+  "tipo": "meia",
+  "vaiPara": "borda"
+ },
+ {
+  "id": "borda",
+  "mensagem": "Borda recheada?",
+  "opcoes": [
+   {
+    "tecla": "1",
+    "texto": "Borda de catupiry",
+    "valorCentavos": 800,
+    "adicional": true,
+    "vaiPara": "mais"
+   },
+   {
+    "tecla": "2",
+    "texto": "Borda de cheddar",
+    "valorCentavos": 800,
+    "adicional": true,
+    "vaiPara": "mais"
+   },
+   {
+    "tecla": "3",
+    "texto": "Sem borda",
+    "vaiPara": "mais"
+   }
+  ]
+ },
+ {
+  "id": "bebidas",
+  "mensagem": "Pra beber 🥤",
+  "categoria": "Bebidas",
+  "vaiPara": "mais"
+ },
+ {
+  "id": "mais",
+  "mensagem": "Anotado! 📝\n\n*Seu pedido até agora:*\n{pedido}\n*Total: {total}*\n\nQuer mais alguma coisa?",
+  "opcoes": [
+   {
+    "tecla": "1",
+    "texto": "Quero mais",
+    "vaiPara": "menu"
+   },
+   {
+    "tecla": "2",
+    "texto": "Fechar o pedido",
+    "vaiPara": "obs"
+   },
+   {
+    "tecla": "3",
+    "texto": "Começar de novo",
+    "vaiPara": "inicio"
+   }
+  ]
+ },
+ {
+  "id": "obs",
+  "mensagem": "Alguma observação? (ex.: sem cebola, troco pra 50). Se não tiver, responda *não*.",
+  "acao": "coletar",
+  "vaiPara": "entrega"
+ },
+ {
+  "id": "entrega",
+  "mensagem": "Vai ser entrega ou retirada?",
+  "opcoes": [
+   {
+    "tecla": "1",
+    "texto": "Entrega",
+    "vaiPara": "bairro"
+   },
+   {
+    "tecla": "2",
+    "texto": "Retiro no balcão",
+    "vaiPara": "res_retirada"
+   }
+  ]
+ },
+ {
+  "id": "bairro",
+  "mensagem": "Qual o seu bairro? (a taxa entra no total)",
+  "opcoes": [
+   {
+    "tecla": "1",
+    "texto": "Centro",
+    "valorCentavos": 500,
+    "taxa": true,
+    "vaiPara": "endereco"
+   },
+   {
+    "tecla": "2",
+    "texto": "Bairros vizinhos",
+    "valorCentavos": 800,
+    "taxa": true,
+    "vaiPara": "endereco"
+   },
+   {
+    "tecla": "3",
+    "texto": "Outro bairro",
+    "acao": "encaminhar",
+    "departamento": "comercial",
+    "resposta": "Vou chamar alguém pra confirmar se a gente entrega aí e quanto fica. 🙋"
+   }
+  ]
+ },
+ {
+  "id": "endereco",
+  "mensagem": "Me passa o endereço: rua, número e um ponto de referência. 🏠",
+  "acao": "coletar",
+  "vaiPara": "res_entrega"
+ },
+ {
+  "id": "res_entrega",
+  "mensagem": "Confere seu pedido:\n🛵 Entrega em: {endereco}\n📝 Obs.: {obs}\n\n{pedido}\n*Total: {total}*\n\nComo prefere pagar?",
+  "opcoes": [
+   {
+    "tecla": "1",
+    "texto": "PIX agora",
+    "vaiPara": "pagar_pix"
+   },
+   {
+    "tecla": "2",
+    "texto": "Dinheiro ou cartão na entrega/retirada",
+    "acao": "encaminhar",
+    "departamento": "comercial",
+    "resposta": "Fechado! ✅ Seu pedido foi pra cozinha. Já já alguém confirma o tempo por aqui."
+   },
+   {
+    "tecla": "3",
+    "texto": "Mudar o pedido",
+    "vaiPara": "inicio"
+   }
+  ]
+ },
+ {
+  "id": "res_retirada",
+  "mensagem": "Confere seu pedido:\n🏪 Retirada no balcão\n📝 Obs.: {obs}\n\n{pedido}\n*Total: {total}*\n\nComo prefere pagar?",
+  "opcoes": [
+   {
+    "tecla": "1",
+    "texto": "PIX agora",
+    "vaiPara": "pagar_pix"
+   },
+   {
+    "tecla": "2",
+    "texto": "Dinheiro ou cartão na entrega/retirada",
+    "acao": "encaminhar",
+    "departamento": "comercial",
+    "resposta": "Fechado! ✅ Seu pedido foi pra cozinha. Já já alguém confirma o tempo por aqui."
+   },
+   {
+    "tecla": "3",
+    "texto": "Mudar o pedido",
+    "vaiPara": "inicio"
+   }
+  ]
+ },
+ {
+  "id": "pagar_pix",
+  "mensagem": "Perfeito! 🔥 Segue o PIX do seu pedido:",
+  "acao": "cobrar"
+ }
+]

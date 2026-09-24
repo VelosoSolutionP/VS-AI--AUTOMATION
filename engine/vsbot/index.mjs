@@ -54,8 +54,38 @@ const PADRAO = {
   voltarParaFilaAoRetornar: false,
   /* IA local (Ollama) que só entende qual opção a pessoa quis — ver cerebro.mjs. */
   cerebro: { ...cerebro.PADRAO_CEREBRO },
+  /* HORÁRIO de funcionamento. null = sempre aberto. Formato por dia:
+     { seg: '18:00-23:30', sab: '11:00-14:00,18:00-00:30', dom: 'fechado' }.
+     Faixa que passa da meia-noite vale até a madrugada seguinte. */
+  horario: null,
+  mensagemFechado: 'Estamos fechados agora. 😴\n\nNosso horário:\n{horario}\n\nMe chama nesse horário que eu anoto seu pedido!',
   ativo: false,
 };
+
+const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+const NOME_DIA = { dom: 'Domingo', seg: 'Segunda', ter: 'Terça', qua: 'Quarta', qui: 'Quinta', sex: 'Sexta', sab: 'Sábado' };
+const minutosDe = (hhmm) => { const [h, m] = String(hhmm).trim().split(':').map(Number); return h * 60 + (m || 0); };
+const faixas = (txt) => String(txt || '').split(',').map((f) => f.trim()).filter((f) => /^\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}$/.test(f))
+  .map((f) => f.split('-').map(minutosDe));
+
+/**
+ * Aberto agora? Hora de Brasília, não do servidor: a máquina pode estar em UTC
+ * e o bot diria "fechado" às 20h de sexta.
+ */
+export function estaAberto(horario, quando = new Date()) {
+  if (!horario) { return true; }
+  const partes = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    .formatToParts(quando).map((x) => [x.type, x.value]));
+  const dia = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(partes.weekday);
+  const agora = Number(partes.hour) * 60 + Number(partes.minute);
+  // Hoje, dentro de alguma faixa (a que vira a noite vale até meia-noite aqui).
+  if (faixas(horario[DIAS[dia]]).some(([a, b]) => (b > a ? agora >= a && agora < b : agora >= a))) { return true; }
+  // Madrugada: faixa de ONTEM que passou da meia-noite.
+  return faixas(horario[DIAS[(dia + 6) % 7]]).some(([a, b]) => b <= a && agora < b);
+}
+
+export const horarioLegivel = (horario) => DIAS.slice(1).concat('dom')
+  .map((d) => `${NOME_DIA[d]}: ${faixas(horario?.[d]).length ? String(horario[d]).replace(/\s+/g, '').replace(/,/g, ' e ').replace(/-/g, ' às ') : 'fechado'}`).join('\n');
 
 export const getConfig = () => ({ ...PADRAO, ...(load('config', {}) || {}) });
 
@@ -65,6 +95,18 @@ export function salvarConfig(mudancas = {}) {
     return { ok: false, erros: ['“falhas até chamar humano” precisa ser um inteiro maior que zero'] };
   }
   const inteiro = (v, min) => Number.isInteger(Number(v)) && Number(v) >= min;
+  /* Horário escrito errado vira "fechado" calado e o bot recusa cliente em
+     pleno expediente. Melhor recusar na hora de salvar, dizendo qual dia. */
+  if (novo.horario) {
+    for (const [d, txt] of Object.entries(novo.horario)) {
+      const t = String(txt || '').trim().toLowerCase();
+      if (!DIAS.includes(d)) { return { ok: false, erros: [`dia "${d}" não existe no horário`] }; }
+      if (!t || t === 'fechado') { continue; }
+      const partes = t.split(',').map((x) => x.trim());
+      const ok = partes.every((f) => /^([01]?\d|2[0-3]):[0-5]\d\s*-\s*([01]?\d|2[0-3]):[0-5]\d$/.test(f));
+      if (!ok) { return { ok: false, erros: [`horário de ${NOME_DIA[d]} ("${txt}") não está no formato 18:00-23:30 (use vírgula para mais de uma faixa, ou deixe vazio para fechado)`] }; }
+    }
+  }
   if (novo.avisosAntesDePausa != null && !inteiro(novo.avisosAntesDePausa, 0)) {
     return { ok: false, erros: ['“avisos antes de encerrar” precisa ser um inteiro (0 encerra na primeira ofensa)'] };
   }
@@ -618,6 +660,13 @@ export function atender(texto, ctx = {}) {
       };
     }
 
+    /* FECHADO: quem chega fora do horário ouve o horário, em vez de montar um
+       pedido que ninguém vai preparar. Quem já está no meio do pedido termina —
+       cortar alguém no resumo porque deu 23h30 é perder a venda. */
+    if (!atual?.passo && !estaAberto(cfg.horario)) {
+      return { tipo: 'fechado', texto: assinar(preencher(cfg.mensagemFechado, { horario: horarioLegivel(cfg.horario) }), cfg), protocolo: ap.protocolo.numero };
+    }
+
     const r = avancar(fx, atual, texto);
 
     /* Escolha errada SEGUIDA: errar uma ou duas vezes e normal e o menu volta
@@ -639,18 +688,26 @@ export function atender(texto, ctx = {}) {
     /* CARRINHO. Cada opção com preço que a pessoa escolhe entra aqui, e é a soma
        disto que vira a cobrança lá na frente. Guardar no contexto (e não numa
        variável) é o que faz o pedido sobreviver a ela sumir e voltar depois. */
+    if (r.meia !== undefined) { if (r.meia) { contexto.meia = r.meia; } else { delete contexto.meia; } }
     if (r.item) {
-      contexto.itens = [...(contexto.itens || []), r.item];
-      contexto.totalCentavos = (contexto.itens || []).reduce((a, i) => a + (i.valorCentavos || 0), 0);
+      const { qtd = 1, ...um } = r.item;
+      /* Uma linha por unidade: o resumo agrupa ("3x Refri") e a soma fica certa
+         sem ninguém multiplicar nada. Taxa de entrega é uma só — o bairro novo
+         substitui o anterior. */
+      const base = um.taxa ? (contexto.itens || []).filter((i) => !i.taxa) : (contexto.itens || []);
+      contexto.itens = [...base, ...Array.from({ length: qtd }, () => um)];
     }
+    contexto.totalCentavos = (contexto.itens || []).reduce((a, i) => a + (i.valorCentavos || 0), 0);
     /* Voltou pro comeco = pedido novo. Sem isto, "comecar de novo" somava o
        carrinho de antes no total do pedido seguinte. */
-    if (r.passo && r.passo === fx.inicio) { delete contexto.itens; delete contexto.totalCentavos; }
+    if (r.passo && r.passo === fx.inicio) { delete contexto.itens; delete contexto.totalCentavos; delete contexto.meia; }
     /* O fluxo fala do pedido: {pedido}, {total}, {nome} e o que foi coletado
        ({endereco}...). Sem isto o resumo antes de pagar era texto fixo, e o
        cliente confirmava um pedido que nao via. */
+    const pctSinal = Number(fx.passos.find((p) => p.sinal)?.sinal || 0);
     r.texto = preencher(r.texto, {
       ...contexto,
+      sinal: pctSinal ? emReais(Math.round((contexto.totalCentavos || 0) * pctSinal / 100)) : null,
       assistente: cfg.nome,
       nome: ctx.nome,
       empresa: ctx.empresa,
@@ -703,11 +760,14 @@ export function atender(texto, ctx = {}) {
        diz "cobre isto", e quem tem rede (o canal) executa e devolve o link. Sem
        essa separacao, simular uma conversa criaria cobranca de verdade. */
     if (r.acao === ACOES.COBRAR) {
-      const total = r.valorCentavos ?? contexto.totalCentavos ?? 0;
+      const cheio = r.valorCentavos ?? contexto.totalCentavos ?? 0;
+      /* SINAL de encomenda: cobra a porcentagem agora, o resto na retirada. */
+      const total = r.sinalPercent ? Math.round(cheio * r.sinalPercent / 100) : cheio;
       if (total > 0) {
         saida.cobranca = {
           valorCentavos: total,
-          descricao: (contexto.itens || []).map((i) => i.nome).join(' + ') || (cfg.nomeEmpresa || 'Pedido'),
+          ...(r.sinalPercent ? { sinalPercent: r.sinalPercent, totalPedidoCentavos: cheio } : {}),
+          descricao: `${r.sinalPercent ? `Sinal ${r.sinalPercent}% — ` : ''}${resumoCurto(contexto.itens) || (cfg.nomeEmpresa || 'Pedido')}`,
           itens: contexto.itens || [],
           referencia: `${ap.protocolo.numero}`,
         };
@@ -747,6 +807,13 @@ export function entregarParaEquipe(de, { departamento = 'humano', contexto = {} 
   salvarConversa(de, { handoffEm: new Date().toISOString(), contexto, departamento });
   return { ok: true };
 }
+
+/** "2x X-Tudo + 1x Refri" — cabe na descrição da cobrança. */
+const resumoCurto = (itens = []) => {
+  const g = new Map();
+  for (const i of itens || []) { g.set(i.nome, (g.get(i.nome) || 0) + 1); }
+  return [...g].map(([n, q]) => (q > 1 ? `${q}x ${n}` : n)).join(' + ').slice(0, 200);
+};
 
 /** "2x X-Tudo — R$ 56,00", um por linha. O carrinho guarda item a item. */
 export function resumoDoPedido(itens = []) {

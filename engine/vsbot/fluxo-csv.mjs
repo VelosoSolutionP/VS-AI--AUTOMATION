@@ -64,7 +64,15 @@ const COLUNAS = {
   valor: ['valor', 'preco', 'preço', 'price', 'valor_rs', 'r$'],
   sku: ['sku', 'codigo', 'código', 'cod', 'produto'],
   imagem: ['imagem', 'foto', 'image', 'midia', 'mídia'],
+  /* Cardápio do dia: o passo monta o menu com os produtos ativos da categoria. */
+  categoria: ['categoria', 'cardapio_do_dia', 'cardapio'],
+  /* O que a opção É: meia (meia a meia), adicional (complemento), taxa (bairro). */
+  tipo: ['tipo', 'tipo_opcao'],
+  /* Porcentagem cobrada agora no passo de cobrar (encomenda com sinal). */
+  sinal: ['sinal', 'sinal_percentual', 'entrada'],
 };
+
+const TIPOS = { meia: 'meia', 'meia a meia': 'meia', metade: 'meia', adicional: 'adicional', complemento: 'adicional', extra: 'adicional', taxa: 'taxa', entrega: 'taxa', bairro: 'taxa' };
 
 /* Imagem do passo: um link https, ou o NOME de um arquivo enviado pela tela do
    bot ("boas-vindas.jpg"). Vai junto com a mensagem, num balão só. */
@@ -197,6 +205,19 @@ export function fluxoDeCsv(texto) {
       return;
     }
 
+    const cat = v('categoria');
+    if (cat) { passo.categoria = cat; }
+    const sinal = v('sinal').replace('%', '').trim();
+    if (sinal) {
+      if (!(Number(sinal) > 0 && Number(sinal) <= 100)) { erros.push(`linha ${n + 2}: sinal "${v('sinal')}" não é uma porcentagem (use 50 para 50%)`); return; }
+      passo.sinal = Number(sinal);
+    }
+    const tipoBruto = semAcento(v('tipo'));
+    const tipo = tipoBruto ? TIPOS[tipoBruto] : null;
+    if (tipoBruto && !tipo) { erros.push(`linha ${n + 2}: tipo "${v('tipo')}" não existe (use meia, adicional ou taxa)`); return; }
+    /* No passo de cardápio do dia, o tipo vale pros itens gerados (ex.: meia). */
+    if (tipo && cat && !textoOpcao) { passo.tipo = tipo; }
+
     // Linha sem opção = a própria ação do passo (fim de galho ou passagem).
     if (!textoOpcao) {
       if (trad) { passo.acao = trad.acao; passo.departamento = trad.departamento || null; }
@@ -216,6 +237,7 @@ export function fluxoDeCsv(texto) {
       /* Com SKU o preço vem do catálogo na hora do pedido — a planilha para de
          ser a dona do preço, e uma promoção passa a valer sem reimportar nada. */
       ...(v('sku') ? { sku: v('sku') } : {}),
+      ...(tipo ? { [tipo]: true } : {}),
     });
   });
 

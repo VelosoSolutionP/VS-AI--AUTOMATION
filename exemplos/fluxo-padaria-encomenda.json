@@ -1,0 +1,83 @@
+[
+ {
+  "id": "inicio",
+  "mensagem": "Olá, {nome}! Aqui é da *Sua Padaria*. 🎂\nO que vai ser hoje?",
+  "opcoes": [
+   {
+    "tecla": "1",
+    "texto": "Fazer uma encomenda",
+    "vaiPara": "encomenda"
+   },
+   {
+    "tecla": "2",
+    "texto": "Falar com um atendente",
+    "acao": "encaminhar",
+    "departamento": "humano",
+    "resposta": "Beleza! Já chamo alguém da equipe. 🙋"
+   }
+  ]
+ },
+ {
+  "id": "encomenda",
+  "mensagem": "O que você quer encomendar? 👇",
+  "categoria": "Encomendas",
+  "vaiPara": "mais_enc"
+ },
+ {
+  "id": "mais_enc",
+  "mensagem": "Anotado! 📝\n\n{pedido}\n*Total: {total}*\n\nMais alguma coisa?",
+  "opcoes": [
+   {
+    "tecla": "1",
+    "texto": "Quero mais",
+    "vaiPara": "encomenda"
+   },
+   {
+    "tecla": "2",
+    "texto": "É só isso",
+    "vaiPara": "data"
+   }
+  ]
+ },
+ {
+  "id": "data",
+  "mensagem": "Pra que dia e horário é a retirada? (ex.: sábado 15h)",
+  "acao": "coletar",
+  "vaiPara": "obs_enc"
+ },
+ {
+  "id": "obs_enc",
+  "mensagem": "Alguma observação? (sabor, escrita no bolo, tema). Se não tiver, responda *não*.",
+  "acao": "coletar",
+  "vaiPara": "res_enc"
+ },
+ {
+  "id": "res_enc",
+  "mensagem": "Confere sua encomenda:\n\n{pedido}\n*Total: {total}*\n📅 Retirada: {data}\n📝 Obs.: {obs_enc}\n\nPra garantir, cobramos *50% de sinal* agora: {sinal}. O resto você paga na retirada.",
+  "opcoes": [
+   {
+    "tecla": "1",
+    "texto": "Pagar o sinal no PIX",
+    "vaiPara": "sinal"
+   },
+   {
+    "tecla": "2",
+    "texto": "Falar com alguém antes",
+    "acao": "encaminhar",
+    "departamento": "comercial",
+    "resposta": "Já chamo alguém pra conversar sobre sua encomenda. 🙋"
+   },
+   {
+    "tecla": "3",
+    "texto": "Começar de novo",
+    "vaiPara": "inicio"
+   }
+  ]
+ },
+ {
+  "id": "sinal",
+  "mensagem": "Perfeito! 🎉 Segue o PIX do sinal:",
+  "acao": "cobrar",
+  "sinal": 50
+ }
+]

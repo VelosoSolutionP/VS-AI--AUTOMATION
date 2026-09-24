@@ -2809,7 +2809,9 @@ async function salvarBot(){
       mensagemHandoff:v('bcHand'),falhasAteHumano:Number(v('bcFalhas')||2),ativo:ck('bcAtivo'),
       cerebro:{...(BOT.config?.cerebro||{}),ligado:ck('bcCerebro')},
       avisosAntesDePausa:Number(v('bcAvisos')),horasDePausa:Number(String(v('bcPausa')).replace(',','.')),errosDeOpcaoAtePausa:Number(v('bcErros')),
-      usarCatalogo:ck('bcCat'),assinarMensagens:ck('bcAssina')}),
+      usarCatalogo:ck('bcCat'),assinarMensagens:ck('bcAssina'),
+      horario:ck('bcHorOn')?Object.fromEntries(['seg','ter','qua','qui','sex','sab','dom'].map(d=>[d,v('bcH_'+d).trim()||'fechado'])):null,
+      ...(document.getElementById('bcFechado')?.value.trim()?{mensagemFechado:v('bcFechado')}:{})}),
     sucesso:`Comportamento salvo. ${ck('bcAtivo')?'O bot está ligado.':'O bot segue desligado — ligue quando quiser que ele atenda.'}`,
   });
 }
@@ -4082,6 +4084,19 @@ const S={
         <small class="hint">Quando a pessoa escreve do jeito dela (“o sistema tá dando pau”, “qro assinar”) em vez do número,
         uma IA que roda nesta máquina diz qual opção ela quis. Grátis, nada sai do servidor. A resposta continua sendo
         a que você escreveu no fluxo — a IA não fala com o cliente. Leva uns segundos a mais só nesses casos.</small></div>
+      <div class="field" style="grid-column:1/-1"><label style="display:flex;align-items:center;gap:7px;font-weight:400;cursor:pointer;padding-bottom:4px">
+        <input type="checkbox" id="bcHorOn" style="width:auto;margin:0"${c.horario?' checked':''} onchange="document.getElementById('bcHorDias').style.display=this.checked?'':'none'">
+        Horário de funcionamento</label>
+        <small class="hint">Fora do horário o bot responde que está fechado e mostra o horário, em vez de anotar um pedido que ninguém vai preparar.
+        Quem já está no meio do pedido termina. Formato <b>18:00-23:30</b>; duas faixas com vírgula (<b>11:00-14:00, 18:00-23:00</b>); vazio = fechado.
+        Faixa que passa da meia-noite (<b>18:00-02:00</b>) vale até a madrugada.</small>
+        <div id="bcHorDias" class="form-grid" style="margin-top:8px${c.horario?'':';display:none'}">
+          ${[['seg','Segunda'],['ter','Terça'],['qua','Quarta'],['qui','Quinta'],['sex','Sexta'],['sab','Sábado'],['dom','Domingo']].map(([d,n])=>
+            `<div class="field"><label>${n}</label><input id="bcH_${d}" placeholder="fechado" value="${esc((c.horario||{})[d]&&(c.horario||{})[d]!=='fechado'?(c.horario||{})[d]:'')}"></div>`).join('')}
+          <div class="field" style="grid-column:1/-1"><label>Mensagem quando está fechado</label>
+            <textarea id="bcFechado" rows="3">${esc(c.mensagemFechado||'')}</textarea>
+            <small class="hint"><b>{horario}</b> vira a lista dos dias e horários.</small></div>
+        </div></div>
       <div class="field" style="grid-column:1/-1"><label>Respeito e brincadeira</label>
         <small class="hint">Ofensa: avisa, e depois do último aviso encerra o atendimento com uma pausa. Escolher opção
         errada de propósito, seguidas vezes, também encerra. Encerrado não volta pra fila: passada a pausa, começa do zero.
