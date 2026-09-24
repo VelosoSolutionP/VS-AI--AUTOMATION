@@ -5031,19 +5031,14 @@ function telaEntrar(){
 
     <div class="entrar-form">
       <div class="entrar-box">
-        <h2 id="lgTitulo">Entrar</h2>
-        <p class="entrar-sub" id="lgSub">Digite a sua senha. Cliente: informe também o e-mail.</p>
+        <h2 id="lgTitulo">Entrar no console</h2>
+        <p class="entrar-sub" id="lgSub">Use a senha de acesso do console.</p>
 
-        <div class="field" style="margin-top:20px" id="lgCampoEmail">
-          <label for="lgEmail">E-mail <span style="font-weight:400;opacity:.7">(opcional)</span></label>
-          <input id="lgEmail" type="email" autocomplete="username" placeholder="voce@empresa.com.br">
-        </div>
-
-        <div class="field" style="margin-top:14px">
-          <label for="lgSenha" id="lgRotulo">Senha</label>
+        <div class="field" style="margin-top:20px">
+          <label for="lgSenha" id="lgRotulo">Senha de acesso</label>
           <div class="senha-wrap">
             <input id="lgSenha" type="password" autocomplete="current-password"
-              placeholder="••••••••" aria-describedby="lgErro">
+              placeholder="••••••••" aria-describedby="lgErro" autofocus>
             <button type="button" id="lgOlho" class="olho" aria-label="Mostrar senha">ver</button>
           </div>
           <div id="lgErro" class="campo-erro" role="alert"></div>
@@ -5060,20 +5055,11 @@ function telaEntrar(){
         </div>
 
         <button class="btn btn-p entrar-btn" id="lgBtn">${ico('entrar')}Entrar</button>
-        <p style="margin:12px 0 0;text-align:center"><a href="#" id="lgEsqueci" style="font-size:14px;font-weight:600">Esqueci minha senha</a></p>
-        <p class="hint" id="lgEsqMsg" style="margin-top:6px;text-align:center"></p>
 
         <div class="entrar-ajuda" id="lgAjuda">
-          <b>Ainda não é cliente?</b>
-          <p>Conheça os planos e assine em poucos minutos — o seu acesso chega no WhatsApp e no e-mail.</p>
-          <a class="btn btn-s" href="/assinar" style="margin-top:10px;display:inline-flex">${ico('comprar')}<span>Conhecer e assinar</span></a>
-          <p style="margin-top:14px"><b>Pagou e não recebeu o acesso?</b></p>
-          <p>Informe o e-mail da assinatura: mandamos agora o link para criar a senha no e-mail e no WhatsApp cadastrados.</p>
-          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-            <input id="lgReEmail" type="email" autocomplete="email" placeholder="seu@email.com" style="flex:1;min-width:180px;height:40px">
-            <button class="btn btn-s" id="lgReBtn" type="button">Enviar o link</button>
-          </div>
-          <p class="hint" id="lgReMsg" style="margin-top:8px"></p>
+          <b>Não sabe a senha?</b>
+          <p>Quem definiu o acesso deste console sabe qual é. Se for uma instalação
+          nova, a primeira tela pede para você criar a sua.</p>
         </div>
       </div>
 
@@ -5094,34 +5080,6 @@ function telaEntrar(){
     campo.select();
   };
   const limparErro=()=>{erro.classList.remove('on');campo.classList.remove('erro');};
-
-  document.getElementById('lgReBtn').onclick=async()=>{
-    const b=document.getElementById('lgReBtn'), msg=document.getElementById('lgReMsg');
-    const em=document.getElementById('lgReEmail').value.trim() || (document.getElementById('lgEmail')?.value||'').trim();
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){ msg.textContent='Digite o e-mail usado na assinatura.'; return; }
-    b.disabled=true; b.textContent='Enviando…';
-    try{
-      const r=await fetch('/api/acesso/reenviar',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:em})});
-      const j=await r.json().catch(()=>({}));
-      msg.textContent=r.ok?j.mensagem:(j.erro||'Não consegui enviar agora. Tente de novo em alguns minutos.');
-    }catch{ msg.textContent='Sem conexão. Tente de novo.'; }
-    b.disabled=false; b.textContent='Enviar o link';
-  };
-
-  /* Esqueci a senha: usa o e-mail já digitado. Vale pro dono e pro cliente. */
-  document.getElementById('lgEsqueci').onclick=async(ev)=>{
-    ev.preventDefault();
-    const a=ev.currentTarget, msg=document.getElementById('lgEsqMsg'), cx=document.getElementById('lgEmail');
-    const em=(cx?.value||'').trim();
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){ msg.textContent='Digite o seu e-mail no campo acima e clique de novo.'; cx?.focus(); return; }
-    if(a.dataset.ocupado) return; a.dataset.ocupado='1'; msg.textContent='Enviando…';
-    try{
-      const r=await fetch('/api/acesso/esqueci',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:em})});
-      const j=await r.json().catch(()=>({}));
-      msg.textContent=r.ok?j.mensagem:(j.erro||'Não consegui enviar agora. Tente de novo em alguns minutos.');
-    }catch{ msg.textContent='Sem conexão. Tente de novo.'; }
-    delete a.dataset.ocupado;
-  };
 
   document.getElementById('lgOlho').onclick=()=>{
     const ver=campo.type==='password';
@@ -5157,19 +5115,15 @@ function telaEntrar(){
       'nesta máquina, com hash. Para trocar depois, use Configurações dentro do console.</p>';
   };
 
-  const emailCampo=document.getElementById('lgEmail');
-  emailCampo.addEventListener('input',limparErro);
-  /* O que volta do login é uma SESSÃO — a senha não fica guardada na aba nem
-     viaja em cada pedido. */
-  const abrirPainel=(token)=>{
-    TOKEN=token;
+  const abrirPainel=(senha)=>{
+    TOKEN=senha;
     sessionStorage.setItem('crm_token',TOKEN);
     document.body.classList.remove('sem-nav');
     carregar();
   };
 
   const enviar=async()=>{
-    if(!campo.value){ return mostrarErro(criando?'Escolha uma senha.':'Digite a sua senha.'); }
+    if(!campo.value){ return mostrarErro(criando?'Escolha uma senha.':'Digite a senha de acesso.'); }
     if(criando){
       if(campo.value.length<8){ return mostrarErro('A senha precisa de pelo menos 8 caracteres.'); }
       if(campo.value!==campo2.value){
@@ -5181,23 +5135,21 @@ function telaEntrar(){
     btn.disabled=true;btn.textContent=criando?'Criando…':'Entrando…';limparErro();
     try{
       if(criando){ await api('criar-acesso',{senha:campo.value}); }
-      /* Sem e-mail = dono, como sempre foi: só a senha e cai no dashboard. */
-      const em=emailCampo.value.trim();
-      const r=await api('entrar',criando||!em?{senha:campo.value}:{email:em,senha:campo.value});
+      /* Sessão, não a senha: o servidor devolve um token e é ele que fica na aba. */
+      const r=await api('entrar',{senha:campo.value});
       abrirPainel(r.token);
     }catch(e){
       btn.disabled=false;btn.textContent=criando?'Criar e entrar':'Entrar';
       // O servidor avisa quando a instalação ainda não tem senha; a tela vira
       // criação em vez de repetir "senha incorreta" para sempre.
       if(e.message==='primeiro acesso'){ virarCriacao();btn.disabled=false;return campo.focus(); }
-      mostrarErro(/incorret/.test(e.message)
-        ? 'E-mail ou senha incorretos.'
+      mostrarErro(e.message==='senha incorreta'
+        ? 'Senha incorreta. Se esta instalação é nova, recarregue para criar a sua.'
         : e.message);
     }
   };
   btn.onclick=enviar;
   campo.onkeydown=(e)=>{if(e.key==='Enter')enviar();};
-  emailCampo.onkeydown=(e)=>{if(e.key==='Enter')campo.focus();};
   campo2.onkeydown=(e)=>{if(e.key==='Enter')enviar();};
   campo.focus();
 
