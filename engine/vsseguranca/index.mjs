@@ -16,6 +16,7 @@
  */
 import { readFileSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { randomBytes } from 'node:crypto';
 import { dentroDaCasa } from '../casa.mjs';
 
 const MAX_AUDITORIA = 1000;
@@ -56,13 +57,45 @@ export function salvarResponsaveis(lista = []) {
 
 /** @param {{tipo:string, detalhe:string, protocolo?:string, cliente?:string, resultado?:string}} e */
 export function auditar(e) {
-  const item = { em: new Date().toISOString(), ...e };
+  const item = { id: randomBytes(6).toString('hex'), em: new Date().toISOString(), ...e };
   const lista = [item, ...ler('auditoria.json', [])].slice(0, MAX_AUDITORIA);
   gravar('auditoria.json', lista);
   return item;
 }
 
 export const auditoria = (limite = 50) => ler('auditoria.json', []).slice(0, limite);
+
+/* ---------------- sirene ---------------- */
+
+/** O que faz a sirene tocar no painel: pedido de socorro, SOS e URGENTE. */
+export const TOCA_SIRENE = (tipo) => /^emergencia:/.test(tipo) || tipo === 'sos' || tipo === 'urgente';
+const JANELA_SIRENE_H = 2;
+
+/**
+ * Ocorrências que ninguém viu ainda, das últimas 2h. É o que o painel pergunta
+ * a cada poucos segundos: tem alguma → sirene até alguém clicar "estou vendo".
+ * Mais antiga que 2h não toca mais (fica só na auditoria): painel aberto de
+ * manhã não pode disparar pelo socorro da madrugada que já foi tratado por
+ * telefone.
+ */
+export function pendentes(agora = Date.now()) {
+  return ler('auditoria.json', [])
+    .filter((a) => TOCA_SIRENE(a.tipo) && !a.vistoEm && agora - Date.parse(a.em) <= JANELA_SIRENE_H * 3600000);
+}
+
+/** "Estou vendo": para a sirene em todas as telas e registra quem viu. */
+export function reconhecer(ids = [], por = null) {
+  const alvo = new Set((ids || []).map(String));
+  const lista = ler('auditoria.json', []);
+  let n = 0;
+  for (const a of lista) {
+    if (alvo.has(String(a.id)) && !a.vistoEm) { a.vistoEm = new Date().toISOString(); a.vistoPor = por; n += 1; }
+  }
+  if (!n) { return { ok: true, reconhecidos: 0 }; }
+  gravar('auditoria.json', lista);
+  auditar({ tipo: 'visto', detalhe: `${por || 'alguém'} viu ${n} alerta(s) e parou a sirene` });
+  return { ok: true, reconhecidos: n };
+}
 
 /* ---------------- alerta ---------------- */
 

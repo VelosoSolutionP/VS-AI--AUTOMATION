@@ -1264,6 +1264,10 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && rota === '/crm/api/bot') { return json(res, 200, bot.painel()); }
     /* Segurança de quem atende e de quem é atendido: config, responsáveis e
        o que aconteceu (auditoria). */
+    /* A sirene do painel pergunta aqui a cada poucos segundos: leve de propósito. */
+    if (req.method === 'GET' && rota === '/crm/api/seguranca/pendentes') {
+      return json(res, 200, { pendentes: seguranca.pendentes() });
+    }
     if (req.method === 'GET' && rota === '/crm/api/seguranca') {
       const c = bot.getConfig();
       return json(res, 200, {
@@ -1618,6 +1622,7 @@ const server = createServer(async (req, res) => {
           }
           break;
         }
+        case '/crm/api/seguranca/visto': r = seguranca.reconhecer(d.ids || [], quem.email); break;
         case '/crm/api/seguranca/responsaveis': r = seguranca.salvarResponsaveis(d.responsaveis || []); break;
         case '/crm/api/seguranca/teste': r = await canais.alertarResponsaveis({ tipo: 'teste', por: quem.email }); if (!r.ok) { r = { ...r, ok: false, erro: r.motivo || `ninguém recebeu: ${(r.falhas || []).map((f) => `${f.nome} (${f.erro})`).join(', ')}` }; } break;
         case '/crm/api/seguranca/sos': {

@@ -108,3 +108,23 @@ test('moderacao respeita as chaves: assedio desligado segue; texto nao fala de e
   assert.doesNotMatch(r.texto, /jurídica|escritório/);
   assert.equal(moderacao.avaliar('seu idiota', {}, { ofensa: false }).acao, 'segue');
 });
+
+test('sirene: socorro, SOS e URGENTE ficam pendentes ate alguem ver; config e teste nao tocam', () => {
+  const a = seg.auditar({ tipo: 'emergencia:saude', detalhe: 'desmaiou' });
+  const b = seg.auditar({ tipo: 'sos', detalhe: 'balcao' });
+  seg.auditar({ tipo: 'config', detalhe: 'x' });
+  seg.auditar({ tipo: 'alerta:teste', detalhe: 'x' });
+  const ids = seg.pendentes().map((x) => x.id);
+  assert.ok(ids.includes(a.id) && ids.includes(b.id));
+  assert.equal(seg.pendentes().some((x) => x.tipo === 'config' || x.tipo === 'alerta:teste'), false);
+  const r = seg.reconhecer([a.id, b.id], 'dono@x');
+  assert.equal(r.reconhecidos, 2);
+  assert.equal(seg.pendentes().some((x) => x.id === a.id || x.id === b.id), false);
+  assert.match(seg.auditoria(1)[0].detalhe, /dono@x viu 2 alerta/);
+  assert.equal(seg.reconhecer([a.id], 'outro').reconhecidos, 0, 'ver de novo nao registra de novo');
+});
+
+test('sirene: ocorrencia de mais de 2h nao toca mais', () => {
+  const velho = seg.auditar({ tipo: 'sos', detalhe: 'madrugada' });
+  assert.equal(seg.pendentes(Date.now() + 3 * 3600000).some((x) => x.id === velho.id), false);
+});

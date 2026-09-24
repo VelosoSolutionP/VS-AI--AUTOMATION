@@ -755,6 +755,18 @@ body.sem-nav #side,body.sem-nav .topbar,body.sem-nav #ov{display:none!important}
 body.sem-nav #view{margin:0!important;padding:0!important;max-width:none!important}
 body.sem-nav .content{padding:0!important;max-width:none!important}
 body.sem-nav main,body.sem-nav .main{margin-left:0!important}
+
+#sireneTela{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:16px;background:rgba(185,28,28,.92);animation:sirenePisca .9s infinite}
+@keyframes sirenePisca{0%,100%{background:rgba(185,28,28,.94)}50%{background:rgba(127,29,29,.94)}}
+#sireneTela .sirene-caixa{max-width:640px;width:100%;background:#fff;color:#16161c;border-radius:16px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+#sireneTela .sirene-titulo{font:800 26px/1.2 system-ui,sans-serif;color:#b91c1c;margin-bottom:14px}
+#sireneTela .sirene-item{border-left:4px solid #dc2626;padding:8px 12px;margin:8px 0;background:#fef2f2;border-radius:8px;font-size:14px}
+#sireneTela .sirene-item small{color:#5b5b66}
+#sireneTela .sirene-aviso{font-weight:700;color:#b91c1c;margin:10px 0 0}
+#sireneTela .sirene-botoes{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+#sireneTela .sirene-botoes .btn{background:#dc2626;color:#fff;border-color:#dc2626;font-weight:700;padding:12px 16px}
+#sireneTela .sirene-botoes .btn+.btn{background:#fff;color:#b91c1c}
+#sireneTela .sirene-rodape{font-size:12px;color:#5b5b66;margin:14px 0 0}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
@@ -5012,13 +5024,15 @@ function pintarSeguranca(){
     </div>
 
     <h4 style="margin:22px 0 4px">Quem recebe os alertas</h4>
-    <p class="hint" style="margin:0 0 10px">Pedido de socorro, <b>URGENTE</b> e SOS chegam no WhatsApp destas pessoas, na hora.
+    <p class="hint" style="margin:0 0 10px">Pedido de socorro, <b>URGENTE</b> e SOS chegam no WhatsApp destas pessoas, na hora — e o painel aberto
+      <b>toca uma sirene</b> até alguém clicar "Estou vendo".
       ${resp.length?'':'<b style="color:var(--err)">Ninguém cadastrado: hoje nenhum alerta sai — e o bot não diz ao cliente que avisou alguém.</b>'}</p>
     <div id="sgResp">${(resp.length?resp:[{nome:'',whatsapp:''}]).map((r,i)=>segLinhaResp(r,i)).join('')}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
       ${botao({t:'Adicionar responsável',ic:'mais',v:'s',on:'segAddResp()'})}
       ${botao({t:'Salvar responsáveis',ic:'salvar',v:'p',on:'salvarResponsaveis()',id:'sgSalvarResp'})}
       ${botao({t:'Enviar alerta de teste',ic:'enviar',v:'s',on:'testarAlerta()',id:'sgTeste',off:!resp.length})}
+      ${botao({t:'Testar sirene do painel',ic:'alerta',v:'s',on:'testarSirene()'})}
     </div>
 
     <div class="seg-sos" style="margin-top:22px;padding:16px;border:1px solid var(--err);border-radius:12px;background:var(--err-bg,rgba(220,38,38,.06));display:flex;gap:14px;align-items:center;flex-wrap:wrap">
@@ -5039,7 +5053,7 @@ function segNomeEvento(t){
   const n={'emergencia:violencia':'Pedido de socorro','emergencia:violencia_mulher':'Violência doméstica','emergencia:saude':'Emergência médica',
     'alerta:violencia':'Alerta — socorro','alerta:violencia_mulher':'Alerta — violência doméstica','alerta:saude':'Alerta — emergência médica',
     'alerta:urgente':'Alerta — URGENTE','alerta:sos':'Alerta — SOS','alerta:teste':'Alerta de teste','sos':'SOS acionado','urgente':'URGENTE na pausa',
-    'moderacao:ofensa':'Encerrado por ofensa','moderacao:assedio':'Encerrado por assédio','moderacao:opcoes':'Encerrado por brincadeira','config':'Configuração'};
+    'visto':'Alerta visto','moderacao:ofensa':'Encerrado por ofensa','moderacao:assedio':'Encerrado por assédio','moderacao:opcoes':'Encerrado por brincadeira','config':'Configuração'};
   return n[t]||t;
 }
 function segLinhaResp(r,i){
@@ -5086,15 +5100,110 @@ async function testarAlerta(){
 function abrirSos(){
   abrirModal('🆘 Acionar SOS',`<p class="hint" style="margin:0 0 10px">Todos os responsáveis recebem agora, no WhatsApp, que o atendimento pediu ajuda.</p>
     <div class="field"><label for="sosMotivo">O que está acontecendo? (opcional)</label><textarea id="sosMotivo" rows="3" placeholder="Ex.: cliente ameaçando no balcão"></textarea></div>
-    <p class="hint" style="margin-top:8px">Se houver risco à vida, <b>ligue 190</b> também.</p>`,
+    <p class="hint" style="margin-top:8px">Aqui é <b>silencioso</b>: a sirene toca nos outros computadores do painel, não neste.
+      Se houver risco à vida, <b>ligue 190</b> também.</p>`,
     `${BT.cancelar()}<button class="btn" id="sosBtn" style="background:#dc2626;color:#fff;border-color:#dc2626;font-weight:700" onclick="dispararSos()">🆘 Enviar alerta agora</button>`);
 }
 async function dispararSos(){
   const b=document.getElementById('sosBtn'); if(b){ b.disabled=true; b.textContent='Enviando…'; }
   const motivo=document.getElementById('sosMotivo')?.value.trim()||'';
+  SIRENE.meuSos=Date.now();
   try{ const r=await api('seguranca/sos',{motivo}); fecharModal(); avisoOk('SOS enviado',`Avisados agora: <b>${esc(r.avisados.join(', '))}</b>.${r.falhas?.length?`<br>Não chegou para: ${esc(r.falhas.map(f=>f.nome).join(', '))}`:''}`); }
   catch(e){ fecharModal(); avisoErro('O SOS NÃO foi entregue',`${esc(e.message)}. <b>Ligue 190</b> se houver risco.`); }
   await carregarSeguranca();
+}
+
+/* ---------------------------------------------------------------------------
+   SIRENE. Pedido de socorro, SOS ou URGENTE fazem o painel tocar uma sirene e
+   cobrir a tela de vermelho ATÉ alguém clicar "Estou vendo" — em qualquer aba,
+   em qualquer tela do painel. O som é gerado aqui (Web Audio): nada pra baixar,
+   nada de direito autoral, e sai no máximo que a caixa de som do computador dá.
+   Navegador não deixa tocar som antes de um clique na página: o primeiro clique
+   (o de entrar) já libera; se a página foi recarregada, a tela vermelha pede o
+   clique e a sirene começa nele.
+   --------------------------------------------------------------------------- */
+const SIRENE={ctx:null,no:null,giro:null,vistos:new Set(),mostrando:[],meuSos:0};
+function sireneContexto(){
+  if(!SIRENE.ctx){ const C=window.AudioContext||window.webkitAudioContext; if(!C) return null; SIRENE.ctx=new C(); }
+  if(SIRENE.ctx.state==='suspended') SIRENE.ctx.resume().catch(()=>{});
+  return SIRENE.ctx;
+}
+addEventListener('pointerdown',()=>{ try{ sireneContexto(); if(SIRENE.mostrando.length&&!SIRENE.no) sireneTocar(); }catch{} },{capture:true});
+function sireneTocar(){
+  const ctx=sireneContexto(); if(!ctx||SIRENE.no) return;
+  /* Duas ondas ásperas (dente de serra + quadrada) empurradas por distorção e
+     compressor: é o que faz soar como sirene de verdade e parecer mais alto
+     que um apito limpo no mesmo volume. */
+  const saida=ctx.createDynamicsCompressor(); saida.threshold.value=-30; saida.ratio.value=12; saida.connect(ctx.destination);
+  const dist=ctx.createWaveShaper(); const k=40, n=1024, curva=new Float32Array(n);
+  for(let i=0;i<n;i++){ const x=i*2/n-1; curva[i]=((3+k)*x*20*Math.PI/180)/(Math.PI+k*Math.abs(x)); }
+  dist.curve=curva; dist.connect(saida);
+  const vol=ctx.createGain(); vol.gain.value=1; vol.connect(dist);
+  const a=ctx.createOscillator(); a.type='sawtooth'; const b=ctx.createOscillator(); b.type='square';
+  a.connect(vol); b.connect(vol); a.start(); b.start();
+  const subirDescer=()=>{ const t=ctx.currentTime;
+    for(const o of [a,b]){ o.frequency.cancelScheduledValues(t); o.frequency.setValueAtTime(620,t); o.frequency.linearRampToValueAtTime(1550,t+0.45); o.frequency.linearRampToValueAtTime(620,t+0.9); }
+    b.detune.value=12; };
+  subirDescer(); SIRENE.giro=setInterval(subirDescer,900);
+  SIRENE.no={a,b,vol};
+}
+function sireneParar(){
+  if(SIRENE.giro){ clearInterval(SIRENE.giro); SIRENE.giro=null; }
+  if(SIRENE.no){ try{ SIRENE.no.a.stop(); SIRENE.no.b.stop(); SIRENE.no.vol.disconnect(); }catch{} SIRENE.no=null; }
+}
+const SIRENE_TITULO={'emergencia:violencia':'🚨 PEDIDO DE SOCORRO','emergencia:violencia_mulher':'🚨 POSSÍVEL VIOLÊNCIA DOMÉSTICA',
+  'emergencia:saude':'🚨 EMERGÊNCIA MÉDICA','sos':'🆘 SOS DO ATENDIMENTO','urgente':'⚠️ URGENTE'};
+function sireneTela(lista){
+  let el=document.getElementById('sireneTela');
+  if(!lista.length){ el?.remove(); document.title=document.title.replace(/^🚨 /,''); return; }
+  if(!el){ el=document.createElement('div'); el.id='sireneTela'; document.body.appendChild(el); }
+  const tocando=!!SIRENE.no, travado=SIRENE.ctx?.state!=='running';
+  el.innerHTML=`<div class="sirene-caixa">
+    <div class="sirene-titulo">${esc(SIRENE_TITULO[lista[0].tipo]||'🚨 ALERTA DE SEGURANÇA')}</div>
+    ${lista.map(a=>`<div class="sirene-item"><b>${esc(SIRENE_TITULO[a.tipo]||a.tipo)}</b>
+      ${a.cliente?` · ${esc(a.cliente)}`:''}${a.protocolo?` · ${esc(a.protocolo)}`:''}
+      <div>${esc(a.detalhe||'')}</div><small>${new Date(a.em).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</small></div>`).join('')}
+    ${travado&&!tocando?'<p class="sirene-aviso">Clique em qualquer lugar para ouvir a sirene.</p>':''}
+    <div class="sirene-botoes">
+      <button class="btn" onclick="sireneVisto()">✋ Estou vendo — parar a sirene</button>
+      <button class="btn" onclick="sireneVisto('wa-atendimento')">💬 Parar e abrir o atendimento</button>
+    </div>
+    <p class="sirene-rodape">Se houver risco à vida, ligue 190 (polícia), 192 (SAMU) ou 180 (violência contra a mulher).</p>
+  </div>`;
+  if(!/^🚨 /.test(document.title)) document.title='🚨 '+document.title;
+}
+async function sireneVisto(ir_para){
+  const ids=SIRENE.mostrando.map(a=>a.id);
+  sireneParar(); SIRENE.mostrando=[]; sireneTela([]);
+  ids.forEach(i=>SIRENE.vistos.add(i));
+  try{ await api('seguranca/visto',{ids}); }catch(e){ avisoErro('Não consegui registrar que você viu',e.message); }
+  if(ir_para) ir(ir_para);
+  if(document.getElementById('segCard')) carregarSeguranca();
+}
+async function checarSirene(){
+  if(!TOKEN||document.body.classList.contains('sem-nav')) return;
+  let r; try{ r=await api('seguranca/pendentes'); }catch{ return; }
+  /* O SOS que ESTA tela disparou não toca aqui: quem apertou pode estar na
+     frente do agressor, e uma sirene no computador dele piora a situação.
+     Toca nos outros computadores e abas. */
+  const lista=(r.pendentes||[]).filter(a=>!SIRENE.vistos.has(a.id)
+    &&!(a.tipo==='sos'&&SIRENE.meuSos&&Math.abs(Date.parse(a.em)-SIRENE.meuSos)<15000));
+  const novo=lista.some(a=>!SIRENE.mostrando.find(m=>m.id===a.id));
+  SIRENE.mostrando=lista;
+  if(!lista.length){ sireneParar(); sireneTela([]); return; }  // alguém viu em outra aba
+  if(novo){
+    sireneTocar();
+    try{ if('Notification' in window&&Notification.permission==='granted'){ new Notification(SIRENE_TITULO[lista[0].tipo]||'Alerta de segurança',{body:`${lista[0].cliente||''} ${lista[0].detalhe||''}`.trim(),requireInteraction:true}); } }catch{}
+  }
+  sireneTela(lista);
+}
+setInterval(checarSirene,5000);
+/* "Testar sirene": 3 segundos de sirene e, de quebra, pede permissão para o
+   aviso do sistema — assim o alerta aparece mesmo com o painel em outra aba. */
+function testarSirene(){
+  sireneTocar(); setTimeout(sireneParar,3000);
+  try{ if('Notification' in window&&Notification.permission==='default') Notification.requestPermission(); }catch{}
+  flash('Tocando a sirene por 3 segundos. Confira o volume do computador.','ok');
 }
 
 async function sairDaConta(){ try{await api('sair',{});}catch{} TOKEN='';sessionStorage.removeItem('crm_token');location.reload(); }
