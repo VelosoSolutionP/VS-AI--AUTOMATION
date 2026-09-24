@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chave Bolso Cheio</title>
+<meta name="robots" content="noindex">
+<style>
+:root{--bg:#f7f7f9;--panel:#fff;--line:#e6e6eb;--txt:#18181b;--sub:#52525b;--ok:#15803d;--ok-bg:#effaf2;--err:#b91c1c;--err-bg:#fef2f2;--brand:#4f46e5}
+@media (prefers-color-scheme:dark){:root{--bg:#0a0a0d;--panel:#131318;--line:#292930;--txt:#f4f4f5;--sub:#a1a1aa;--ok:#4ade80;--ok-bg:rgba(34,197,94,.12);--err:#f87171;--err-bg:rgba(239,68,68,.12);--brand:#818cf8}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--txt);font:15px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;display:grid;place-items:center;padding:24px 16px}
+main{width:100%;max-width:440px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px}
+.logo{display:block;height:40px;margin:0 auto 18px}
+h1{font-size:19px;margin:0 0 4px;text-align:center}
+p.sub{color:var(--sub);text-align:center;margin:0 0 18px;font-size:14px}
+label{font-size:13px;color:var(--sub)}
+input{width:100%;font:600 17px ui-monospace,monospace;letter-spacing:.06em;text-transform:uppercase;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--txt);margin:6px 0 12px}
+button{width:100%;padding:12px;border:0;border-radius:10px;background:var(--brand);color:#fff;font:600 15px system-ui,sans-serif;cursor:pointer}
+button:disabled{opacity:.6}
+.res{margin-top:18px;border-radius:10px;padding:14px 16px;font-size:14px}
+.res.ok{background:var(--ok-bg);color:var(--txt)}
+.res.err{background:var(--err-bg);color:var(--err)}
+.res b.est{display:block;font-size:16px;margin-bottom:6px}
+.res.ok b.est{color:var(--ok)}
+ul{margin:8px 0 0;padding-left:18px}
+small{color:var(--sub)}
+</style></head>
+<body><main>
+<div class="card">
+  <img class="logo" src="/crm/logo.png" alt="Bolso Cheio" onerror="this.remove()">
+  <h1>Conferir chave de ativação</h1>
+  <p class="sub">Digite a chave que chegou no seu WhatsApp.</p>
+  <form id="f">
+    <label for="c">Chave</label>
+    <input id="c" autocomplete="off" placeholder="BC-XXXX-XXXX-XXXX" maxlength="20" required>
+    <button id="b">Conferir</button>
+  </form>
+  <div id="r" aria-live="polite"></div>
+</div>
+</main>
+<script>
+const esc=(s)=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const R=document.getElementById('r'), C=document.getElementById('c'), B=document.getElementById('b');
+const data=(iso)=>new Date(iso).toLocaleDateString('pt-BR');
+const lim=(v,s)=>v==null?'ilimitado':v+(s||'');
+async function conferir(){
+  const cod=C.value.trim(); if(!cod) return;
+  B.disabled=true; B.textContent='Conferindo…'; R.innerHTML='';
+  try{
+    const res=await fetch('/api/licenca/'+encodeURIComponent(cod));
+    const j=await res.json().catch(()=>({motivo:'resposta inválida do servidor'}));
+    if(!j.ok){ R.className='res err'; R.innerHTML=`<b class="est">Chave não confere</b>${esc(j.motivo||'')}`; return; }
+    const l=j.liberacoes||{};
+    const nomes={valida:'Chave válida ✓',vencida:'Chave vencida',revogada:'Chave revogada'};
+    R.className='res '+(j.estado==='valida'?'ok':'err');
+    R.innerHTML=`<b class="est">${nomes[j.estado]||esc(j.estado)}</b>
+      Titular: <b>${esc(j.titular)}</b><br>
+      ${j.estado==='valida'?'Válida até':'Validade era'} <b>${data(j.validaAte)}</b><br>
+      <small>${esc((j.produtos||[]).join(' + '))}</small>
+      <ul>
+        <li>${lim(l.operadores)} operador(es)</li>
+        <li>${lim(l.campanhasMes)} campanha(s) por mês</li>
+        <li>Banda: ${lim(l.bandaGbMes,' GB/mês')}</li>
+        <li>Auditor: ${l.auditor?'incluído':'não incluído'}</li>
+        <li>Bot de funil: ${l.botFunil?'incluído':'não incluído'}</li>
+        ${(l.redes||[]).length?`<li>Redes: ${esc(l.redes.join(', '))}</li>`:''}
+      </ul>
+      ${j.estado!=='valida'?'<p style="margin:10px 0 0">Fale com a Veloso Solution no WhatsApp para renovar.</p>':''}`;
+  }catch(e){ R.className='res err'; R.textContent='Não consegui conferir agora: '+e.message; }
+  finally{ B.disabled=false; B.textContent='Conferir'; }
+}
+document.getElementById('f').onsubmit=(e)=>{e.preventDefault();conferir();};
+const q=new URLSearchParams(location.search).get('c');
+if(q){ C.value=q; conferir(); }
+</script>
+</body></html>

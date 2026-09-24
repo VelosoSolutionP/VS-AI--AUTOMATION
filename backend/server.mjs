@@ -19,6 +19,8 @@ import { fileURLToPath } from 'node:url';
 import { issueLicense } from '../license/issue.mjs';
 import { sendLicense } from './whatsapp.mjs';
 import * as acesso from './acesso.mjs';
+import * as usuarios from './usuarios.mjs';
+import * as email from './email.mjs';
 import * as crm from '../engine/vscrm/index.mjs';
 import { testarConexao, CREDENCIAL } from '../engine/vsinfluence/coletor.mjs';
 import { diagnostico as tiktokDiagnostico } from '../engine/vstiktok/index.mjs';
@@ -37,6 +39,8 @@ import * as pagar from '../engine/vspagamentos/index.mjs';
 import * as fin from '../engine/vsfinanceiro/index.mjs';
 import * as bot from '../engine/vsbot/index.mjs';
 import * as docs from '../engine/vsdocumentos/index.mjs';
+import * as clientes from '../engine/vsclientes/index.mjs';
+import * as clientesSrv from './clientes-servicos.mjs';
 import * as midia from './midia.mjs';
 import { pagina as paginaVitrine } from './vitrine.mjs';
 import { lerCorpoLimitado, criarRateLimit, ipDe, segredoIgual, CORPO_MAX_BYTES } from './limites.mjs';
@@ -53,6 +57,97 @@ for (const nivel of ['log', 'warn', 'error']) {
 /* Os limites vem da ASSINATURA, que aponta pra um plano do catalogo. Sem
    assinatura nada e bloqueado — ver engine/vsplanos. */
 const limitesAtuais = () => { try { return planos.assinatura().limites; } catch { return {}; } };
+
+/* Carteira de clientes: onde o cliente confere a chave e pra onde o Mercado
+   Pago avisa que pagaram. Os dois saem do endereco publico do console. */
+const origemPublica = () => process.env.PAINEL_URL || 'https://bolsocheio.velososolution.com.br';
+const urlAtivacao = () => `${origemPublica()}/ativar`;
+/* SEM notification_url por padrao. O webhook cadastrado no painel do Mercado
+   Pago ja cobre todo pagamento da conta e a assinatura dele confere. O aviso
+   que vem pela notification_url de cada cobranca chegava com assinatura que
+   NAO conferia — 401 em todo evento, calado. So manda se for pedido no env. */
+const webhookPagamento = () => process.env.VS_URL_WEBHOOK_PAGAMENTO || undefined;
+
+/**
+ * Depois que a chave sai: convite pro cliente criar o PROPRIO usuario (e-mail +
+ * senha). Vai no WhatsApp e no e-mail. Cada canal responde por si — um falhar
+ * nao some com o outro, e o resultado fica no historico do cliente.
+ */
+/** Link de "esqueci a senha": e-mail sempre; WhatsApp tambem quando e cliente. */
+async function entregarRedefinicao({ token, email: para, nome, clienteId }) {
+  const link = `${origemPublica()}/redefinir-senha?t=${encodeURIComponent(token)}`;
+  const primeiro = String(nome || '').split(' ')[0];
+  const txt = [
+    `Olá${primeiro ? ', ' + primeiro : ''}! Recebemos um pedido para trocar a senha do Bolso Cheio (${para}).`,
+    '',
+    'Crie a nova senha neste link (vale 1 hora):',
+    link,
+    '',
+    'Se não foi você, ignore — a senha atual continua valendo.',
+  ].join('\n');
+  const html = `<div style="font-family:system-ui,Arial,sans-serif;max-width:520px;margin:auto;color:#16161c">
+    <h2 style="margin:0 0 8px">Trocar a senha do Bolso Cheio</h2>
+    <p>Olá${primeiro ? ', ' + primeiro : ''}! Recebemos um pedido para trocar a senha do usuário <b>${para}</b>.</p>
+    <p style="margin:24px 0"><a href="${link}" style="background:#4f46e5;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:600">Criar nova senha</a></p>
+    <p style="color:#5b5b66;font-size:13px">O link vale 1 hora. Se não foi você, ignore este e-mail — a senha atual continua valendo.</p>
+    <p style="color:#5b5b66;font-size:12px">Veloso Solution · CNPJ 53.759.232/0001-94</p></div>`;
+  const c = clienteId ? clientes.obter(clienteId) : null;
+  const [e, w] = await Promise.all([
+    email.enviarEmail({ para, assunto: 'Trocar a senha do Bolso Cheio', texto: txt, html }).catch((x) => ({ ok: false, erro: x.message })),
+    c?.whatsapp ? clientesSrv.enviarWhatsapp({ para: c.whatsapp, texto: txt }).catch((x) => ({ ok: false, erro: x.message })) : null,
+  ]);
+  console.log(`[acesso] link de nova senha -> e-mail ${para}: ${e.ok ? 'enviado' : 'NAO (' + e.erro + ')'}${w ? ` | WhatsApp: ${w.ok ? 'enviado' : 'NAO (' + w.erro + ')'}` : ''}`);
+  return { ok: e.ok || !!w?.ok, email: e, whatsapp: w };
+}
+
+async function entregarAcesso(clienteId) {
+  const c = clientes.obter(clienteId);
+  if (!c) { return { ok: false, motivo: 'cliente nao encontrado' }; }
+  const cv = usuarios.convidar({ email: c.email, clienteId: c.id, nome: c.nome });
+  if (!cv.ok) { console.warn(`[acesso] ${c.id}: sem convite — ${cv.motivo}`); return cv; }
+  const link = `${origemPublica()}/criar-acesso?t=${encodeURIComponent(cv.token)}`;
+  const lic = clientes.listar().find((x) => x.id === c.id)?.licencaVigente;
+  const primeiro = c.nome.split(' ')[0];
+  const txt = [
+    `Olá, ${primeiro}! Seu acesso ao Bolso Cheio está pronto.`,
+    '',
+    `Crie sua senha neste link (vale 72 horas):`,
+    link,
+    '',
+    `Seu usuário é o e-mail ${cv.email}.`,
+    lic ? `Chave de ativação: ${lic.codigo} (válida até ${new Date(lic.validaAte).toLocaleDateString('pt-BR')}).` : null,
+    '',
+    'Depois é só entrar em bolsocheio.velososolution.com.br com e-mail e senha.',
+  ].filter((x) => x !== null).join('\n');
+  const html = `<div style="font-family:system-ui,Arial,sans-serif;max-width:520px;margin:auto;color:#16161c">
+    <h2 style="margin:0 0 8px">Seu acesso ao Bolso Cheio está pronto</h2>
+    <p>Olá, ${primeiro}! Crie a sua senha para entrar. O seu usuário é <b>${cv.email}</b>.</p>
+    <p style="margin:24px 0"><a href="${link}" style="background:#4f46e5;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:600">Criar minha senha</a></p>
+    ${lic ? `<p>Chave de ativação: <b style="font-family:monospace">${lic.codigo}</b> — válida até ${new Date(lic.validaAte).toLocaleDateString('pt-BR')}.</p>` : ''}
+    <p style="color:#5b5b66;font-size:13px">O link vale 72 horas. Se não foi você, ignore este e-mail.</p>
+    <p style="color:#5b5b66;font-size:12px">Veloso Solution · CNPJ 53.759.232/0001-94</p></div>`;
+  const [w, e] = await Promise.all([
+    clientesSrv.enviarWhatsapp({ para: c.whatsapp, texto: txt }).catch((x) => ({ ok: false, erro: x.message })),
+    email.enviarEmail({ para: cv.email, assunto: 'Seu acesso ao Bolso Cheio', texto: txt, html }).catch((x) => ({ ok: false, erro: x.message })),
+  ]);
+  clientes.registrarEntregaAcesso(c.id, { whatsapp: w, email: e });
+  console.log(`[acesso] convite de ${c.id} -> WhatsApp: ${w.ok ? 'enviado' : 'NAO (' + w.erro + ')'} | e-mail ${cv.email}: ${e.ok ? 'enviado' : 'NAO (' + e.erro + ')'}`);
+  return { ok: w.ok || e.ok, whatsapp: w, email: e, link };
+}
+
+/** Pagamento confirmado que for de cliente da carteira vira chave no WhatsApp dele. */
+async function liberarSeForCliente(pagamento) {
+  try {
+    const r = await clientes.aoConfirmarPagamento(pagamento, {
+      assinar: clientesSrv.assinarLicenca, enviar: clientesSrv.enviarWhatsapp, urlAtivacao: urlAtivacao(),
+    });
+    if (r.naoEDaqui || r.repetido) { return; }
+    if (!r.ok) { console.error(`[clientes] pagamento ${pagamento.id} confirmado mas SEM chave: ${r.motivo}`); return; }
+    console.log(`[clientes] chave ${r.codigo} emitida (${pagamento.referencia}) — WhatsApp: ${r.envio?.ok ? 'enviado' : 'NAO enviado: ' + (r.envio?.erro || '?')}`);
+    const cli = clientes.listar().find((x) => (x.cobrancas || []).some((y) => y.referencia === pagamento.referencia));
+    if (cli) { await entregarAcesso(cli.id); }
+  } catch (e) { console.error(`[clientes] falha ao liberar ${pagamento?.referencia}: ${e.message}`); }
+}
 
 const PORT = process.env.PORT || 8787;
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
@@ -161,6 +256,11 @@ const LIM_TRIAL = criarRateLimit({ max: Number(process.env.RATE_TRIAL || 5), jan
 const LIM_CHECKOUT = criarRateLimit({ max: Number(process.env.RATE_CHECKOUT || 20), janelaMs: 3600000 });
 const LIM_ISSUE = criarRateLimit({ max: Number(process.env.RATE_ISSUE || 60), janelaMs: 3600000 });
 const LIM_CRM = criarRateLimit({ max: Number(process.env.RATE_CRM || 300), janelaMs: 60000 });
+/* Pagina publica de assinatura. Iniciar gera contrato (abre o Chrome): teto
+   baixo por IP. O resto e leve, mas publico — teto de qualquer jeito. */
+const LIM_ASSINAR_INICIO = criarRateLimit({ max: Number(process.env.RATE_ASSINAR_INICIO || 8), janelaMs: 10 * 60000 });
+const LIM_REENVIAR = criarRateLimit({ max: Number(process.env.RATE_REENVIAR || 5), janelaMs: 10 * 60000 });
+const LIM_ASSINAR = criarRateLimit({ max: Number(process.env.RATE_ASSINAR || 90), janelaMs: 60000 });
 
 /** Aplica a cota; se estourou, responde 429 e devolve true. */
 function barrado(res, limitador, req, oque) {
@@ -460,6 +560,7 @@ const server = createServer(async (req, res) => {
     if (r.ok && ['CONFIRMADO', 'DISPONIVEL'].includes(r.estado) && r.pagamento) {
       const l = fin.lancarPagamento(r.pagamento);
       if (l.ok && !l.repetido) { console.log(`[caixa] entrada de ${r.pagamento.id} lancada`); }
+      await liberarSeForCliente(r.pagamento);
     }
     console.log(`[mercadopago${mpAmbiente ? '/' + mpAmbiente : ''}] ${evento.type || evento.topic || '?'} ${evento.data?.id || ''} -> ${r.ok ? (r.estado || 'recebido') : 'recusado: ' + r.motivo}`);
     /* Quando a assinatura NAO confere, o 401 sozinho nao diz o que faltou. Este
@@ -483,6 +584,7 @@ const server = createServer(async (req, res) => {
     if (r.ok && ['CONFIRMADO', 'DISPONIVEL'].includes(r.estado) && r.pagamento) {
       const l = fin.lancarPagamento(r.pagamento);
       if (l.ok && !l.repetido) { console.log(`[caixa] entrada de ${r.pagamento.id} lancada`); }
+      await liberarSeForCliente(r.pagamento);
     }
     console.log(`[asaas] ${evento.event || '?'} ${evento.payment?.id || ''} -> ${r.ok ? r.estado : 'recusado: ' + r.motivo}`);
     return json(res, r.http || (r.ok ? 200 : 400), r);
@@ -534,6 +636,188 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { 'content-type': v.tipo });
       return res.end(v.conteudo);
     }
+  }
+
+  /* Conferencia PUBLICA da chave de ativacao. Sem sessao de proposito: quem
+     abre e o cliente, pelo link que chegou no WhatsApp. So mostra primeiro
+     nome, o que esta liberado e ate quando — nada de documento ou telefone. */
+  if (req.method === 'GET' && req.url.split('?')[0].startsWith('/api/licenca/')) {
+    if (barrado(res, LIM_CRM, req, '/api/licenca')) { return; }
+    const r = clientes.consultarCodigo(decodeURIComponent(req.url.split('?')[0].slice('/api/licenca/'.length)));
+    return json(res, r.ok ? 200 : 404, r);
+  }
+  if (req.method === 'GET' && req.url.split('?')[0] === '/ativar') {
+    try {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+      return res.end(readFileSync(join(HERE, 'ativar.html'), 'utf8'));
+    } catch (e) { return json(res, 500, { erro: 'pagina de ativacao: ' + e.message }); }
+  }
+
+  if (req.method === 'GET' && req.url.split('?')[0] === '/redefinir-senha') {
+    try {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+      return res.end(readFileSync(join(HERE, 'redefinir-senha.html'), 'utf8'));
+    } catch (e) { return json(res, 500, { erro: 'pagina: ' + e.message }); }
+  }
+  /* ---- Criar o proprio acesso (link do convite) ---- */
+  if (req.method === 'GET' && req.url.split('?')[0] === '/criar-acesso') {
+    try {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+      return res.end(readFileSync(join(HERE, 'criar-acesso.html'), 'utf8'));
+    } catch (e) { return json(res, 500, { erro: 'pagina: ' + e.message }); }
+  }
+  if (req.url.split('?')[0].startsWith('/api/acesso/')) {
+    if (barrado(res, LIM_ASSINAR, req, 'acesso')) { return; }
+    const rotaC = req.url.split('?')[0];
+    if (req.method === 'GET' && rotaC === '/api/acesso/convite') {
+      const r = usuarios.lerConvite(new URL(req.url, 'http://x').searchParams.get('t'));
+      return json(res, r.ok ? 200 : 404, r.ok ? r : { ...r, erro: r.motivo });
+    }
+    if (req.method === 'POST' && rotaC === '/api/acesso/aceitar') {
+      const b = await readBody(req);
+      if (corpoEstourou(res, b)) { return; }
+      let d; try { d = JSON.parse(b.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
+      const r = usuarios.aceitarConvite(d.token, d.senha);
+      if (r.ok) { console.log(`[acesso] ${r.email} criou a senha`); }
+      return json(res, r.ok ? 200 : 400, r.ok ? r : { ...r, erro: r.motivo });
+    }
+    /* "Paguei e não recebi" / "esqueci a senha": manda o link SÓ pros canais
+       cadastrados na assinatura. A resposta é sempre a mesma — não confirma pra
+       quem pergunta se um e-mail é cliente (LGPD). */
+    if (req.method === 'POST' && rotaC === '/api/acesso/reenviar') {
+      if (barrado(res, LIM_REENVIAR, req, 'reenvio de acesso')) { return; }
+      const b = await readBody(req);
+      if (corpoEstourou(res, b)) { return; }
+      let d; try { d = JSON.parse(b.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
+      const c = clientes.assinantePorEmail(d.email);
+      if (c) { await entregarAcesso(c.id).catch((e) => console.warn(`[acesso] reenvio de ${c.id} falhou: ${e.message}`)); }
+      else { console.log('[acesso] pedido de reenvio para e-mail sem assinatura em vigor'); }
+      return json(res, 200, { ok: true, mensagem: 'Se existe assinatura em vigor com este e-mail, o link para criar a senha foi enviado agora para o e-mail e o WhatsApp cadastrados.' });
+    }
+    /* Esqueci a senha: link de 1 h no e-mail da conta (e no WhatsApp, se for
+       cliente). Resposta sempre igual — não diz a quem pergunta se o e-mail
+       tem conta. */
+    if (req.method === 'POST' && rotaC === '/api/acesso/esqueci') {
+      if (barrado(res, LIM_REENVIAR, req, 'esqueci a senha')) { return; }
+      const b = await readBody(req);
+      if (corpoEstourou(res, b)) { return; }
+      let d; try { d = JSON.parse(b.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
+      const r = usuarios.pedirRedefinicao(d.email);
+      if (r.ok) { await entregarRedefinicao(r).catch((e) => console.warn(`[acesso] link de nova senha para ${r.email} falhou: ${e.message}`)); }
+      else { console.log('[acesso] esqueci a senha para e-mail sem conta'); }
+      return json(res, 200, { ok: true, mensagem: 'Se este e-mail tem conta no Bolso Cheio, o link para criar uma nova senha acabou de ser enviado. Ele vale 1 hora.' });
+    }
+    if (req.method === 'GET' && rotaC === '/api/acesso/redefinicao') {
+      const r = usuarios.lerRedefinicao(new URL(req.url, 'http://x').searchParams.get('t'));
+      return json(res, r.ok ? 200 : 404, r.ok ? r : { ...r, erro: r.motivo });
+    }
+    if (req.method === 'POST' && rotaC === '/api/acesso/redefinir') {
+      const b = await readBody(req);
+      if (corpoEstourou(res, b)) { return; }
+      let d; try { d = JSON.parse(b.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
+      const r = usuarios.redefinirSenha(d.token, d.senha);
+      if (r.ok) { console.log(`[acesso] ${r.email} redefiniu a senha pelo link`); }
+      return json(res, r.ok ? 200 : 400, r.ok ? r : { ...r, erro: r.motivo });
+    }
+    return json(res, 404, { erro: 'rota desconhecida' });
+  }
+
+  /* Administracao sem tela, pela maquina: reenviar o convite de acesso de um
+     cliente. Protegido pelo ADMIN_TOKEN, igual ao /issue. */
+  if (req.method === 'POST' && req.url === '/admin/entregar-acesso') {
+    const auth = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
+    if (!ADMIN_TOKEN || !segredoIgual(auth, ADMIN_TOKEN)) { return json(res, 401, { error: 'token admin inválido' }); }
+    const b = await readBody(req);
+    if (corpoEstourou(res, b)) { return; }
+    let d; try { d = JSON.parse(b.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
+    return json(res, 200, await entregarAcesso(d.clienteId));
+  }
+
+  /* ---- Pagina PUBLICA de assinatura: o cliente compra sozinho, sem login ----
+     Tudo que mexe numa tentativa exige a senha de uso unico que o /iniciar
+     devolveu. O valor cobrado continua sendo o do contrato, decidido aqui. */
+  if (req.method === 'GET' && req.url.split('?')[0] === '/assinar') {
+    try {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+      return res.end(readFileSync(join(HERE, 'assinar.html'), 'utf8'));
+    } catch (e) { return json(res, 500, { erro: 'pagina de assinatura: ' + e.message }); }
+  }
+  if (req.url.split('?')[0].startsWith('/api/assinar/')) {
+    const rotaA = req.url.split('?')[0];
+    const q = new URL(req.url, 'http://x').searchParams;
+    if (barrado(res, rotaA === '/api/assinar/iniciar' ? LIM_ASSINAR_INICIO : LIM_ASSINAR, req, 'assinatura')) { return; }
+    if (req.method === 'GET' && rotaA === '/api/assinar/config') {
+      return json(res, 200, {
+        ofertas: clientes.todasOfertas().filter((o) => o.catalogo),
+        cartao: pagar.chavePublicaCartao(),
+        contato: process.env.VITRINE_WHATSAPP || '553175536010',
+      });
+    }
+    const liberado = (id, acesso) => clientes.conferirAcessoCheckout(id, acesso);
+    if (req.method === 'GET' && rotaA === '/api/assinar/estado') {
+      if (!liberado(q.get('id'), q.get('t'))) { return json(res, 403, { erro: 'sessão de pagamento expirada — recomece a assinatura' }); }
+      let e = clientes.estadoCheckout(q.get('id'), q.get('ref'));
+      if (e.ok && e.estado === 'AGUARDANDO' && e.pagamentoId) {
+        const a = await pagar.atualizarEstado(e.pagamentoId);
+        if (a.ok && ['CONFIRMADO', 'DISPONIVEL'].includes(a.pagamento?.estado)) {
+          if (a.mudou) { const l = fin.lancarPagamento(a.pagamento); if (l.ok && !l.repetido) { console.log(`[caixa] entrada de ${a.pagamento.id} lancada`); } }
+          await liberarSeForCliente(a.pagamento);
+          e = clientes.estadoCheckout(q.get('id'), q.get('ref'));
+        }
+      }
+      return json(res, e.ok ? 200 : 404, e);
+    }
+    if (req.method === 'GET' && rotaA === '/api/assinar/contrato.pdf') {
+      if (!liberado(q.get('id'), q.get('t'))) { return json(res, 403, { erro: 'sessão expirada' }); }
+      const a = clientes.arquivoContrato(q.get('id'));
+      if (!a) { return json(res, 404, { erro: 'contrato nao encontrado' }); }
+      res.writeHead(200, { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="${a.nome}"`, 'cache-control': 'no-store' });
+      return res.end(a.buf);
+    }
+    if (req.method === 'POST') {
+      const b = await readBody(req);
+      if (corpoEstourou(res, b)) { return; }
+      let d; try { d = JSON.parse(b.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
+      let r;
+      if (rotaA === '/api/assinar/iniciar' || rotaA === '/api/assinar/trocar') {
+        const troca = rotaA === '/api/assinar/trocar';
+        r = await clientes.iniciarCheckout({ ...d, troca }, { imprimir: clientesSrv.imprimirPdf, publico: true });
+        /* Ja e assinante nao e erro: e a tela de trocar plano / adendo. */
+        if (r.jaAssinante) { return json(res, 200, { ok: false, jaAssinante: true, assinante: r.assinante, motivo: r.motivo }); }
+        if (r.ok) { console.log(`[assinar] ${r.clienteId} ${troca ? (r.agendada ? 'agendou troca para ' + r.para : 'iniciou troca') : 'iniciou'} ${(d.produtos || []).join('+')} (${d.ciclo})${r.contrato ? ' — ' + r.contrato.numero : ''}`); }
+      } else if (rotaA === '/api/assinar/adendo') {
+        r = clientes.iniciarAdendo(d, { publico: true });
+        if (r.ok) { console.log(`[assinar] ${r.clienteId} iniciou adendo ${d.code} x${r.pedido.qtd} — ${r.pedido.valorCentavos}`); }
+      } else if (!liberado(d.id, d.acesso)) {
+        return json(res, 403, { erro: 'sessão de pagamento expirada — recomece a assinatura' });
+      } else if (rotaA === '/api/assinar/criar-acesso') {
+        /* Quem ACABOU de pagar vai direto criar usuario e senha, na mesma tela —
+           sem depender de e-mail ou WhatsApp chegando. So com assinatura em
+           vigor e com a senha de uso unico desta compra. */
+        const c = clientes.listar().find((x) => x.id === d.id);
+        if (!c?.licencaVigente) { return json(res, 400, { erro: 'o pagamento ainda não foi confirmado' }); }
+        const jaTem = usuarios.doCliente(c.id);
+        if (jaTem?.hash) { return json(res, 200, { ok: true, jaTemUsuario: true, email: jaTem.email, entrar: '/crm' }); }
+        const cv = usuarios.convidar({ email: c.email, clienteId: c.id, nome: c.nome });
+        if (!cv.ok) { return json(res, 400, { erro: cv.motivo }); }
+        return json(res, 200, { ok: true, email: cv.email, link: `/criar-acesso?t=${encodeURIComponent(cv.token)}` });
+      } else if (rotaA === '/api/assinar/pix') {
+        r = await clientes.pixCheckout(d.id, { cobrar: pagar.cobrar, webhookUrl: webhookPagamento() });
+      } else if (rotaA === '/api/assinar/cartao') {
+        r = await clientes.cartaoCheckout(d.id, {
+          cartao: d.cartao || {}, pagarCartao: pagar.pagarCartao, webhookUrl: webhookPagamento(),
+          assinar: clientesSrv.assinarLicenca, enviar: clientesSrv.enviarWhatsapp, urlAtivacao: urlAtivacao(),
+        });
+        console.log(`[assinar] cartao ${d.id}: ${r.aprovado ? 'APROVADO, chave ' + r.codigo : (r.emAnalise ? 'em analise' : 'recusado — ' + (r.tecnico || r.mensagem || r.motivo))}`);
+        if (r.aprovado) { await entregarAcesso(d.id); }
+        if (r.recusado && r.ok === false) { r = { ok: true, aprovado: false, recusado: true, mensagem: r.motivo }; }
+      } else {
+        return json(res, 404, { erro: 'rota desconhecida' });
+      }
+      if (r && r.ok === false) { return json(res, 400, { ...r, erro: r.motivo || (r.erros || []).join('; ') }); }
+      return json(res, 200, r);
+    }
+    return json(res, 404, { erro: 'rota desconhecida' });
   }
 
   /* Vitrine — loja PUBLICA. Sem sessao de proposito: quem abre e cliente final,
@@ -660,7 +944,7 @@ const server = createServer(async (req, res) => {
      * CRM_TOKEN nao esta configurado em vez de deixar o painel aberto em silencio.
      */
     if (req.method === 'GET' && rota === '/crm/api/auth') {
-      return json(res, 200, acesso.estado());
+      return json(res, 200, { ...acesso.estado(), login: 'email' });
     }
 
     /* Primeiro acesso. Quem comprou a licenca abre o console e define a
@@ -688,30 +972,64 @@ const server = createServer(async (req, res) => {
       if (acesso.precisaCriar()) {
         return json(res, 409, { erro: 'primeiro acesso', precisaCriar: true });
       }
-      if (!acesso.confere(d.senha)) { return json(res, 401, { erro: 'senha incorreta' }); }
+      /* E-mail + senha. Sem e-mail (tela antiga em cache) vale a senha do dono. */
+      const r = usuarios.entrar(d.email || usuarios.emailAdmin(), d.senha);
+      if (!r.ok) { return json(res, 401, { erro: r.motivo }); }
+      console.log(`[acesso] login ${r.papel} ${r.email}`);
+      return json(res, 200, r);
+    }
+    if (req.method === 'POST' && rota === '/crm/api/sair') {
+      usuarios.sair(req.headers['x-crm-token']);
       return json(res, 200, { ok: true });
     }
 
-    /* Troca de senha, ja de dentro do console e com a atual na mao. */
+    /* Troca de senha, ja de dentro do console e com a atual na mao. Dono e
+       cliente: cada um troca a PROPRIA, a sessao diz de quem e. */
     if (req.method === 'POST' && rota === '/crm/api/trocar-senha') {
-      if (!acesso.confere(req.headers['x-crm-token'])) {
-        return json(res, 403, { erro: 'sessao invalida' });
-      }
+      const eu = usuarios.autenticar(req.headers['x-crm-token']);
+      if (!eu) { return json(res, 403, { erro: 'sessao invalida' }); }
       const b = await readBody(req);
       if (corpoEstourou(res, b)) { return; }
       let d; try { d = JSON.parse(b.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
-      try { acesso.trocar(d.atual, d.nova); return json(res, 200, { ok: true }); }
-      catch (e) { return json(res, e.code || 400, { erro: e.message }); }
+      const r = usuarios.trocarSenha(eu.email, d.atual, d.nova);
+      if (r.ok) { console.log(`[acesso] ${eu.email} trocou a senha`); }
+      return json(res, r.ok ? 200 : r.code, r.ok ? { ok: true } : { erro: r.motivo });
     }
 
     /* Daqui para baixo e dado de cliente. Sem senha definida, o console fica
        fechado: antes, CRM_TOKEN vazio liberava o painel inteiro em silencio
        para quem tivesse a URL. */
-    if (!acesso.confere(req.headers['x-crm-token'])) {
+    const quem = usuarios.autenticar(req.headers['x-crm-token']);
+    if (!quem) {
       return json(res, 403, acesso.precisaCriar()
         ? { erro: 'console sem senha definida', precisaCriar: true }
-        : { erro: 'senha ausente ou invalida' });
+        : { erro: 'sessão expirada — entre de novo' });
     }
+    /* CLIENTE so enxerga a propria conta. O resto do console e da Veloso:
+       cliente, funil, caixa e WhatsApp do dono. */
+    if (quem.papel === 'cliente') {
+      if (req.method === 'GET' && rota === '/crm/api/minha-conta') {
+        const c = clientes.listar().find((x) => x.id === quem.clienteId);
+        if (!c) { return json(res, 404, { erro: 'conta nao encontrada' }); }
+        const k = (c.contratos || []).at(-1);
+        return json(res, 200, {
+          papel: 'cliente', nome: c.nome, email: quem.email, whatsapp: c.whatsapp,
+          plano: (c.produtos || []).map((p) => clientes.todasOfertas().find((o) => o.code === p)?.nome || p),
+          ciclo: c.ciclo, liberacoes: c.liberacoes, adendos: c.adendos || [], trocaAgendada: c.trocaAgendada || null,
+          licenca: c.licencaVigente, situacao: c.situacao,
+          contrato: k ? { numero: k.numero, versao: k.versao, geradoEm: k.geradoEm, valorCiclo: k.valorCiclo } : null,
+          documento: c.documento,
+        });
+      }
+      if (req.method === 'GET' && rota === '/crm/api/minha-conta/contrato.pdf') {
+        const a = clientes.arquivoContrato(quem.clienteId);
+        if (!a) { return json(res, 404, { erro: 'contrato nao encontrado' }); }
+        res.writeHead(200, { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="${a.nome}"`, 'cache-control': 'no-store' });
+        return res.end(a.buf);
+      }
+      return json(res, 403, { erro: 'área restrita ao administrador', papel: 'cliente' });
+    }
+    if (req.method === 'GET' && rota === '/crm/api/minha-conta') { return json(res, 200, { papel: 'admin', email: quem.email }); }
     if (req.method === 'GET' && rota === '/crm/api/painel') { return json(res, 200, crm.painel()); }
     if (req.method === 'GET' && rota === '/crm/api/status') { return json(res, 200, crm.statusIntegracoes(canais.estado())); }
     if (req.method === 'GET' && rota === '/crm/api/indicacao') { return json(res, 200, crm.painelIndicacao()); }
@@ -747,7 +1065,7 @@ const server = createServer(async (req, res) => {
     /* Upload do video. NAO passa pelo leitor de JSON (teto de 256 KB): vai
        direto pro disco em streaming, com teto proprio. */
     if (req.method === 'POST' && rota === '/crm/api/midia') {
-      if (!acesso.confere(req.headers['x-crm-token'])) { return json(res, 403, { erro: 'senha ausente ou invalida' }); }
+      if (usuarios.autenticar(req.headers['x-crm-token'])?.papel !== 'admin') { return json(res, 403, { erro: 'senha ausente ou invalida' }); }
       const u = new URL(req.url, 'http://x');
       const nome = u.searchParams.get('nome') || '';
       /* Foto e video entram pela mesma porta mas com tetos diferentes: 256 MB de
@@ -762,7 +1080,7 @@ const server = createServer(async (req, res) => {
       return json(res, 201, { ...r, imagem, url: `${origem}/midia/${r.arquivo}` });
     }
     if (req.method === 'GET' && rota === '/crm/api/midia') {
-      if (!acesso.confere(req.headers['x-crm-token'])) { return json(res, 403, { erro: 'senha ausente ou invalida' }); }
+      if (usuarios.autenticar(req.headers['x-crm-token'])?.papel !== 'admin') { return json(res, 403, { erro: 'senha ausente ou invalida' }); }
       const origem = process.env.PAINEL_URL || 'https://bolsocheio.velososolution.com.br';
       return json(res, 200, { arquivos: midia.listar().map((a) => ({ ...a, url: `${origem}/midia/${a.arquivo}` })), maxBytes: midia.MAX_BYTES });
     }
@@ -834,6 +1152,46 @@ const server = createServer(async (req, res) => {
     /* Canais. O QR vai junto do status de proposito: a tela pergunta "como esta
        o canal" e recebe o que precisa desenhar, sem uma segunda rota so pro QR
        que poderia responder um codigo ja vencido. */
+    if (req.method === 'GET' && rota === '/crm/api/clientes') { return json(res, 200, clientes.painel()); }
+    /* Checkout: o que a tela precisa pra montar o cartão (chave PUBLICA) e a
+       tabela de servicos. Nada secreto sai daqui. */
+    if (req.method === 'GET' && rota === '/crm/api/checkout/config') {
+      const k = pagar.chavePublicaCartao();
+      return json(res, 200, { ofertas: clientes.todasOfertas(), ciclos: clientes.CICLOS, cartao: k, modoTeste: clientes.modoTeste(), contato: process.env.VITRINE_WHATSAPP || '553175536010' });
+    }
+    /* A tela do Pix pergunta aqui enquanto espera. Se o webhook ainda nao
+       chegou, consulta o Mercado Pago direto — e libera a chave se ja pagou. */
+    if (req.method === 'GET' && rota === '/crm/api/checkout/estado') {
+      const q = new URL(req.url, 'http://x').searchParams;
+      let e = clientes.estadoCheckout(q.get('id'), q.get('ref'));
+      if (e.ok && e.estado === 'AGUARDANDO' && e.pagamentoId) {
+        const a = await pagar.atualizarEstado(e.pagamentoId);
+        if (a.ok && ['CONFIRMADO', 'DISPONIVEL'].includes(a.pagamento?.estado)) {
+          if (a.mudou) { const l = fin.lancarPagamento(a.pagamento); if (l.ok && !l.repetido) { console.log(`[caixa] entrada de ${a.pagamento.id} lancada`); } }
+          await liberarSeForCliente(a.pagamento);
+          e = clientes.estadoCheckout(q.get('id'), q.get('ref'));
+        }
+      }
+      return json(res, e.ok ? 200 : 404, e);
+    }
+    /* PDF do contrato (gerado ou assinado). O painel busca com o header da
+       sessao e baixa como arquivo — link direto exigiria senha na URL. */
+    if (req.method === 'GET' && rota === '/crm/api/clientes/contrato.pdf') {
+      const q = new URL(req.url, 'http://x').searchParams;
+      const a = clientes.arquivoContrato(q.get('id'), q.get('v'), { assinado: q.get('assinado') === '1' });
+      if (!a) { return json(res, 404, { erro: 'contrato nao encontrado' }); }
+      res.writeHead(200, { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="${a.nome}"`, 'cache-control': 'no-store' });
+      return res.end(a.buf);
+    }
+    /* O PDF assinado chega CRU (application/pdf), com teto proprio: o limite
+       geral de 256 KB e pra JSON, e um contrato assinado passa disso facil. */
+    if (req.method === 'POST' && rota === '/crm/api/clientes/assinado') {
+      const q = new URL(req.url, 'http://x').searchParams;
+      const corpo = await lerCorpoLimitado(req, 10 * 1024 * 1024);
+      if (corpo.excedeu) { return json(res, 413, { erro: 'PDF acima de 10 MB — confira se é o arquivo do contrato' }); }
+      const r = clientes.receberAssinado(q.get('id'), corpo.buffer, { versao: q.get('v') });
+      return json(res, r.ok ? 200 : 400, r.ok ? r : { ...r, erro: r.motivo });
+    }
     if (req.method === 'GET' && rota === '/crm/api/planos') {
       return json(res, 200, { ...planos.tabela(), assinatura: planos.assinatura(), limiteAtendentes: planos.limiteDeAtendentes() });
     }
@@ -996,6 +1354,15 @@ const server = createServer(async (req, res) => {
       const r = await testarConexao(d.rede, d.cred || {});
       return json(res, 200, r);
     }
+    /* Foto do fluxo: rota propria porque imagem nao cabe no limite de corpo do
+       resto do console (256 KB). Aqui vale ate ~5 MB de imagem. */
+    if (req.method === 'POST' && rota === '/crm/api/bot/midia') {
+      const r0 = await lerCorpoLimitado(req, 8 * 1024 * 1024);
+      if (r0.excedeu) { return json(res, 413, { erro: 'imagem grande demais — o máximo é 5 MB' }); }
+      let d; try { d = JSON.parse(r0.buffer.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
+      const r = bot.salvarMidia(d);
+      return json(res, r.ok ? 200 : 400, r.ok ? r : { ...r, erro: r.motivo });
+    }
     if (req.method === 'POST' && rota.startsWith('/crm/api/')) {
       const b = await readBody(req);
       if (corpoEstourou(res, b)) { return; }
@@ -1130,11 +1497,63 @@ const server = createServer(async (req, res) => {
           r = await canais.trocarNumero({ canal: d.canal, produtos: () => estoque.daVitrine() });
           break;
         case '/crm/api/canais/enviar': r = await canais.enviar(d); break;
+        case '/crm/api/canais/desparear': r = await canais.desparear({ canal: d.canal }); break;
         case '/crm/api/canais/personalizar': r = await canais.personalizar(d); break;
         case '/crm/api/canais/restaurar-perfil': r = await canais.restaurarPerfil({ canal: d.canal }); break;
         case '/crm/api/canais/config': r = canais.salvarConfigCanal(d); break;
         case '/crm/api/operadores/salvar': r = operadores.salvar(d); break;
         case '/crm/api/operadores/remover': r = operadores.remover(d.id); break;
+        case '/crm/api/checkout/modo-teste':
+          r = d.ligar ? clientes.ligarModoTeste({ minutos: d.minutos }) : clientes.desligarModoTeste();
+          console.log(`[checkout] modo teste ${r.ativo ? 'LIGADO ate ' + r.ate + ' — cobrancas por R$ 0,50' : 'desligado'}`);
+          break;
+        case '/crm/api/checkout/iniciar': r = await clientes.iniciarCheckout(d, { imprimir: clientesSrv.imprimirPdf }); break;
+        case '/crm/api/checkout/pix': r = await clientes.pixCheckout(d.id, { cobrar: pagar.cobrar, webhookUrl: webhookPagamento() }); break;
+        case '/crm/api/checkout/cartao':
+          r = await clientes.cartaoCheckout(d.id, {
+            cartao: d.cartao || {}, pagarCartao: pagar.pagarCartao, webhookUrl: webhookPagamento(),
+            assinar: clientesSrv.assinarLicenca, enviar: clientesSrv.enviarWhatsapp, urlAtivacao: urlAtivacao(),
+          });
+          /* Recusa de cartao NAO e erro do sistema: e resposta do banco, com a
+             frase do motivo. Vai como 200 pra tela mostrar a mensagem certa. */
+          console.log(`[checkout] cartao ${d.id}: ${r.aprovado ? 'APROVADO, chave ' + r.codigo : (r.emAnalise ? 'em analise' : 'recusado — ' + (r.tecnico || r.mensagem || r.motivo))}`);
+          if (r.aprovado) { await entregarAcesso(d.id); }
+          if (r.recusado && r.ok === false) { r = { ok: true, aprovado: false, recusado: true, mensagem: r.motivo }; }
+          break;
+        case '/crm/api/clientes/salvar': r = clientes.salvar(d); break;
+        case '/crm/api/clientes/contratada': r = clientes.salvarContratada(d); break;
+        case '/crm/api/clientes/contrato': {
+          r = await clientes.gerarContrato(d.id, { imprimir: clientesSrv.imprimirPdf });
+          /* Mandar o PDF no WhatsApp e opcional: o dono pode preferir baixar e
+             mandar por e-mail. Falha no envio NAO desfaz o contrato gerado. */
+          if (r.ok && d.enviar) {
+            const e = await clientes.enviarContrato(d.id, { enviarArquivo: clientesSrv.enviarArquivoWhatsapp, versao: r.contrato.versao });
+            r.envio = e.envio;
+            r.cliente = e.cliente || r.cliente;
+            console.log(`[clientes] contrato ${r.contrato.numero} -> WhatsApp: ${e.ok ? 'enviado' : 'NAO enviado: ' + e.motivo}`);
+          }
+          break;
+        }
+        case '/crm/api/clientes/enviar-contrato': {
+          r = await clientes.enviarContrato(d.id, { enviarArquivo: clientesSrv.enviarArquivoWhatsapp, versao: d.versao });
+          console.log(`[clientes] contrato reenviado (${d.id}) -> WhatsApp: ${r.ok ? 'enviado' : 'NAO enviado: ' + r.motivo}`);
+          break;
+        }
+        case '/crm/api/clientes/cobrar':
+          r = await clientes.cobrar(d.id, {
+            cobrar: pagar.cobrar, enviar: d.enviar === false ? null : clientesSrv.enviarWhatsapp,
+            webhookUrl: webhookPagamento(), exigirAssinatura: d.exigirAssinatura === true,
+          });
+          break;
+        case '/crm/api/clientes/reenviar-cobranca': r = await clientes.reenviarCobranca(d.id, { enviar: clientesSrv.enviarWhatsapp }); break;
+        case '/crm/api/clientes/cancelar-cobranca': r = clientes.cancelarCobranca(d.id); break;
+        case '/crm/api/clientes/liberar-manual':
+          r = await clientes.liberarManual(d.id, { motivo: d.motivo, assinar: clientesSrv.assinarLicenca, enviar: clientesSrv.enviarWhatsapp, urlAtivacao: urlAtivacao() });
+          if (r.ok) { r.acesso = await entregarAcesso(d.id); }
+          break;
+        case '/crm/api/clientes/enviar-acesso': r = await entregarAcesso(d.id); break;
+        case '/crm/api/clientes/reenviar-chave': r = await clientes.reenviarChave(d.id, { enviar: clientesSrv.enviarWhatsapp, urlAtivacao: urlAtivacao() }); break;
+        case '/crm/api/clientes/revogar': r = clientes.revogar(d.id, { motivo: d.motivo }); break;
         case '/crm/api/planos/assinar': r = planos.assinar(d); break;
         case '/crm/api/planos/salvar': r = planos.salvarPlano(d); break;
         case '/crm/api/planos/versionar': r = planos.versionarPlano(d.code, d.mudancas || {}, d.sufixo || 'v2'); break;
@@ -1178,6 +1597,7 @@ const server = createServer(async (req, res) => {
         case '/crm/api/bot/regra-excluir': r = bot.excluirRegra(d.id); break;
         case '/crm/api/bot/fluxo-csv': r = bot.importarFluxoCsv(String(d.csv || '')); break;
         case '/crm/api/bot/fluxo-apagar': r = bot.apagarFluxo(); break;
+        case '/crm/api/bot/midia-apagar': r = bot.apagarMidia(d.nome); break;
         /* Simulador: o catalogo real entra como contexto, entao o teste mostra o
            que o cliente veria de verdade — nao um exemplo inventado. */
         case '/crm/api/bot/simular': {
@@ -1322,4 +1742,14 @@ server.listen(PORT, () => {
     canais.resgatarFila().catch((e) => console.error(`[fila] varredura falhou: ${e.message}`));
   }, 60000);
   relogio.unref?.();
+
+  /* Quem pagou e ficou sem o link (e-mail fora, WhatsApp caído) recebe de novo
+     sozinho, sem depender de alguém notar no histórico. */
+  const reentrega = setInterval(async () => {
+    for (const id of clientes.pendentesDeAcesso({ temSenha: (cid) => !!usuarios.doCliente(cid)?.hash })) {
+      console.log(`[acesso] ${id} pagou e segue sem acesso — nova tentativa de entrega`);
+      await entregarAcesso(id).catch((e) => console.error(`[acesso] nova tentativa de ${id} falhou: ${e.message}`));
+    }
+  }, 10 * 60000);
+  reentrega.unref?.();
 });

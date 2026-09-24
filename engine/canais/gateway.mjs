@@ -84,5 +84,14 @@ export function criarGateway({ entregar, reservar } = {}) {
     return p.enviarTexto({ para, texto });
   }
 
-  return { registrar, obter, listar, saudeGeral, enviarPor, providers };
+  /** Arquivo por um canal específico. Canal sem suporte a arquivo diz isso em vez de fingir. */
+  async function enviarArquivoPor(nome, dados) {
+    const p = obter(nome);
+    if (!p) { return { ok: false, erro: `canal "${nome}" não registrado` }; }
+    if (p.status().estado !== ESTADOS.CONECTADO) { return { ok: false, erro: `canal "${nome}" está ${p.status().estado}` }; }
+    if (typeof p.enviarArquivo !== 'function') { return { ok: false, erro: `o canal "${nome}" não envia arquivo` }; }
+    return p.enviarArquivo(dados);
+  }
+
+  return { registrar, obter, listar, saudeGeral, enviarPor, enviarArquivoPor, providers };
 }

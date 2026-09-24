@@ -19,7 +19,7 @@ import { loadReq, isConsult, isSessionOff, getTask, setTask } from '../engine/br
 import { loadCompanyConfig, branchName as buildBranchName, branchRegex, branchGlobsForNumber, patternUsesNumero } from '../engine/company-config.mjs';
 import { timeBoxStatus } from '../engine/timebox.mjs';
 import { resolveGitCwd } from '../engine/git-cwd.mjs';
-import { isGitCommit, isGitPush } from '../engine/git-cmd.mjs';
+import { isGitCommit, isGitPush, usaNoVerify, analisarCriacaoDeBranch } from '../engine/git-cmd.mjs';
 import { isPromotionBranch, isMergeContext } from '../engine/git-merge.mjs';
 
 const raw = await new Promise((r) => { let s = ''; process.stdin.on('data', (c) => (s += c)); process.stdin.on('end', () => r(s)); });
@@ -68,7 +68,9 @@ if (renomeiaBranch && !admOverride) {
 }
 
 // criação de branch: exige base de ORIGEM explícita (origin/<x>)
-const criaBranch = /\bgit\s+checkout\s+-b\b/.test(cmd) || /\bgit\s+switch\s+-c\b/.test(cmd) || /\bgit\s+branch\s+\S/.test(cmd);
+// Só criação de verdade. `git branch -r|-a|--list|-vv|-d` é listagem/remoção e
+// não pode cair no fluxo de "abrir branch nova".
+const { cria: criaBranch, nome: nomeNovaBranch } = analisarCriacaoDeBranch(cmd);
 // MOBILE acumula: a branch da tarefa DEVE sair da branch ATUAL (carrega o trabalho
 // anterior). Usar origin/<x> RESETA e perde o acúmulo -> bloqueia.
 if (criaBranch && isMobile && /\borigin\/\w/.test(cmd)) {
@@ -102,8 +104,7 @@ if (criaBranch) {
   }
   // NOME da branch tem que carregar o NÚMERO da tarefa (senão o número some no push).
   // Só exige número quando o pattern da empresa usa <numero>.
-  const bm = cmd.match(/\b(?:checkout\s+-b|switch\s+-c|branch)\s+(\S+)/);
-  const novoNome = bm ? bm[1] : '';
+  const novoNome = nomeNovaBranch;
   // Branch de PROMOÇÃO de ambiente (fix/<autor>/merge-hml) é isenta de número — ela integra
   // dev→hml/main via MR, não rastreia tarefa. Só ela; qualquer outra sem número é barrada.
   if (patternUsesNumero(cfg) && novoNome && !/\d{3,6}/.test(novoNome) && !isPromotionBranch(novoNome)) {
@@ -140,8 +141,9 @@ if (isPush && isMobile && !existsSync(join(gitCwd, '.qa-gate-mobile-ok'))) {
   deny('[VS-MOBILE-001] BLOCKED — mobile NÃO faz push. Acumula commits locais; deploy só no fim do dia, quando o Fabiano pedir. Pra liberar agora: touch .qa-gate-mobile-ok');
 }
 
-// --no-verify burla os hooks
-if (/--no-verify|-n\b/.test(cmd)) {
+// --no-verify burla os hooks. A checagem olha só os argumentos do git: testar
+// /-n\b/ na linha inteira barrava `git push … | grep -n` e `-m "corrige -n"`.
+if (usaNoVerify(cmd)) {
   deny('[VS-GIT-002] BLOCKED — `--no-verify` proibido: burla o QA-Gate/governança. Rode a validação.');
 }
 

@@ -951,3 +951,33 @@ test('depois de esquecer, o canal fica DESCONECTADO — nao "caiu"', async () =>
   assert.equal(p.status().numero, null, 'o numero antigo nao pode ficar na tela');
   process.chdir(antes);
 });
+
+/* ---- comprar com o numero do proprio bot: "No LID for user" e ninguem recebe ---- */
+
+test('mandar pra PROPRIA conta (com ou sem o 9) vai pra conversa "voce mesmo", pelo LID da conta', async () => {
+  const lib = libFalsa();
+  const criar = lib.criar;
+  lib.criar = async (cfg) => ({ ...(await criar(cfg)), page: { evaluate: async () => '99887766@lid' } });
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+  // a conta conectada e 5531999990000; o cliente digitou o mesmo numero, e depois sem o 9
+  assert.equal((await p.enviarTexto({ para: '5531999990000', texto: 'seu acesso' })).ok, true);
+  assert.equal((await p.enviarTexto({ para: '553199990000', texto: 'seu acesso' })).ok, true);
+  assert.deepEqual(lib.enviadas.map((m) => m.para), ['99887766@lid', '99887766@lid']);
+});
+
+test('numero que "existe" com e sem o 9: vai pela grafia que tem LID, nao pela primeira que respondeu', async () => {
+  const lib = libFalsa();
+  const criar = lib.criar;
+  // O WhatsApp diz que existe nas duas grafias, mas so o registro real (sem o 9) traz o LID.
+  const respostas = {
+    '5531975127978@c.us': { wid: '5531975127978@c.us', lid: null },
+    '553175127978@c.us': { wid: '553175127978@c.us', lid: '4242@lid' },
+  };
+  lib.criar = async (cfg) => ({ ...(await criar(cfg)), page: { evaluate: async (_fn, id) => (id ? respostas[id] || { nao: true } : null) } });
+  const p = criarWhatsAppWebProvider({ criarSessao: lib.criar });
+  await p.conectar();
+  const r = await p.enviarTexto({ para: '5531975127978', texto: 'seu acesso' });
+  assert.equal(r.ok, true, r.erro);
+  assert.deepEqual(lib.enviadas.map((m) => m.para), ['4242@lid'], 'mandar pro @c.us sem LID da "No LID for user"');
+});

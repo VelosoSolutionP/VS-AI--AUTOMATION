@@ -33,7 +33,7 @@ export const SEMENTE = [
   { code: 'redes-prata', nome: 'Prata', module: 'redes', monthly_price: R$(99), destaque: true,
     social_accounts: 2, products_limit: 500, campaigns_limit: 15, storage_limit_mb: 5120,
     attendants: null, ai_enabled: true, auditor_enabled: true },
-  { code: 'redes-ouro', nome: 'Ouro', module: 'redes', monthly_price: R$(149),
+  { code: 'redes-ouro', nome: 'Gold', module: 'redes', monthly_price: R$(149),
     social_accounts: 4, products_limit: 2000, campaigns_limit: 40, storage_limit_mb: 15360,
     attendants: null, ai_enabled: true, auditor_enabled: true },
 
@@ -44,7 +44,7 @@ export const SEMENTE = [
   { code: 'whats-prata', nome: 'Prata', module: 'whatsapp', monthly_price: R$(129), destaque: true,
     attendants: 3, products_limit: 500, campaigns_limit: 10, storage_limit_mb: 5120,
     social_accounts: null, ai_enabled: true, auditor_enabled: true },
-  { code: 'whats-ouro', nome: 'Ouro', module: 'whatsapp', monthly_price: R$(199),
+  { code: 'whats-ouro', nome: 'Gold', module: 'whatsapp', monthly_price: R$(199),
     attendants: 6, products_limit: 2000, campaigns_limit: 25, storage_limit_mb: 15360,
     social_accounts: null, ai_enabled: true, auditor_enabled: true },
 
@@ -55,7 +55,7 @@ export const SEMENTE = [
   { code: 'combo-prata', nome: 'Prata', module: 'combo', monthly_price: R$(189), destaque: true,
     social_accounts: 2, attendants: 3, products_limit: 500, campaigns_limit: 25, storage_limit_mb: 5120,
     ai_enabled: true, auditor_enabled: true },
-  { code: 'combo-ouro', nome: 'Ouro', module: 'combo', monthly_price: R$(299),
+  { code: 'combo-ouro', nome: 'Gold', module: 'combo', monthly_price: R$(299),
     social_accounts: 4, attendants: 6, products_limit: 2000, campaigns_limit: 65, storage_limit_mb: 15360,
     ai_enabled: true, auditor_enabled: true },
 ];

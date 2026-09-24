@@ -1,0 +1,72 @@
+# ~/.cloudflared/config.yml
+#
+# Gerado a partir deste modelo por subir-tunel.sh, que troca fb0f43f7-6809-4f6f-bf1e-a2666f5076ac
+# pelo id real. Editar o arquivo em ~/.cloudflared, nao este modelo.
+
+tunnel: fb0f43f7-6809-4f6f-bf1e-a2666f5076ac
+credentials-file: /home/veloso/.cloudflared/fb0f43f7-6809-4f6f-bf1e-a2666f5076ac.json
+
+# http2 (TCP) em vez de QUIC (UDP). Em 23/09/2026 o QUIC caiu 12 vezes em 24h
+# ("timeout: no recent network activity", as 4 conexoes juntas, ~15 s) e um
+# Pix do checkout morreu no meio de uma dessas quedas. TCP aguenta melhor a
+# piscada de rede. Para voltar ao QUIC, apague a linha abaixo.
+protocol: http2
+
+ingress:
+  # ANTES do site: a TikTok so aceita redirect e video em dominio VERIFICADO no
+  # app, e o que esta verificado la e velososolution.com.br — nao o painel.
+  # Em vez de verificar outro dominio (que exige assinatura nova deles a cada
+  # propriedade), estes dois caminhos do dominio ja aceito vao pro painel.
+  # Sao caminhos especificos: o resto do site continua indo pro 3000.
+  # O callback da TikTok SHOP vai pra instancia de demonstracao, nao pra
+  # producao. O endereco e o mesmo porque e o que esta cadastrado no app da
+  # TikTok — so o CAMINHO muda de destino. Sem isto, a loja de teste que o
+  # revisor autorizar ficaria amarrada ao painel de verdade do dono.
+  # `open` e `business` continuam na producao, logo abaixo.
+  - hostname: velososolution.com.br
+    path: ^/oauth/callback/shop$
+    service: http://127.0.0.1:8790
+
+  - hostname: velososolution.com.br
+    path: ^/(oauth/callback|midia)(/.*)?$|^/tiktok[A-Za-z0-9]{4,64}\.txt$
+    service: http://127.0.0.1:8787
+  - hostname: www.velososolution.com.br
+    path: ^/(oauth/callback|midia)(/.*)?$|^/tiktok[A-Za-z0-9]{4,64}\.txt$
+    service: http://127.0.0.1:8787
+
+  - hostname: velososolution.com.br
+    service: http://127.0.0.1:3000
+  - hostname: www.velososolution.com.br
+    service: http://127.0.0.1:3000
+
+  # Os próximos só entram depois que o domínio raiz estiver de pé. Cada um é
+  # uma porta local diferente, no MESMO túnel — não crie um túnel por serviço.
+  # - hostname: api.velososolution.com.br
+  #   service: http://localhost:3002
+
+  # Quebra-Galho: o Asaas exige URL publica e HTTPS para o webhook. Mesmo tunel,
+  # porta local diferente — nao crie um tunel por servico.
+  - hostname: quebragalho.velososolution.com.br
+    service: http://127.0.0.1:8901
+
+  # BOLSO CHEIO — o console. Este e o nome do produto e o endereco que se da pro
+  # cliente. Mesma instancia da 8787.
+  - hostname: bolsocheio.velososolution.com.br
+    service: http://127.0.0.1:8787
+
+  # O endereco ANTIGO continua valendo, e nao e nostalgia: `painel.` esta
+  # CADASTRADO como redirect de OAuth no app da TikTok. Tirar daqui derruba o
+  # login das redes ate alguem recadastrar la — e link antigo que passa a cair na
+  # pagina de venda faz o dono concluir que o console caiu.
+  - hostname: painel.velososolution.com.br
+    service: http://127.0.0.1:8787
+
+  # Instancia de DEMONSTRACAO — a que um revisor de marketplace abre.
+  # Casa de dados propria (~/.qa-gate-demo), senha propria, integracoes reais
+  # desligadas. Nao e o painel com outro login: e outra instalacao, na 8790.
+  - hostname: demo.velososolution.com.br
+    service: http://127.0.0.1:8790
+
+  # Obrigatório e tem que ser o último: o que não casar acima morre aqui.
+  # Sem esta linha o cloudflared recusa a configuração inteira.
+  - service: http_status:404

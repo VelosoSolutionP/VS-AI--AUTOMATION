@@ -383,6 +383,25 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
   }
 
   /**
+   * Sai da conta DE VERDADE: o telefone deixa de listar a sessão em "Aparelhos
+   * conectados". `desconectar` só fecha e guarda o login (volta sem QR); isto
+   * desfaz o pareamento — voltar exige ler o QR de novo, no próprio telefone.
+   */
+  async function desparear() {
+    intencional = true;
+    if (reconectando) { clearTimeout(reconectando); reconectando = null; }
+    tentativas = 0;
+    let saiu = false;
+    try { if (cliente?.logout) { await cliente.logout(); saiu = true; } } catch (e) { console.warn('[whatsapp-web] logout falhou:', e.message); }
+    try { await cliente?.close?.(); } catch (e) { console.warn('[whatsapp-web] erro ao fechar:', e.message); }
+    cliente = null;
+    numero = null;
+    desde = null;
+    mudar(ESTADOS.DESCONECTADO);
+    return { saiu };
+  }
+
+  /**
    * Esquece o aparelho pareado e volta a pedir QR.
    *
    * Existe porque "desconectar" NAO troca de numero: o login mora dentro do
@@ -609,6 +628,91 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     return null;
   }
 
+  /**
+   * Telefone solto → o endereço que o WhatsApp conhece.
+   *
+   * No Brasil, muita conta ficou registrada SEM o nono dígito (quem já tinha
+   * WhatsApp antes de 2012-2016). Mandar pra versão com 9 dá "No LID for user"
+   * e a mensagem não sai — foi assim que uma chave paga ficou sem entrega.
+   * Então pergunta ao próprio WhatsApp: primeiro o número como veio, depois a
+   * variação com/sem o 9. Resposta vai pra memória: não se consulta de novo.
+   */
+  const enderecos = new Map();
+  function variacaoDoNove(n) {
+    const m13 = n.match(/^55(\d{2})9(\d{8})$/);
+    if (m13) { return `55${m13[1]}${m13[2]}`; }
+    const m12 = n.match(/^55(\d{2})([6-9]\d{7})$/);
+    if (m12) { return `55${m12[1]}9${m12[2]}`; }
+    return null;
+  }
+  async function resolverDestino(destino) {
+    if (destino.includes('@')) { return { ok: true, jid: destino }; }
+    if (enderecos.has(destino)) { return { ok: true, jid: enderecos.get(destino) }; }
+    const candidatos = [destino, variacaoDoNove(destino)].filter(Boolean);
+    /* O destino é a PRÓPRIA conta conectada (com ou sem o 9): o WhatsApp não
+       tem "contato" pra si mesmo — o endereço com 9 dá "No LID for user". Vai
+       pra conversa "você mesmo", pelo LID da conta. Foi assim que o dono,
+       comprando com o número do bot, pagou e ficou sem o link. */
+    if (numero && candidatos.includes(numero)) {
+      let jid = `${numero}@c.us`;
+      try {
+        const lid = await cliente?.page?.evaluate?.(() => window.WPP?.conn?.getMyUserLid?.()?._serialized || null);
+        if (typeof lid === 'string' && lid) { jid = lid; }
+      } catch { /* sem LID: vai pelo número da conta */ }
+      console.log(`[whatsapp-web] ${destino} é a própria conta -> ${jid}`);
+      enderecos.set(destino, jid);
+      return { ok: true, jid };
+    }
+    const temConsulta = typeof cliente?.page?.evaluate === 'function' || typeof cliente?.checkNumberStatus === 'function';
+    if (!temConsulta) { return { ok: true, jid: `${destino}@c.us` }; }
+    let consultou = false;
+    let achado = null;
+    for (const n of candidatos) {
+      try {
+        /* Direto no WhatsApp Web: o `checkNumberStatus` da biblioteca joga fora
+           o LID, e sem LID o WhatsApp novo recusa conversa com quem ainda não
+           tem chat aberto ("No LID for user"). Com o LID, sai. */
+        let r = null;
+        if (typeof cliente?.page?.evaluate === 'function') {
+          r = await cliente.page.evaluate(async (id) => {
+            const x = await window.WPP?.contact?.queryExists?.(id);
+            if (!x) { return { nao: true }; }
+            let lid = x.lid?._serialized || null;
+            /* queryExists nem sempre traz o LID. A tabela número→LID do próprio
+               WhatsApp Web traz — é por ela que o bot já conversa com quem chega por LID. */
+            if (!lid) {
+              try { const e = await window.WPP?.contact?.getPnLidEntry?.(x.wid?._serialized || id); lid = e?.lid?._serialized || e?.lid || null; } catch {}
+            }
+            return { wid: x.wid?._serialized || null, lid: typeof lid === 'string' ? lid : null };
+          }, `${n}@c.us`);
+          if (r && !r.nao) { r = { numberExists: true, jid: r.lid || r.wid }; } else if (r?.nao) { r = { numberExists: false }; }
+        }
+        if (!r && typeof cliente?.checkNumberStatus === 'function') {
+          const c = await cliente.checkNumberStatus(`${n}@c.us`);
+          r = c?.numberExists && c?.id ? { numberExists: true, jid: c.id._serialized || `${c.id.user}@${c.id.server || 'c.us'}` } : { numberExists: false };
+        }
+        consultou = true;
+        /* Achou COM LID: é esse, pode mandar. Achou só pelo número (@c.us):
+           guarda e confere a outra variação do 9 — o WhatsApp responde "existe"
+           pras duas grafias, mas só a do registro real traz o LID, e mandar pela
+           outra dá "No LID for user". Foi assim que um cliente pagou e não
+           recebeu o link: a versão com 9 "existia", sem LID, e parava ali. */
+        if (r?.numberExists && r?.jid) {
+          if (String(r.jid).endsWith('@lid')) { achado = { jid: r.jid, n }; break; }
+          if (!achado) { achado = { jid: r.jid, n }; }
+        }
+      } catch (e) { console.warn(`[whatsapp-web] consulta do numero ${n} falhou: ${e?.message || e}`); }
+    }
+    if (achado) {
+      console.log(`[whatsapp-web] ${destino} -> ${achado.jid}${achado.n !== destino ? ` (registrado como ${achado.n})` : ''}`);
+      enderecos.set(destino, achado.jid);
+      return { ok: true, jid: achado.jid };
+    }
+    /* Consultou e nenhum existe: dizer isso é melhor que tentar e falhar mudo. */
+    if (consultou) { return { ok: false, erro: `o número ${destino} não tem WhatsApp (conferi com e sem o 9)` }; }
+    return { ok: true, jid: `${destino}@c.us` };
+  }
+
   async function enviarTexto({ para, texto }) {
     const cru = String(para || '').trim();
     if (!cru) { return { ok: false, erro: 'destino vazio' }; }
@@ -626,8 +730,10 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     if (estado !== ESTADOS.CONECTADO || !cliente) {
       return { ok: false, erro: `canal ${estado} — nada foi enviado` };
     }
+    const alvo = await resolverDestino(destino);
+    if (!alvo.ok) { return { ok: false, erro: alvo.erro }; }
     try {
-      const r = await cliente.sendText(destino.includes('@') ? destino : `${destino}@c.us`, String(texto));
+      const r = await cliente.sendText(alvo.jid, String(texto));
       ultimaAtividade = agora();
       const idEnviado = r?.id?.id || r?.id || null;
       /* Guarda o id pra reconhecer o proprio eco daqui a pouco. Com teto: a
@@ -659,9 +765,11 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     if (estado !== ESTADOS.CONECTADO || !cliente) {
       return { ok: false, erro: `canal ${estado} — nada foi enviado` };
     }
+    const alvo = await resolverDestino(destino);
+    if (!alvo.ok) { return { ok: false, erro: alvo.erro }; }
     try {
       const r = await cliente.sendImageFromBase64(
-        destino.includes('@') ? destino : `${destino}@c.us`, dataUri, nome, String(legenda || ''),
+        alvo.jid, dataUri, nome, String(legenda || ''),
       );
       ultimaAtividade = agora();
       const idEnviado = r?.id?.id || r?.id || null;
@@ -675,6 +783,41 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     }
   }
 
+  /**
+   * Manda um DOCUMENTO (o contrato em PDF). Vai como documento, não como
+   * imagem: o cliente precisa baixar o arquivo intacto pra assinar no gov.br,
+   * e mídia comprimida pelo WhatsApp não serve pra isso.
+   */
+  async function enviarArquivo({ para, dataUri, nome = 'arquivo.pdf', legenda = '', mimetype = 'application/pdf' }) {
+    const cru = String(para || '').trim();
+    if (!cru) { return { ok: false, erro: 'destino vazio' }; }
+    if (!dataUri) { return { ok: false, erro: 'nenhum arquivo para enviar' }; }
+    const destino = cru.includes('@') ? cru : soDigitos(cru);
+    if (!cru.includes('@') && !pareceTelefone(destino)) {
+      return { ok: false, erro: `"${destino}" não é um telefone válido` };
+    }
+    if (estado !== ESTADOS.CONECTADO || !cliente) {
+      return { ok: false, erro: `canal ${estado} — nada foi enviado` };
+    }
+    const alvo = await resolverDestino(destino);
+    if (!alvo.ok) { return { ok: false, erro: alvo.erro }; }
+    try {
+      const r = await cliente.sendFile(alvo.jid, dataUri,
+        { type: 'document', filename: nome, caption: String(legenda || ''), mimetype });
+      console.log(`[whatsapp-web] documento "${nome}" enviado para ${destino}`);
+      ultimaAtividade = agora();
+      const idEnviado = r?.id?.id || r?.id || null;
+      if (idEnviado) {
+        enviadosPorNos.add(String(idEnviado));
+        if (enviadosPorNos.size > 300) { enviadosPorNos.delete(enviadosPorNos.values().next().value); }
+      }
+      return { ok: true, id: idEnviado };
+    } catch (e) {
+      console.error(`[whatsapp-web] documento "${nome}" NAO enviado para ${destino}: ${e?.message || e}`);
+      return { ok: false, erro: e?.message || String(e) };
+    }
+  }
+
   return {
     nome: 'whatsapp-web',
     oficial: false,
@@ -684,6 +827,8 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
     saude,
     enviarTexto,
     enviarImagem,
+    enviarArquivo,
+    desparear,
     /** A ultima queda com cara de tomada de conta, ou null. */
     quedaSuspeita: () => quedaSuspeita,
     /** Avisado quando a sessao cai de um jeito que parece invasao. */

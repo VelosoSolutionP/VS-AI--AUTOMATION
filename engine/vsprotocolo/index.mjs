@@ -45,7 +45,7 @@ const trocar = (lista, p) => [...lista.filter((x) => x.numero !== p.numero), p];
  * Chamado ANTES de o fluxo decidir qualquer coisa: é aqui que se descobre se
  * esta mensagem continua uma conversa ou começa outra.
  */
-export function aoChegar(de, { quando = new Date().toISOString(), endereco = null } = {}) {
+export function aoChegar(de, { quando = new Date().toISOString(), endereco = null, voltarParaFila = true } = {}) {
   let lista = ler();
 
   const vivo = lista.find((p) => p.de === de && p.estado !== R.ESTADOS.ENCERRADO);
@@ -60,7 +60,7 @@ export function aoChegar(de, { quando = new Date().toISOString(), endereco = nul
     .sort((a, b) => String(b.encerradoEm).localeCompare(String(a.encerradoEm)))[0];
 
   if (antigo) {
-    const volta = R.aoVoltar(antigo, quando);
+    const volta = R.aoVoltar(antigo, quando, { voltarParaFila });
     if (volta.acao !== 'novo') {
       /* Reabre O MESMO protocolo. Numero novo a cada volta faria o cliente
          colecionar protocolos do mesmo problema — e o atendente perder o fio. */

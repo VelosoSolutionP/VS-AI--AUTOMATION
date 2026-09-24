@@ -53,7 +53,15 @@ function explicarErro(status, dados) {
   if (status === 404) { return 'não encontrado no Mercado Pago'; }
   const msg = dados?.message || dados?.error;
   const causa = (dados?.cause || [])[0]?.description;
-  return causa || msg || `Mercado Pago respondeu ${status}`;
+  const bruto = String(causa || msg || '');
+  /* Os que aparecem na frente do cliente, em frase que ele resolve sozinho. */
+  if (/invalid users involved/i.test(bruto)) {
+    return 'o Mercado Pago recusou o e-mail de quem paga — use o seu e-mail pessoal (não pode ser o mesmo e-mail da conta que recebe)';
+  }
+  if (/payer\.email|invalid email/i.test(bruto)) { return 'o e-mail de quem paga é inválido para o Mercado Pago'; }
+  if (/identification/i.test(bruto)) { return 'o CPF/CNPJ de quem paga não foi aceito pelo Mercado Pago — confira os números'; }
+  if (/invalid (card )?token|card_token/i.test(bruto)) { return 'os dados do cartão expiraram — digite o cartão de novo'; }
+  return bruto || `Mercado Pago respondeu ${status}`;
 }
 
 /**
@@ -180,6 +188,38 @@ export async function conferirCredencial(token, cfg = {}) {
   } finally { clearTimeout(prazo); }
 }
 
+/**
+ * O que o Mercado Pago diz quando o cartão NÃO passa, em frase que a pessoa
+ * entende e sabe o que fazer. "rejected" sozinho manda o cliente embora achando
+ * que o problema é a loja.
+ */
+const RECUSAS = {
+  cc_rejected_bad_filled_card_number: 'Confira o número do cartão.',
+  cc_rejected_bad_filled_date: 'Confira a data de validade do cartão.',
+  cc_rejected_bad_filled_security_code: 'Confira o código de segurança (CVV) do cartão.',
+  cc_rejected_bad_filled_other: 'Confira os dados do cartão.',
+  cc_rejected_blacklist: 'Não foi possível pagar com este cartão. Use outro cartão ou o Pix.',
+  cc_rejected_call_for_authorize: 'O banco precisa autorizar este pagamento. Ligue para o seu banco, autorize e tente de novo.',
+  cc_rejected_card_disabled: 'O cartão não está ativo. Ligue para o banco para ativar, ou use outro cartão.',
+  cc_rejected_card_error: 'O banco não conseguiu processar este cartão. Tente de novo ou use o Pix.',
+  cc_rejected_duplicated_payment: 'Você acabou de fazer um pagamento igual. Se precisar pagar de novo, use outro cartão ou o Pix.',
+  cc_rejected_high_risk: 'O pagamento foi recusado pela análise de segurança. Tente com o Pix ou outro cartão.',
+  cc_rejected_insufficient_amount: 'O cartão não tem limite para este valor. Use outro cartão ou o Pix.',
+  cc_rejected_invalid_installments: 'O cartão não aceita este número de parcelas. Escolha outro.',
+  cc_rejected_max_attempts: 'Você chegou ao limite de tentativas com este cartão. Use outro cartão ou o Pix.',
+  cc_amount_rate_limit_exceeded: 'O valor passa do limite do cartão. Use outro cartão ou o Pix.',
+  cc_rejected_other_reason: 'O banco recusou o pagamento. Use outro cartão ou o Pix.',
+  pending_contingency: 'Estamos processando o pagamento. Em até 2 dias úteis você recebe a resposta pelo WhatsApp.',
+  pending_review_manual: 'O pagamento está em análise. Em até 2 dias úteis você recebe a resposta pelo WhatsApp.',
+  accredited: 'Pagamento aprovado.',
+};
+export function explicarRecusa(detalhe, status) {
+  if (RECUSAS[detalhe]) { return RECUSAS[detalhe]; }
+  if (status === 'approved') { return RECUSAS.accredited; }
+  if (status === 'in_process' || status === 'pending') { return RECUSAS.pending_review_manual; }
+  return 'O pagamento não foi aprovado. Use outro cartão ou o Pix.';
+}
+
 export function criarGateway(cfg = {}) {
   const fetchImpl = cfg.fetchImpl || globalThis.fetch;
   const timeoutMs = cfg.timeoutMs ?? 15000;
@@ -250,9 +290,12 @@ export function criarGateway(cfg = {}) {
       payer: e.email ? { email: e.email, name: e.nome } : undefined,
       notification_url: e.webhookUrl || undefined,
       // Pix pedido explicitamente: o checkout abre só com ele em vez do menu inteiro.
+      /* Quem cobra pode tirar formas do menu — a assinatura do Bolso Cheio
+         aceita Pix e cartão, e boleto oferecido ali seria forma de pagamento
+         que o contrato não prevê. */
       payment_methods: metodo === 'PIX'
         ? { excluded_payment_types: [{ id: 'credit_card' }, { id: 'debit_card' }, { id: 'ticket' }] }
-        : undefined,
+        : (e.excluirTipos?.length ? { excluded_payment_types: e.excluirTipos.map((id) => ({ id })) } : undefined),
     }, { idempotencia: e.referencia });
     if (!pref.ok) { return pref; }
     return {
@@ -318,6 +361,43 @@ export function criarGateway(cfg = {}) {
         return r;
       }
       return { ok: true, pagamento: traduzir(r.dados) };
+    },
+
+    /**
+     * Cartão digitado NO NOSSO checkout. O número nunca chega aqui: o navegador
+     * troca o cartão por um `token` no Mercado Pago (Card Payment Brick) e só o
+     * token atravessa. O valor vem de quem chama — nunca do navegador.
+     */
+    async pagarComCartao(e = {}) {
+      if (!e.token) { return { ok: false, motivo: 'o cartão não foi validado pelo Mercado Pago (sem token)' }; }
+      if (!e.valorCentavos || e.valorCentavos <= 0) { return { ok: false, motivo: 'valor da cobrança é obrigatório' }; }
+      const r = await chamar('POST', '/v1/payments', {
+        transaction_amount: centavosParaReais(e.valorCentavos),
+        token: e.token,
+        description: e.descricao || 'Pagamento',
+        installments: Number(e.parcelas) || 1,
+        payment_method_id: e.bandeira,
+        issuer_id: e.emissor ? Number(e.emissor) : undefined,
+        external_reference: e.referencia,
+        notification_url: e.webhookUrl || undefined,
+        statement_descriptor: e.naFatura || undefined,
+        payer: {
+          email: e.email,
+          identification: e.documento
+            ? { type: String(e.documento).replace(/\D/g, '').length > 11 ? 'CNPJ' : 'CPF', number: String(e.documento).replace(/\D/g, '') }
+            : undefined,
+        },
+      }, { idempotencia: e.idempotencia || e.referencia });
+      if (!r.ok) { return r; }
+      const pagamento = traduzir(r.dados);
+      return {
+        ok: true,
+        pagamento,
+        aprovado: r.dados.status === 'approved',
+        emAnalise: ['in_process', 'pending'].includes(r.dados.status),
+        detalhe: r.dados.status_detail || null,
+        mensagem: explicarRecusa(r.dados.status_detail, r.dados.status),
+      };
     },
 
     async consultarCobranca(id) {

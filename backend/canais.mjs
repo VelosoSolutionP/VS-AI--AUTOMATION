@@ -134,8 +134,10 @@ function montar({ produtos } = {}) {
           enviarImagem: async ({ dataUri, legenda, nome }) => {
             const para = msg.endereco || msg.de;
             const env = await whatsappWeb.enviarImagem({ para, dataUri, legenda, nome });
-            if (env?.ok) { console.log(`[canais] mandei o QR do Pix pra ${quem}`); }
-            else { console.error(`[canais] NAO consegui mandar o QR pra ${quem}: ${env?.erro || 'motivo nao informado'}`); }
+            /* Foto com legenda E a resposta: conta como respondida, senão o log
+               diria "nada respondido" pra quem recebeu a mensagem. */
+            if (env?.ok) { if (legenda) { respondidas += 1; } console.log(`[canais] mandei imagem${legenda ? ' com legenda' : ''} pra ${quem}: ${trecho(legenda || nome)}`); }
+            else { console.error(`[canais] NAO consegui mandar a imagem pra ${quem}: ${env?.erro || 'motivo nao informado'}`); }
             return env;
           },
           /* Lê pelo ponteiro, não pela cópia: preço mudado no catálogo vale na
@@ -475,6 +477,18 @@ export async function desconectar({ canal = 'whatsapp-web' } = {}) {
   return { ok: true, ...p.status() };
 }
 
+/** Sai da conta do telefone (o aparelho deixa de listar a sessão). Religar pede QR. */
+export async function desparear({ canal = 'whatsapp-web' } = {}) {
+  marcarLigado(false);
+  if (!gateway) { return { ok: true, estado: 'desconectado' }; }
+  const p = gateway.obter(canal);
+  if (!p) { return { ok: false, erro: `canal "${canal}" não existe` }; }
+  if (typeof p.desparear !== 'function') { await p.desconectar(); return { ok: true, saiu: false, ...p.status() }; }
+  console.log('[canais] DESPAREANDO o telefone — religar vai pedir QR');
+  const r = await p.desparear();
+  return { ok: true, saiu: r.saiu, ...p.status() };
+}
+
 export async function saude() {
   if (!gateway) { return []; }
   return gateway.saudeGeral();
@@ -562,4 +576,10 @@ export async function restaurarPerfil({ canal = 'whatsapp-web' } = {}) {
 export async function enviar({ canal = 'whatsapp-web', para, texto }) {
   if (!gateway) { return { ok: false, erro: 'nenhum canal conectado' }; }
   return gateway.enviarPor(canal, { para, texto });
+}
+
+/** Documento (contrato em PDF) pelo canal conectado. */
+export async function enviarArquivo({ canal = 'whatsapp-web', para, dataUri, nome, legenda }) {
+  if (!gateway) { return { ok: false, erro: 'nenhum canal conectado' }; }
+  return gateway.enviarArquivoPor(canal, { para, dataUri, nome, legenda });
 }

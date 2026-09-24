@@ -34,7 +34,7 @@ import { criarGateway as gatewayMercadoPago, conferirCredencial as mpConferirCre
    do nosso codigo. */
 export const PROVEDORES = ['asaas', 'mercadopago'];
 import { calcularSplit, paraAsaas, conferir } from './split.mjs';
-import { traduzirEvento, transitar, LIBERA_REPASSE } from './estados.mjs';
+import { traduzirEvento, transitar, LIBERA_REPASSE, FINAIS } from './estados.mjs';
 
 const inteiroPositivo = (v) => Number.isInteger(Number(v)) && Number(v) > 0;
 
@@ -301,6 +301,8 @@ export async function cobrar(e = {}, opts = {}) {
     nome: e.nome,
     email: e.email,
     webhookUrl: e.webhookUrl,
+    excluirTipos: e.excluirTipos,
+    cpfCnpj: e.cpfCnpj,
   });
   if (!r.ok) { return r; }
 
@@ -357,6 +359,56 @@ export async function cobrar(e = {}, opts = {}) {
     avisos: [...calc.avisos, doGateway?.aviso,
       semFormaDePagamento ? 'o gateway ainda não devolveu link nem QR: o cliente só consegue pagar depois que um dos dois existir' : null].filter(Boolean),
   };
+}
+
+/** Chave PÚBLICA do Mercado Pago do ambiente em uso — é ela que o navegador usa pro cartão. */
+export function chavePublicaCartao() {
+  const c = getConfig();
+  if ((c.provedor || 'asaas') !== 'mercadopago') { return { ok: false, motivo: 'cartão no checkout próprio só existe com o Mercado Pago' }; }
+  const mp = credenciaisMercadoPago(c);
+  if (!mp.publicKey) { return { ok: false, motivo: `falta a Public Key do Mercado Pago (${mp.ambiente})` }; }
+  return { ok: true, publicKey: mp.publicKey, ambiente: mp.ambiente };
+}
+
+/**
+ * Paga com cartão tokenizado e grava o pagamento local, com o estado que o
+ * Mercado Pago devolveu NA HORA (cartão aprova ou recusa na chamada).
+ */
+export async function pagarCartao(e = {}, opts = {}) {
+  const d = diagnostico();
+  if (!d.pronto) { return { ok: false, motivo: 'integração incompleta: ' + d.faltando.join('; ') }; }
+  const g = gateway(opts);
+  if (typeof g.pagarComCartao !== 'function') { return { ok: false, motivo: 'este provedor não recebe cartão pelo checkout próprio' }; }
+  const r = await g.pagarComCartao(e);
+  if (!r.ok) { return r; }
+  const pagamento = {
+    id: r.pagamento.id, estado: r.pagamento.estado, modelo: getConfig().modelo, metodo: 'CREDIT_CARD',
+    valorCentavos: e.valorCentavos, referencia: e.referencia || null, descricao: e.descricao || null,
+    split: null, linkPagamento: null, pix: null, viaCheckout: false,
+    detalheGateway: r.detalhe, criadoEm: new Date().toISOString(), atualizadoEm: new Date().toISOString(), historico: [], repassado: false,
+  };
+  save(PAGAMENTOS, [...listar(), pagamento]);
+  return { ok: true, pagamento, aprovado: r.aprovado, emAnalise: r.emAnalise, mensagem: r.mensagem, detalhe: r.detalhe };
+}
+
+/**
+ * Pergunta ao gateway como está o pagamento e aplica a mudança aqui. Serve pra
+ * tela que espera o Pix: se o webhook atrasar (ou não chegar), a confirmação
+ * não fica refém dele.
+ */
+export async function atualizarEstado(id, opts = {}) {
+  const todos = listar();
+  const i = todos.findIndex((p) => p.id === String(id));
+  if (i < 0) { return { ok: false, motivo: 'pagamento não encontrado' }; }
+  if (todos[i].viaCheckout) { return { ok: true, pagamento: todos[i], semConsulta: true }; }
+  const r = await gateway(opts).consultarCobranca(id);
+  if (!r.ok) { return { ok: false, motivo: r.motivo, pagamento: todos[i] }; }
+  if (r.pagamento.estado === todos[i].estado) { return { ok: true, pagamento: todos[i], mudou: false }; }
+  const t = transitar(todos[i], r.pagamento.estado, { origem: 'consulta' });
+  if (t.erro) { return { ok: true, pagamento: todos[i], mudou: false, aviso: t.erro }; }
+  todos[i] = t.pagamento;
+  save(PAGAMENTOS, todos);
+  return { ok: true, pagamento: t.pagamento, mudou: true };
 }
 
 /**
@@ -481,6 +533,7 @@ export async function processarWebhook(headers = {}, corpo = {}, opts = {}) {
     ev.estado = consulta.pagamento.estado;
     ev.valorCentavos = consulta.pagamento.valorCentavos ?? ev.valorCentavos;
     ev.liquidoCentavos = consulta.pagamento.liquidoCentavos ?? ev.liquidoCentavos;
+    ev.referencia = consulta.pagamento.referencia || null;
     ev.consultado = true;
   }
 
@@ -490,7 +543,16 @@ export async function processarWebhook(headers = {}, corpo = {}, opts = {}) {
   }
 
   const todos = listar();
-  const i = todos.findIndex((p) => p.id === ev.cobrancaId);
+  let i = todos.findIndex((p) => p.id === ev.cobrancaId);
+  /* Pelo CHECKOUT do Mercado Pago (cartão, ou Pix escolhido dentro dele) o que
+     nasce aqui e uma PREFERENCIA, com id proprio; o pagamento que o cliente faz
+     depois ganha OUTRO id. Procurar so pelo id fazia todo pagamento de cartao
+     cair em "nao e nossa" — dinheiro entrando sem baixa. O elo entre os dois e
+     a referencia (external_reference), que nos mesmos escrevemos. */
+  if (i < 0 && ev.referencia) {
+    i = todos.findIndex((p) => p.viaCheckout && p.referencia === ev.referencia && !FINAIS.includes(p.estado));
+    if (i >= 0) { todos[i] = { ...todos[i], pagamentoGatewayId: ev.cobrancaId }; }
+  }
   if (i < 0) {
     save(EVENTOS, { ...vistos, [ev.eventoId]: { em: new Date().toISOString(), evento: ev.evento, orfao: true } });
     return { ok: true, http: 200, orfao: true, motivo: `cobrança "${ev.cobrancaId}" não é nossa` };

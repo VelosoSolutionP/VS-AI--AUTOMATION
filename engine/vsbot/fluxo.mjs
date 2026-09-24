@@ -157,7 +157,7 @@ export function valorEmCentavos(bruto) {
 /** Entra num passo: devolve o que dizer e como fica o estado. */
 function entrar(fluxo, passo) {
   const temOpcoes = (passo.opcoes || []).length > 0;
-  const saida = { texto: desenhar(passo), passo: passo.id, acao: null, handoff: false };
+  const saida = { texto: desenhar(passo), passo: passo.id, acao: null, handoff: false, ...(passo.imagem ? { imagem: passo.imagem } : {}) };
 
   if (temOpcoes) { return saida; }
 
@@ -178,7 +178,8 @@ function entrar(fluxo, passo) {
     const prox = acharPasso(fluxo, passo.vaiPara);
     if (prox) {
       const seguinte = entrar(fluxo, prox);
-      return { ...seguinte, texto: [saida.texto, seguinte.texto].filter(Boolean).join('\n\n'), acaoAnterior: passo.acao || null };
+      const imagem = saida.imagem || seguinte.imagem;
+      return { ...seguinte, texto: [saida.texto, seguinte.texto].filter(Boolean).join('\n\n'), acaoAnterior: passo.acao || null, ...(imagem ? { imagem } : {}) };
     }
   }
   saida.passo = null; // fim de galho
@@ -190,6 +191,39 @@ function entrar(fluxo, passo) {
  * Decide o próximo movimento.
  * @returns {{texto, passo, acao?, departamento?, handoff?, erroDeEscolha?, coleta?, coletando?}}
  */
+/**
+ * "Aqui eu não entendi" — e as opções que a IA local pode escolher no lugar
+ * da pessoa. Só existe onde a árvore oferece menu: pergunta aberta é resposta,
+ * não escolha, e saudação só abre o menu.
+ *  - no meio da conversa: quando a escolha não casou com nada;
+ *  - na primeira mensagem: quando a pessoa já chega dizendo o que quer
+ *    ("o sistema tá dando pau") em vez de "oi".
+ * @returns {{opcoes:{tecla:string,texto:string}[], primeira:boolean}|null}
+ */
+export function opcoesPendentes(fluxo, estado, texto) {
+  const t = norm(texto);
+  if (!fluxo || !t || estado?.coletando || VOLTAR.includes(t)) { return null; }
+  const primeira = !estado?.passo;
+  const passo = primeira ? acharPasso(fluxo, fluxo.inicio) : acharPasso(fluxo, estado.passo);
+  const ops = (passo?.opcoes || []).map((o, i) => ({ ...o, tecla: String(o.tecla || i + 1) })).filter((o) => !o.indisponivel);
+  if (!ops.length) { return null; }
+  /* O titulo sozinho engana: "Quero conhecer outras solucoes" nao diz que ali
+     tem sistema pra salao. O caminho que a opcao ABRE diz — as sub-opcoes do
+     passo seguinte, ou a fala dele. E isso que a IA recebe pra decidir. */
+  const sobre = (o) => {
+    const d = o.vaiPara ? acharPasso(fluxo, o.vaiPara) : null;
+    const sub = (d?.opcoes || []).map((x) => x.texto).filter(Boolean).join('; ');
+    return (sub || String(d?.mensagem || o.resposta || '').replace(/\s+/g, ' ')).slice(0, 160);
+  };
+  const opcoes = ops.map((o) => ({ tecla: o.tecla, texto: String(o.texto || ''), sobre: sobre(o) }));
+  if (primeira) {
+    /* "oi" e "1" na primeira mensagem nao pedem ajuda de ninguem. */
+    if (ehSaudacao(t) || t.length < 4 || ops.some((o) => t === norm(o.tecla))) { return null; }
+    return { opcoes, primeira: true };
+  }
+  return avancar(fluxo, estado, texto).erroDeEscolha ? { opcoes, primeira: false } : null;
+}
+
 export function avancar(fluxo, estado, texto) {
   const t = norm(texto);
 

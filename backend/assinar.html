@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Assinar o Bolso Cheio</title>
+<meta name="description" content="Planos do Bolso Cheio: atendimento no WhatsApp e redes sociais. Assine com Pix ou cartão.">
+<link rel="icon" href="/crm/simbolo.png">
+<style>
+:root{--bg:#f7f7f9;--panel:#fff;--raised:#f1f1f4;--line:#e4e4ea;--line-2:#cfcfd8;--fg:#16161c;--muted:#5b5b66;--brand:#4f46e5;--brand-fg:#fff;
+  --ok:#15803d;--ok-bg:#effaf2;--err:#b91c1c;--err-bg:#fef2f2;--warn:#b45309;--warn-bg:#fffbeb;--r:14px}
+@media (prefers-color-scheme:dark){:root{--bg:#0b0b0e;--panel:#141419;--raised:#1c1c23;--line:#2a2a32;--line-2:#3b3b45;--fg:#f4f4f6;--muted:#a3a3ae;--brand:#818cf8;--brand-fg:#0b0b0e;
+  --ok:#4ade80;--ok-bg:rgba(34,197,94,.12);--err:#f87171;--err-bg:rgba(239,68,68,.12);--warn:#fbbf24;--warn-bg:rgba(245,158,11,.12)}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.topo{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:1080px;margin:0 auto;padding:18px 20px}
+.marca{display:flex;align-items:center;gap:10px;font-weight:700;text-decoration:none}
+.marca img{height:34px}
+.topo small{color:var(--muted)}
+@media (max-width:560px){.topo small{display:none}}
+main{max-width:1080px;margin:0 auto;padding:8px 20px 60px}
+h1{font-size:clamp(26px,4vw,36px);letter-spacing:-.02em;margin:18px 0 6px;text-align:center}
+.sub{color:var(--muted);text-align:center;margin:0 0 24px}
+.barra{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-bottom:22px}
+.seg{display:inline-flex;background:var(--raised);border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px}
+.seg button{border:0;background:none;color:var(--muted);font:600 14px inherit;font-family:inherit;padding:8px 16px;border-radius:999px;cursor:pointer}
+.seg button.on{background:var(--panel);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg em{font-style:normal;font-size:12px;margin-left:4px;color:var(--muted)}
+.grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+.tier{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:26px 22px 22px;display:flex;flex-direction:column}
+.tier.destaque{border:1.5px solid var(--fg)}
+.selo{position:absolute;top:-11px;left:22px;background:var(--fg);color:var(--panel);font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px}
+.tier h3{margin:0;font-size:15px;color:var(--muted);font-weight:600}
+.preco{display:flex;align-items:baseline;gap:5px;margin:10px 0 2px}.preco b{font-size:36px;letter-spacing:-.025em}.preco small{color:var(--muted)}
+.tier .ciclo{margin:0 0 18px;color:var(--muted);font-size:13px}
+.lista{list-style:none;margin:20px 0 0;padding:18px 0 0;border-top:1px solid var(--line);display:grid;gap:10px}
+.lista li{display:flex;gap:9px;font-size:14px}.lista li::before{content:'✓';color:var(--muted);font-weight:700}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line-2);background:var(--panel);color:var(--fg);
+  font:600 15px inherit;font-family:inherit;padding:11px 18px;border-radius:10px;cursor:pointer;text-decoration:none}
+.btn:hover{border-color:var(--fg)}
+.btn.p{background:var(--brand);color:var(--brand-fg);border-color:transparent}.btn.p:hover{filter:brightness(1.07)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn.w{width:100%}
+.adendo{margin-top:18px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px;border:1px dashed var(--line-2);border-radius:var(--r);color:var(--muted);font-size:14px}
+.adendo b{color:var(--fg)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:22px}
+.card h2{font-size:17px;margin:0 0 4px}
+.hint{color:var(--muted);font-size:13px;margin:0}
+.ck{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+@media (max-width:860px){.ck{grid-template-columns:1fr}.resumo{order:-1}}
+.passos{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 18px}
+.passos div{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);padding:6px 12px 6px 6px;border-radius:999px;background:var(--raised)}
+.passos span{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--line);font-weight:700;font-size:12px}
+.passos .agora{color:var(--fg);font-weight:600}.passos .agora span{background:var(--fg);color:var(--panel)}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+@media (max-width:560px){.form{grid-template-columns:1fr}}
+.f{display:flex;flex-direction:column;gap:5px}.f.todo{grid-column:1/-1}
+.f label{font-size:13px;color:var(--muted)}
+.f input{font:15px inherit;font-family:inherit;padding:11px 12px;border:1px solid var(--line-2);border-radius:10px;background:var(--bg);color:var(--fg)}
+.f input:focus{outline:2px solid var(--fg);outline-offset:-1px}
+.sw{display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-size:14px;margin-top:16px}
+.sw input{position:absolute;opacity:0;width:1px;height:1px}
+.sw .t{position:relative;width:38px;height:22px;border-radius:999px;background:var(--line-2);transition:background .18s;flex:none;margin-top:1px}
+.sw .t::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .18s}
+.sw input:checked+.t{background:var(--ok)}.sw input:checked+.t::after{transform:translateX(16px)}
+.sw input:focus-visible+.t{outline:2px solid var(--fg);outline-offset:2px}
+.resumo{position:sticky;top:16px}
+.ln{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:5px 0}
+.tot{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--line);margin-top:8px;padding-top:12px}.tot b{font-size:24px}
+.metodos{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.metodos button{text-align:left;padding:14px;border:1.5px solid var(--line);border-radius:10px;background:var(--panel);color:var(--fg);cursor:pointer;font-family:inherit}
+.metodos button.on{border-color:var(--fg)}.metodos b{display:block}.metodos small{color:var(--muted)}
+.pix{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start}
+.pix img{background:#fff;border-radius:10px;padding:8px;border:1px solid var(--line)}
+.pix>div{flex:1;min-width:220px}
+.pix textarea{width:100%;font:12px ui-monospace,monospace;padding:10px;border:1px solid var(--line-2);border-radius:10px;background:var(--bg);color:var(--fg);resize:none;margin:6px 0 8px}
+.espera{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:13px;margin-top:12px}
+.giro{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--fg);animation:g .8s linear infinite}@keyframes g{to{transform:rotate(360deg)}}
+.erro{margin-top:14px;padding:12px 14px;border-radius:10px;background:var(--err-bg);color:var(--err);font-size:14px}
+.fim{text-align:center;padding:36px 22px}.fim h2{font-size:24px;margin:10px 0 6px}
+.selo-fim{display:inline-grid;place-items:center;width:60px;height:60px;border-radius:50%;font-size:28px;font-weight:700}
+.fim.ok .selo-fim{background:var(--ok-bg);color:var(--ok)}.fim.err .selo-fim{background:var(--err-bg);color:var(--err)}.fim.warn .selo-fim{background:var(--warn-bg);color:var(--warn)}
+.chave{display:inline-flex;flex-direction:column;gap:3px;margin:16px 0;padding:14px 22px;border:1.5px dashed var(--line-2);border-radius:12px}
+.chave b{font:700 22px ui-monospace,monospace;letter-spacing:.06em}.chave small{color:var(--muted)}
+.acoes{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px}
+footer{max-width:1080px;margin:0 auto;padding:26px 20px 40px;color:var(--muted);font-size:12px;text-align:center;border-top:1px solid var(--line)}
+</style></head>
+<body>
+<header class="topo">
+  <a class="marca" href="/assinar"><img src="/crm/logo.png" alt="" onerror="this.remove()">Bolso Cheio</a>
+  <small>Pagamento seguro · Mercado Pago</small>
+</header>
+<main id="app"><p class="sub">Carregando os planos…</p></main>
+<footer>Veloso Solution · CNPJ 53.759.232/0001-94 · O pagamento é processado pelo Mercado Pago; os dados do cartão não passam pelos nossos servidores.</footer>
+
+<script>
+const $=(id)=>document.getElementById(id);
+const esc=(s)=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const reais=(c)=>c==null?'—':(c/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const dataBr=(iso)=>iso?new Date(iso).toLocaleDateString('pt-BR'):'—';
+const MESES={mensal:1,semestral:6};
+const MODULOS=[['whatsapp','WhatsApp'],['redes','Redes sociais'],['combo','WhatsApp + Redes']];
+let CFG=null;
+const S={tela:'planos',modulo:'whatsapp',ciclo:'mensal',plano:null,form:{},metodo:'pix',erro:null};
+let TIMER=null,BRICK=null;
+
+/* Um único jeito de falar com o servidor. Resposta que não é JSON é, quase
+   sempre, queda de conexão no meio — e a frase diz isso, não "erro". */
+async function api(rota,corpo){
+  let res;
+  try{ res=await fetch('/api/assinar/'+rota,{method:corpo?'POST':'GET',headers:{'content-type':'application/json'},body:corpo?JSON.stringify(corpo):undefined}); }
+  catch{ throw new Error('Sem conexão agora. Nada foi cobrado — tente de novo em alguns segundos.'); }
+  const j=await res.json().catch(()=>({erro:'A conexão caiu no meio do pedido. Nada foi cobrado — tente de novo.'}));
+  if(!res.ok||j.erro) throw new Error(j.erro||('HTTP '+res.status));
+  return j;
+}
+const precoCiclo=(o)=>S.ciclo==='semestral'?o.semestralMensal:o.mensal;
+function inclusos(o){
+  const l=o.liberacoes;
+  return [
+    o.modulo!=='redes'?`${l.operadores} atendente${l.operadores>1?'s':''} no WhatsApp`:null,
+    o.modulo!=='redes'?'Bot 24h com funil de vendas':null,
+    o.modulo!=='whatsapp'?`${l.contasRedes||2} contas de rede social (TikTok e Instagram)`:null,
+    o.produtosLimite!=null?`${o.produtosLimite} produtos no catálogo`:'Produtos ilimitados',
+    l.campanhasMes==null?'Campanhas ilimitadas':`${l.campanhasMes} campanhas por mês`,
+    l.bandaGbMes==null?'Banda ilimitada':`${l.bandaGbMes} GB de banda por mês`,
+    l.auditor?'Auditor completo':'Auditor básico',
+  ].filter(Boolean);
+}
+function parar(){ if(TIMER){clearInterval(TIMER);TIMER=null;} if(BRICK){try{BRICK.unmount();}catch{} BRICK=null;} }
+function render(){ $('app').innerHTML=({planos:telaPlanos,dados:telaDados,assinante:telaAssinante,pagar:telaPagar,fim:telaFim}[S.tela])(); scrollTo({top:0}); }
+
+function telaPlanos(){
+  const planos=CFG.ofertas.filter(o=>o.modulo===S.modulo).sort((a,b)=>a.mensal-b.mensal);
+  const sem=S.ciclo==='semestral';
+  const contato=`https://wa.me/${esc(CFG.contato)}?text=${encodeURIComponent('Olá! Quero saber mais sobre o Bolso Cheio.')}`;
+  return `<h1>Escolha o seu plano</h1>
+  <p class="sub">Atendimento 24h no WhatsApp e redes sociais no automático. Sem fidelidade no mensal.</p>
+  <div class="barra">
+    <div class="seg">${MODULOS.map(([k,n])=>`<button class="${S.modulo===k?'on':''}" onclick="S.modulo='${k}';render()">${n}</button>`).join('')}</div>
+    <div class="seg"><button class="${!sem?'on':''}" onclick="S.ciclo='mensal';render()">Mensal</button>
+      <button class="${sem?'on':''}" onclick="S.ciclo='semestral';render()">Semestral<em>−10%</em></button></div>
+  </div>
+  <div class="grade">${planos.map(o=>`<div class="tier${o.destaque?' destaque':''}">
+    ${o.destaque?'<span class="selo">Mais escolhido</span>':''}
+    <h3>${esc(o.tier)}</h3>
+    <div class="preco"><b>${reais(precoCiclo(o))}</b><small>/mês</small></div>
+    <p class="ciclo">${sem?`${reais(precoCiclo(o)*6)} no semestre, em até 6x`:`ou ${reais(o.semestralMensal)}/mês no semestral`}</p>
+    <button class="btn w ${o.destaque?'p':''}" onclick="escolher('${o.code}')">Assinar ${esc(o.tier)}</button>
+    <ul class="lista">${inclusos(o).map(i=>`<li>${esc(i)}</li>`).join('')}</ul>
+  </div>`).join('')}</div>
+  <div class="adendo"><span>Precisa de mais atendentes, marketplaces ou é uma empresa maior? <b>A gente monta um adendo pra você.</b></span>
+    <a class="btn" href="${contato}" target="_blank" rel="noopener">Falar no WhatsApp</a></div>`;
+}
+/* Volta pros planos mantendo os dados já digitados — quem troca de plano não
+   precisa preencher tudo de novo. */
+function trocarPlano(){ parar(); Object.assign(S,{tela:'planos',pix:null,contrato:null,cobrar:null,pedido:null,erro:null,res:null}); render(); }
+function escolher(code){ S.plano=CFG.ofertas.find(o=>o.code===code); S.tela='dados'; S.erro=null; render(); }
+
+function passos(n){ return `<div class="passos">${['Plano','Seus dados','Pagamento'].map((t,i)=>`<div class="${i===n?'agora':''}"><span>${i<n?'✓':i+1}</span>${t}</div>`).join('')}</div>`; }
+function resumo(){
+  if(S.pedido&&S.pedido.tipo!=='assinatura') return `<div class="card resumo"><h2>Resumo</h2>
+    <div class="ln"><span>${esc(S.pedido.descricao.replace(/^Bolso Cheio — /,''))}</span></div>
+    ${S.pedido.creditoCentavos?`<div class="ln hint"><span>Crédito do plano atual</span><span>− ${reais(S.pedido.creditoCentavos)}</span></div>`:''}
+    ${S.pedido.tipo==='adendo'?`<div class="ln hint"><span>Nas próximas renovações</span><span>+ ${reais(S.pedido.mensalCentavos)}/mês</span></div>`:''}
+    <div class="tot"><span>Total agora</span><b>${reais(S.cobrar?.valorCentavos)}</b></div>
+    <button class="btn" style="margin-top:12px" onclick="trocarPlano()">Trocar de plano</button></div>`;
+  const o=S.plano, m=MESES[S.ciclo], total=S.contrato?S.contrato.valorCiclo:precoCiclo(o)*m;
+  return `<div class="card resumo"><h2>Resumo</h2>
+    <div class="ln"><span>${esc(o.nome)}</span><b>${reais(precoCiclo(o)*m)}</b></div>
+    <div class="ln hint"><span>Ciclo</span><span>${S.ciclo==='semestral'?'Semestral — 6 meses':'Mensal'}</span></div>
+    ${m>1?`<div class="ln hint"><span>Economia</span><span>− ${reais((o.mensal-precoCiclo(o))*m)}</span></div>`:''}
+    <div class="tot"><span>Total</span><b>${reais(total)}</b></div>
+    ${S.contrato?`<p class="hint" style="margin-top:8px">Contrato ${esc(S.contrato.numero)}</p>`:''}
+    ${S.tela!=='fim'?`<button class="btn" style="margin-top:12px" onclick="trocarPlano()">Trocar de plano</button>`:''}
+  </div>`;
+}
+
+function telaDados(){
+  const f=S.form;
+  return `${passos(1)}<div class="ck"><div class="card">
+    <h2>Seus dados</h2><p class="hint">A chave de ativação e o contrato chegam no WhatsApp informado aqui.</p>
+    <div class="form">
+      <div class="f todo"><label for="nome">Nome completo ou razão social</label><input id="nome" autocomplete="name" value="${esc(f.nome||'')}"></div>
+      <div class="f"><label for="doc">CPF ou CNPJ</label><input id="doc" inputmode="numeric" value="${esc(f.documento||'')}"></div>
+      <div class="f"><label for="wa">WhatsApp</label><input id="wa" inputmode="tel" autocomplete="tel" placeholder="31 99999-8888" value="${esc(f.whatsapp||'')}"></div>
+      <div class="f todo"><label for="email">E-mail</label><input id="email" type="email" autocomplete="email" value="${esc(f.email||'')}"></div>
+    </div>
+    <label class="sw"><input type="checkbox" id="aceite"${f.aceite?' checked':''}><span class="t"></span>
+      <span>Li e aceito o <b>contrato de licença de uso</b> do Bolso Cheio, com o valor e os limites deste plano. <span class="hint">O PDF fica disponível logo depois.</span></span></label>
+    ${S.erro?`<div class="erro">${S.erro}</div>`:''}
+    <button class="btn p w" style="margin-top:18px" id="btDados" onclick="continuar()">Continuar para o pagamento</button>
+  </div>${resumo()}</div>`;
+}
+async function continuar(){
+  const v=(id)=>$(id).value.trim();
+  S.form={nome:v('nome'),documento:v('doc'),whatsapp:v('wa'),email:v('email'),aceite:$('aceite').checked};
+  if(!S.form.aceite){ S.erro='Para continuar, ligue a chave <b>Li e aceito o contrato</b>.'; return render(); }
+  const b=$('btDados'); b.disabled=true; b.textContent='Preparando o seu contrato…';
+  try{
+    const r=await api('iniciar',{...S.form,produtos:[S.plano.code],ciclo:S.ciclo});
+    /* Já assina: não existe "assinar de novo" — só trocar de plano ou adendo. */
+    if(r.jaAssinante){ Object.assign(S,{tela:'assinante',assinante:r.assinante,erro:null}); return render(); }
+    Object.assign(S,{tela:'pagar',id:r.clienteId,acesso:r.acesso,contrato:r.contrato,cobrar:r.cobrar,pedido:r.pedido,erro:null,pix:null,metodo:'pix'});
+  }catch(e){ S.erro=esc(e.message).replace(/; /g,'<br>'); }
+  render();
+}
+
+function telaAssinante(){
+  const a=S.assinante, t=a.troca, contato=`https://wa.me/${esc(CFG.contato)}?text=${encodeURIComponent('Olá! Quero um adendo no meu Bolso Cheio.')}`;
+  const blocoTroca=!t?'':t.erro?`<div class="erro">${esc(t.erro)}</div>`
+    :t.tipo==='mesmo'?`<p class="hint">Este já é o seu plano. Escolha outro para trocar.</p>`
+    :t.tipo==='upgrade'?`<div class="ln"><span>Plano novo: <b>${esc(t.nome)}</b> (${t.ciclo==='semestral'?'semestral':'mensal'})</span><b>${reais(t.valorNovoCiclo)}</b></div>
+      <div class="ln hint"><span>Crédito pelos ${a.diasRestantes} dia(s) que faltam no plano atual</span><span>− ${reais(t.creditoCentavos)}</span></div>
+      <div class="tot"><span>Você paga agora</span><b>${reais(t.valorCentavos)}</b></div>
+      <p class="hint" style="margin:8px 0 12px">A troca vale na hora e o ciclo novo começa hoje.</p>
+      <button class="btn p w" id="btTroca" onclick="trocar()">Trocar para ${esc(t.nome)}</button>`
+    :`<p style="margin:0 0 6px">Trocar para <b>${esc(t.nome)}</b> é um plano menor: a troca vale a partir de <b>${dataBr(a.atual.validaAte)}</b>, quando o ciclo atual termina.</p>
+      <p class="hint" style="margin:0 0 12px">Nada é cobrado agora e você segue com o plano atual até lá.</p>
+      <button class="btn w" id="btTroca" onclick="trocar()">Agendar a troca</button>`;
+  const adendos=a.adendos.map(x=>x.sobConsulta
+    ?`<div class="ln"><span><b>${esc(x.nome)}</b><br><span class="hint">valor combinado com você</span></span><a class="btn" href="${contato}" target="_blank" rel="noopener">Consultar</a></div>`
+    :`<div class="ln" style="align-items:center"><span><b>${esc(x.nome)}</b><br><span class="hint">${reais(x.mensalCentavos)}/mês · agora só ${reais(x.agoraPorUnidade)} (proporcional aos ${a.diasRestantes} dia(s) que faltam)</span></span>
+       <span style="display:flex;gap:8px;align-items:center"><input id="q-${esc(x.code)}" type="number" min="1" max="20" value="1" style="width:58px;padding:9px;border:1px solid var(--line-2);border-radius:8px;background:var(--bg);color:var(--fg)">
+       <button class="btn p" onclick="adendo('${esc(x.code)}')">Contratar</button></span></div>`).join('');
+  return `<h1>Você já é assinante</h1>
+  <p class="sub">Plano atual: <b>${esc(a.atual.nome)}</b>, válido até ${dataBr(a.atual.validaAte)}.</p>
+  ${a.trocaAgendada?`<p class="sub">Troca agendada para ${dataBr(a.trocaAgendada.valeApartir)}.</p>`:''}
+  ${S.erro?`<div class="erro" style="max-width:720px;margin:0 auto 14px">${S.erro}</div>`:''}
+  <div class="ck" style="grid-template-columns:1fr 1fr">
+    <div class="card"><h2>Trocar de plano</h2><p class="hint" style="margin-bottom:12px">Você não perde o que já pagou.</p>${blocoTroca}
+      <button class="btn" style="margin-top:12px" onclick="S.tela='planos';render()">Ver outros planos</button></div>
+    <div class="card"><h2>Adendos</h2><p class="hint" style="margin-bottom:12px">Amplia o seu plano sem trocar de plano.</p>${adendos||'<p class="hint">Nenhum adendo disponível.</p>'}
+      ${a.adendosContratados?.length?`<p class="hint" style="margin-top:10px">Já contratados: ${a.adendosContratados.map(x=>esc(x.nome)+' × '+x.qtd).join(', ')}</p>`:''}</div>
+  </div>`;
+}
+async function trocar(){
+  const b=$('btTroca'); b.disabled=true; b.textContent='Preparando…';
+  try{
+    const r=await api('trocar',{...S.form,produtos:[S.plano.code],ciclo:S.ciclo});
+    if(r.agendada){ S.tela='fim'; S.res={agendada:true,para:r.para,valeApartir:r.valeApartir}; return render(); }
+    Object.assign(S,{tela:'pagar',id:r.clienteId,acesso:r.acesso,contrato:r.contrato,cobrar:r.cobrar,pedido:r.pedido,erro:null,pix:null,metodo:'pix'});
+  }catch(e){ S.erro=esc(e.message); }
+  render();
+}
+async function adendo(code){
+  try{
+    const r=await api('adendo',{documento:S.form.documento,whatsapp:S.form.whatsapp,code,qtd:Number($('q-'+code)?.value||1)});
+    Object.assign(S,{tela:'pagar',id:r.clienteId,acesso:r.acesso,contrato:r.contrato,cobrar:r.cobrar,pedido:r.pedido,erro:null,pix:null,metodo:'pix'});
+  }catch(e){ S.erro=esc(e.message); }
+  render();
+}
+
+function telaPagar(){
+  const pix=S.metodo==='pix', m=MESES[S.ciclo];
+  return `${passos(2)}<div class="ck"><div class="card">
+    <h2>Como você quer pagar?</h2>
+    <div class="metodos">
+      <button class="${pix?'on':''}" onclick="metodo('pix')"><b>Pix</b><small>aprovação na hora</small></button>
+      <button class="${!pix?'on':''}" onclick="metodo('cartao')" ${CFG.cartao?.ok?'':'disabled'}><b>Cartão</b><small>${m>1?`em até ${m}x`:'crédito'}</small></button>
+    </div>
+    <div id="area">${pix?areaPix():'<div id="cartao"><p class="hint">Carregando o formulário seguro do Mercado Pago…</p></div>'}</div>
+    ${S.erro?`<div class="erro">${S.erro}</div>`:''}
+  </div>${resumo()}</div>`;
+}
+function areaPix(){
+  const p=S.pix, valor=S.cobrar?.valorCentavos??S.contrato.valorCiclo;
+  if(!p) return `<p class="hint" style="margin:4px 0 14px">Gere o Pix e pague pelo app do seu banco. A página confirma sozinha.</p>
+    <button class="btn p" id="btPix" onclick="gerarPix()">Gerar Pix de ${reais(valor)}</button>`;
+  if(!p.pix) return `<a class="btn p" href="${esc(p.link)}" target="_blank" rel="noopener">Abrir o Pix no Mercado Pago</a>
+    <p class="espera"><span class="giro"></span>Aguardando o pagamento…</p>`;
+  return `<div class="pix">${p.pixImagem?`<img src="data:image/png;base64,${p.pixImagem}" alt="QR Code do Pix" width="200" height="200">`:''}
+    <div><b>Aponte a câmera do app do banco</b> ou copie o código:
+      <textarea readonly rows="3" id="pixCod" onclick="this.select()">${esc(p.pix)}</textarea>
+      <button class="btn" onclick="navigator.clipboard.writeText($('pixCod').value).then(()=>{this.textContent='Copiado ✓'})">Copiar código Pix</button>
+      <p class="espera"><span class="giro"></span>Aguardando o pagamento — esta página confirma sozinha.</p></div></div>`;
+}
+function metodo(m){ if(S.metodo===m) return; parar(); S.metodo=m; S.erro=null; render(); if(m==='cartao') montarCartao(); else if(S.pix) esperar(); }
+async function gerarPix(){
+  const b=$('btPix'); b.disabled=true; b.textContent='Gerando o Pix…';
+  try{ const r=await api('pix',{id:S.id,acesso:S.acesso}); S.pix=r.cobranca; S.ref=r.cobranca.referencia; S.erro=null; render(); esperar(); }
+  catch(e){ S.erro=esc(e.message); render(); }
+}
+function esperar(){
+  parar(); const ini=Date.now();
+  TIMER=setInterval(async()=>{
+    if(Date.now()-ini>30*60000){ parar(); return; }
+    try{
+      const e=await api(`estado?id=${encodeURIComponent(S.id)}&ref=${encodeURIComponent(S.ref)}&t=${encodeURIComponent(S.acesso)}`);
+      if(e.estado==='PAGA'){ parar(); S.tela='fim'; S.res={aprovado:true,codigo:e.codigo,validaAte:e.validaAte,entregue:e.entregue,metodo:'pix'}; render(); }
+    }catch{}
+  },4000);
+}
+async function montarCartao(){
+  try{
+    if(!window.MercadoPago) await new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://sdk.mercadopago.com/js/v2';s.onload=ok;s.onerror=()=>no(new Error('Não consegui carregar o Mercado Pago — confira a internet.'));document.head.appendChild(s);});
+    if(S.metodo!=='cartao'||!$('cartao')) return;
+    $('cartao').innerHTML='';
+    const escuro=matchMedia('(prefers-color-scheme: dark)').matches;
+    const valor=(S.cobrar?.valorCentavos??S.contrato.valorCiclo)/100;
+    BRICK=await new MercadoPago(CFG.cartao.publicKey,{locale:'pt-BR'}).bricks().create('cardPayment','cartao',{
+      initialization:{amount:valor,payer:{email:S.form.email}},
+      customization:{visual:{style:{theme:escuro?'dark':'default'}},paymentMethods:{maxInstallments:S.cobrar?.teste||S.pedido?.tipo==='adendo'?1:MESES[S.ciclo]}},
+      callbacks:{onReady:()=>{},onError:(e)=>console.warn('[cartao]',e),
+        onSubmit:async(fd)=>{
+          try{
+            const r=await api('cartao',{id:S.id,acesso:S.acesso,cartao:{token:fd.token,bandeira:fd.payment_method_id,emissor:fd.issuer_id,
+              parcelas:fd.installments,email:fd.payer?.email,documento:fd.payer?.identification?.number}});
+            parar(); S.tela='fim'; S.ref=r.referencia; S.res={...r,metodo:'cartao'}; render(); if(r.emAnalise) esperar();
+          }catch(e){ parar(); S.tela='fim'; S.res={aprovado:false,mensagem:e.message}; render(); }
+        }}});
+  }catch(e){ if($('cartao')) $('cartao').innerHTML=`<div class="erro">${esc(e.message)}</div>`; }
+}
+/* Pagou: segue direto pra criar a senha. Não depende de e-mail nem WhatsApp. */
+async function criarMeuAcesso(b){
+  if(b){ b.disabled=true; b.textContent='Abrindo…'; }
+  try{
+    const r=await api('criar-acesso',{id:S.id,acesso:S.acesso});
+    location.href=r.jaTemUsuario?'/crm':r.link;
+  }catch(e){ if(b){ b.disabled=false; b.textContent='Criar meu usuário e senha'; } alert(e.message); }
+}
+async function baixarContrato(){
+  const res=await fetch(`/api/assinar/contrato.pdf?id=${encodeURIComponent(S.id)}&t=${encodeURIComponent(S.acesso)}`);
+  if(!res.ok) return alert('Não consegui baixar o contrato agora — ele também vai no seu WhatsApp.');
+  const a=Object.assign(document.createElement('a'),{href:URL.createObjectURL(await res.blob()),download:`contrato-${S.contrato.numero}.pdf`});
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function telaFim(){
+  const r=S.res||{};
+  if(r.agendada) return `<div class="card fim ok"><div class="selo-fim">✓</div><h2>Troca agendada</h2>
+    <p>A partir de <b>${dataBr(r.valeApartir)}</b> o seu plano passa a ser <b>${esc(r.para)}</b>. Até lá, segue tudo como está.</p>
+    <div class="acoes"><button class="btn" onclick="trocarPlano()">Voltar aos planos</button></div></div>`;
+  if(r.aprovado) return `<div class="card fim ok"><div class="selo-fim">✓</div><h2>Pagamento aprovado!</h2>
+    <p>${S.pedido?.tipo==='troca'?'Plano trocado.':S.pedido?.tipo==='adendo'?'Adendo contratado.':'Bem-vindo(a) ao Bolso Cheio.'} ${r.metodo==='pix'?'Recebemos o seu Pix.':'O cartão foi aprovado.'}</p>
+    <div class="chave"><small>Sua chave de ativação</small><b>${esc(r.codigo||'—')}</b><small>válida até ${dataBr(r.validaAte)}</small></div>
+    <button class="btn p" style="margin:6px 0 4px;min-width:280px" onclick="criarMeuAcesso(this)">Criar meu usuário e senha</button>
+    <p class="hint">O seu usuário é o e-mail <b>${esc(S.form.email)}</b>. É com ele que você entra no Bolso Cheio.</p>
+    <div class="acoes"><button class="btn" onclick="navigator.clipboard.writeText('${esc(r.codigo||'')}').then(()=>{this.textContent='Chave copiada ✓'})">Copiar chave</button>
+      <button class="btn" onclick="baixarContrato()">Baixar o contrato</button>
+      <a class="btn" href="/ativar?c=${encodeURIComponent(r.codigo||'')}" target="_blank" rel="noopener">Conferir a chave</a>
+      <button class="btn" onclick="trocarPlano()">Assinar outro plano</button></div></div>`;
+  if(r.emAnalise) return `<div class="card fim warn"><div class="selo-fim">…</div><h2>Pagamento em análise</h2><p>${esc(r.mensagem||'')}</p>
+    <p class="espera" style="justify-content:center"><span class="giro"></span>Assim que aprovar, a chave chega no WhatsApp <b>${esc(S.form.whatsapp)}</b>.</p></div>`;
+  return `<div class="card fim err"><div class="selo-fim">✕</div><h2>Pagamento não aprovado</h2>
+    <p><b>${esc(r.mensagem||'O pagamento não foi aprovado.')}</b></p><p class="hint">Nada foi cobrado. Você pode tentar de novo agora.</p>
+    <div class="acoes"><button class="btn p" onclick="S.tela='pagar';S.metodo='cartao';render();montarCartao()">Tentar com outro cartão</button>
+      <button class="btn" onclick="S.tela='pagar';S.metodo='pix';S.pix=null;render()">Pagar com Pix</button>
+      <button class="btn" onclick="trocarPlano()">Trocar de plano</button></div></div>`;
+}
+
+(async()=>{
+  try{ CFG=await api('config'); render(); }
+  catch(e){ $('app').innerHTML=`<div class="erro" style="max-width:520px;margin:40px auto">Não consegui carregar os planos: ${esc(e.message)}</div>`; }
+})();
+</script>
+</body></html>

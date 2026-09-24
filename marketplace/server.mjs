@@ -187,6 +187,25 @@ const server = createServer(async (req, res) => {
    * autenticacao e do proprio provedor, e responder 200 rapido e obrigatorio —
    * o Asaas pausa a fila apos 15 falhas consecutivas.
    */
+  /**
+   * O provedor SONDA a URL antes de deixar salvar o webhook — com GET ou HEAD. Se o
+   * endpoint so aceitasse POST, a sonda levava 404 e o painel do Asaas recusava com
+   * "informe uma URL valida", sem dizer por que. Responder aqui e o que permite
+   * cadastrar. A sonda nao carrega evento e nao move nada.
+   */
+  if (rota === '/webhooks/pagamento' && (req.method === 'GET' || req.method === 'HEAD')) {
+    if (req.method === 'HEAD') { res.writeHead(200); return res.end(); }
+    return json(res, 200, {
+      ok: true,
+      endpoint: 'webhook de pagamento do Quebra-Galho',
+      aceita: 'POST',
+      // Sem dizer isto, alguem cadastra o webhook e so descobre meses depois que
+      // nenhum evento foi processado por falta do token.
+      autenticacao: GATEWAY.validarWebhook ? 'header asaas-access-token' : 'nenhuma (provedor simulado)',
+      pronto: Boolean(process.env.ASAAS_WEBHOOK_TOKEN) || Boolean(GATEWAY.simulado),
+    });
+  }
+
   if (rota === '/webhooks/pagamento' && req.method === 'POST') {
     if (GATEWAY.validarWebhook) {
       const v = GATEWAY.validarWebhook(req.headers);

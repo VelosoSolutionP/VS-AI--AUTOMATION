@@ -139,6 +139,7 @@ aside{width:var(--sidebar);flex:0 0 var(--sidebar);background:var(--panel);borde
   font:inherit;font-size:12.5px;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
 .sair:hover{background:var(--err-bg,rgba(220,38,38,.08));color:var(--err,#dc2626);border-color:currentColor}
 .sair svg{width:15px;height:15px;flex:0 0 15px}
+.sair.trocar:hover{background:var(--bg-2,rgba(79,70,229,.08));color:var(--fg);border-color:var(--line-2,currentColor)}
 .brand b{display:block;font-size:13.5px;line-height:1.3;letter-spacing:-.015em}
 .brand span{display:block;font-size:11px;color:var(--dim)}
 nav{flex:1;overflow-y:auto;padding:10px 10px 4px}
@@ -434,6 +435,73 @@ input.erro-campo,select.erro-campo,textarea.erro-campo{border-color:var(--err);b
 .toast.t-err .ic{color:var(--err)}
 .toast.t-err{border-color:var(--err-line)}
 
+.seg{display:inline-flex;background:var(--raised);border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px}
+.seg button{border:0;background:none;color:var(--muted,inherit);font:600 13px inherit;padding:7px 16px;border-radius:999px;cursor:pointer;font-family:inherit}
+.seg button.on{background:var(--panel);color:var(--txt,inherit);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg button em{font-style:normal;font-size:11px;color:var(--muted);margin-left:4px}
+.seg-mod{margin-bottom:18px}
+.tier-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-bottom:16px}
+.tier{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:24px 22px 22px;display:flex;flex-direction:column}
+.tier.destaque{border:1.5px solid var(--fg)}
+.tier-selo{position:absolute;top:-11px;left:22px;background:var(--fg);color:var(--panel);font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;letter-spacing:.02em}
+.tier h4{margin:0;font-size:15px;font-weight:600;color:var(--muted)}
+.tier-preco{margin:10px 0 2px;display:flex;align-items:baseline;gap:5px}
+.tier-preco b{font-size:34px;letter-spacing:-.025em;color:var(--fg)}
+.tier-preco small{color:var(--muted)}
+.tier-sub{margin:0 0 18px;font-size:13px;color:var(--muted)}
+.tier-bt{width:100%;justify-content:center}
+.tier-lista{list-style:none;margin:20px 0 0;padding:18px 0 0;border-top:1px solid var(--line);display:grid;gap:10px}
+.tier-lista li{display:flex;gap:9px;align-items:flex-start;font-size:14px;color:var(--fg)}
+.tier-lista li svg{width:15px;height:15px;color:var(--muted);flex:none;margin-top:2px}
+.tier-adendo{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px;border:1px dashed var(--line-2);border-radius:var(--r);font-size:14px;color:var(--muted);margin-bottom:18px}
+.tier-adendo b{color:var(--fg);font-weight:600}
+.tier-teste{color:var(--muted)}
+.ck-trilha{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+.ck-trilha div{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted,#71717a);padding:6px 12px 6px 6px;border-radius:999px;background:var(--raised)}
+.ck-trilha span{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--line);font-weight:700;font-size:12px}
+.ck-trilha span svg{width:13px;height:13px}
+.ck-trilha .agora{color:var(--fg);font-weight:600}.ck-trilha .agora span{background:var(--fg);color:var(--panel)}
+.ck-trilha .feito span{background:var(--raised);color:var(--fg)}
+.ck-grade{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+@media (max-width:900px){.ck-grade{grid-template-columns:1fr}}
+.ck-resumo{position:sticky;top:76px}.ck-resumo h3{margin:0 0 12px;font-size:15px}
+.ck-linha{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:6px 0}
+.ck-linha.ok{color:var(--ok)}
+.ck-total{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--line);margin-top:8px;padding-top:12px}
+.ck-total b{font-size:24px;letter-spacing:-.02em}
+.ck-metodos{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:4px 0 6px}
+.ck-metodos button{display:flex;gap:10px;align-items:center;text-align:left;padding:14px;border:1.5px solid var(--line);border-radius:var(--r-sm,10px);background:var(--panel);cursor:pointer;font-family:inherit;color:inherit}
+.ck-metodos button.on{border-color:var(--fg)}
+.ck-metodos button:disabled{opacity:.5;cursor:not-allowed}
+.ck-metodos svg{width:22px;height:22px}.ck-metodos small{display:block;color:var(--muted,#71717a);font-size:12px}
+.ck-pix{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-top:14px}
+.ck-pix img{border-radius:10px;background:#fff;padding:8px;border:1px solid var(--line)}
+.ck-pix>div{flex:1;min-width:220px}
+.ck-pix textarea{width:100%;font:12px ui-monospace,monospace;margin-bottom:8px;resize:none}
+.ck-espera{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--muted,#71717a);margin:14px 0 0}
+.giro{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--fg);animation:giro .8s linear infinite;flex:none}
+@keyframes giro{to{transform:rotate(360deg)}}
+.ck-seguro{display:flex;gap:6px;align-items:center;margin:14px 0 0;font-size:12px}.ck-seguro svg{width:14px;height:14px;color:var(--muted)}
+.ck-fim{text-align:center;padding:34px 24px}
+.ck-fim h2{margin:10px 0 6px;font-size:22px}
+.ck-selo{display:inline-grid;place-items:center;width:58px;height:58px;border-radius:50%}
+.ck-selo svg{width:30px;height:30px}
+.ck-fim.ok .ck-selo{background:var(--ok-bg);color:var(--ok)}
+.ck-fim.warn .ck-selo{background:var(--warn-bg,#fef3c7);color:var(--warn,#b45309)}
+.ck-fim.err .ck-selo{background:var(--err-bg);color:var(--err)}
+.ck-chave{display:inline-flex;flex-direction:column;gap:4px;margin:16px 0;padding:14px 22px;border:1.5px dashed var(--line-2);border-radius:12px}
+.ck-chave b{font:700 22px ui-monospace,monospace;letter-spacing:.06em}
+.ck-chave small{color:var(--muted,#71717a)}
+.ck-acoes{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px}
+.ck-espera,.ck-fim .ck-espera{justify-content:center}
+.ck-area-l .ck-espera{justify-content:flex-start}
+.sw{display:inline-flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;user-select:none}
+.sw input{position:absolute;opacity:0;width:1px;height:1px}
+.sw .trilho{position:relative;width:38px;height:22px;border-radius:999px;background:var(--line-2);transition:background .18s;flex:none}
+.sw .trilho::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .18s}
+.sw input:checked+.trilho{background:var(--ok)}
+.sw input:checked+.trilho::after{transform:translateX(16px)}
+.sw input:focus-visible+.trilho{outline:2px solid var(--ok);outline-offset:2px}
 .planos-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
 .plano-card{position:relative;padding:18px 16px;border:1px solid var(--line);border-radius:var(--r);
   background:var(--panel);box-shadow:var(--sh-1);display:flex;flex-direction:column}
@@ -711,6 +779,9 @@ body.sem-nav main,body.sem-nav .main{margin-left:0!important}
       <!-- SAIR. A funcao `sairDoPainel` existia desde sempre e nunca esteve
            ligada a botao nenhum: nao havia como encerrar a sessao pela tela.
            Em maquina compartilhada isso e acesso aberto a dado de cliente. -->
+      <button class="sair trocar" onclick="abrirTrocarSenha()" title="Trocar a senha de acesso">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Trocar senha
+      </button>
       <button class="sair" onclick="sairDoPainel()" title="Encerrar a sessão neste navegador">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15 17l5-5-5-5"/><path d="M20 12H9"/><path d="M12 19H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6"/></svg>Sair
       </button>
@@ -837,9 +908,11 @@ const GRUPOS=[
      {id:'wa-atendimento',nome:'Atendimento'},
      {id:'canais',nome:'Canal e conexão'},
      {id:'wa-auditor',nome:'Auditor'},
-     {id:'wa-consumo',nome:'Consumo'}]},
+     {id:'wa-consumo',nome:'Consumo'},
+     {id:'wa-desconectar',nome:'Desconectar do telefone'}]},
  ]},
  { secao:'Crescimento', itens:[
+   {id:'clientes',nome:'Clientes e licenças',icone:'perfil'},
    {id:'indicacao',nome:'Indicações e parceiros',icone:'indicacao'},
  ]},
  { secao:'Conta', itens:[
@@ -856,7 +929,10 @@ const MENU=GRUPOS.flatMap(g=>g.itens);
 const TITULO={};
 MENU.forEach(m=>{TITULO[m.id]=[m.nome];(m.filhos||[]).forEach(f=>TITULO[f.id]=[m.nome,f.nome]);});
 const PAI={}; MENU.forEach(m=>(m.filhos||[]).forEach(f=>PAI[f.id]=m.id));
+/* O checkout nao aparece no menu: chega-se nele pelo "Assinar". */
+TITULO['pl-checkout']=['Plano e acesso','Assinar']; PAI['pl-checkout']='plano';
 
+let CLIENTES=null,CLI_SEL=null,CLI_FORM=null;
 let CANAIS=null,ATEND=null,CONVERSA=null,PLANOS_CAT=null,CICLO='mensal',OPERADORES=null,OP_EDIT=null,TKLOJA=null,TKADS=null,TKSHOP=null;
 let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null,QG=null,TKAPP=null,PAG=null,LOTES=null,CAIXA=null,BOT=null,DOCS=null,PUB=null;
 const TESTE={}; // resultado do ultimo teste por rede (so em memoria)
@@ -885,9 +961,17 @@ function toast(t,tipo,segundos){
 // token em querystring acaba em log de acesso e em historico de navegador.
 let TOKEN=sessionStorage.getItem('crm_token')||new URLSearchParams(location.search).get('t')||'';
 async function api(r,body){
-  const res=await fetch('/crm/api/'+r,{method:body?'POST':'GET',
-    headers:{'content-type':'application/json',...(TOKEN?{'x-crm-token':TOKEN}:{})},body:body?JSON.stringify(body):undefined});
-  const j=await res.json().catch(()=>({erro:'resposta invalida do servidor'}));
+  let res;
+  try{
+    res=await fetch('/crm/api/'+r,{method:body?'POST':'GET',
+      headers:{'content-type':'application/json',...(TOKEN?{'x-crm-token':TOKEN}:{})},body:body?JSON.stringify(body):undefined});
+  }catch{ throw new Error('Sem conexão com o servidor agora (internet ou túnel). Nada foi cobrado — tente de novo em alguns segundos.'); }
+  /* Resposta que NAO e JSON quase sempre e a pagina de erro da Cloudflare: a
+     internet da maquina ou o tunel caiu no meio do pedido. "Resposta invalida"
+     fazia parecer defeito do sistema — e mandava procurar no lugar errado. */
+  const j=await res.json().catch(()=>({erro:[502,503,504,520,521,522,523,524,530].includes(res.status)||res.status===0
+    ?'A conexão com o servidor caiu no meio do pedido (internet ou túnel). Nada foi cobrado — tente de novo em alguns segundos.'
+    :`o servidor respondeu fora do formato (HTTP ${res.status}) — tente de novo`}));
   if(!res.ok||j.erro) throw new Error(j.erro||('HTTP '+res.status));
   return j;
 }
@@ -896,6 +980,7 @@ function toggleNav(v){document.getElementById('side').classList.toggle('open',v)
 /* Sobrancelha = a seção do menu em que a rota vive. Dita de graça em toda tela
    onde a pessoa está, sem ela ter que reler a barra lateral. */
 const SECAO={}; GRUPOS.forEach(g=>g.itens.forEach(m=>{SECAO[m.id]=g.secao;(m.filhos||[]).forEach(f=>SECAO[f.id]=g.secao);}));
+SECAO['pl-checkout']='Conta';
 /**
  * UM lugar decide se o WhatsApp esta no ar — e por onde.
  * Sem isto, cada tela inventava a sua resposta a partir de `STATUS.whatsapp`,
@@ -2715,10 +2800,15 @@ async function salvarBot(){
       {id:'bcFall',rotulo:'Quando não entende',obrigatorio:true},
       {id:'bcHand',rotulo:'Ao passar pra uma pessoa',obrigatorio:true},
       {id:'bcFalhas',rotulo:'Falhas até chamar gente',obrigatorio:true,numero:true,min:1},
+      {id:'bcAvisos',rotulo:'Avisos antes de encerrar',obrigatorio:true,numero:true,min:0},
+      {id:'bcPausa',rotulo:'Horas de pausa',obrigatorio:true,numero:true,min:0.25},
+      {id:'bcErros',rotulo:'Escolhas erradas seguidas até encerrar',obrigatorio:true,numero:true,min:2},
     ],
     rota:'bot/config',
     corpo:()=>({nome:v('bcNome'),saudacao:v('bcSaud'),mensagemFallback:v('bcFall'),
       mensagemHandoff:v('bcHand'),falhasAteHumano:Number(v('bcFalhas')||2),ativo:ck('bcAtivo'),
+      cerebro:{...(BOT.config?.cerebro||{}),ligado:ck('bcCerebro')},
+      avisosAntesDePausa:Number(v('bcAvisos')),horasDePausa:Number(String(v('bcPausa')).replace(',','.')),errosDeOpcaoAtePausa:Number(v('bcErros')),
       usarCatalogo:ck('bcCat'),assinarMensagens:ck('bcAssina')}),
     sucesso:`Comportamento salvo. ${ck('bcAtivo')?'O bot está ligado.':'O bot segue desligado — ligue quando quiser que ele atenda.'}`,
   });
@@ -3098,6 +3188,607 @@ function trocaModelo(){
 }
 
 /* ---- shells honestos ---- */
+/* ---- Clientes e licenças ----
+   A carteira da Veloso Solution: cadastro → contrato → assinatura gov.br →
+   cobrança → chave no WhatsApp. A regra mora em engine/vsclientes; esta tela
+   só desenha e manda. Cada passo diz o que falta, na ordem em que acontece. */
+const reais=(c)=>c==null?'—':(c/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const dataBr=(iso)=>iso?new Date(iso).toLocaleDateString('pt-BR'):'—';
+const TOM_SIT={ativo:'b-ok',vencendo:'b-warn',vencido:'b-err',aguardando_pagamento:'b-warn',assinado:'b-ok',contrato_gerado:'b-warn',cadastrado:''};
+
+function telaClientes(){
+  if(!CLIENTES) return head('Clientes e licenças','Cadastro, contrato, cobrança e chave.')+
+    vazio('perfil','Backend sem a rota de clientes','Reinicie o painel para carregar o módulo novo.',['Reiniciar o painel','Recarregar']);
+  if(CLI_FORM) return telaClienteForm();
+  if(CLI_SEL){ const c=CLIENTES.clientes.find(x=>x.id===CLI_SEL); if(c) return telaClienteDetalhe(c); }
+  const r=CLIENTES.resumo;
+  return head('Clientes e licenças','Quem comprou, o que foi liberado, e em que pé está cada um.',
+      botao({t:'Novo cliente',ic:'mais',v:'p',on:'novoCliente()'}))+avisoModoTeste()+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Clientes',r.total,'cadastrados')}
+    ${kpi('Ativos',r.ativos,'com chave válida')}
+    ${kpi('Aguardando pagamento',r.aguardando,'cobrança enviada')}
+    ${kpi('Receita mensal',reais(r.receitaMensal),'dos ativos')}
+  </div>
+  <div class="card">
+    ${cardH('perfil','Carteira',`Clique no cliente para seguir o próximo passo.`,1)}
+    ${tabela({
+      itens:CLIENTES.clientes,
+      vazio:'Nenhum cliente ainda. Comece em <b>Novo cliente</b>.',
+      colunas:[
+        {t:'Cliente',cel:(c)=>`<b>${esc(c.nome)}</b><br><small class="hint">${esc(fmtWa(c.whatsapp))}</small>`},
+        {t:'Produto',cel:(c)=>esc(c.produtos.map(p=>nomeOferta(p)).join(' + '))+`<br><small class="hint">${c.ciclo==='anual'?'anual':'mensal'}</small>`},
+        {t:'Situação',cel:(c)=>`<span class="badge ${TOM_SIT[c.situacao.codigo]||''}">${esc(c.situacao.texto)}</span>`+
+          (c.situacao.proximo?`<br><small class="hint">${esc(c.situacao.proximo)}</small>`:'')},
+      ],
+      acoes:(c)=>botao({t:'Abrir',ic:'seta',v:'s',sz:'xs',on:`abrirCliente('${c.id}')`}),
+    })}
+  </div>`;
+}
+
+const nomeOferta=(code)=>(CLIENTES?.ofertas||[]).find(o=>o.code===code)?.nome||code;
+const fmtDoc=(d)=>{const x=String(d||'');return x.length===11?x.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4'):x.length===14?x.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,'$1.$2.$3/$4-$5'):x;};
+const fmtWa=(d)=>{const m=String(d||'').match(/^55(\d{2})(\d{4,5})(\d{4})$/);return m?`(${m[1]}) ${m[2]}-${m[3]}`:d;};
+
+function novoCliente(){ CLI_FORM={produtos:['whats-bot'],ciclo:'mensal',liberacoes:padraoLib(['whats-bot'])}; CLI_SEL=null; render(); scrollTo(0,0); }
+function editarCliente(id){ const c=CLIENTES.clientes.find(x=>x.id===id); CLI_FORM=JSON.parse(JSON.stringify(c)); render(); scrollTo(0,0); }
+function abrirCliente(id){ CLI_SEL=id; CLI_FORM=null; render(); scrollTo(0,0); }
+function voltarClientes(){ CLI_SEL=null; CLI_FORM=null; render(); }
+
+/* Mesma soma do servidor (liberacoesPadrao): o formulário já nasce com o que
+   os produtos incluem, e quem cadastra ajusta. */
+function padraoLib(codes){
+  const b={operadores:0,campanhasMes:0,auditor:false,botFunil:false,bandaGbMes:0,redes:[]};
+  for(const code of codes){ const o=(CLIENTES?.ofertas||[]).find(x=>x.code===code); if(!o) continue; const l=o.liberacoes;
+    b.operadores+=l.operadores; b.campanhasMes+=l.campanhasMes; b.bandaGbMes+=l.bandaGbMes;
+    b.auditor=b.auditor||l.auditor; b.botFunil=b.botFunil||l.botFunil; b.redes=[...new Set([...b.redes,...l.redes])]; }
+  return b;
+}
+
+/** Lê o formulário inteiro pro CLI_FORM, sem perder o id. */
+function lerFormCliente(){
+  const v=(id)=>document.getElementById(id)?.value??'';
+  const chk=(id)=>!!document.getElementById(id)?.checked;
+  const produtos=[...document.querySelectorAll('[data-oferta]:checked')].map(x=>x.value);
+  const valor=v('clValor').replace(/\./g,'').replace(',','.');
+  CLI_FORM={...CLI_FORM,
+    nome:v('clNome'),documento:v('clDoc'),whatsapp:v('clWa'),email:v('clEmail'),responsavel:v('clResp'),
+    endereco:v('clEnd'),cidadeUf:v('clCidade'),observacoes:v('clObs'),
+    produtos,ciclo:document.querySelector('[name=clCiclo]:checked')?.value||'mensal',
+    valorCombinadoMensal:valor?Math.round(Number(valor)*100):null,
+    liberacoes:{operadores:v('clOp'),campanhasMes:v('clCamp'),bandaGbMes:v('clBanda'),
+      auditor:chk('clAud'),botFunil:chk('clFunil'),redes:[...document.querySelectorAll('[data-rede]:checked')].map(x=>x.value)}};
+  return CLI_FORM;
+}
+function trocarProdutos(){ const f=lerFormCliente(); f.liberacoes=padraoLib(f.produtos); render(); }
+function recalcCliente(){ lerFormCliente(); const el=document.getElementById('clPreco'); if(el) el.innerHTML=resumoPreco(CLI_FORM); }
+
+function resumoPreco(f){
+  const anual=f.ciclo==='anual'; let mensal=0, cheio=0;
+  for(const code of f.produtos||[]){ const o=CLIENTES.ofertas.find(x=>x.code===code); if(!o) continue;
+    if(o.sobConsulta){ if(!f.valorCombinadoMensal) return '<span class="hint">informe o valor combinado do produto sob consulta</span>';
+      mensal+=f.valorCombinadoMensal; cheio+=f.valorCombinadoMensal; continue; }
+    mensal+=anual?o.anualMensal:o.mensal; cheio+=o.mensal; }
+  if(!(f.produtos||[]).length) return '<span class="hint">escolha ao menos um produto</span>';
+  return anual
+    ?`<b>${reais(mensal)}/mês</b> · cobrança anual de <b>${reais(mensal*12)}</b> <small class="hint">(economiza ${reais((cheio-mensal)*12)} no ano)</small>`
+    :`<b>${reais(mensal)}/mês</b> · cobrado todo mês`;
+}
+
+function telaClienteForm(){
+  const f=CLI_FORM, l=f.liberacoes||{};
+  const n=(x)=>x==null?'':String(x);
+  const ofertas=CLIENTES.ofertas.map(o=>`<label class="plano-card" style="cursor:pointer;display:block">
+      <input type="checkbox" data-oferta value="${esc(o.code)}" style="width:auto;margin:0 6px 0 0"${(f.produtos||[]).includes(o.code)?' checked':''} onchange="trocarProdutos()">
+      <b>${esc(o.nome)}</b><br><small class="hint">${esc(o.descricao)}</small><br>
+      ${o.sobConsulta?'<span class="badge b-warn">consultar valores</span>'
+        :`<span class="badge b-ok">${reais(o.mensal)}/mês</span> <span class="badge">anual ${reais(o.anualMensal)}/mês</span>`}
+    </label>`).join('');
+  const temConsulta=(f.produtos||[]).includes('sob-consulta');
+  return head(f.id?'Editar cliente':'Novo cliente','Os dados aqui vão para o contrato. Documento e WhatsApp são conferidos antes de salvar.',
+      botao({t:'Voltar',ic:'ant',v:'g',on:'voltarClientes()'}))+
+  `<div class="card" style="margin-bottom:16px">
+    ${cardH('perfil','Quem é',`O WhatsApp é por onde saem o contrato, o link de pagamento e a chave.`,1)}
+    <div class="form-grid">
+      <div class="field" style="grid-column:1/-1"><label>Nome completo ou razão social</label><input id="clNome" value="${esc(n(f.nome))}"></div>
+      <div class="field"><label>CPF ou CNPJ</label><input id="clDoc" inputmode="numeric" value="${esc(n(f.documento))}"></div>
+      <div class="field"><label>WhatsApp <small>(com DDD)</small></label><input id="clWa" inputmode="tel" placeholder="31 99999-8888" value="${esc(n(f.whatsapp))}"></div>
+      <div class="field"><label>E-mail <small>(opcional)</small></label><input id="clEmail" type="email" value="${esc(n(f.email))}"></div>
+      <div class="field"><label>Responsável <small>(se for empresa)</small></label><input id="clResp" value="${esc(n(f.responsavel))}"></div>
+      <div class="field" style="grid-column:1/-1"><label>Endereço <small>(opcional, sai no contrato)</small></label><input id="clEnd" value="${esc(n(f.endereco))}"></div>
+      <div class="field"><label>Cidade/UF</label><input id="clCidade" placeholder="Belo Horizonte/MG" value="${esc(n(f.cidadeUf))}"></div>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('plano','Produto e ciclo',`Anual cobra os 12 meses de uma vez, com o valor mensal menor.`,3)}
+    <div class="planos-grade">${ofertas}</div>
+    ${temConsulta?`<div class="form-grid" style="margin-top:12px"><div class="field"><label>Valor mensal combinado (R$) <small>— sob consulta</small></label>
+      <input id="clValor" inputmode="decimal" placeholder="250,00" value="${f.valorCombinadoMensal?(f.valorCombinadoMensal/100).toFixed(2).replace('.',','):''}" oninput="recalcCliente()"></div></div>`:''}
+    <div style="display:flex;gap:16px;margin-top:14px;flex-wrap:wrap">
+      <label style="display:flex;gap:6px;align-items:center"><input type="radio" name="clCiclo" value="mensal" style="width:auto;margin:0"${f.ciclo!=='anual'?' checked':''} onchange="recalcCliente()"> Mensal</label>
+      <label style="display:flex;gap:6px;align-items:center"><input type="radio" name="clCiclo" value="anual" style="width:auto;margin:0"${f.ciclo==='anual'?' checked':''} onchange="recalcCliente()"> Anual</label>
+    </div>
+    <p id="clPreco" style="margin:10px 0 0">${resumoPreco(f)}</p>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('check','O que vai ser liberado',`Vem preenchido com o que os produtos incluem — ajuste para este cliente. Vazio = ilimitado. Tudo isto sai no contrato e dentro da chave.`,2)}
+    <div class="form-grid">
+      <div class="field"><label>Operadores</label><input id="clOp" type="number" min="0" value="${esc(n(l.operadores))}"></div>
+      <div class="field"><label>Campanhas por mês</label><input id="clCamp" type="number" min="0" value="${esc(n(l.campanhasMes))}"></div>
+      <div class="field"><label>Banda total por mês (GB)</label><input id="clBanda" type="number" min="0" step="0.5" value="${esc(n(l.bandaGbMes))}"></div>
+    </div>
+    <div style="display:flex;gap:18px;margin-top:12px;flex-wrap:wrap">
+      <label class="sw"><input type="checkbox" id="clAud"${l.auditor?' checked':''}><span class="trilho"></span>Auditor</label>
+      <label class="sw"><input type="checkbox" id="clFunil"${l.botFunil?' checked':''}><span class="trilho"></span>Bot para funil</label>
+      <label class="sw"><input type="checkbox" data-rede value="tiktok"${(l.redes||[]).includes('tiktok')?' checked':''}><span class="trilho"></span>TikTok</label>
+      <label class="sw"><input type="checkbox" data-rede value="instagram"${(l.redes||[]).includes('instagram')?' checked':''}><span class="trilho"></span>Instagram</label>
+    </div>
+  </div>
+  <div class="card">
+    <div class="field"><label>Observações internas <small>(não saem no contrato)</small></label><textarea id="clObs" rows="2">${esc(n(f.observacoes))}</textarea></div>
+    <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+      ${botao({t:f.id?'Salvar alterações':'Cadastrar cliente',ic:'salvar',v:'p',on:'salvarCliente()',id:'btSalvarCliente'})}
+      ${botao({t:'Cancelar',ic:'fechar',v:'g',on:'voltarClientes()'})}
+    </div>
+  </div>`;
+}
+
+async function salvarCliente(){
+  const f=lerFormCliente();
+  try{
+    const r=await api('clientes/salvar',f);
+    CLIENTES=await api('clientes');
+    flash(f.id?'Cliente atualizado.':'Cliente cadastrado. Próximo passo: gerar o contrato.','ok');
+    abrirCliente(r.cliente.id);
+  }catch(e){ avisoErro('Não consegui salvar o cliente',e.message.includes(';')?'Corrija o que está abaixo:':e.message,e.message.includes(';')?e.message.split('; '):null); }
+}
+
+function passo(n,titulo,feito,corpo){
+  return `<div class="card" style="margin-bottom:14px${feito?'':';border-style:dashed'}">
+    ${cardH(feito?'check':'relogio',`${n}. ${titulo}`,'',feito?2:5,`<span class="badge ${feito?'b-ok':'b-warn'}">${feito?'feito':'pendente'}</span>`)}
+    ${corpo}</div>`;
+}
+
+function telaClienteDetalhe(c){
+  const l=c.liberacoes, k=(c.contratos||[]).at(-1), cob=(c.cobrancas||[]).find(x=>x.estado==='AGUARDANDO');
+  const lic=c.licencaVigente;
+  const liberado=[`${l.operadores??'∞'} operador(es)`,`${l.campanhasMes??'∞'} campanha(s)/mês`,`banda ${l.bandaGbMes==null?'ilimitada':l.bandaGbMes+' GB/mês'}`,
+    l.auditor?'auditor':null,l.botFunil?'bot de funil':null,...(l.redes||[])].filter(Boolean).join(' · ');
+  const pagas=(c.cobrancas||[]).filter(x=>x.estado==='PAGA');
+
+  return head(c.nome,`${fmtWa(c.whatsapp)} · ${c.tipoDocumento} ${fmtDoc(c.documento)}`,
+      botao({t:'Voltar',ic:'ant',v:'g',on:'voltarClientes()'})+botao({t:'Editar',ic:'editar',v:'s',on:`editarCliente('${c.id}')`}))+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Situação',c.situacao.texto,c.situacao.proximo||'tudo em dia')}
+    ${kpi('Produto',c.produtos.map(nomeOferta).join(' + '),c.ciclo==='anual'?'anual':'mensal')}
+    ${kpi('Valor do ciclo',k?reais(k.valorCiclo):'—',k?'conforme contrato '+k.numero:'gere o contrato')}
+    ${kpi('Chave',lic?lic.codigo:'—',lic?'válida até '+dataBr(lic.validaAte):'ainda não emitida')}
+  </div>
+  <div class="card" style="margin-bottom:14px"><p class="hint" style="margin:0"><b>Liberado:</b> ${esc(liberado)}</p></div>`+
+
+  passo(1,'Contrato',!!k&&!c.contratoDesatualizado,
+    (c.contratoDesatualizado?`<p class="hint" style="color:var(--err)">O cadastro mudou depois do contrato ${esc(k.numero)}. Gere o contrato novo — o antigo fica guardado.</p>`:'')+
+    (k?linha('Contrato '+k.numero,`gerado em ${dataBr(k.geradoEm)} · ${reais(k.valorCiclo)} por ciclo`,'versão '+k.versao,'b-ok'):'<p class="hint">O contrato sai com os dados, o valor e tudo que foi liberado.</p>')+
+    `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;align-items:center">
+      ${botao({t:k?'Gerar nova versão':'Gerar contrato',ic:'gerar',v:k&&!c.contratoDesatualizado?'s':'p',on:`gerarContratoCliente('${c.id}')`,id:'btContrato'})}
+      ${k?botao({t:'Baixar PDF',ic:'baixar',v:'s',on:`baixarContrato('${c.id}',${k.versao},false)`}):''}
+      ${k?botao({t:'Mandar no WhatsApp',ic:'enviar',v:'s',on:`enviarContratoCliente('${c.id}',${k.versao})`,id:'btEnviarContrato'}):''}
+      <label class="sw"><input type="checkbox" id="clEnviarContrato" checked><span class="trilho"></span>ao gerar, já mandar no WhatsApp</label>
+    </div>`)+
+
+  passo(2,'Assinatura no gov.br',!!k?.assinadoEm,
+    (k?.assinado?linha('PDF assinado recebido',`${k.assinado.assinaturas} assinatura(s)${k.assinado.govbr?' · gov.br':' · não parece gov.br'}${k.assinado.signatarios?.length?' · '+esc(k.assinado.signatarios.join(', ')):''}`,
+        dataBr(k.assinado.recebidoEm),k.assinado.govbr?'b-ok':'b-warn'):'')+
+    `<p class="hint">A cliente abre <b>assinador.iti.br</b>, entra com a conta gov.br (nível prata ou ouro), assina o PDF e devolve o arquivo assinado.
+      Você também assina o mesmo arquivo. Depois envie aqui o PDF final — o sistema confere se é <b>este</b> contrato e se tem assinatura.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <input type="file" id="clPdfAss" accept="application/pdf" style="max-width:280px" ${k?'':'disabled'}>
+      ${botao({t:'Enviar PDF assinado',ic:'importar',v:'s',on:`enviarAssinado('${c.id}')`,off:!k})}
+      ${k?.assinado?botao({t:'Baixar assinado',ic:'baixar',v:'g',on:`baixarContrato('${c.id}',${k.versao},true)`}):''}
+    </div>`)+
+
+  passo(3,'Pagamento',!!pagas.length&&!cob,
+    (cob?`${linha('Cobrança '+cob.n,`gerada em ${dataBr(cob.criadaEm)} · Pix ou cartão`,reais(cob.valorCentavos),'b-warn')}
+      ${cob.link?`<p class="hint" style="word-break:break-all">Link: <a href="${esc(cob.link)}" target="_blank" rel="noopener">${esc(cob.link)}</a></p>`:''}
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        ${botao({t:'Reenviar link no WhatsApp',ic:'enviar',v:'s',on:`acaoCliente('reenviar-cobranca','${c.id}','Link reenviado.')`})}
+        ${botao({t:'Cancelar cobrança',ic:'fechar',v:'g',on:`cancelarCobrancaCliente('${c.id}')`})}
+      </div>`
+    :`<p class="hint">Gera o link do Mercado Pago (Pix ou cartão) no valor do contrato e manda no WhatsApp dela. Quando o pagamento cair, a chave sai sozinha.</p>
+      ${botao({t:lic||pagas.length?'Gerar cobrança de renovação':'Gerar cobrança e mandar no WhatsApp',ic:'comprar',v:'p',on:`cobrarCliente('${c.id}')`,off:!k||c.contratoDesatualizado,id:'btCobrar'})}
+      ${k&&!k.assinadoEm?'<p class="hint" style="margin-top:8px">O contrato ainda não voltou assinado. Dá pra cobrar assim mesmo, mas o ideal é receber a assinatura antes.</p>':''}`)+
+    (pagas.length?`<div style="margin-top:12px">${pagas.map(p=>linha('Cobrança '+p.n+(p.manual?' (liberação manual)':''),`paga em ${dataBr(p.pagaEm)}`,reais(p.valorCentavos),'b-ok')).join('')}</div>`:''))+
+
+  passo(4,'Chave de ativação',!!lic,
+    (lic?`${linha(lic.codigo,`válida até ${dataBr(lic.validaAte)}`,lic.entregue?'entregue no WhatsApp':'NÃO entregue',lic.entregue?'b-ok':'b-err')}
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+        ${botao({t:'Reenviar chave',ic:'enviar',v:'s',on:`acaoCliente('reenviar-chave','${c.id}','Chave reenviada.')`})}
+        ${botao({t:'Copiar chave',ic:'copiar',v:'g',on:`navigator.clipboard.writeText('${esc(lic.codigo)}').then(()=>flash('Chave copiada.','ok'))`})}
+        ${botao({t:'Revogar',ic:'excluir',v:'dan',on:`revogarCliente('${c.id}')`})}
+      </div>`
+    :`<p class="hint">A chave é gerada e mandada no WhatsApp <b>${esc(fmtWa(c.whatsapp))}</b> assim que o Mercado Pago confirma o pagamento.
+      Se ela pagou por fora (Pix direto na sua conta), libere na mão — o motivo fica registrado.</p>
+      ${botao({t:'Liberar sem cobrança (pagou por fora)',ic:'check',v:'s',on:`liberarManualCliente('${c.id}')`,off:!k})}`))+
+
+  `<div class="card">${cardH('relatorios','Histórico','',4)}
+    ${(c.historico||[]).slice().reverse().map(h=>linha(h.o,h.erro?esc(h.erro):(h.numero||h.codigo||h.referencia||''),new Date(h.em).toLocaleString('pt-BR').slice(0,17),h.erro?'b-err':'')).join('')}</div>`;
+}
+
+async function recarregarClientes(){ CLIENTES=await api('clientes'); render(); }
+
+async function gerarContratoCliente(id){
+  const b=document.getElementById('btContrato'); if(b){b.disabled=true;b.querySelector('span').textContent='Gerando PDF…';}
+  const enviar=!!document.getElementById('clEnviarContrato')?.checked;
+  try{
+    const r=await api('clientes/contrato',{id,enviar});
+    await recarregarClientes();
+    if(enviar&&r.envio&&!r.envio.ok) avisoErro('Contrato gerado, mas NÃO foi pro WhatsApp',`O PDF está pronto — baixe e mande na mão. Motivo: ${esc(r.envio.erro||'?')}`);
+    else flash(`Contrato ${r.contrato.numero} gerado${enviar?' e enviado no WhatsApp':''}.`,'ok');
+  }catch(e){ avisoErro('Não consegui gerar o contrato',esc(e.message)); render(); }
+}
+
+async function enviarContratoCliente(id,versao){
+  const b=document.getElementById('btEnviarContrato'); if(b){b.disabled=true;b.querySelector('span').textContent='Enviando…';}
+  try{ await api('clientes/enviar-contrato',{id,versao}); await recarregarClientes(); flash('Contrato enviado no WhatsApp.','ok'); }
+  catch(e){ await recarregarClientes().catch(()=>{}); avisoErro('O contrato NÃO foi pro WhatsApp',`Baixe o PDF e mande na mão. Motivo: ${esc(e.message)}`); }
+}
+
+async function baixarContrato(id,v,assinado){
+  try{
+    const res=await fetch(`/crm/api/clientes/contrato.pdf?id=${encodeURIComponent(id)}&v=${v}${assinado?'&assinado=1':''}`,{headers:{'x-crm-token':TOKEN}});
+    if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j.erro||'HTTP '+res.status); }
+    const nome=(res.headers.get('content-disposition')||'').match(/filename="([^"]+)"/)?.[1]||'contrato.pdf';
+    const a=Object.assign(document.createElement('a'),{href:URL.createObjectURL(await res.blob()),download:nome});
+    document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+  }catch(e){ avisoErro('Não consegui baixar o contrato',esc(e.message)); }
+}
+
+async function enviarAssinado(id){
+  const f=document.getElementById('clPdfAss')?.files?.[0];
+  if(!f) return avisoErro('Escolha o arquivo','Selecione o PDF assinado que voltou do gov.br.');
+  try{
+    const res=await fetch(`/crm/api/clientes/assinado?id=${encodeURIComponent(id)}`,{method:'POST',headers:{'content-type':'application/pdf','x-crm-token':TOKEN},body:f});
+    const j=await res.json().catch(()=>({erro:'resposta inválida do servidor'}));
+    if(!res.ok||j.erro) throw new Error(j.erro||'HTTP '+res.status);
+    await recarregarClientes();
+    if(j.avisos?.length) avisoErro('PDF aceito, com ressalvas','O contrato assinado foi guardado. Confira:',j.avisos);
+    else flash('Contrato assinado recebido e conferido.','ok');
+  }catch(e){ avisoErro('PDF recusado',esc(e.message)); }
+}
+
+async function cobrarCliente(id){
+  const b=document.getElementById('btCobrar'); if(b){b.disabled=true;b.querySelector('span').textContent='Gerando cobrança…';}
+  try{
+    const r=await api('clientes/cobrar',{id});
+    await recarregarClientes();
+    if(r.envio&&!r.envio.ok) avisoErro('Cobrança gerada, mas o link NÃO foi pro WhatsApp',`Copie o link na tela e mande na mão. Motivo: ${esc(r.envio.erro||'?')}`);
+    else flash('Cobrança gerada e link enviado no WhatsApp.','ok');
+  }catch(e){ avisoErro('Não consegui gerar a cobrança',esc(e.message)); render(); }
+}
+
+async function acaoCliente(rota,id,ok){
+  try{ const r=await api('clientes/'+rota,{id}); await recarregarClientes(); flash(ok,'ok'); return r; }
+  catch(e){ avisoErro('Não consegui concluir',esc(e.message)); }
+}
+
+function cancelarCobrancaCliente(id){
+  confirmar({titulo:'Cancelar a cobrança?',texto:'O sistema deixa de esperar este pagamento. Se ela pagar o link antigo mesmo assim, a chave <b>não</b> sai sozinha.',
+    rotulo:'Cancelar cobrança',aoConfirmar:()=>acaoCliente('cancelar-cobranca',id,'Cobrança cancelada.')});
+}
+
+function pedirMotivo(titulo,texto,rotulo,rota,id,ok){
+  abrirModal(titulo,`<p class="hint" style="margin-bottom:10px">${texto}</p>
+    <div class="field"><label>Motivo</label><input id="clMotivo" placeholder="ex.: pagou Pix direto em ${new Date().toLocaleDateString('pt-BR')}"></div>`,
+    BT.cancelar()+`<button class="btn btn-p" onclick="(async()=>{const m=document.getElementById('clMotivo').value;fecharModal();
+      try{await api('clientes/${rota}',{id:'${id}',motivo:m});await recarregarClientes();flash('${ok}','ok');}catch(e){avisoErro('Não consegui concluir',esc(e.message));}})()">${ico('check')}<span>${esc(rotulo)}</span></button>`);
+}
+function liberarManualCliente(id){
+  pedirMotivo('Liberar sem cobrança','A chave é gerada agora e vai pro WhatsApp dela, valendo pelo ciclo do contrato. O motivo fica no histórico.','Gerar e enviar chave','liberar-manual',id,'Chave gerada.');
+}
+function revogarCliente(id){
+  pedirMotivo('Revogar a chave','A chave deixa de valer na hora. Na página de conferência ela passa a aparecer como revogada.','Revogar','revogar',id,'Chave revogada.');
+}
+
+/* ---- Planos e checkout ----
+   Cada serviço é uma chave: ligou, entrou no plano. O preço vem da tabela
+   de engine/vsclientes (a mesma do contrato e da cobrança) — a tela não
+   calcula preço por conta própria além do resumo, e o valor cobrado é sempre
+   o do contrato, decidido no servidor. */
+let PL={modulo:'whatsapp',ciclo:'mensal',sel:[]}, CKCFG=null;
+let CK={passo:'dados',form:{},metodo:'pix'};
+let CK_TIMER=null, CK_BRICK=null;
+
+/* Bronze / Prata / Gold vêm do catálogo (engine/vsplanos) — é dado, não tela. */
+const planoOfertas=()=>(CKCFG?.ofertas||[]).filter(o=>o.catalogo);
+const precoCiclo=(o,ciclo)=>ciclo==='semestral'?o.semestralMensal:(ciclo==='anual'?o.anualMensal:o.mensal);
+const MESES={mensal:1,semestral:6,anual:12};
+const MODULOS_PL=[['whatsapp','WhatsApp'],['redes','Redes sociais'],['combo','WhatsApp + Redes']];
+function totalPlano(){
+  let mensal=0,cheio=0;
+  for(const c of PL.sel){ const o=planoOfertas().find(x=>x.code===c); if(!o) continue; mensal+=precoCiclo(o,PL.ciclo); cheio+=o.mensal; }
+  const m=MESES[PL.ciclo]||1;
+  return {mensal,total:mensal*m,economia:(cheio-mensal)*m};
+}
+function inclusosPlano(o){
+  const l=o.liberacoes, lim=(v,s)=>v==null?`${s} ilimitados`:`${v} ${s}`;
+  return [
+    o.modulo!=='redes'?`${l.operadores} atendente${l.operadores>1?'s':''} no WhatsApp`:null,
+    o.modulo!=='redes'?'Bot 24h com funil de vendas':null,
+    o.modulo!=='whatsapp'?`${l.contasRedes||2} contas de rede social (TikTok e Instagram)`:null,
+    o.produtosLimite!=null?`${o.produtosLimite} produtos no catálogo`:'Produtos ilimitados',
+    lim(l.campanhasMes,'campanhas por mês').replace(/^(\d+) campanhas/,'$1 campanhas'),
+    l.bandaGbMes==null?'Banda ilimitada':`${l.bandaGbMes} GB de banda por mês`,
+    l.auditor?'Auditor completo':'Auditor básico',
+  ].filter(Boolean);
+}
+
+function telaPlanos(){
+  if(!CKCFG) return head('Planos e preços','Os planos do Bolso Cheio.')+
+    vazio('plano','Backend sem a rota de checkout','Reinicie o painel para carregar o módulo novo.',['Reiniciar o painel','Recarregar']);
+  const sem=PL.ciclo==='semestral';
+  const planos=planoOfertas().filter(o=>o.modulo===PL.modulo).sort((a,b)=>a.mensal-b.mensal);
+  const card=(o)=>{
+    const preco=precoCiclo(o,PL.ciclo);
+    return `<div class="tier${o.destaque?' destaque':''}">
+      ${o.destaque?'<span class="tier-selo">Mais escolhido</span>':''}
+      <h4>${esc(o.tier)}</h4>
+      <div class="tier-preco"><b>${reais(preco)}</b><small>/mês</small></div>
+      <p class="tier-sub">${sem?`${reais(preco*6)} no semestre · economiza ${reais((o.mensal-preco)*6)}`:`ou ${reais(o.semestralMensal)}/mês no semestral`}</p>
+      ${botao({t:'Assinar '+o.tier,ic:'comprar',v:o.destaque?'p':'s',on:`assinarPlanoCk('${o.code}')`,extra:'tier-bt'})}
+      <ul class="tier-lista">${inclusosPlano(o).map(i=>`<li>${ico('check')}<span>${esc(i)}</span></li>`).join('')}</ul>
+    </div>`;
+  };
+  const contato=`https://wa.me/${esc(CKCFG.contato)}?text=${encodeURIComponent('Olá! Preciso de algo além dos planos do Bolso Cheio.')}`;
+  return head('Planos e preços','Três planos por módulo. O que for diferente disso entra como adendo.',
+    `<div class="seg">
+      <button class="${!sem?'on':''}" onclick="PL.ciclo='mensal';render()">Mensal</button>
+      <button class="${sem?'on':''}" onclick="PL.ciclo='semestral';render()">Semestral <em>−10%</em></button>
+    </div>`)+
+  avisoModoTeste()+
+  `<div class="seg seg-mod">${MODULOS_PL.map(([k,n])=>`<button class="${PL.modulo===k?'on':''}" onclick="PL.modulo='${k}';render()">${n}</button>`).join('')}</div>
+  <div class="tier-grade">${planos.map(card).join('')||'<p class="hint">Nenhum plano ativo neste módulo.</p>'}</div>
+  <div class="tier-adendo">
+    <span>Precisa de mais atendentes, marketplace ou é uma empresa maior? <b>Isso entra como adendo.</b></span>
+    <a class="btn btn-g btn-xs" href="${contato}" target="_blank" rel="noopener">${ico('whats')}<span>Falar com a gente</span></a>
+  </div>
+`;
+}
+function assinarPlanoCk(code){ PL.sel=[code]; irCheckout(); }
+
+/* Modo teste: aviso VERMELHO onde houver preço, pra ninguém esquecer ligado. */
+function avisoModoTeste(){
+  const t=CKCFG?.modoTeste; if(!t?.ativo) return '';
+  const ate=new Date(t.ate).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  return `<div class="card" style="margin-bottom:16px;border-color:var(--err);background:var(--err-bg)">
+    <b style="color:var(--err)">MODO TESTE LIGADO — toda cobrança sai por R$ 0,50</b>
+    <p class="hint" style="margin:4px 0 8px">Desliga sozinho às ${ate}. A chave de um pagamento de teste vale só 1 dia.</p>
+    ${botao({t:'Desligar agora',ic:'power',v:'dan',sz:'xs',on:'alternarModoTeste(false)'})}</div>`;
+}
+async function alternarModoTeste(ligar){
+  try{
+    const r=await api('checkout/modo-teste',{ligar});
+    CKCFG={...CKCFG,modoTeste:{ativo:r.ativo,ate:r.ate}}; render();
+    flash(r.ativo?'Modo teste ligado: cobranças por R$ 0,50 pelas próximas 2 horas.':'Modo teste desligado: valor cheio de novo.','ok');
+  }catch(e){ avisoErro('Não consegui mudar o modo teste',esc(e.message)); render(); }
+}
+
+function irCheckout(){
+  if(!PL.sel.length) return;
+  CK={passo:'dados',form:CK.form||{},metodo:CK.metodo||'pix'};
+  pararEspera(); ir('pl-checkout');
+}
+
+/* ---------- checkout ---------- */
+function pararEspera(){ if(CK_TIMER){clearInterval(CK_TIMER);CK_TIMER=null;} if(CK_BRICK){try{CK_BRICK.unmount();}catch{} CK_BRICK=null;} }
+
+function resumoPedido(){
+  const m=MESES[PL.ciclo]||1, t=CK.contrato?{total:CK.contrato.valorCiclo}:totalPlano();
+  const nomeCiclo={mensal:'Mensal',semestral:'Semestral — 6 meses',anual:'Anual — 12 meses'}[PL.ciclo];
+  return `<div class="card ck-resumo">
+    <h3>Resumo</h3>
+    ${PL.sel.map(c=>{const o=planoOfertas().find(x=>x.code===c);return o?`<div class="ck-linha"><span>${esc(o.nome)}</span><b>${reais(precoCiclo(o,PL.ciclo)*m)}</b></div>`:'';}).join('')}
+    <div class="ck-linha hint"><span>Ciclo</span><span>${nomeCiclo}</span></div>
+    ${m>1&&totalPlano().economia?`<div class="ck-linha"><span>Economia</span><span>− ${reais(totalPlano().economia)}</span></div>`:''}
+    <div class="ck-total"><span>Total</span><b>${reais(t.total)}</b></div>
+    ${CK.cobrar?.teste?`<div class="ck-linha" style="color:var(--err);font-weight:700"><span>Cobrança de TESTE</span><span>${reais(CK.cobrar.valorCentavos)}</span></div>`:''}
+    ${CK.contrato?`<p class="hint" style="margin:10px 0 0">Contrato ${esc(CK.contrato.numero)}</p>`:''}
+    ${CK.passo==='dados'?botao({t:'Trocar de plano',ic:'ant',v:'g',sz:'xs',on:"pararEspera();ir('pl-planos')"}):''}
+  </div>`;
+}
+
+function telaCheckout(){
+  if(!CKCFG||!PL.sel.length){ setTimeout(()=>ir('pl-planos')); return ''; }
+  const passos=['dados','pagar','fim'], at=CK.passo==='dados'?0:CK.passo==='pagar'?1:2;
+  const trilha=`<div class="ck-trilha">${['Seus dados','Pagamento','Pronto'].map((n,i)=>
+    `<div class="${i<at?'feito':i===at?'agora':''}"><span>${i<at?ico('check'):i+1}</span>${n}</div>`).join('')}</div>`;
+  let corpo='';
+  if(CK.passo==='dados') corpo=ckDados();
+  else if(CK.passo==='pagar') corpo=ckPagar();
+  else corpo=ckFim();
+  return head('Assinar o Bolso Cheio','Pagamento seguro pelo Mercado Pago — Pix ou cartão.')+avisoModoTeste()+trilha+
+    `<div class="ck-grade"><div>${corpo}</div><div>${resumoPedido()}</div></div>`;
+}
+
+function ckDados(){
+  const f=CK.form;
+  return `<div class="card">
+    ${cardH('perfil','Seus dados','A chave de ativação chega no WhatsApp informado aqui.',1)}
+    <div class="form-grid">
+      <div class="field" style="grid-column:1/-1"><label>Nome completo ou razão social</label><input id="ckNome" autocomplete="name" value="${esc(f.nome||'')}"></div>
+      <div class="field"><label>CPF ou CNPJ</label><input id="ckDoc" inputmode="numeric" value="${esc(f.documento||'')}"></div>
+      <div class="field"><label>WhatsApp</label><input id="ckWa" inputmode="tel" autocomplete="tel" placeholder="31 99999-8888" value="${esc(f.whatsapp||'')}"></div>
+      <div class="field" style="grid-column:1/-1"><label>E-mail <small>(o comprovante vai pra ele)</small></label><input id="ckEmail" type="email" autocomplete="email" value="${esc(f.email||'')}"></div>
+    </div>
+    <label class="sw" style="margin-top:16px;align-items:flex-start"><input type="checkbox" id="ckAceite"${f.aceite?' checked':''}><span class="trilho"></span>
+      <span>Li e aceito o <b>contrato de licença de uso</b> do Bolso Cheio, com o valor e o que está liberado neste pedido. <small class="hint">O PDF fica disponível logo depois.</small></span></label>
+    <div style="margin-top:18px">${botao({t:'Continuar para o pagamento',ic:'seta',v:'p',sz:'lg',on:'ckContinuar()',id:'ckBtDados'})}</div>
+  </div>`;
+}
+
+async function ckContinuar(){
+  const v=(id)=>document.getElementById(id)?.value.trim()||'';
+  CK.form={nome:v('ckNome'),documento:v('ckDoc'),whatsapp:v('ckWa'),email:v('ckEmail'),aceite:!!document.getElementById('ckAceite')?.checked};
+  if(!CK.form.aceite) return avisoErro('Falta aceitar o contrato','Ligue a chave <b>Li e aceito o contrato</b> para continuar.');
+  const b=document.getElementById('ckBtDados'); if(b){b.disabled=true;b.querySelector('span').textContent='Preparando o contrato…';}
+  try{
+    const r=await api('checkout/iniciar',{...CK.form,produtos:PL.sel,ciclo:PL.ciclo});
+    CK={...CK,passo:'pagar',clienteId:r.clienteId,contrato:r.contrato,cobrar:r.cobrar};
+    render();
+  }catch(e){
+    render();
+    const lista=e.message.includes(';')?e.message.split('; '):null;
+    avisoErro('Confira seus dados',lista?'Corrija o que está abaixo:':esc(e.message),lista);
+  }
+}
+
+function ckPagar(){
+  const pix=CK.metodo==='pix';
+  return `<div class="card">
+    ${cardH('financeiro','Como você quer pagar?','',3)}
+    <div class="ck-metodos">
+      <button class="${pix?'on':''}" onclick="ckMetodo('pix')">${ico('gerar')}<span><b>Pix</b><small>aprovação na hora</small></span></button>
+      <button class="${!pix?'on':''}" onclick="ckMetodo('cartao')" ${CKCFG.cartao?.ok?'':'disabled title="'+esc(CKCFG.cartao?.motivo||'')+'"'}>${ico('comprar')}<span><b>Cartão</b><small>${(MESES[PL.ciclo]||1)>1?`em até ${MESES[PL.ciclo]}x`:'crédito'}</small></span></button>
+    </div>
+    <div id="ckArea">${pix?ckAreaPix():'<div id="ckCartao"><p class="hint">Carregando o formulário seguro do Mercado Pago…</p></div>'}</div>
+    <p class="hint ck-seguro">${ico('check')} O cartão é digitado no formulário do Mercado Pago e não passa pelo nosso servidor.</p>
+  </div>`;
+}
+
+function ckAreaPix(){
+  const p=CK.pix;
+  if(!p) return `<p class="hint" style="margin:14px 0">Gere o Pix e pague pelo app do seu banco. A tela confirma sozinha.</p>
+    ${botao({t:`Gerar Pix de ${reais(CK.cobrar?.valorCentavos??CK.contrato.valorCiclo)}`,ic:'gerar',v:'p',sz:'lg',on:'ckGerarPix()',id:'ckBtPix'})}`;
+  if(!p.pix) return `<p class="hint" style="margin:14px 0">Esta conta não gera o QR aqui — pague pelo link do Mercado Pago:</p>
+    <a class="btn btn-p" href="${esc(p.link)}" target="_blank" rel="noopener">${ico('seta')}<span>Abrir o Pix no Mercado Pago</span></a>
+    <p class="ck-espera"><span class="giro"></span>Aguardando o pagamento…</p>`;
+  return `<div class="ck-pix">
+    ${p.pixImagem?`<img src="data:image/png;base64,${p.pixImagem}" alt="QR Code do Pix" width="200" height="200">`:''}
+    <div>
+      <p style="margin:0 0 6px"><b>Aponte a câmera do app do banco</b> ou copie o código:</p>
+      <textarea readonly rows="3" id="ckPixCod" onclick="this.select()">${esc(p.pix)}</textarea>
+      ${botao({t:'Copiar código Pix',ic:'copiar',v:'s',on:"navigator.clipboard.writeText(document.getElementById('ckPixCod').value).then(()=>flash('Código Pix copiado.','ok'))"})}
+      <p class="ck-espera"><span class="giro"></span>Aguardando o pagamento — esta tela confirma sozinha.</p>
+    </div></div>`;
+}
+
+function ckMetodo(m){ if(CK.metodo===m) return; pararEspera(); CK.metodo=m; render(); if(m==='cartao') montarCartao(); else if(CK.pix) esperarPagamento(); }
+
+async function ckGerarPix(){
+  const b=document.getElementById('ckBtPix'); if(b){b.disabled=true;b.querySelector('span').textContent='Gerando o Pix…';}
+  try{
+    const r=await api('checkout/pix',{id:CK.clienteId});
+    CK.pix=r.cobranca; CK.ref=r.cobranca.referencia; render(); esperarPagamento();
+  }catch(e){ render(); avisoErro('Não consegui gerar o Pix',esc(e.message)); }
+}
+
+function esperarPagamento(){
+  pararEspera();
+  const inicio=Date.now();
+  CK_TIMER=setInterval(async()=>{
+    if(rota!=='pl-checkout'||Date.now()-inicio>30*60000){ pararEspera(); return; }
+    try{
+      const e=await api(`checkout/estado?id=${encodeURIComponent(CK.clienteId)}&ref=${encodeURIComponent(CK.ref)}`);
+      if(e.estado==='PAGA'){ pararEspera(); CK={...CK,passo:'fim',resultado:{aprovado:true,codigo:e.codigo,validaAte:e.validaAte,entregue:e.entregue,metodo:'pix'}}; render(); }
+    }catch{}
+  },4000);
+}
+
+async function carregarSdkMp(){
+  if(window.MercadoPago) return;
+  await new Promise((ok,falha)=>{const s=document.createElement('script');s.src='https://sdk.mercadopago.com/js/v2';s.onload=ok;s.onerror=()=>falha(new Error('não consegui carregar o Mercado Pago — confira a internet'));document.head.appendChild(s);});
+}
+
+async function montarCartao(){
+  try{
+    await carregarSdkMp();
+    if(CK.metodo!=='cartao'||!document.getElementById('ckCartao')) return;
+    document.getElementById('ckCartao').innerHTML='';
+    const mp=new MercadoPago(CKCFG.cartao.publicKey,{locale:'pt-BR'});
+    const escuro=document.documentElement.dataset.theme==='dark'||(!document.documentElement.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches);
+    CK_BRICK=await mp.bricks().create('cardPayment','ckCartao',{
+      initialization:{amount:(CK.cobrar?.valorCentavos??CK.contrato.valorCiclo)/100,payer:{email:CK.form.email}},
+      customization:{visual:{style:{theme:escuro?'dark':'default'}},paymentMethods:{maxInstallments:CK.cobrar?.teste?1:(MESES[PL.ciclo]||1)}},
+      callbacks:{
+        onReady:()=>{},
+        onError:(e)=>console.warn('[cartao]',e),
+        onSubmit:async(fd)=>{
+          try{
+            const r=await api('checkout/cartao',{id:CK.clienteId,cartao:{token:fd.token,bandeira:fd.payment_method_id,emissor:fd.issuer_id,
+              parcelas:fd.installments,email:fd.payer?.email,documento:fd.payer?.identification?.number}});
+            pararEspera();
+            CK={...CK,passo:'fim',ref:r.referencia,resultado:{...r,metodo:'cartao'}}; render();
+            if(r.emAnalise){ esperarPagamento(); }
+          }catch(e){ pararEspera(); CK={...CK,passo:'fim',resultado:{aprovado:false,recusado:true,mensagem:e.message,metodo:'cartao'}}; render(); }
+        },
+      },
+    });
+  }catch(e){ const a=document.getElementById('ckCartao'); if(a) a.innerHTML=`<p class="hint" style="color:var(--err)">${esc(e.message)}</p>`; }
+}
+
+function ckFim(){
+  const r=CK.resultado||{};
+  if(r.aprovado) return `<div class="card ck-fim ok">
+    <div class="ck-selo">${ico('check')}</div>
+    <h2>Pagamento aprovado!</h2>
+    <p>${r.metodo==='pix'?'Recebemos o seu Pix.':'O cartão foi aprovado.'} Bem-vindo(a) ao Bolso Cheio.</p>
+    <div class="ck-chave"><small>Sua chave de ativação</small><b>${esc(r.codigo||'—')}</b>
+      <small>válida até ${dataBr(r.validaAte)}</small></div>
+    <p class="hint">${r.entregue===false||r.envio?.ok===false?'<b style="color:var(--err)">Não consegui mandar no WhatsApp agora</b> — guarde a chave acima.':`Mandamos a chave também no WhatsApp <b>${esc(CK.form.whatsapp)}</b>.`}</p>
+    <div class="ck-acoes">
+      ${botao({t:'Copiar chave',ic:'copiar',v:'s',on:`navigator.clipboard.writeText('${esc(r.codigo||'')}').then(()=>flash('Chave copiada.','ok'))`})}
+      ${botao({t:'Baixar o contrato',ic:'baixar',v:'s',on:`baixarContrato('${CK.clienteId}',${CK.contrato.versao},false)`})}
+      <a class="btn btn-g" href="/ativar?c=${encodeURIComponent(r.codigo||'')}" target="_blank" rel="noopener">${ico('ver')}<span>Conferir a chave</span></a>
+    </div></div>`;
+  if(r.emAnalise) return `<div class="card ck-fim warn">
+    <div class="ck-selo">${ico('relogio')}</div>
+    <h2>Pagamento em análise</h2>
+    <p>${esc(r.mensagem||'O Mercado Pago está analisando o pagamento.')}</p>
+    <p class="ck-espera"><span class="giro"></span>Assim que aprovar, a chave chega no WhatsApp <b>${esc(CK.form.whatsapp)}</b>.</p></div>`;
+  return `<div class="card ck-fim err">
+    <div class="ck-selo">${ico('fechar')}</div>
+    <h2>Pagamento não aprovado</h2>
+    <p><b>${esc(r.mensagem||'O pagamento não foi aprovado.')}</b></p>
+    <p class="hint">Nada foi cobrado. Você pode tentar de novo agora.</p>
+    <div class="ck-acoes">
+      ${botao({t:'Tentar com outro cartão',ic:'atualizar',v:'p',on:"CK.passo='pagar';CK.metodo='cartao';render();montarCartao()"})}
+      ${botao({t:'Pagar com Pix',ic:'gerar',v:'s',on:"CK.passo='pagar';CK.metodo='pix';CK.pix=null;render()"})}
+    </div></div>`;
+}
+
+/* Sair do telefone, em um lugar só. São DUAS saídas e a diferença importa:
+   pausar guarda o login (volta sem QR); desconectar do telefone sai da conta —
+   o aparelho deixa de listar a sessão, e voltar exige ler o QR de novo. */
+function telaDesconectar(){
+  const c=(CANAIS?.canais||[])[0]||null;
+  const est=c?.estado||'desconectado', no_ar=est==='conectado';
+  return head('Desconectar do telefone','Tirar o bot do WhatsApp do aparelho.')+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Estado',no_ar?'conectado':'desconectado',no_ar?'o bot está atendendo':'ninguém está sendo atendido')}
+    ${kpi('Número',c?.numero?'+'+esc(c.numero):'—',no_ar?'aparelho pareado':'—')}
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('power','Pausar o bot','Fecha a sessão aqui e <b>guarda o login</b>. Para voltar, é só religar — <b>não precisa ler QR</b>. O telefone continua mostrando o Bolso Cheio em Aparelhos conectados.',5)}
+    ${no_ar?botao({t:'Pausar o bot',ic:'power',v:'s',on:'desconectarCanal()'})
+      :botao({t:'Religar (sem QR)',ic:'whats',v:'p',on:'conectarCanal()'})}
+  </div>
+  <div class="card" style="border-color:var(--err-line)">
+    ${cardH('alerta','Desconectar do telefone','Sai da conta de verdade: o aparelho <b>deixa de listar</b> o Bolso Cheio em Aparelhos conectados. Para voltar, o dono do número precisa <b>ler o QR de novo</b> no próprio telefone.',5)}
+    ${botao({t:'Desconectar do telefone',ic:'excluir',v:'dan',on:'despararCanal()',off:!no_ar&&!c})}
+  </div>`;
+}
+function despararCanal(){
+  const c=(CANAIS?.canais||[])[0]||null;
+  confirmar({titulo:'Desconectar do telefone?',
+    texto:`O bot sai da conta${c?.numero?` <b>+${esc(c.numero)}</b>`:''} e o aparelho deixa de mostrar a sessão.`,
+    consequencia:'Para voltar, o dono do número tem de ler o QR Code de novo. Até lá, ninguém é atendido.',
+    rotulo:'Desconectar do telefone',icone:'excluir',perigo:true,
+    aoConfirmar:async()=>{
+      const r=await api('canais/desparear',{canal:'whatsapp-web'});
+      CANAIS=await api('canais'); render();
+      flash(r.saiu?'Desconectado do telefone. Para voltar, leia o QR.':'Bot desligado aqui. Confira no telefone, em Aparelhos conectados, se a sessão sumiu.','ok');
+    }});
+}
+
 const S={
  estoque:()=>{
   if(!EST) return head('Estoque','Produtos, saldo e exportação para os canais.')+
@@ -3306,9 +3997,9 @@ const S={
       (BOT?.config?.emergencia?.ativo??true)?'b-ok':'b-err')}
     ${linha('Ganha de tudo','Passa por cima do silêncio pós-atendimento, da moderação e do bloqueio de 12h','sempre','b-ok')}
     ${linha('Violência doméstica','Manda 180, não 190 — ligar para a polícia com o agressor ao lado nem sempre é seguro','180','b-ok')}
-    ${linha('Falta de respeito','1ª vez pede calma · 2ª encerra por 12h · quem tem contrato nunca é encerrado por robô','ativo','b-ok')}
+    ${linha('Falta de respeito',`${BOT.config.avisosAntesDePausa??2} aviso(s) · depois encerra e pausa por ${BOT.config.horasDePausa??2}h, sem fila · quem tem contrato nunca é encerrado por robô`,'ativo','b-ok')}
     ${linha('Cantada e assédio','Fecha a porta em vez de repetir o menu','ativo','b-ok')}
-    ${linha('Saída do bloqueio','Escrever <b>URGENTE</b> chama uma pessoa mesmo durante as 12h','sempre','b-ok')}
+    ${linha('Saída da pausa','Escrever <b>URGENTE</b> chama uma pessoa mesmo durante a pausa','sempre','b-ok')}
     <p class="hint" style="margin-top:10px">Nasce ligado de propósito. O custo de estar ligado é uma mensagem
       a mais num caso raro; o de estar desligado é silêncio para quem pediu socorro.</p>
   </div>
@@ -3321,12 +4012,22 @@ const S={
       3, BOT.fluxo?`<span class="badge b-ok">no ar</span>`:`<span class="badge">não cadastrado</span>`)}
     <p class="hint" style="margin-bottom:10px">Uma linha por opção. A mensagem do passo vai só na primeira linha dele.
       Ações que encerram: <code>comercial</code> (chama gente), <code>catalogo</code>, <code>confirmar</code>, <code>fim</code>.
-      Botão de verdade só existe na API oficial da Meta — por isso o menu é numerado, que funciona em qualquer aparelho.</p>
+      Botão de verdade só existe na API oficial da Meta — por isso o menu é numerado, que funciona em qualquer aparelho.
+      <b>Foto no passo:</b> coluna <code>imagem</code> com o nome de uma imagem enviada abaixo (ou um link https) — a foto e o texto
+      chegam <b>num balão só</b>. Texto acima de 1.024 caracteres vai num balão logo depois da foto (limite do WhatsApp).</p>
     <div class="tbl-bar">
       <input type="file" id="fxArq" accept=".csv,text/csv" onchange="importarFluxo(this)">
       ${botao({t:'Baixar modelo',ic:'baixar',v:'s',on:'baixarModeloFluxo()'})}
       ${BOT.fluxo?botao({t:'Apagar fluxo',ic:'excluir',v:'no',on:'apagarFluxo()'}):''}
     </div>
+    <div class="tbl-bar" style="margin-top:12px">
+      <label class="hint" style="margin:0">Imagens do fluxo (JPG, PNG ou WEBP, até 5 MB):</label>
+      <input type="file" id="fxImg" accept="image/jpeg,image/png,image/webp" onchange="enviarImagemFluxo(this)">
+    </div>
+    ${(BOT.midias||[]).length?`<div class="tbl-wrap" style="margin-top:8px"><table><thead><tr><th>Nome para a coluna <code>imagem</code></th><th>Tamanho</th><th></th></tr></thead><tbody>
+      ${BOT.midias.map(m=>`<tr><td><code>${esc(m.nome)}</code></td><td>${Math.ceil(m.bytes/1024)} KB</td>
+        <td>${botao({t:'Apagar',ic:'excluir',v:'no',on:`apagarImagemFluxo('${esc(m.nome)}')`})}</td></tr>`).join('')}
+    </tbody></table></div>`:''}
     ${BOT.fluxo?`<div class="tbl-wrap" style="margin-top:12px"><table><thead><tr><th>Passo</th><th>Opções</th></tr></thead><tbody>
       ${(BOT.fluxo.passos_lista||[]).map(x=>`<tr><td><b>${esc(x.id)}</b></td><td>${x.opcoes}</td></tr>`).join('')}
     </tbody></table></div>`:''}
@@ -3375,6 +4076,22 @@ const S={
         <small class="hint">O WhatsApp mostra a foto e o nome <b>da conta</b> em toda mensagem. Enquanto o
         atendimento dividir o número com uma pessoa, assinar é o que deixa claro para o cliente com quem ele
         está falando. Quando o atendimento tiver número próprio, desligue.</small></div>
+      <div class="field" style="grid-column:1/-1"><label style="display:flex;align-items:center;gap:7px;font-weight:400;cursor:pointer;padding-bottom:4px">
+        <input type="checkbox" id="bcCerebro" style="width:auto;margin:0"${c.cerebro?.ligado?' checked':''}>
+        Jogo de cintura: entender o que a pessoa quis com IA local</label>
+        <small class="hint">Quando a pessoa escreve do jeito dela (“o sistema tá dando pau”, “qro assinar”) em vez do número,
+        uma IA que roda nesta máquina diz qual opção ela quis. Grátis, nada sai do servidor. A resposta continua sendo
+        a que você escreveu no fluxo — a IA não fala com o cliente. Leva uns segundos a mais só nesses casos.</small></div>
+      <div class="field" style="grid-column:1/-1"><label>Respeito e brincadeira</label>
+        <small class="hint">Ofensa: avisa, e depois do último aviso encerra o atendimento com uma pausa. Escolher opção
+        errada de propósito, seguidas vezes, também encerra. Encerrado não volta pra fila: passada a pausa, começa do zero.
+        Durante a pausa ela responde uma vez só, dizendo a hora de voltar. “URGENTE” sempre chama uma pessoa.</small></div>
+      <div class="field"><label>Avisos antes de encerrar</label>
+        <input id="bcAvisos" type="number" min="0" value="${esc(c.avisosAntesDePausa??2)}"></div>
+      <div class="field"><label>Horas de pausa</label>
+        <input id="bcPausa" type="number" min="0.25" max="72" step="0.25" value="${esc(c.horasDePausa??2)}"></div>
+      <div class="field"><label>Escolhas erradas seguidas até encerrar</label>
+        <input id="bcErros" type="number" min="2" value="${esc(c.errosDeOpcaoAtePausa??4)}"></div>
       <button class="btn btn-p" onclick="salvarBot()">${ico('salvar')}Salvar</button>
     </div>
     <p class="hint" style="margin-top:10px">Use <code>{nome}</code>, <code>{empresa}</code> nas respostas — são trocados
@@ -4119,13 +4836,14 @@ const S={
 /* Aliases: o menu novo tem itens que sao a MESMA tela vista de outro lugar.
    Clicar no pai abre a primeira coisa util do grupo, nao uma tela em branco. */
 const TELAS={
-  visao:telaVisao, crm:telaCrm, indicacao:telaIndicacao,
+  visao:telaVisao, crm:telaCrm, indicacao:telaIndicacao, clientes:telaClientes, 'wa-desconectar':telaDesconectar,
   whats:S['wa-atendimento'],
   bot:S.bot, 'bot-regras':S.bot,
   redes:S.redes, 'redes-canal':S.redes,
   quebragalho:S.quebragalho, 'qg-painel':S.quebragalho,
   plano:S['pl-consumo'],
   ...S,
+  'pl-planos':telaPlanos, 'pl-checkout':telaCheckout,
 };
 
 /* ---------- render ---------- */
@@ -4162,7 +4880,7 @@ function render(){
   const wpp=canalWhatsApp();
   document.getElementById('pillWa').innerHTML=`<span class="dot ${wpp.no_ar?'on':''}"></span> WhatsApp ${wpp.rotulo}`;
 }
-function ir(id){rota=id;if(PAI[id])abertos.add(PAI[id]);location.hash=id;toggleNav(false);render();scrollTo(0,0);}
+function ir(id){if(id==='clientes'){CLI_SEL=null;CLI_FORM=null;}rota=id;if(PAI[id])abertos.add(PAI[id]);location.hash=id;toggleNav(false);render();scrollTo(0,0);}
 function toggleSub(id){abertos.has(id)?abertos.delete(id):abertos.add(id);renderNav();}
 addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h&&h!==rota){rota=h;render();}});
 
@@ -4177,6 +4895,71 @@ addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h&&h!==rota
  *  - erro sumia junto com o campo, porque eu redesenhava a tela inteira. Agora o
  *    erro aparece NO campo e o que a pessoa digitou continua la.
  */
+function telaMinhaConta(c){
+  document.body.classList.add('sem-nav');
+  const l=c.liberacoes||{}, lic=c.licenca;
+  const itens=[l.operadores!=null?`${l.operadores} atendente(s)`:null,l.campanhasMes!=null?`${l.campanhasMes} campanhas/mês`:null,
+    l.bandaGbMes!=null?`${l.bandaGbMes} GB de banda/mês`:null,l.auditor?'auditor':null,l.botFunil?'bot de funil':null,...(l.redes||[])].filter(Boolean);
+  document.getElementById('view').innerHTML=`<div style="max-width:760px;margin:32px auto;padding:0 16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px">
+      <div><img src="/crm/logo.png" alt="" style="height:34px;vertical-align:middle"> <b style="font-size:18px;vertical-align:middle">Minha conta</b></div>
+      <div style="display:flex;gap:8px">${botao({t:'Trocar senha',ic:'editar',v:'s',on:'abrirTrocarSenha()'})}${botao({t:'Sair',ic:'sair',v:'g',on:'sairDaConta()'})}</div>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <h3 style="margin:0 0 4px">Olá, ${esc(String(c.nome||'').split(' ')[0])}!</h3>
+      <p class="hint" style="margin:0">${esc(c.email)}</p>
+    </div>
+    <div class="grid g-kpi" style="margin-bottom:16px">
+      ${kpi('Plano',(c.plano||[]).join(' + ')||'—',c.ciclo==='semestral'?'semestral':'mensal')}
+      ${kpi('Situação',c.situacao?.texto||'—',lic?'válido até '+new Date(lic.validaAte).toLocaleDateString('pt-BR'):'sem chave válida')}
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      ${cardH('check','O que está liberado','',2)}
+      <p style="margin:0">${esc(itens.join(' · ')||'—')}</p>
+      ${(c.adendos||[]).length?`<p class="hint" style="margin-top:8px">Adendos: ${c.adendos.map(a=>esc(a.nome)+' × '+a.qtd).join(', ')}</p>`:''}
+      ${c.trocaAgendada?`<p class="hint" style="margin-top:8px">Troca de plano agendada para ${new Date(c.trocaAgendada.valeApartir).toLocaleDateString('pt-BR')}.</p>`:''}
+    </div>
+    ${lic?`<div class="card" style="margin-bottom:16px">${cardH('plano','Chave de ativação','',3)}
+      <p style="font:700 20px ui-monospace,monospace;letter-spacing:.05em;margin:0 0 10px">${esc(lic.codigo)}</p>
+      ${botao({t:'Copiar chave',ic:'copiar',v:'s',on:`navigator.clipboard.writeText('${esc(lic.codigo)}').then(()=>flash('Chave copiada.','ok'))`})}</div>`:''}
+    <div class="card">${cardH('contrato','Contrato e plano','',4)}
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        ${c.contrato?botao({t:'Baixar meu contrato',ic:'baixar',v:'s',on:'baixarMeuContrato()'}):''}
+        <a class="btn btn-p" href="/assinar">${ico('comprar')}<span>Trocar de plano ou contratar adendo</span></a>
+      </div></div>
+  </div>`;
+}
+async function baixarMeuContrato(){
+  const res=await fetch('/crm/api/minha-conta/contrato.pdf',{headers:{'x-crm-token':TOKEN}});
+  if(!res.ok) return avisoErro('Não consegui baixar o contrato','Tente de novo em instantes.');
+  const a=Object.assign(document.createElement('a'),{href:URL.createObjectURL(await res.blob()),download:'contrato-bolso-cheio.pdf'});
+  document.body.appendChild(a);a.click();a.remove();
+}
+/* Trocar a senha de dentro do console. Serve pro dono e pro cliente: o
+   servidor troca a do dono da sessão. Esqueceu a atual? Sai e usa "Esqueci
+   minha senha" na tela de entrar. */
+function abrirTrocarSenha(){
+  toggleNav(false);
+  abrirModal('Trocar senha',`
+    <div class="field"><label for="tsAtual">Senha atual</label><input id="tsAtual" type="password" autocomplete="current-password"></div>
+    <div class="field" style="margin-top:12px"><label for="tsNova">Nova senha (mínimo 8 caracteres)</label><input id="tsNova" type="password" autocomplete="new-password"></div>
+    <div class="field" style="margin-top:12px"><label for="tsNova2">Repita a nova senha</label><input id="tsNova2" type="password" autocomplete="new-password"></div>
+    <p class="hint" style="margin-top:10px">Não lembra a atual? Saia e use <b>Esqueci minha senha</b> na tela de entrar — o link chega no seu e-mail.</p>
+    <div id="tsErro" class="campo-erro" role="alert"></div>`,
+    `<button class="btn btn-g" onclick="fecharModal()">Cancelar</button><button class="btn btn-p" id="tsBtn" onclick="salvarTrocaSenha()">Salvar nova senha</button>`);
+}
+async function salvarTrocaSenha(){
+  const v=(id)=>document.getElementById(id).value, err=document.getElementById('tsErro'), b=document.getElementById('tsBtn');
+  const falha=(m)=>{ err.textContent=m; err.classList.add('on'); };
+  err.classList.remove('on');
+  if(v('tsNova').length<8) return falha('A nova senha precisa de pelo menos 8 caracteres.');
+  if(v('tsNova')!==v('tsNova2')) return falha('As duas senhas novas não são iguais.');
+  b.disabled=true;
+  try{ await api('trocar-senha',{atual:v('tsAtual'),nova:v('tsNova')}); fecharModal(); flash('Senha trocada. Use a nova no próximo acesso.','ok'); }
+  catch(e){ b.disabled=false; falha(e.message); }
+}
+async function sairDaConta(){ try{await api('sair',{});}catch{} TOKEN='';sessionStorage.removeItem('crm_token');location.reload(); }
+
 function telaEntrar(){
   document.getElementById('side')?.classList.remove('open');
   document.body.classList.add('sem-nav');
@@ -4248,14 +5031,19 @@ function telaEntrar(){
 
     <div class="entrar-form">
       <div class="entrar-box">
-        <h2 id="lgTitulo">Entrar no console</h2>
-        <p class="entrar-sub" id="lgSub">Use a senha de acesso do console.</p>
+        <h2 id="lgTitulo">Entrar</h2>
+        <p class="entrar-sub" id="lgSub">Use o seu e-mail e a sua senha.</p>
 
-        <div class="field" style="margin-top:20px">
-          <label for="lgSenha" id="lgRotulo">Senha de acesso</label>
+        <div class="field" style="margin-top:20px" id="lgCampoEmail">
+          <label for="lgEmail">E-mail</label>
+          <input id="lgEmail" type="email" autocomplete="username" placeholder="voce@empresa.com.br" autofocus>
+        </div>
+
+        <div class="field" style="margin-top:14px">
+          <label for="lgSenha" id="lgRotulo">Senha</label>
           <div class="senha-wrap">
             <input id="lgSenha" type="password" autocomplete="current-password"
-              placeholder="••••••••" aria-describedby="lgErro" autofocus>
+              placeholder="••••••••" aria-describedby="lgErro">
             <button type="button" id="lgOlho" class="olho" aria-label="Mostrar senha">ver</button>
           </div>
           <div id="lgErro" class="campo-erro" role="alert"></div>
@@ -4272,11 +5060,20 @@ function telaEntrar(){
         </div>
 
         <button class="btn btn-p entrar-btn" id="lgBtn">${ico('entrar')}Entrar</button>
+        <p style="margin:12px 0 0;text-align:center"><a href="#" id="lgEsqueci" style="font-size:14px;font-weight:600">Esqueci minha senha</a></p>
+        <p class="hint" id="lgEsqMsg" style="margin-top:6px;text-align:center"></p>
 
         <div class="entrar-ajuda" id="lgAjuda">
-          <b>Não sabe a senha?</b>
-          <p>Quem definiu o acesso deste console sabe qual é. Se for uma instalação
-          nova, a primeira tela pede para você criar a sua.</p>
+          <b>Ainda não é cliente?</b>
+          <p>Conheça os planos e assine em poucos minutos — o seu acesso chega no WhatsApp e no e-mail.</p>
+          <a class="btn btn-s" href="/assinar" style="margin-top:10px;display:inline-flex">${ico('comprar')}<span>Conhecer e assinar</span></a>
+          <p style="margin-top:14px"><b>Pagou e não recebeu o acesso?</b></p>
+          <p>Informe o e-mail da assinatura: mandamos agora o link para criar a senha no e-mail e no WhatsApp cadastrados.</p>
+          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+            <input id="lgReEmail" type="email" autocomplete="email" placeholder="seu@email.com" style="flex:1;min-width:180px;height:40px">
+            <button class="btn btn-s" id="lgReBtn" type="button">Enviar o link</button>
+          </div>
+          <p class="hint" id="lgReMsg" style="margin-top:8px"></p>
         </div>
       </div>
 
@@ -4297,6 +5094,34 @@ function telaEntrar(){
     campo.select();
   };
   const limparErro=()=>{erro.classList.remove('on');campo.classList.remove('erro');};
+
+  document.getElementById('lgReBtn').onclick=async()=>{
+    const b=document.getElementById('lgReBtn'), msg=document.getElementById('lgReMsg');
+    const em=document.getElementById('lgReEmail').value.trim() || (document.getElementById('lgEmail')?.value||'').trim();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){ msg.textContent='Digite o e-mail usado na assinatura.'; return; }
+    b.disabled=true; b.textContent='Enviando…';
+    try{
+      const r=await fetch('/api/acesso/reenviar',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:em})});
+      const j=await r.json().catch(()=>({}));
+      msg.textContent=r.ok?j.mensagem:(j.erro||'Não consegui enviar agora. Tente de novo em alguns minutos.');
+    }catch{ msg.textContent='Sem conexão. Tente de novo.'; }
+    b.disabled=false; b.textContent='Enviar o link';
+  };
+
+  /* Esqueci a senha: usa o e-mail já digitado. Vale pro dono e pro cliente. */
+  document.getElementById('lgEsqueci').onclick=async(ev)=>{
+    ev.preventDefault();
+    const a=ev.currentTarget, msg=document.getElementById('lgEsqMsg'), cx=document.getElementById('lgEmail');
+    const em=(cx?.value||'').trim();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){ msg.textContent='Digite o seu e-mail no campo acima e clique de novo.'; cx?.focus(); return; }
+    if(a.dataset.ocupado) return; a.dataset.ocupado='1'; msg.textContent='Enviando…';
+    try{
+      const r=await fetch('/api/acesso/esqueci',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:em})});
+      const j=await r.json().catch(()=>({}));
+      msg.textContent=r.ok?j.mensagem:(j.erro||'Não consegui enviar agora. Tente de novo em alguns minutos.');
+    }catch{ msg.textContent='Sem conexão. Tente de novo.'; }
+    delete a.dataset.ocupado;
+  };
 
   document.getElementById('lgOlho').onclick=()=>{
     const ver=campo.type==='password';
@@ -4332,15 +5157,20 @@ function telaEntrar(){
       'nesta máquina, com hash. Para trocar depois, use Configurações dentro do console.</p>';
   };
 
-  const abrirPainel=(senha)=>{
-    TOKEN=senha;
+  const emailCampo=document.getElementById('lgEmail');
+  emailCampo.addEventListener('input',limparErro);
+  /* O que volta do login é uma SESSÃO — a senha não fica guardada na aba nem
+     viaja em cada pedido. */
+  const abrirPainel=(token)=>{
+    TOKEN=token;
     sessionStorage.setItem('crm_token',TOKEN);
     document.body.classList.remove('sem-nav');
     carregar();
   };
 
   const enviar=async()=>{
-    if(!campo.value){ return mostrarErro(criando?'Escolha uma senha.':'Digite a senha de acesso.'); }
+    if(!criando&&!emailCampo.value.trim()){ erro.textContent='Digite o seu e-mail.';erro.classList.add('on');return emailCampo.focus(); }
+    if(!campo.value){ return mostrarErro(criando?'Escolha uma senha.':'Digite a sua senha.'); }
     if(criando){
       if(campo.value.length<8){ return mostrarErro('A senha precisa de pelo menos 8 caracteres.'); }
       if(campo.value!==campo2.value){
@@ -4352,22 +5182,23 @@ function telaEntrar(){
     btn.disabled=true;btn.textContent=criando?'Criando…':'Entrando…';limparErro();
     try{
       if(criando){ await api('criar-acesso',{senha:campo.value}); }
-      else{ await api('entrar',{senha:campo.value}); }
-      abrirPainel(campo.value);
+      const r=await api('entrar',criando?{senha:campo.value}:{email:emailCampo.value.trim(),senha:campo.value});
+      abrirPainel(r.token);
     }catch(e){
       btn.disabled=false;btn.textContent=criando?'Criar e entrar':'Entrar';
       // O servidor avisa quando a instalação ainda não tem senha; a tela vira
       // criação em vez de repetir "senha incorreta" para sempre.
       if(e.message==='primeiro acesso'){ virarCriacao();btn.disabled=false;return campo.focus(); }
-      mostrarErro(e.message==='senha incorreta'
-        ? 'Senha incorreta. Se esta instalação é nova, recarregue para criar a sua.'
+      mostrarErro(/incorret/.test(e.message)
+        ? 'E-mail ou senha incorretos.'
         : e.message);
     }
   };
   btn.onclick=enviar;
   campo.onkeydown=(e)=>{if(e.key==='Enter')enviar();};
+  emailCampo.onkeydown=(e)=>{if(e.key==='Enter')campo.focus();};
   campo2.onkeydown=(e)=>{if(e.key==='Enter')enviar();};
-  campo.focus();
+  emailCampo.focus();
 
   // Pergunta o estado antes de mostrar a tela errada por meio segundo.
   fetch('/crm/api/auth').then(r=>r.json()).then(d=>{ if(d && d.precisaCriar){ virarCriacao(); } })
@@ -4375,6 +5206,11 @@ function telaEntrar(){
 }
 
 async function carregar(){
+  /* Cliente (quem assinou) NÃO vê o console do dono: vai pra própria conta. */
+  try{
+    const eu=await api('minha-conta');
+    if(eu.papel==='cliente'){ return telaMinhaConta(eu); }
+  }catch(e){ if(/sessão expirada|senha ausente|403/.test(e.message)){ TOKEN='';sessionStorage.removeItem('crm_token');return telaEntrar(); } }
   try{
     // O diagnostico do TikTok nao pode derrubar o painel inteiro se o backend for antigo.
     [ST,STATUS,IND,REDES,TK,EST]=await Promise.all([api('painel'),api('status'),api('indicacao'),api('redes'),
@@ -4398,6 +5234,8 @@ async function carregar(){
     ATEND=await api('atendimentos').catch(()=>null);
     PLANOS_CAT=await api('planos').catch(()=>null);
     DOCS=await api('documentos').catch(()=>null);
+    CLIENTES=await api('clientes').catch(()=>null);
+    CKCFG=await api('checkout/config').catch(()=>null);
     CAIXA=await api('caixa'+(PERIODO.de||PERIODO.ate?`?de=${PERIODO.de}&ate=${PERIODO.ate}`:'')).catch(()=>null);
     if(TKAPP&&TKAPP.diagnostico) TK=TKAPP.diagnostico;
     // Telas novas: carregadas a parte pra uma falha nelas nao derrubar o painel todo.
@@ -4572,8 +5410,8 @@ function baixarModeloFluxo(){
      hora de responder, e assim o modelo ja ensina o recurso em vez de chumbar
      uma empresa dentro do arquivo que todo mundo baixa. */
   const quem=nomeBot();
-  const csv=['passo,mensagem,opcao,texto_opcao,vai_para,acao,resposta,valor,sku',
-  `inicio,"Boa noite! Sou ${quem}, atendimento virtual da {empresa}. Em que posso te ajudar?",1,"Já sou cliente",cliente,,`,
+  const csv=['passo,mensagem,opcao,texto_opcao,vai_para,acao,resposta,valor,sku,imagem',
+  `inicio,"Boa noite! Sou ${quem}, atendimento virtual da {empresa}. Em que posso te ajudar?",1,"Já sou cliente",cliente,,,,,`,
   'inicio,,2,"Quero conhecer a solução",novo,,',
   'inicio,,3,"Falar com uma pessoa",,comercial,"Claro! Já estou chamando alguém do time."',
   'cliente,"Que bom te ver de novo! O que você precisa hoje?",1,"Suporte",,comercial,"Vou te passar pro suporte agora."',
@@ -4594,6 +5432,28 @@ async function importarFluxo(input){
     carregar();
   }catch(e){ avisoErro('Não consegui concluir',e.message); }
   input.value='';
+}
+async function enviarImagemFluxo(input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  if(f.size>5*1024*1024){ input.value=''; return avisoErro('Imagem grande demais','O máximo é 5 MB. Diminua a foto e envie de novo.'); }
+  try{
+    const dataUri=await new Promise((ok,falha)=>{const l=new FileReader();l.onload=()=>ok(l.result);l.onerror=()=>falha(new Error('não consegui ler o arquivo'));l.readAsDataURL(f);});
+    const r=await api('bot/midia',{nome:f.name,dataUri});
+    flash(`Imagem enviada. Na planilha, coluna imagem: ${r.nome}`,'ok',12);
+    carregar();
+  }catch(e){ avisoErro('Não consegui enviar a imagem',e.message); }
+  input.value='';
+}
+async function apagarImagemFluxo(nome){
+  return confirmar({
+    titulo:`Apagar a imagem ${nome}?`,
+    texto:'Passo que usa esta imagem passa a mandar só o texto.',
+    rotulo:'Apagar imagem', icone:'excluir', perigo:true,
+    aoConfirmar:async()=>{
+      try{ await api('bot/midia-apagar',{nome}); flash('Imagem apagada.','ok'); carregar(); }
+      catch(e){ avisoErro('Não consegui concluir',e.message); }
+    },
+  });
 }
 async function apagarFluxo(){
   return confirmar({
@@ -5180,6 +6040,7 @@ function rolarAteCard(id){
 }
 
 function sairDoPainel(){
+  api('sair',{}).catch(()=>{});
   TOKEN='';sessionStorage.removeItem('crm_token');telaEntrar();
 }
 
@@ -5196,7 +6057,9 @@ function sairDoPainel(){
 
   if(!est.exigeSenha){ document.body.classList.remove('sem-nav'); return carregar(); }
   if(TOKEN){
-    try{ await api('entrar',{senha:TOKEN}); document.body.classList.remove('sem-nav'); return carregar(); }
+    /* O que fica na aba é a SESSÃO, não a senha: confere por ela. Sessão
+       vencida (ou senha antiga) cai no login dentro do próprio carregar(). */
+    try{ await api('minha-conta'); document.body.classList.remove('sem-nav'); return carregar(); }
     catch{ /* token velho: cai na tela de entrada */ }
   }
   telaEntrar();

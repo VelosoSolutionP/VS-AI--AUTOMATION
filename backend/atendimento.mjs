@@ -38,6 +38,9 @@ import { emReais } from '../engine/vsbot/fluxo.mjs';
  * Sem `segredo` configurado a conferência é PULADA e quem chama recebe
  * `conferida:false` — pra poder gritar no log em vez de fingir que validou.
  */
+/** Limite de legenda de imagem no WhatsApp: acima disso, o texto vai em balão próprio. */
+export const LEGENDA_MAX = 1024;
+
 export function confereAssinatura(corpoCru, header, segredo) {
   if (!segredo) { return { ok: true, conferida: false, motivo: 'WA_APP_SECRET ausente — assinatura não conferida' }; }
   const recebida = String(header || '');
@@ -149,7 +152,9 @@ export async function receberMensagem(msg, deps = {}) {
   }
 
   const chave = lead?.id || t.telefone;
-  const r = bot.atender(msg.texto, {
+  /* Com jogo de cintura: se o fluxo nao entender a escolha, a IA local diz qual
+     opcao a pessoa quis. Desligada ou fora do ar, e o atender de sempre. */
+  const r = await bot.atenderComCerebro(msg.texto, {
     // `de` e o que permite o fluxo lembrar ONDE esta pessoa parou na arvore.
     de: t.telefone,
     /* Por ONDE responder. Com cliente que chega por LID o telefone nao serve
@@ -225,7 +230,22 @@ export async function receberMensagem(msg, deps = {}) {
     }
   }
 
-  const envio = await enviar({ phone: t.telefone, texto });
+  /* FOTO DO PASSO: imagem + texto num balão só (o texto vira a legenda). O
+     WhatsApp corta legenda acima de 1024 caracteres, então texto longo vai logo
+     depois da foto. Se a foto não carregar ou não sair, o TEXTO sai do mesmo
+     jeito — foto é enfeite, a resposta não pode depender dela. */
+  let envio = null;
+  if (r.imagem && deps.enviarImagem && !cobranca) {
+    const dataUri = await bot.midiaComoDataUri(r.imagem);
+    if (!dataUri) { console.warn(`[bot] imagem "${r.imagem}" do passo nao carregou — mando so o texto`); }
+    else {
+      const junto = texto.length <= LEGENDA_MAX;
+      const img = await deps.enviarImagem({ phone: t.telefone, dataUri, legenda: junto ? texto : '', nome: String(r.imagem).split('/').pop() });
+      if (img?.ok && junto) { envio = img; }
+      else if (!img?.ok) { console.warn(`[bot] a imagem "${r.imagem}" nao saiu (${img?.erro || '?'}) — mando so o texto`); }
+    }
+  }
+  if (!envio) { envio = await enviar({ phone: t.telefone, texto }); }
   // Só registra a saída se saiu mesmo (ver cabeçalho do arquivo).
   if (lead && envio.ok) {
     crm.interagir(lead.id, { canal: 'whatsapp', direcao: 'saida', texto });

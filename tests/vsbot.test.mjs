@@ -296,7 +296,8 @@ test('encerrado por silencio, voltar retoma o MESMO protocolo no passo certo', (
   assert.match(volta.texto, /continuar de onde paramos/i);
 });
 
-test('quem ja estava na FILA volta pra fila — nao passa pela Micaela de novo', () => {
+test('quem ja estava na FILA volta pra fila — nao passa pela Micaela de novo (quando a casa LIGA isso)', () => {
+  bot.salvarConfig({ voltarParaFilaAoRetornar: true });
   bot.atender('oi', { de: '5531900200' });  // a primeira mensagem sempre abre o menu
   bot.atender('2', { de: '5531900200' });  // suporte: encaminha na hora
   const numero = proto.aberto('5531900200').numero;
@@ -308,6 +309,16 @@ test('quem ja estava na FILA volta pra fila — nao passa pela Micaela de novo',
   assert.equal(volta.departamento, 'suporte');
   assert.equal(volta.protocolo, numero);
   assert.match(volta.texto, /guardei seu lugar|de volta na fila/i);
+  bot.salvarConfig({ voltarParaFilaAoRetornar: false });
+});
+
+test('PADRAO: encerrou, acabou — quem volta e atendido do zero, sem fila e sem silencio', () => {
+  bot.atender('oi', { de: '5531900201' });
+  bot.atender('2', { de: '5531900201' });
+  assert.equal(proto.aberto('5531900201').estado, proto.ESTADOS.NA_FILA);
+  proto.varrerInativos({ quando: new Date(Date.now() + 10 * 60000).toISOString() });
+  const volta = bot.atender('oi', { de: '5531900201' });
+  assert.ok(!volta.handoff && !volta.calado, 'sem ninguem na fila, voltar pra fila e vacuo');
 });
 
 test('o simulador NAO deixa protocolo de mentira no historico', () => {

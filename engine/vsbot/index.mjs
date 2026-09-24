@@ -4,13 +4,15 @@
  * O canal (WhatsApp, Instagram, site) é de fora: aqui entra texto e sai texto.
  * É o que permite o bot funcionar HOJE, testado, antes de qualquer token da Meta.
  */
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { responder, conversar, validarRegra, escolher, GATILHOS, pediuHumano, preencher } from './regras.mjs';
-import { validarFluxo, avancar, ACOES, comPrecosDoCatalogo } from './fluxo.mjs';
+import { validarFluxo, avancar, ACOES, comPrecosDoCatalogo, opcoesPendentes } from './fluxo.mjs';
 import * as moderacao from './moderacao.mjs';
 import * as emergencia from './emergencia.mjs';
+import * as cerebro from './cerebro.mjs';
+import { entender } from './entender.mjs';
 import { fluxoDeCsv } from './fluxo-csv.mjs';
 
 const dir = () => process.env.VSBOT_DIR || dentroDaCasa('vsbot');
@@ -41,6 +43,17 @@ const PADRAO = {
   usarCatalogo: true,
   limiteCatalogo: 5,
   falhasAteHumano: 2,
+  /* Moderação: quantos avisos antes de encerrar, quanto tempo de pausa, e
+     quantas escolhas erradas seguidas contam como brincadeira. O cliente ajusta. */
+  avisosAntesDePausa: 2,
+  horasDePausa: 2,
+  errosDeOpcaoAtePausa: 4,
+  /* Quem volta depois de encerrado NAO e jogado de volta na fila sozinho: o bot
+     calaria esperando uma pessoa que talvez nem esteja la. Liga quem tem gente
+     de plantao e quer que o cliente volte pro lugar dele. */
+  voltarParaFilaAoRetornar: false,
+  /* IA local (Ollama) que só entende qual opção a pessoa quis — ver cerebro.mjs. */
+  cerebro: { ...cerebro.PADRAO_CEREBRO },
   ativo: false,
 };
 
@@ -50,6 +63,16 @@ export function salvarConfig(mudancas = {}) {
   const novo = { ...getConfig(), ...mudancas };
   if (novo.falhasAteHumano != null && (!Number.isInteger(Number(novo.falhasAteHumano)) || Number(novo.falhasAteHumano) < 1)) {
     return { ok: false, erros: ['“falhas até chamar humano” precisa ser um inteiro maior que zero'] };
+  }
+  const inteiro = (v, min) => Number.isInteger(Number(v)) && Number(v) >= min;
+  if (novo.avisosAntesDePausa != null && !inteiro(novo.avisosAntesDePausa, 0)) {
+    return { ok: false, erros: ['“avisos antes de encerrar” precisa ser um inteiro (0 encerra na primeira ofensa)'] };
+  }
+  if (novo.horasDePausa != null && !(Number(novo.horasDePausa) >= 0.25 && Number(novo.horasDePausa) <= 72)) {
+    return { ok: false, erros: ['“horas de pausa” precisa ficar entre 0,25 (15 min) e 72'] };
+  }
+  if (novo.errosDeOpcaoAtePausa != null && !inteiro(novo.errosDeOpcaoAtePausa, 2)) {
+    return { ok: false, erros: ['“escolhas erradas até encerrar” precisa ser um inteiro a partir de 2'] };
   }
   save('config', novo);
   return { ok: true, config: novo };
@@ -123,6 +146,61 @@ export function simular(mensagens = [], ctx = {}) {
 /* ---------------- fluxo (arvore de atendimento) ---------------- */
 
 export const getFluxo = () => load('fluxo', null);
+
+/* ---------------- imagens do fluxo ----------------
+   O passo pode ter foto. Ela mora aqui (enviada pela tela do bot) ou num link
+   https. Tipo e tamanho travados: é imagem de atendimento, não depósito. */
+const MIDIA_MAX = 5 * 1024 * 1024;
+const TIPOS_MIDIA = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+const pastaMidia = () => join(dir(), 'midia');
+const nomeMidia = (n) => String(n || '').trim().toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
+
+export function salvarMidia({ nome, dataUri } = {}) {
+  const m = String(dataUri || '').match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if (!m) { return { ok: false, motivo: 'mande uma imagem JPG, PNG ou WEBP' }; }
+  const buf = Buffer.from(m[2], 'base64');
+  if (buf.length > MIDIA_MAX) { return { ok: false, motivo: 'imagem maior que 5 MB — diminua antes de enviar' }; }
+  const ext = m[1] === 'image/jpeg' ? 'jpg' : m[1].split('/')[1];
+  let base = nomeMidia(nome).replace(/\.(jpe?g|png|webp)$/, '') || 'imagem';
+  const n = `${base}.${ext}`;
+  mkdirSync(pastaMidia(), { recursive: true });
+  writeFileSync(join(pastaMidia(), n), buf);
+  return { ok: true, nome: n, bytes: buf.length };
+}
+
+export function listarMidias() {
+  try {
+    return readdirSync(pastaMidia()).filter((n) => /\.(jpe?g|png|webp)$/i.test(n))
+      .map((n) => ({ nome: n, bytes: statSync(join(pastaMidia(), n)).size }));
+  } catch { return []; }
+}
+
+export function apagarMidia(nome) {
+  const n = nomeMidia(nome);
+  try { unlinkSync(join(pastaMidia(), n)); return { ok: true }; } catch { return { ok: false, motivo: 'imagem não encontrada' }; }
+}
+
+/** A imagem do passo pronta pra ir pelo WhatsApp. null = não deu (o texto sai assim mesmo). */
+export async function midiaComoDataUri(ref, { fetch: f = globalThis.fetch } = {}) {
+  const r = String(ref || '').trim();
+  if (!r) { return null; }
+  if (/^https:\/\//i.test(r)) {
+    const ctrl = new AbortController();
+    const relogio = setTimeout(() => ctrl.abort(), 10000);
+    try {
+      const res = await f(r, { signal: ctrl.signal });
+      const tipo = String(res.headers?.get?.('content-type') || '').split(';')[0].trim();
+      if (!res.ok || !Object.values(TIPOS_MIDIA).includes(tipo)) { return null; }
+      const buf = Buffer.from(await res.arrayBuffer());
+      return buf.length && buf.length <= MIDIA_MAX ? `data:${tipo};base64,${buf.toString('base64')}` : null;
+    } catch { return null; } finally { clearTimeout(relogio); }
+  }
+  const n = nomeMidia(r);
+  const tipo = TIPOS_MIDIA[n.split('.').pop()];
+  if (!tipo) { return null; }
+  try { return `data:${tipo};base64,${readFileSync(join(pastaMidia(), n)).toString('base64')}`; } catch { return null; }
+}
 
 export function salvarFluxo(passos = []) {
   const v = validarFluxo(passos);
@@ -301,6 +379,81 @@ function assinar(texto, cfg) {
   return `*${nome}:* ${t}`;
 }
 
+/**
+ * Encerrou, acabou: fecha o protocolo (marcado como moderação, pra nao ser
+ * retomado nem voltar pra fila) e a conversa guarda SO a pausa. Sem handoff —
+ * ninguem e jogado numa fila por ter sido encerrado.
+ */
+function encerrarPorModeracao(de, numeroProtocolo, mod, cfg) {
+  if (numeroProtocolo) { proto.encerrarPorNumero(numeroProtocolo, { motivo: 'moderacao' }); }
+  salvarConversa(de, { ...mod.marcar });
+  return {
+    tipo: 'moderacao:encerrou',
+    texto: assinar(mod.texto, cfg),
+    moderacao: 'encerra',
+    motivoModeracao: mod.tipo,
+    silenciadoAte: mod.ate,
+    encerrado: true,
+  };
+}
+
+/**
+ * A IA local tem algo a decidir aqui? Só quando o fluxo não entendeu uma
+ * escolha de menu — e nunca por cima do que tem regra própria: socorro,
+ * ofensa, urgência, pedido de gente, pausa e conversa que está com uma pessoa
+ * seguem pelo caminho de sempre.
+ */
+function pendenteParaCerebro(texto, ctx) {
+  const fx = comPrecosDoCatalogo(getFluxo(), ctx.produtos || []);
+  if (!fx || !ctx.de) { return null; }
+  const cfg = getConfig();
+  if (emergencia.ligado(cfg) && emergencia.detectar(texto).emergencia) { return null; }
+  if (moderacao.ehOfensa(texto) || moderacao.ehAssedio(texto) || moderacao.pediuUrgencia(texto) || pediuHumano(texto)) { return null; }
+  const g = conversas()[ctx.de] || null;
+  if (g?.silenciadoAte && Date.parse(g.silenciadoAte) > Date.now()) { return null; }
+  const atual = esfriou(g) && !g?.handoffEm ? null : g;
+  if (aindaEmSilencio(atual)) { return null; }
+  return opcoesPendentes(fx, atual, texto);
+}
+
+/**
+ * `atender` com jogo de cintura. Quando o fluxo não entende, pergunta à IA local
+ * qual opção a pessoa quis e responde como se ela tivesse digitado o número —
+ * com o TEXTO DO FLUXO, não com texto da IA. Se a IA não souber, estiver fora do
+ * ar ou demorar, é exatamente o `atender` de sempre.
+ */
+export async function atenderComCerebro(texto, ctx = {}, { escolher = cerebro.escolherOpcao } = {}) {
+  const cc = { ...cerebro.PADRAO_CEREBRO, ...(getConfig().cerebro || {}) };
+  if (!cc.ligado) { return atender(texto, ctx); }
+  const q = pendenteParaCerebro(texto, ctx);
+  if (!q) { return atender(texto, ctx); }
+  /* Dicionario primeiro: se a palavra esta na opcao ("o que e esse bolso
+     cheio"), e instantaneo e nao erra. A IA fica pro que o dicionario nao pega. */
+  const dic = q.primeira ? entender(texto, q.opcoes) : {};
+  const r = dic.escolhida ? { tecla: String(dic.escolhida.tecla), ms: 0, via: 'dicionario' } : await escolher(texto, q.opcoes, cc);
+  const trecho = String(texto).replace(/\s+/g, ' ').slice(0, 48);
+  if (!r.tecla) {
+    if (r.erro) { console.warn(`[cerebro] sem resposta da IA local (${r.erro}) — segue o fluxo normal`); }
+    return atender(texto, ctx);
+  }
+  console.log(`[cerebro] "${trecho}" -> opção ${r.tecla} (${r.via === 'dicionario' ? 'dicionário' : `${r.ms} ms`})`);
+  /* Primeira mensagem: abre a conversa no início (protocolo, passo) e já segue
+     pela opção — quem chegou dizendo o que quer não precisa ver o menu antes. */
+  if (q.primeira) {
+    /* Abrir a conversa pode ter dito algo que NAO pode ser engolido: retomada de
+       atendimento, fila, moderacao. So segue pela opcao se a abertura foi o menu
+       inicial puro; senao, a abertura e a resposta. Engolir isso foi o que deixou
+       o dono sem resposta nenhuma. */
+    const abertura = atender(texto, ctx);
+    if (abertura.tipo !== 'fluxo' || abertura.handoff || abertura.calado || abertura.moderacao) { return abertura; }
+    /* Retomou em OUTRO passo: a opcao que a IA escolheu era do menu inicial e
+       nao vale ali. A retomada e a resposta. */
+    if (conversas()[ctx.de]?.passo !== getFluxo()?.inicio) { return abertura; }
+  }
+  const saida = atender(r.tecla, ctx);
+  return { ...saida, entendidoPorIA: { tecla: r.tecla, ms: r.ms, via: r.via || 'ia' } };
+}
+
 export function atender(texto, ctx = {}) {
   const cfg = { ...getConfig(), regras: regras() };
 
@@ -343,11 +496,30 @@ export function atender(texto, ctx = {}) {
   const de = ctx.de || null;
 
   if (fx && de) {
+    /* PAUSA vem antes do protocolo: quem esta em pausa nao abre atendimento a
+       cada mensagem. Acabou a pausa? Conversa do zero — encerrou, acabou. */
+    const conv0 = conversas()[de] || null;
+    const emPausa = !!conv0?.silenciadoAte && Date.parse(conv0.silenciadoAte) > Date.now();
+    if (conv0?.silenciadoAte && !emPausa) { salvarConversa(de, null); }
+    if (emPausa) {
+      const m = moderacao.avaliar(texto, conv0, { limites: cfg });
+      if (m.acao === 'calado') { return { tipo: 'silencio', texto: '', calado: true, motivo: `em pausa até ${m.ate}` }; }
+      if (m.acao === 'pausa') {
+        salvarConversa(de, { ...conv0, ...m.marcar });
+        return { tipo: 'moderacao:pausa', texto: assinar(m.texto, cfg), silenciadoAte: conv0.silenciadoAte };
+      }
+      /* "URGENTE" segue o caminho normal: abre protocolo e chama gente. */
+    }
+
     /* O PROTOCOLO nasce na primeira mensagem, nao no fim. Protocolo criado no
        encerramento nao existe justamente quando a pessoa precisa dele — no meio
        da espera, quando ela pergunta "qual e o meu numero?". E se o sistema cair
        no meio, atendimento sem protocolo e atendimento que nao aconteceu. */
-    const ap = proto.aoChegar(de, { quando: new Date().toISOString(), endereco: ctx.endereco || null });
+    const ap = proto.aoChegar(de, { quando: new Date().toISOString(), endereco: ctx.endereco || null, voltarParaFila: cfg.voltarParaFilaAoRetornar === true });
+    /* Protocolo NOVO com a conversa ainda marcada "com uma pessoa": essa marca e
+       do atendimento que ja foi encerrado. Sem limpar, o bot ficava calado por
+       horas esperando um atendente de um caso que nem existe mais — vacuo. */
+    if (ap.novo && conversas()[de]?.handoffEm) { salvarConversa(de, null); }
 
     /* Voltou depois de encerrado por silencio. Aqui esta a promessa inteira
        deste modulo: ninguem repete o que ja contou. */
@@ -380,6 +552,7 @@ export function atender(texto, ctx = {}) {
        comportamento que faz o dono desligar o bot. */
     const conv = conversas()[de] || null;
     const mod = moderacao.avaliar(texto, conv || {}, {
+      limites: cfg,
       temContrato: ctx.temContrato === true,
       /* Ja encaminhado por urgencia = no meio de um problema serio. Nao se cala
          essa pessoa por 12 horas porque ela perdeu a linha. */
@@ -399,17 +572,14 @@ export function atender(texto, ctx = {}) {
         departamento: 'humano',
       };
     }
-    if (mod.acao === 'avisa' || mod.acao === 'encerra') {
+    if (mod.acao === 'encerra') { return encerrarPorModeracao(de, ap.protocolo.numero, mod, cfg); }
+    if (mod.acao === 'avisa') {
       salvarConversa(de, { ...(conv || {}), ...mod.marcar });
       return {
-        tipo: mod.acao === 'encerra' ? 'moderacao:encerrou' : 'moderacao:aviso',
+        tipo: 'moderacao:aviso',
         texto: assinar(mod.texto, cfg),
         moderacao: mod.acao,
         ...(mod.tipo ? { motivoModeracao: mod.tipo } : {}),
-        /* Encerramento automatico que ninguem revisa vira cliente perdido em
-           silencio — entao ele sobe como handoff pra uma pessoa olhar. */
-        ...(mod.avisarPessoa ? { handoff: true, departamento: 'humano' } : {}),
-        ...(mod.ate ? { silenciadoAte: mod.ate } : {}),
       };
     }
 
@@ -442,6 +612,16 @@ export function atender(texto, ctx = {}) {
 
     const r = avancar(fx, atual, texto);
 
+    /* Escolha errada SEGUIDA: errar uma ou duas vezes e normal e o menu volta
+       sem bronca; no limite, e brincadeira e encerra com pausa. Cliente com
+       contrato nao e encerrado por robo — so recebe o menu de novo. */
+    const errosDeOpcao = r.erroDeEscolha ? Number(atual?.errosDeOpcao || 0) + 1 : 0;
+    if (r.erroDeEscolha && ctx.temContrato !== true) {
+      const po = moderacao.porErroDeOpcao(errosDeOpcao, { limites: cfg });
+      if (po.acao === 'encerra') { return encerrarPorModeracao(de, ap.protocolo.numero, po, cfg); }
+      if (po.acao === 'avisa') { r.texto = `${po.texto}\n\n${r.texto}`; }
+    }
+
     /* O que a pessoa escreve numa pergunta aberta VIRA CONTEXTO do atendimento.
        E isso que faz o especialista receber "importacao travando desde cedo" em
        vez de comecar perguntando "qual e o problema?" — o §22 do desenho: nao
@@ -457,11 +637,13 @@ export function atender(texto, ctx = {}) {
     }
 
     salvarConversa(de, r.passo
-      ? { passo: r.passo, coletando: r.coletando === true, contexto }
+      ? { passo: r.passo, coletando: r.coletando === true, contexto, ...(errosDeOpcao ? { errosDeOpcao } : {}) }
       : (r.handoff ? { handoffEm: new Date().toISOString(), contexto, departamento: r.departamento || null } : null));
 
     const saida = {
       tipo: r.acao ? `fluxo:${r.acao}` : 'fluxo',
+      /* Foto do passo: sai junto com o texto, num balão só (legenda). */
+      ...(r.imagem ? { imagem: r.imagem } : {}),
       texto: r.texto,
       handoff: r.handoff === true,
       acao: r.acao || null,
@@ -525,6 +707,7 @@ export function painel() {
   return {
     config: cfg,
     regras: rs,
+    midias: listarMidias(),
     total: rs.length,
     ativas: rs.filter((r) => r.ativa !== false).length,
     comHandoff: rs.filter((r) => r.handoff).length,

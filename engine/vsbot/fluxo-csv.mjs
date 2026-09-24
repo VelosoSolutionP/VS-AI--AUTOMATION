@@ -63,7 +63,12 @@ const COLUNAS = {
   resposta: ['resposta', 'mensagem_final', 'despedida'],
   valor: ['valor', 'preco', 'preço', 'price', 'valor_rs', 'r$'],
   sku: ['sku', 'codigo', 'código', 'cod', 'produto'],
+  imagem: ['imagem', 'foto', 'image', 'midia', 'mídia'],
 };
+
+/* Imagem do passo: um link https, ou o NOME de um arquivo enviado pela tela do
+   bot ("boas-vindas.jpg"). Vai junto com a mensagem, num balão só. */
+export const imagemValida = (x) => /^https:\/\/\S+$/i.test(x) || /^[a-z0-9][a-z0-9._-]{0,80}\.(jpe?g|png|webp)$/i.test(x);
 
 /**
  * Divide uma linha de CSV respeitando aspas. Vírgula DENTRO de aspas é parte do
@@ -164,6 +169,14 @@ export function fluxoDeCsv(texto) {
         erros.push(`linha ${n + 2}: o passo "${id}" já tinha mensagem — a mensagem vai só na primeira linha do passo`);
       }
       passo.mensagem = msg;
+    }
+    const img = v('imagem');
+    if (img) {
+      if (!imagemValida(img)) {
+        erros.push(`linha ${n + 2}: a imagem "${img}" não serve — use um link https ou o nome de uma imagem enviada na tela do bot (ex.: boas-vindas.jpg)`);
+        return;
+      }
+      passo.imagem = img;
     }
 
     const brutaAcao = v('acao');

@@ -124,13 +124,25 @@ export function encerrar(p, { quando = new Date().toISOString(), motivo = 'inati
  *    Micaela de novo. Perguntar tudo outra vez a quem já falou com gente é o
  *    insulto clássico do atendimento automatizado.
  */
-export function aoVoltar(p, agora = new Date().toISOString()) {
+export function aoVoltar(p, agora = new Date().toISOString(), { voltarParaFila = true } = {}) {
   if (!p || p.estado !== ESTADOS.ENCERRADO) { return { acao: 'seguir' }; }
+  /* Encerrado pela moderação (ofensa, ou brincadeira com as opções) ACABOU:
+     passada a pausa, é conversa nova. Reabrir o protocolo mandaria de volta pra
+     fila quem foi encerrado justamente pra esfriar a cabeça. */
+  if (p.motivoEncerramento === 'moderacao') {
+    return { acao: 'novo', motivo: `o protocolo ${p.numero} foi encerrado pela moderação` };
+  }
   if (horas(p.encerradoEm, agora) > HORAS_RETOMADA) {
     return { acao: 'novo', motivo: `o protocolo ${p.numero} é de mais de ${HORAS_RETOMADA}h atrás` };
   }
 
   const estavaComGente = [ESTADOS.NA_FILA, ESTADOS.COM_HUMANO].includes(p.estadoAntes || p.estado);
+  /* Encerrou, acabou — quando a casa quer assim. Voltar pra fila sozinho, sem
+     ninguem pra atender, e deixar a pessoa no vacuo: o bot cala esperando gente
+     e gente nao vem. Com isto desligado, quem volta e atendido do zero. */
+  if (estavaComGente && !voltarParaFila) {
+    return { acao: 'novo', motivo: `o protocolo ${p.numero} foi encerrado; a casa não reabre fila sozinha` };
+  }
   if (!estavaComGente) {
     return { acao: 'retomar_bot', passo: p.passo, contexto: p.contexto || {}, numero: p.numero };
   }
