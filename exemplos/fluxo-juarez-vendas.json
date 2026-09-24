@@ -1,0 +1,150 @@
+[
+ {
+  "id": "inicio",
+  "mensagem": "Olá, {nome}! Eu sou o Joel, da *Juarez Tele-Entrega*. 🍔\nBora matar essa fome?",
+  "opcoes": [
+   {
+    "tecla": "1",
+    "texto": "Ver o cardápio e pedir",
+    "vaiPara": "cardapio"
+   },
+   {
+    "tecla": "2",
+    "texto": "Falar com um atendente",
+    "acao": "encaminhar",
+    "departamento": "humano",
+    "resposta": "Beleza! Já chamo alguém da equipe pra falar com você. 🙋"
+   }
+  ]
+ },
+ {
+  "id": "cardapio",
+  "mensagem": "Esse é o cardápio de hoje 👇\nEscolha um item pelo número:",
+  "opcoes": [
+   {
+    "tecla": "1",
+    "sku": "JZ-XTUDO",
+    "vaiPara": "mais",
+    "texto": "X-Tudo"
+   },
+   {
+    "tecla": "2",
+    "sku": "JZ-XSALADA",
+    "vaiPara": "mais",
+    "texto": "X-Salada"
+   },
+   {
+    "tecla": "3",
+    "sku": "JZ-MEGABLASTER",
+    "vaiPara": "mais",
+    "texto": "Mega Blaster (serve 3)"
+   },
+   {
+    "tecla": "4",
+    "sku": "JZ-LASANHA",
+    "vaiPara": "mais",
+    "texto": "Lasanha (serve 2)"
+   },
+   {
+    "tecla": "5",
+    "sku": "JZ-REFRI-LATA",
+    "vaiPara": "mais",
+    "texto": "Refrigerante lata"
+   }
+  ]
+ },
+ {
+  "id": "mais",
+  "mensagem": "Anotado! 📝\n\n*Seu pedido até agora:*\n{pedido}\n*Total: {total}*\n\nQuer mais alguma coisa?",
+  "opcoes": [
+   {
+    "tecla": "1",
+    "texto": "Sim, quero mais um item",
+    "vaiPara": "cardapio"
+   },
+   {
+    "tecla": "2",
+    "texto": "Não, pode fechar o pedido",
+    "vaiPara": "entrega"
+   },
+   {
+    "tecla": "3",
+    "texto": "Começar o pedido de novo",
+    "vaiPara": "inicio"
+   }
+  ]
+ },
+ {
+  "id": "entrega",
+  "mensagem": "Vai ser entrega ou você retira aqui?",
+  "opcoes": [
+   {
+    "tecla": "1",
+    "texto": "Entrega",
+    "vaiPara": "endereco"
+   },
+   {
+    "tecla": "2",
+    "texto": "Retiro no balcão",
+    "vaiPara": "resumo_retirada"
+   }
+  ]
+ },
+ {
+  "id": "endereco",
+  "mensagem": "Me passa o endereço completo: rua, número, bairro e um ponto de referência. 🏠",
+  "acao": "coletar",
+  "vaiPara": "resumo_entrega"
+ },
+ {
+  "id": "resumo_entrega",
+  "mensagem": "Confere se está tudo certo:\n\n{pedido}\n*Total: {total}*\n🛵 Entrega em: {endereco}\n\nComo prefere pagar?",
+  "opcoes": [
+   {
+    "tecla": "1",
+    "texto": "PIX agora",
+    "vaiPara": "pagar_pix"
+   },
+   {
+    "tecla": "2",
+    "texto": "Dinheiro ou cartão na entrega",
+    "acao": "encaminhar",
+    "departamento": "comercial",
+    "resposta": "Fechado! ✅ Seu pedido foi pra cozinha e o pagamento é na entrega. Já já alguém da equipe confirma o tempo por aqui."
+   },
+   {
+    "tecla": "3",
+    "texto": "Mudar o pedido",
+    "vaiPara": "inicio"
+   }
+  ]
+ },
+ {
+  "id": "resumo_retirada",
+  "mensagem": "Confere se está tudo certo:\n\n{pedido}\n*Total: {total}*\n🏪 Retirada no balcão\n\nComo prefere pagar?",
+  "opcoes": [
+   {
+    "tecla": "1",
+    "texto": "PIX agora",
+    "vaiPara": "pagar_pix"
+   },
+   {
+    "tecla": "2",
+    "texto": "Pago na retirada",
+    "acao": "encaminhar",
+    "departamento": "comercial",
+    "resposta": "Fechado! ✅ Seu pedido foi pra cozinha. Te aviso por aqui quando estiver pronto pra retirar."
+   },
+   {
+    "tecla": "3",
+    "texto": "Mudar o pedido",
+    "vaiPara": "inicio"
+   }
+  ]
+ },
+ {
+  "id": "pagar_pix",
+  "mensagem": "Perfeito! 🔥 Segue o PIX do seu pedido:",
+  "acao": "cobrar"
+ }
+]

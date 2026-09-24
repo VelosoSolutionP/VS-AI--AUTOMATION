@@ -8,7 +8,7 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, unlinkSy
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { responder, conversar, validarRegra, escolher, GATILHOS, pediuHumano, preencher } from './regras.mjs';
-import { validarFluxo, avancar, ACOES, comPrecosDoCatalogo, opcoesPendentes } from './fluxo.mjs';
+import { validarFluxo, avancar, ACOES, comPrecosDoCatalogo, opcoesPendentes, emReais } from './fluxo.mjs';
 import * as moderacao from './moderacao.mjs';
 import * as emergencia from './emergencia.mjs';
 import * as cerebro from './cerebro.mjs';
@@ -541,10 +541,18 @@ export function atender(texto, ctx = {}) {
         contexto: ap.volta.contexto || {},
       };
     }
-    if (ap.retomado && ap.volta.acao === 'retomar_bot') {
+    /* Retomar so faz sentido se o passo ainda existe. Trocaram o fluxo (outro
+       roteiro, outro negocio) e a pessoa voltava "de onde parou" num passo que
+       nem existe mais — em campo: o bot de vendas novo respondendo com a
+       pergunta do roteiro velho, a cada "oi". Passo sumiu = conversa do zero. */
+    const retomou = ap.retomado && ap.volta.acao === 'retomar_bot'
+      && (fx.passos || []).some((p) => String(p.id).trim() === String(ap.volta.passo || '').trim());
+    if (retomou) {
       /* Volta pro passo em que parou. A mensagem que ela acabou de mandar NAO e
          descartada: e respondida a seguir, ja de dentro do passo certo. */
       salvarConversa(de, { passo: ap.volta.passo, coletando: false, contexto: ap.volta.contexto || {} });
+    } else if (ap.retomado && ap.volta.acao === 'retomar_bot') {
+      salvarConversa(de, null);
     }
 
     /* RESPEITO vem antes de tudo — antes do fluxo, antes do protocolo, antes do
@@ -635,12 +643,46 @@ export function atender(texto, ctx = {}) {
       contexto.itens = [...(contexto.itens || []), r.item];
       contexto.totalCentavos = (contexto.itens || []).reduce((a, i) => a + (i.valorCentavos || 0), 0);
     }
+    /* Voltou pro comeco = pedido novo. Sem isto, "comecar de novo" somava o
+       carrinho de antes no total do pedido seguinte. */
+    if (r.passo && r.passo === fx.inicio) { delete contexto.itens; delete contexto.totalCentavos; }
+    /* O fluxo fala do pedido: {pedido}, {total}, {nome} e o que foi coletado
+       ({endereco}...). Sem isto o resumo antes de pagar era texto fixo, e o
+       cliente confirmava um pedido que nao via. */
+    r.texto = preencher(r.texto, {
+      ...contexto,
+      assistente: cfg.nome,
+      nome: ctx.nome,
+      empresa: ctx.empresa,
+      pedido: resumoDoPedido(contexto.itens),
+      total: emReais(contexto.totalCentavos || 0),
+    });
 
     salvarConversa(de, r.passo
       ? { passo: r.passo, coletando: r.coletando === true, contexto, ...(errosDeOpcao ? { errosDeOpcao } : {}) }
       : (r.handoff ? { handoffEm: new Date().toISOString(), contexto, departamento: r.departamento || null } : null));
 
+    /* CARDS: passo cujo menu e de produtos do estoque manda a foto de cada um
+       (nome, preco, descricao e a tecla pra pedir). Quem envia e o canal; aqui
+       so se diz o que mostrar. O menu em texto continua saindo depois — foto
+       e vitrine, a escolha nao pode depender dela. */
+    const passoNovo = r.passo ? fx.passos.find((p) => p.id === r.passo) : null;
+    const porSku = new Map((ctx.produtos || []).map((p) => [String(p.sku).trim(), p]));
+    /* Uma vez por conversa: mandar as mesmas 5 fotos a cada "quero mais um
+       item" vira spam. Da segunda vez em diante, so o menu em texto. */
+    const jaViuCards = (contexto.cardsVistos || []).includes(r.passo);
+    const cartoes = jaViuCards ? [] : (passoNovo?.opcoes || []).map((o, i) => ({ o, i, p: porSku.get(String(o.sku || '').trim()) }))
+      .filter(({ o, p }) => p?.imagem && !o.indisponivel)
+      .map(({ o, i, p }) => ({ tecla: String(o.tecla || i + 1), nome: o.texto || p.nome, preco: emReais(o.valorCentavos || p.precoCentavos || 0),
+        descricao: p.descricao || '', imagem: p.imagem }));
+
+    if (cartoes.length) {
+      contexto.cardsVistos = [...(contexto.cardsVistos || []), r.passo];
+      salvarConversa(de, { ...(conversas()[de] || {}), contexto });
+    }
+
     const saida = {
+      ...(cartoes.length ? { cartoes } : {}),
       tipo: r.acao ? `fluxo:${r.acao}` : 'fluxo',
       /* Foto do passo: sai junto com o texto, num balão só (legenda). */
       ...(r.imagem ? { imagem: r.imagem } : {}),
@@ -691,13 +733,24 @@ export function atender(texto, ctx = {}) {
       estado: saida.handoff ? proto.ESTADOS.NA_FILA : proto.ESTADOS.COM_BOT,
     });
     saida.protocolo = ap.protocolo.numero;
-    if (ap.retomado && ap.volta.acao === 'retomar_bot') {
+    if (retomou) {
       saida.texto = `${proto.textoDeRetomada(ap.protocolo, ap.volta)}\n\n${saida.texto}`;
     }
     return saida;
   }
 
   return responder(texto, cfg, ctx);
+}
+
+/** "2x X-Tudo — R$ 56,00", um por linha. O carrinho guarda item a item. */
+export function resumoDoPedido(itens = []) {
+  const grupos = new Map();
+  for (const i of itens || []) {
+    const g = grupos.get(i.nome) || { nome: i.nome, qtd: 0, centavos: 0 };
+    g.qtd += 1; g.centavos += i.valorCentavos || 0;
+    grupos.set(i.nome, g);
+  }
+  return [...grupos.values()].map((g) => `${g.qtd}x ${g.nome} — ${emReais(g.centavos)}`).join('\n') || '(nenhum item ainda)';
 }
 
 export function painel() {

@@ -234,6 +234,20 @@ export async function receberMensagem(msg, deps = {}) {
      WhatsApp corta legenda acima de 1024 caracteres, então texto longo vai logo
      depois da foto. Se a foto não carregar ou não sair, o TEXTO sai do mesmo
      jeito — foto é enfeite, a resposta não pode depender dela. */
+  /* CARDS do cardapio: uma foto por produto, com nome, preco e a tecla pra
+     pedir na legenda. Vao ANTES do menu em texto: o cliente ve o lanche e
+     responde o numero. Foto que nao sai nao trava nada — o menu vem logo
+     depois com tudo que ela diria. */
+  if (r.cartoes?.length && deps.enviarImagem) {
+    for (const c of r.cartoes) {
+      const dataUri = await bot.midiaComoDataUri(c.imagem);
+      if (!dataUri) { console.warn(`[bot] foto de "${c.nome}" nao carregou — fica so no menu`); continue; }
+      const legenda = [`*${c.tecla} - ${c.nome}* — ${c.preco}`, c.descricao].filter(Boolean).join('\n');
+      const img = await deps.enviarImagem({ phone: t.telefone, dataUri, legenda, nome: String(c.imagem).split('/').pop() });
+      if (!img?.ok) { console.warn(`[bot] o card de "${c.nome}" nao saiu (${img?.erro || '?'})`); }
+    }
+  }
+
   let envio = null;
   if (r.imagem && deps.enviarImagem && !cobranca) {
     const dataUri = await bot.midiaComoDataUri(r.imagem);
