@@ -776,7 +776,11 @@ body.sem-nav main,body.sem-nav .main{margin-left:0!important}
 /* Card de segurança: a paleta da marca. Verde só onde é "deu certo". */
 #segCard .sw input:checked+.trilho{background:var(--ac)}
 #segCard .sw input:focus-visible+.trilho{outline-color:var(--ac)}
-#segCard .b-neutra{background:var(--raised);color:var(--muted);border-color:var(--line)}
+#segCard .seg-ctl{margin-left:auto;display:flex;align-items:center;justify-content:flex-end;gap:10px;flex:none;min-width:38px}
+#segCard .sw input:disabled+.trilho{opacity:.5;cursor:not-allowed}
+#segCard .sw:has(input:disabled){cursor:not-allowed}
+#segCard .seg-estado{font-size:13px;font-weight:600;color:var(--muted)}
+#segCard .seg-estado.off{color:var(--err)}
 #segCard .seg-secao{font-weight:600;font-size:11px;line-height:1;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:22px 0 6px}
 #segCard .seg-fone{width:72px;text-align:center;border-radius:999px;padding:7px 8px;font-variant-numeric:tabular-nums}
 #segCard .seg-sos{margin-top:18px;padding:16px 18px;border:1px solid var(--line);border-left:3px solid var(--err);border-radius:12px;background:var(--panel-2);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
@@ -5004,6 +5008,11 @@ async function carregarSeguranca(){
 function segSw(id,on,rotulo,extra=''){
   return `<label class="sw"><input type="checkbox" id="${id}"${on?' checked':''} ${extra}><span class="trilho"></span>${rotulo||''}</label>`;
 }
+/* Coluna de controles: toda chave do card mora na mesma coluna, à direita.
+   O que é SEMPRE ligado também é chave — ligada e travada — em vez de um selo
+   que só parece diferente. */
+const segCtl=(html)=>`<div class="seg-ctl">${html}</div>`;
+const segFixo=(dica)=>segCtl(`<label class="sw" title="${esc(dica)}"><input type="checkbox" checked disabled><span class="trilho"></span></label>`);
 function pintarSeguranca(){
   const el=document.getElementById('segCard'); if(!el||!SEG) return;
   const e=SEG.emergencia||{}, m=SEG.moderacao||{}, ligado=e.ativo!==false;
@@ -5013,7 +5022,7 @@ function pintarSeguranca(){
   el.innerHTML=`
     ${cardH('alerta',`Segurança de quem atende e de quem é atendido`,
       `Vale para qualquer negócio que atende público.`,5,
-      segSw('sgAtivo',ligado,ligado?'<b>ligado</b>':'<b style="color:var(--err)">desligado</b>',`onchange="segMudouMestre(this)"`))}
+      segCtl(`<span class="seg-estado${ligado?'':' off'}">${ligado?'ligado':'desligado'}</span>${segSw('sgAtivo',ligado,'',`onchange="segMudouMestre(this)"`)}`))}
     <p class="seg-frase">O Bolso Cheio não substitui polícia, atendimento médico ou serviços de emergência.
       Ele <b>reduz o caminho entre um pedido de ajuda e quem pode agir</b>.</p>
 
@@ -5027,16 +5036,14 @@ function pintarSeguranca(){
             <details style="margin-top:6px"><summary class="hint" style="cursor:pointer">Expressões extras${extras?` (${extras.split('\n').length})`:''}</summary>
               <textarea id="sgTermos_${t}" rows="3" placeholder="uma por linha — ex.: me tira daqui" style="margin-top:6px;width:100%">${esc(extras)}</textarea>
               <small class="hint">Somam às de fábrica. Use o jeito que o SEU público pede ajuda.</small></details></div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <input id="sgFone_${t}" class="seg-fone" value="${esc(ct.fone||(e.telefones||{})[t]||padrao)}" title="Telefone que o bot manda ligar" aria-label="Telefone de ${esc(nome)}">
-            ${segSw('sgTipo_'+t,on,'')}
-          </div></div>`;}).join('')}
-      ${linha('Ganha de tudo','Passa por cima do silêncio pós-atendimento, da moderação e da pausa','sempre','b-neutra')}
+          ${segCtl(`<input id="sgFone_${t}" class="seg-fone" value="${esc(ct.fone||(e.telefones||{})[t]||padrao)}" title="Telefone que o bot manda ligar" aria-label="Telefone de ${esc(nome)}">${segSw('sgTipo_'+t,on,'')}`)}
+          </div>`;}).join('')}
+      <div class="stat-row"><div class="lbl">Ganha de tudo<small>Passa por cima do silêncio pós-atendimento, da moderação e da pausa</small></div>${segFixo('Sempre ligado: pedido de socorro nunca espera')}</div>
       <div class="seg-secao">Respeito no atendimento</div>
       <div class="stat-row"><div class="lbl">Falta de respeito<small>${SEG.avisosAntesDePausa??2} aviso(s) · depois encerra e pausa por ${SEG.horasDePausa??2}h, sem fila · quem tem contrato nunca é encerrado por robô.
-        Os números ficam em <a href="#" onclick="document.getElementById('bcAvisos')?.scrollIntoView({behavior:'smooth',block:'center'});return false">Respeito e brincadeira</a>.</small></div><div style="margin-left:auto">${segSw('sgOfensa',m.ofensa!==false,'')}</div></div>
-      <div class="stat-row"><div class="lbl">Cantada e assédio<small>Fecha a porta na primeira, em vez de repetir o menu</small></div><div style="margin-left:auto">${segSw('sgAssedio',m.assedio!==false,'')}</div></div>
-      ${linha('Saída da pausa','Escrever <b>URGENTE</b> chama uma pessoa mesmo durante a pausa — e alerta os responsáveis','sempre','b-neutra')}
+        Os números ficam em <a href="#" onclick="document.getElementById('bcAvisos')?.scrollIntoView({behavior:'smooth',block:'center'});return false">Respeito e brincadeira</a>.</small></div>${segCtl(segSw('sgOfensa',m.ofensa!==false,''))}</div>
+      <div class="stat-row"><div class="lbl">Cantada e assédio<small>Fecha a porta na primeira, em vez de repetir o menu</small></div>${segCtl(segSw('sgAssedio',m.assedio!==false,''))}</div>
+      <div class="stat-row"><div class="lbl">Saída da pausa<small>Escrever <b>URGENTE</b> chama uma pessoa mesmo durante a pausa — e alerta os responsáveis</small></div>${segFixo('Sempre ligado: castigo de robô não tranca a porta de quem tem urgência')}</div>
       <div style="margin-top:12px">${botao({t:'Salvar segurança',ic:'salvar',v:'p',on:'salvarSeguranca()',id:'sgSalvar'})}</div>
     </div>
 
