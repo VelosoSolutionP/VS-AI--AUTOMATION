@@ -45,16 +45,29 @@ const SINAIS = [
     termos: ['esta passando mal', 'ta passando mal', 'desmaiou', 'parou de respirar', 'overdose'] },
 ];
 
-/** @returns {{emergencia:boolean, tipo?:string, fone?:string, trecho?:string}} */
-export function detectar(texto) {
+/** Os três tipos que a tela configura, na ordem em que são conferidos. */
+export const TIPOS = Object.freeze(['violencia_mulher', 'violencia', 'saude']);
+
+/**
+ * @param {object} cfg  a config `emergencia` da empresa: tipos desligados não
+ *   disparam, e `termosExtras[tipo]` soma as expressões dela às de fábrica
+ *   (o jeito que o público DELA pede socorro).
+ * @returns {{emergencia:boolean, tipo?:string, fone?:string, trecho?:string}}
+ */
+export function detectar(texto, cfg = {}) {
   const t = norm(texto);
   if (!t) { return { emergencia: false }; }
   for (const s of SINAIS) {
-    const achado = s.termos.find((termo) => t.includes(norm(termo)));
-    if (achado) { return { emergencia: true, tipo: s.tipo, fone: s.fone, trecho: achado }; }
+    if (cfg.tipos?.[s.tipo]?.ativo === false) { continue; }
+    const termos = [...s.termos, ...((cfg.termosExtras || {})[s.tipo] || [])].map(norm).filter((x) => x.length >= 3);
+    const achado = termos.find((termo) => t.includes(termo));
+    if (achado) { return { emergencia: true, tipo: s.tipo, fone: telefone(cfg, s.tipo), trecho: achado }; }
   }
   return { emergencia: false };
 }
+
+/** Telefone do tipo: o que a empresa configurou, senão o oficial. */
+export const telefone = (cfg = {}, tipo) => String(cfg.tipos?.[tipo]?.fone || cfg.telefones?.[tipo] || TELEFONES[tipo] || '190');
 
 /**
  * A resposta. Curta de propósito: quem está em perigo não lê parágrafo.
@@ -77,17 +90,25 @@ export const TELEFONES = Object.freeze({
   violencia: '190', violencia_mulher: '180', saude: '192',
 });
 
-export function resposta(sinal, { nomeEscritorio, telefones } = {}) {
-  const fone = (t, padrao) => String((telefones || {})[t] || padrao);
-  const onde = nomeEscritorio ? ` do ${nomeEscritorio}` : ' do escritório';
+/**
+ * `avisando`: só diz que está chamando alguém quando EXISTE alguém cadastrado
+ * pra receber o alerta. Antes dizia "já avisei alguém" sem avisar ninguém — a
+ * pessoa em perigo esperava um retorno que não vinha.
+ */
+export function resposta(sinal, { nomeEscritorio, telefones, cfg, avisando = false } = {}) {
+  const c = cfg || { telefones };
+  const fone = (t) => telefone(c, t);
+  const onde = nomeEscritorio ? ` da ${nomeEscritorio}` : '';
+  const aviso = avisando
+    ? `Estou avisando a equipe${onde} agora, e alguém vai te procurar por aqui.`
+    : 'Sua mensagem ficou registrada.';
   if (sinal.tipo === 'violencia_mulher') {
-    return `🚨 *LIGUE ${fone('violencia_mulher', '180')}* agora — Central de Atendimento à Mulher.\n`
-      + `Se houver perigo imediato, *${fone('violencia', '190')}*.\n\n`
-      + `Já avisei alguém${onde} e estão te procurando por aqui. Se puder, vá para um lugar seguro.`;
+    return `🚨 *LIGUE ${fone('violencia_mulher')}* agora — Central de Atendimento à Mulher.\n`
+      + `Se houver perigo imediato, *${fone('violencia')}*.\n\n`
+      + `${aviso} Se puder, vá para um lugar seguro.`;
   }
   if (sinal.tipo === 'saude') {
-    return `🚨 *LIGUE ${fone('saude', '192')}* agora — SAMU.\n\nJá avisei alguém${onde}.`;
+    return `🚨 *LIGUE ${fone('saude')}* agora — SAMU.\n\n${aviso}`;
   }
-  return `🚨 *LIGUE ${fone('violencia', '190')}* agora — Polícia Militar.\n\n`
-    + `Já avisei alguém${onde} e estão te procurando por aqui. Sua mensagem ficou registrada.`;
+  return `🚨 *LIGUE ${fone('violencia')}* agora — Polícia Militar.\n\n${aviso}`;
 }

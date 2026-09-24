@@ -11,6 +11,7 @@ import { responder, conversar, validarRegra, escolher, GATILHOS, pediuHumano, pr
 import { validarFluxo, avancar, ACOES, comPrecosDoCatalogo, opcoesPendentes, emReais } from './fluxo.mjs';
 import * as moderacao from './moderacao.mjs';
 import * as emergencia from './emergencia.mjs';
+import * as seguranca from '../vsseguranca/index.mjs';
 import * as cerebro from './cerebro.mjs';
 import { entender } from './entender.mjs';
 import { fluxoDeCsv } from './fluxo-csv.mjs';
@@ -449,7 +450,7 @@ function pendenteParaCerebro(texto, ctx) {
   const fx = comPrecosDoCatalogo(getFluxo(), ctx.produtos || []);
   if (!fx || !ctx.de) { return null; }
   const cfg = getConfig();
-  if (emergencia.ligado(cfg) && emergencia.detectar(texto).emergencia) { return null; }
+  if (emergencia.ligado(cfg) && emergencia.detectar(texto, cfg.emergencia || {}).emergencia) { return null; }
   if (moderacao.ehOfensa(texto) || moderacao.ehAssedio(texto) || moderacao.pediuUrgencia(texto) || pediuHumano(texto)) { return null; }
   const g = conversas()[ctx.de] || null;
   if (g?.silenciadoAte && Date.parse(g.silenciadoAte) > Date.now()) { return null; }
@@ -507,7 +508,7 @@ export function atender(texto, ctx = {}) {
      Fica antes do silencio pos-handoff, antes da moderacao e antes do castigo:
      quem esta sendo agredido nao perde o direito de resposta porque xingou o
      atendimento ontem. */
-  const sos = emergencia.ligado(cfg) ? emergencia.detectar(texto) : { emergencia: false };
+  const sos = emergencia.ligado(cfg) ? emergencia.detectar(texto, cfg.emergencia || {}) : { emergencia: false };
   if (sos.emergencia) {
     const de0 = ctx.de || null;
     if (de0) {
@@ -519,11 +520,16 @@ export function atender(texto, ctx = {}) {
         emergencia: { tipo: sos.tipo, em: new Date().toISOString(), trecho: sos.trecho },
       });
     }
+    const avisando = cfg.emergencia?.alertar !== false && seguranca.responsaveis().length > 0;
+    seguranca.auditar({ tipo: `emergencia:${sos.tipo}`, detalhe: `reconheci "${sos.trecho}" e respondi com o ${sos.fone}${avisando ? '' : ' — sem responsável cadastrado para alertar'}`,
+      cliente: ctx.nome || de0 || null, resultado: 'respondido' });
     return {
       tipo: 'emergencia',
       /* SEM assinatura: "*Gael:*" antes de "LIGUE 190" rouba a primeira linha,
          que e a unica que alguem em perigo vai ler. */
-      texto: emergencia.resposta(sos, { nomeEscritorio: ctx.empresa, telefones: cfg.emergencia?.telefones }),
+      texto: emergencia.resposta(sos, { nomeEscritorio: ctx.empresa, cfg: cfg.emergencia || {}, avisando }),
+      /* Quem tem rede (o canal) manda o alerta pros responsáveis. */
+      ...(avisando ? { alerta: { tipo: sos.tipo, trecho: String(texto).slice(0, 200) } } : {}),
       emergencia: sos.tipo,
       handoff: true,
       departamento: 'urgencia',
@@ -603,6 +609,9 @@ export function atender(texto, ctx = {}) {
     const conv = conversas()[de] || null;
     const mod = moderacao.avaliar(texto, conv || {}, {
       limites: cfg,
+      empresa: ctx.empresa && ctx.empresa !== 'nossa loja' ? ctx.empresa : null,
+      ofensa: cfg.moderacao?.ofensa !== false,
+      assedio: cfg.moderacao?.assedio !== false,
       temContrato: ctx.temContrato === true,
       /* Ja encaminhado por urgencia = no meio de um problema serio. Nao se cala
          essa pessoa por 12 horas porque ela perdeu a linha. */
@@ -615,14 +624,20 @@ export function atender(texto, ctx = {}) {
        pode virar porta trancada pra quem tem um problema de verdade. */
     if (mod.acao === 'urgencia') {
       salvarConversa(de, { ...(conv || {}), handoffEm: new Date().toISOString(), departamento: 'humano' });
+      seguranca.auditar({ tipo: 'urgente', detalhe: 'escreveu URGENTE durante a pausa — chamei uma pessoa', protocolo: ap.protocolo.numero, cliente: ctx.nome || de });
       return {
         tipo: 'moderacao:urgencia',
         texto: assinar(mod.texto, cfg),
         handoff: true,
         departamento: 'humano',
+        ...(seguranca.responsaveis().length ? { alerta: { tipo: 'urgente', trecho: String(texto).slice(0, 200) } } : {}),
+        protocolo: ap.protocolo.numero,
       };
     }
-    if (mod.acao === 'encerra') { return encerrarPorModeracao(de, ap.protocolo.numero, mod, cfg); }
+    if (mod.acao === 'encerra') {
+      seguranca.auditar({ tipo: `moderacao:${mod.tipo || 'encerra'}`, detalhe: `encerrei o atendimento com pausa (${mod.tipo === 'assedio' ? 'assédio' : mod.tipo === 'opcoes' ? 'brincadeira com as opções' : 'ofensa'})`, protocolo: ap.protocolo.numero, cliente: ctx.nome || de });
+      return encerrarPorModeracao(de, ap.protocolo.numero, mod, cfg);
+    }
     if (mod.acao === 'avisa') {
       salvarConversa(de, { ...(conv || {}), ...mod.marcar });
       return {

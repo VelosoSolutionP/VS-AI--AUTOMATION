@@ -32,6 +32,7 @@ import * as tk from '../engine/vstiktok/index.mjs';
 import { reservarEvento } from './idempotencia.mjs';
 import * as atendimento from './atendimento.mjs';
 import * as canais from './canais.mjs';
+import * as seguranca from '../engine/vsseguranca/index.mjs';
 import * as operadores from '../engine/vsoperadores/index.mjs';
 import * as proto from '../engine/vsprotocolo/index.mjs';
 import * as planos from '../engine/vsplanos/index.mjs';
@@ -1261,6 +1262,17 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { conversas, esperando: esperando.length, canal: canais.estado() });
     }
     if (req.method === 'GET' && rota === '/crm/api/bot') { return json(res, 200, bot.painel()); }
+    /* Segurança de quem atende e de quem é atendido: config, responsáveis e
+       o que aconteceu (auditoria). */
+    if (req.method === 'GET' && rota === '/crm/api/seguranca') {
+      const c = bot.getConfig();
+      return json(res, 200, {
+        emergencia: c.emergencia || {}, moderacao: c.moderacao || {},
+        avisosAntesDePausa: c.avisosAntesDePausa, horasDePausa: c.horasDePausa,
+        responsaveis: seguranca.responsaveis(), auditoria: seguranca.auditoria(30),
+        canal: (canais.estado().canais || []).find((c) => /whatsapp/.test(c.nome || c.canal || ''))?.estado || null,
+      });
+    }
     if (req.method === 'GET' && rota === '/crm/api/documentos') { return json(res, 200, docs.painel()); }
     if (req.method === 'GET' && rota === '/crm/api/caixa') {
       const u = new URL(req.url, 'http://x');
@@ -1594,6 +1606,26 @@ const server = createServer(async (req, res) => {
           break;
         }
         case '/crm/api/bot/config': r = bot.salvarConfig(d); break;
+        case '/crm/api/seguranca/config': {
+          const antes = bot.getConfig();
+          r = bot.salvarConfig({
+            emergencia: { ...(antes.emergencia || {}), ...(d.emergencia || {}) },
+            moderacao: { ...(antes.moderacao || {}), ...(d.moderacao || {}) },
+          });
+          if (r?.ok !== false) {
+            const e = { ...(antes.emergencia || {}), ...(d.emergencia || {}) };
+            seguranca.auditar({ tipo: 'config', detalhe: `configuração salva por ${quem.email}: socorro ${e.ativo === false ? 'DESLIGADO' : 'ligado'}` });
+          }
+          break;
+        }
+        case '/crm/api/seguranca/responsaveis': r = seguranca.salvarResponsaveis(d.responsaveis || []); break;
+        case '/crm/api/seguranca/teste': r = await canais.alertarResponsaveis({ tipo: 'teste', por: quem.email }); if (!r.ok) { r = { ...r, ok: false, erro: r.motivo || `ninguém recebeu: ${(r.falhas || []).map((f) => `${f.nome} (${f.erro})`).join(', ')}` }; } break;
+        case '/crm/api/seguranca/sos': {
+          seguranca.auditar({ tipo: 'sos', detalhe: `SOS acionado no painel por ${quem.email}${d.motivo ? `: ${String(d.motivo).slice(0, 300)}` : ''}` });
+          r = await canais.alertarResponsaveis({ tipo: 'sos', motivo: d.motivo || null, por: quem.email });
+          if (!r.ok) { r = { ...r, ok: false, erro: r.motivo || `ninguém recebeu: ${(r.falhas || []).map((f) => `${f.nome} (${f.erro})`).join(', ')}` }; }
+          break;
+        }
         case '/crm/api/bot/regra': r = bot.salvarRegra(d); break;
         case '/crm/api/bot/regra-excluir': r = bot.excluirRegra(d.id); break;
         case '/crm/api/bot/fluxo-csv': r = bot.importarFluxoCsv(String(d.csv || '')); break;

@@ -135,8 +135,12 @@ export function avaliar(texto, conversa = {}, opts = {}) {
     return { acao: 'calado', ate: conversa.silenciadoAte };
   }
 
-  const assedio = ehAssedio(texto);
-  if (!assedio && !ehOfensa(texto)) { return { acao: 'segue' }; }
+  /* A empresa decide o que fica ligado. Desligar NÃO mexe na pausa em curso
+     nem no URGENTE: só para de reconhecer ofensa/assédio daqui pra frente. */
+  const assedio = opts.assedio !== false && ehAssedio(texto);
+  const ofensa = opts.ofensa !== false && ehOfensa(texto);
+  if (!assedio && !ofensa) { return { acao: 'segue' }; }
+  const casa = opts.empresa ? `da ${opts.empresa}` : 'do escritório';
 
   const avisos = Number(conversa.avisosDeRespeito || 0);
 
@@ -146,8 +150,8 @@ export function avaliar(texto, conversa = {}, opts = {}) {
     return {
       acao: 'avisa',
       tipo: 'assedio',
-      texto: 'Aqui é o atendimento do escritório, e é só para assuntos do escritório. '
-        + 'Se você precisa de ajuda jurídica, me diz que eu te encaminho.',
+      texto: `Aqui é o atendimento ${casa}, e é só para assuntos ${casa}. `
+        + (opts.empresa ? 'Se precisar de algo da gente, é só me dizer.' : 'Se você precisa de ajuda jurídica, me diz que eu te encaminho.'),
       marcar: { avisosDeRespeito: 1, assedio: new Date(agora).toISOString() },
     };
   }
@@ -159,7 +163,7 @@ export function avaliar(texto, conversa = {}, opts = {}) {
       acao: 'avisa',
       tipo: assedio ? 'assedio' : 'ofensa',
       texto: assedio
-        ? 'Aqui é o atendimento do escritório, e é só para assuntos do escritório.'
+        ? `Aqui é o atendimento ${casa}, e é só para assuntos ${casa}.`
         : 'Vamos manter o respeito, por favor — assim eu consigo te ajudar de verdade.',
       marcar: { avisosDeRespeito: avisos + 1, ofensaComContrato: new Date(agora).toISOString() },
     };

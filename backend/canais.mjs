@@ -16,6 +16,7 @@ import * as atendimento from './atendimento.mjs';
 import * as proto from '../engine/vsprotocolo/index.mjs';
 import * as bot from '../engine/vsbot/index.mjs';
 import * as vigiaPix from './vigia-pix.mjs';
+import * as seguranca from '../engine/vsseguranca/index.mjs';
 import * as pagamentos from '../engine/vspagamentos/index.mjs';
 import * as fin from '../engine/vsfinanceiro/index.mjs';
 import { emReais } from '../engine/vsbot/fluxo.mjs';
@@ -110,6 +111,20 @@ async function avisarPixPago(reg, pagamento) {
   if (l?.ok && !l.repetido) { console.log(`[caixa] entrada de ${pagamento.id} lancada`); }
 }
 
+/**
+ * Alerta de segurança pros responsáveis, pelo WhatsApp conectado. Usado pelo
+ * bot (socorro, URGENTE) e pelo painel (SOS, teste). Canal fora = falha
+ * registrada, nunca "avisei" de mentira.
+ */
+export function alertarResponsaveis(evento) {
+  return seguranca.alertar(evento, {
+    enviar: whatsappWeb ? ({ para, texto }) => whatsappWeb.enviarTexto({ para, texto }) : null,
+  }).then((r) => {
+    console.log(`[seguranca] alerta ${evento.tipo}: ${r.avisados.length ? 'avisei ' + r.avisados.join(', ') : 'NINGUEM avisado'}${r.falhas?.length ? ' | falhou: ' + r.falhas.map((f) => f.nome + ' (' + f.erro + ')').join(', ') : ''}${r.motivo ? ' — ' + r.motivo : ''}`);
+    return r;
+  });
+}
+
 /** O webhook confirmou um pagamento: se for Pix do bot, o desfecho sai agora. */
 export function pixConfirmado(pagamento) {
   return vigiaPix.confirmado(pagamento, { aoConfirmar: avisarPixPago });
@@ -175,6 +190,7 @@ function montar({ produtos } = {}) {
             else { console.error(`[canais] NAO consegui mandar a imagem pra ${quem}: ${env?.erro || 'motivo nao informado'}`); }
             return env;
           },
+          alertar: (evento) => alertarResponsaveis(evento),
           vigiarPix: (reg) => { vigiaPix.registrar(reg); console.log(`[pix] ${reg.referencia}: conferindo o pagamento de ${emReais(reg.totalCentavos)} a cada 10s`); },
           /* Lê pelo ponteiro, não pela cópia: preço mudado no catálogo vale na
              próxima mensagem, sem reconectar nada. */

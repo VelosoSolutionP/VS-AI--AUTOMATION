@@ -177,6 +177,14 @@ export async function receberMensagem(msg, deps = {}) {
   }
   falhas.set(chave, r.tipo === 'fallback' ? (falhas.get(chave) || 0) + 1 : 0);
 
+  /* SOCORRO / URGENTE: o alerta pros responsáveis sai em paralelo com a
+     resposta ao cliente — esperar um pra mandar o outro gasta os segundos que
+     mais importam. O resultado de cada envio fica na auditoria de segurança. */
+  const alerta = r.alerta && deps.alertar
+    ? deps.alertar({ ...r.alerta, cliente: msg.nome || lead?.nome || null, telefone: t.telefone, protocolo: r.protocolo || null })
+      .catch((e) => console.error(`[seguranca] alerta nao saiu: ${e.message}`))
+    : null;
+
   // Catálogo vem com produtos: vira uma linha por item, senão o cliente recebe
   // "olha o que temos:" e mais nada.
   let texto = r.produtos?.length
@@ -283,6 +291,8 @@ export async function receberMensagem(msg, deps = {}) {
       console.error(`[pagamento] o QR de ${r.cobranca.referencia} nao foi enviado: ${img?.erro || 'motivo nao informado'}`);
     }
   }
+
+  if (alerta) { await alerta; }
 
   /* Pix gerado: entra na vigia. Pago, o QR e o copia-e-cola somem da conversa
      e sai o "pagamento recebido" (ver vigia-pix.mjs). */

@@ -3984,27 +3984,13 @@ const S={
   })()}
 
   <!-- SEGURANCA. Fica VISIVEL porque e o tipo de protecao que ninguem sabe que
-       tem ate precisar — e ai e tarde pra descobrir que estava desligada. -->
-  <div class="card" style="margin-bottom:16px">
-    ${(()=>{
-      const e=BOT?.config?.emergencia||{};
-      const ligado=(e.ativo??true)===true;
-      return cardH('alerta',`Segurança de quem atende e de quem é atendido`,
-        `Vale para qualquer negócio que atende público — não só advocacia.`,5,
-        ligado?'<span class="badge b-ok">ligado</span>':'<span class="badge b-err">desligado</span>');
-    })()}
-    ${linha('Pedido de socorro',
-      'Reconhece "socorro", "estão me agredindo", "vão me matar" e responde com o telefone certo na primeira linha',
-      (BOT?.config?.emergencia?.ativo??true)?'190 · 180 · 192':'desligado',
-      (BOT?.config?.emergencia?.ativo??true)?'b-ok':'b-err')}
-    ${linha('Ganha de tudo','Passa por cima do silêncio pós-atendimento, da moderação e do bloqueio de 12h','sempre','b-ok')}
-    ${linha('Violência doméstica','Manda 180, não 190 — ligar para a polícia com o agressor ao lado nem sempre é seguro','180','b-ok')}
-    ${linha('Falta de respeito',`${BOT.config.avisosAntesDePausa??2} aviso(s) · depois encerra e pausa por ${BOT.config.horasDePausa??2}h, sem fila · quem tem contrato nunca é encerrado por robô`,'ativo','b-ok')}
-    ${linha('Cantada e assédio','Fecha a porta em vez de repetir o menu','ativo','b-ok')}
-    ${linha('Saída da pausa','Escrever <b>URGENTE</b> chama uma pessoa mesmo durante a pausa','sempre','b-ok')}
-    <p class="hint" style="margin-top:10px">Nasce ligado de propósito. O custo de estar ligado é uma mensagem
-      a mais num caso raro; o de estar desligado é silêncio para quem pediu socorro.</p>
+       tem ate precisar — e ai e tarde pra descobrir que estava desligada.
+       O card carrega sozinho (/crm/api/seguranca) e tudo nele funciona:
+       chaves, telefones, responsaveis, teste, SOS e auditoria. -->
+  <div class="card" style="margin-bottom:16px" id="segCard">
+    ${cardH('alerta',`Segurança de quem atende e de quem é atendido`,`Carregando…`,5)}
   </div>
+  ${(setTimeout(carregarSeguranca,0),'')}
 
   <div class="card" style="margin-bottom:16px">
     ${cardH('versao',`Fluxo de atendimento`,
@@ -4973,6 +4959,144 @@ async function salvarTrocaSenha(){
   try{ await api('trocar-senha',{atual:v('tsAtual'),nova:v('tsNova')}); fecharModal(); flash('Senha trocada. Use a nova no próximo acesso.','ok'); }
   catch(e){ b.disabled=false; falha(e.message); }
 }
+/* ---------------------------------------------------------------------------
+   SEGURANCA — o card da tela do bot. Estado em SEG; cada botao grava de
+   verdade e a auditoria mostra o que aconteceu.
+   --------------------------------------------------------------------------- */
+let SEG=null;
+const SEG_TIPOS=[
+  ['violencia','Pedido de socorro','Reconhece "socorro", "estão me agredindo", "vão me matar" e responde com o telefone certo na primeira linha','190'],
+  ['violencia_mulher','Violência doméstica','Manda o 180, não o 190 — ligar para a polícia com o agressor ao lado nem sempre é seguro','180'],
+  ['saude','Emergência médica','"Desmaiou", "parou de respirar", "está passando mal" — manda o SAMU','192'],
+];
+async function carregarSeguranca(){
+  const el=document.getElementById('segCard'); if(!el) return;
+  try{ SEG=await api('seguranca'); pintarSeguranca(); }
+  catch(e){ el.innerHTML=cardH('alerta','Segurança de quem atende e de quem é atendido',`Não consegui carregar: ${esc(e.message)}`,5); }
+}
+function segSw(id,on,rotulo,extra=''){
+  return `<label class="sw"><input type="checkbox" id="${id}"${on?' checked':''} ${extra}><span class="trilho"></span>${rotulo||''}</label>`;
+}
+function pintarSeguranca(){
+  const el=document.getElementById('segCard'); if(!el||!SEG) return;
+  const e=SEG.emergencia||{}, m=SEG.moderacao||{}, ligado=e.ativo!==false;
+  const resp=SEG.responsaveis||[];
+  const quando=(iso)=>new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const cor={ok:'b-ok',parcial:'b-warn',falhou:'b-err',respondido:'b-ok'};
+  el.innerHTML=`
+    ${cardH('alerta',`Segurança de quem atende e de quem é atendido`,
+      `Vale para qualquer negócio que atende público.`,5,
+      segSw('sgAtivo',ligado,ligado?'<b>ligado</b>':'<b style="color:var(--err)">desligado</b>',`onchange="segMudouMestre(this)"`))}
+    <p class="hint" style="margin:0 0 12px">O Bolso Cheio não substitui polícia, atendimento médico ou serviços de emergência.
+      Ele <b>reduz o caminho entre um pedido de ajuda e quem pode agir</b>.</p>
+
+    <div class="seg-bloco"${ligado?'':' style="opacity:.55"'}>
+      ${SEG_TIPOS.map(([t,nome,desc,padrao])=>{
+        const ct=(e.tipos||{})[t]||{}, on=ct.ativo!==false;
+        const extras=((e.termosExtras||{})[t]||[]).join('\n');
+        return `<div class="stat-row" style="align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div class="lbl" style="flex:1;min-width:220px">${esc(nome)}<small>${desc}</small>
+            <details style="margin-top:6px"><summary class="hint" style="cursor:pointer">Expressões extras${extras?` (${extras.split('\n').length})`:''}</summary>
+              <textarea id="sgTermos_${t}" rows="3" placeholder="uma por linha — ex.: me tira daqui" style="margin-top:6px;width:100%">${esc(extras)}</textarea>
+              <small class="hint">Somam às de fábrica. Use o jeito que o SEU público pede ajuda.</small></details></div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input id="sgFone_${t}" value="${esc(ct.fone||(e.telefones||{})[t]||padrao)}" style="width:78px;text-align:center" title="Telefone que o bot manda ligar">
+            ${segSw('sgTipo_'+t,on,'')}
+          </div></div>`;}).join('')}
+      ${linha('Ganha de tudo','Passa por cima do silêncio pós-atendimento, da moderação e da pausa','sempre','b-ok')}
+      <div class="stat-row"><div class="lbl">Falta de respeito<small>${SEG.avisosAntesDePausa??2} aviso(s) · depois encerra e pausa por ${SEG.horasDePausa??2}h, sem fila · quem tem contrato nunca é encerrado por robô.
+        Os números ficam em <a href="#" onclick="document.getElementById('bcAvisos')?.scrollIntoView({behavior:'smooth',block:'center'});return false">Respeito e brincadeira</a>.</small></div><div style="margin-left:auto">${segSw('sgOfensa',m.ofensa!==false,'')}</div></div>
+      <div class="stat-row"><div class="lbl">Cantada e assédio<small>Fecha a porta na primeira, em vez de repetir o menu</small></div><div style="margin-left:auto">${segSw('sgAssedio',m.assedio!==false,'')}</div></div>
+      ${linha('Saída da pausa','Escrever <b>URGENTE</b> chama uma pessoa mesmo durante a pausa — e alerta os responsáveis','sempre','b-ok')}
+      <div style="margin-top:12px">${botao({t:'Salvar segurança',ic:'salvar',v:'p',on:'salvarSeguranca()',id:'sgSalvar'})}</div>
+    </div>
+
+    <h4 style="margin:22px 0 4px">Quem recebe os alertas</h4>
+    <p class="hint" style="margin:0 0 10px">Pedido de socorro, <b>URGENTE</b> e SOS chegam no WhatsApp destas pessoas, na hora.
+      ${resp.length?'':'<b style="color:var(--err)">Ninguém cadastrado: hoje nenhum alerta sai — e o bot não diz ao cliente que avisou alguém.</b>'}</p>
+    <div id="sgResp">${(resp.length?resp:[{nome:'',whatsapp:''}]).map((r,i)=>segLinhaResp(r,i)).join('')}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      ${botao({t:'Adicionar responsável',ic:'mais',v:'s',on:'segAddResp()'})}
+      ${botao({t:'Salvar responsáveis',ic:'salvar',v:'p',on:'salvarResponsaveis()',id:'sgSalvarResp'})}
+      ${botao({t:'Enviar alerta de teste',ic:'enviar',v:'s',on:'testarAlerta()',id:'sgTeste',off:!resp.length})}
+    </div>
+
+    <div class="seg-sos" style="margin-top:22px;padding:16px;border:1px solid var(--err);border-radius:12px;background:var(--err-bg,rgba(220,38,38,.06));display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+      <div style="flex:1;min-width:220px"><b>Botão SOS</b><p class="hint" style="margin:4px 0 0">O atendente está em perigo ou precisa de ajuda agora? Um clique alerta todos os responsáveis.</p></div>
+      <button class="btn" style="font-size:16px;padding:12px 22px;background:#dc2626;color:#fff;border-color:#dc2626;font-weight:700" onclick="abrirSos()">🆘 Acionar SOS</button>
+    </div>
+
+    <h4 style="margin:22px 0 6px">Auditoria</h4>
+    ${(SEG.auditoria||[]).length?`<div class="tabela-wrap" style="overflow-x:auto"><table class="tabela" style="width:100%;font-size:13px">
+      <thead><tr><th style="text-align:left">Quando</th><th style="text-align:left">O quê</th><th style="text-align:left">Detalhe</th><th>Resultado</th></tr></thead>
+      <tbody>${SEG.auditoria.map(a=>`<tr><td style="white-space:nowrap">${quando(a.em)}</td><td>${esc(segNomeEvento(a.tipo))}</td>
+        <td>${esc(a.detalhe||'')}${a.cliente?`<br><small class="hint">${esc(a.cliente)}${a.protocolo?' · '+esc(a.protocolo):''}</small>`:''}</td>
+        <td style="text-align:center">${a.resultado?`<span class="badge ${cor[a.resultado]||''}">${esc(a.resultado)}</span>`:''}</td></tr>`).join('')}</tbody></table></div>`
+      :'<p class="hint">Nada registrado ainda. Todo acionamento, alerta e encerramento por moderação aparece aqui.</p>'}
+  `;
+}
+function segNomeEvento(t){
+  const n={'emergencia:violencia':'Pedido de socorro','emergencia:violencia_mulher':'Violência doméstica','emergencia:saude':'Emergência médica',
+    'alerta:violencia':'Alerta — socorro','alerta:violencia_mulher':'Alerta — violência doméstica','alerta:saude':'Alerta — emergência médica',
+    'alerta:urgente':'Alerta — URGENTE','alerta:sos':'Alerta — SOS','alerta:teste':'Alerta de teste','sos':'SOS acionado','urgente':'URGENTE na pausa',
+    'moderacao:ofensa':'Encerrado por ofensa','moderacao:assedio':'Encerrado por assédio','moderacao:opcoes':'Encerrado por brincadeira','config':'Configuração'};
+  return n[t]||t;
+}
+function segLinhaResp(r,i){
+  return `<div class="form-grid seg-resp" style="grid-template-columns:1fr 1fr auto;align-items:end;margin-bottom:6px">
+    <div class="field"><label>Nome</label><input class="sgRespNome" value="${esc(r.nome)}" placeholder="Ex.: Juarez (dono)"></div>
+    <div class="field"><label>WhatsApp com DDD</label><input class="sgRespFone" value="${esc(r.whatsapp)}" placeholder="31 99999-9999"></div>
+    <button class="btn btn-g" title="Remover" onclick="this.closest('.seg-resp').remove()">${ico('excluir')}</button></div>`;
+}
+function segAddResp(){ document.getElementById('sgResp').insertAdjacentHTML('beforeend',segLinhaResp({nome:'',whatsapp:''})); }
+function segMudouMestre(cx){
+  if(cx.checked) return salvarSeguranca();
+  cx.checked=true;
+  confirmar({titulo:'Desligar a segurança?',texto:'Com a segurança desligada, quem escrever "socorro" ou "estão me agredindo" recebe a resposta comum do atendimento — sem telefone de emergência e sem alerta para ninguém.',
+    consequencia:'O custo de estar ligado é uma mensagem a mais num caso raro. O de estar desligado é silêncio para quem pediu socorro.',
+    rotulo:'Desligar mesmo assim',icone:'alerta',aoConfirmar:async()=>{ document.getElementById('sgAtivo').checked=false; await salvarSeguranca(); }});
+}
+async function salvarSeguranca(){
+  const ck=(id)=>!!document.getElementById(id)?.checked, v=(id)=>document.getElementById(id)?.value.trim()||'';
+  const tipos={}, termosExtras={};
+  for(const [t,,,padrao] of SEG_TIPOS){
+    const fone=v('sgFone_'+t).replace(/\s/g,'');
+    if(!/^\d{3,15}$/.test(fone)) return avisoErro('Telefone inválido',`O telefone de emergência "${esc(fone)}" precisa ser só números (ex.: ${padrao}).`);
+    tipos[t]={ativo:ck('sgTipo_'+t),fone};
+    termosExtras[t]=v('sgTermos_'+t).split('\n').map(x=>x.trim()).filter(x=>x.length>=3);
+  }
+  const b=document.getElementById('sgSalvar'); if(b) b.disabled=true;
+  try{
+    await api('seguranca/config',{emergencia:{ativo:ck('sgAtivo'),tipos,termosExtras},moderacao:{ofensa:ck('sgOfensa'),assedio:ck('sgAssedio')}});
+    flash('Segurança salva.','ok'); await carregarSeguranca();
+  }catch(e){ avisoErro('Não consegui salvar a segurança',e.message); if(b) b.disabled=false; }
+}
+async function salvarResponsaveis(){
+  const linhas=[...document.querySelectorAll('#sgResp .seg-resp')].map(l=>({nome:l.querySelector('.sgRespNome').value.trim(),whatsapp:l.querySelector('.sgRespFone').value.trim()}))
+    .filter(r=>r.nome||r.whatsapp);
+  try{ await api('seguranca/responsaveis',{responsaveis:linhas}); flash(linhas.length?'Responsáveis salvos.':'Lista de responsáveis esvaziada.','ok'); await carregarSeguranca(); }
+  catch(e){ avisoErro('Não consegui salvar os responsáveis',e.message); }
+}
+async function testarAlerta(){
+  const b=document.getElementById('sgTeste'); if(b){ b.disabled=true; b.innerHTML=ico('relogio')+'<span>Enviando…</span>'; }
+  try{ const r=await api('seguranca/teste',{}); avisoOk('Alerta de teste enviado',`Chegou para: <b>${esc(r.avisados.join(', '))}</b>.${r.falhas?.length?`<br>Não chegou para: ${esc(r.falhas.map(f=>f.nome+' ('+f.erro+')').join(', '))}`:''}`); }
+  catch(e){ avisoErro('O alerta de teste não saiu',e.message); }
+  await carregarSeguranca();
+}
+function abrirSos(){
+  abrirModal('🆘 Acionar SOS',`<p class="hint" style="margin:0 0 10px">Todos os responsáveis recebem agora, no WhatsApp, que o atendimento pediu ajuda.</p>
+    <div class="field"><label for="sosMotivo">O que está acontecendo? (opcional)</label><textarea id="sosMotivo" rows="3" placeholder="Ex.: cliente ameaçando no balcão"></textarea></div>
+    <p class="hint" style="margin-top:8px">Se houver risco à vida, <b>ligue 190</b> também.</p>`,
+    `${BT.cancelar()}<button class="btn" id="sosBtn" style="background:#dc2626;color:#fff;border-color:#dc2626;font-weight:700" onclick="dispararSos()">🆘 Enviar alerta agora</button>`);
+}
+async function dispararSos(){
+  const b=document.getElementById('sosBtn'); if(b){ b.disabled=true; b.textContent='Enviando…'; }
+  const motivo=document.getElementById('sosMotivo')?.value.trim()||'';
+  try{ const r=await api('seguranca/sos',{motivo}); fecharModal(); avisoOk('SOS enviado',`Avisados agora: <b>${esc(r.avisados.join(', '))}</b>.${r.falhas?.length?`<br>Não chegou para: ${esc(r.falhas.map(f=>f.nome).join(', '))}`:''}`); }
+  catch(e){ fecharModal(); avisoErro('O SOS NÃO foi entregue',`${esc(e.message)}. <b>Ligue 190</b> se houver risco.`); }
+  await carregarSeguranca();
+}
+
 async function sairDaConta(){ try{await api('sair',{});}catch{} TOKEN='';sessionStorage.removeItem('crm_token');location.reload(); }
 
 function telaEntrar(){
