@@ -109,6 +109,7 @@ function paraCliente(p) {
     precoCentavos: precoVigente(p),
     precoDeCentavos: p.precoPromocionalCentavos != null ? p.precoCentavos : null,
     imagem: p.imagens?.[0] || null,
+    imagens: p.imagens || [],
     disponivel: disponivel(p),
     esgotado: disponivel(p) <= 0,
   });
@@ -248,6 +249,16 @@ export const excluirLote = (id) => lote.excluirLote(id);
 
 export function exportar(canal, opts = {}) {
   return exportarCanal(listar(), canal, opts);
+}
+
+/** Feed público (Google, busca automática): só o que o dono pôs na vitrine. */
+export function exportarVitrine(canal, opts = {}) {
+  return exportarCanal(listar().filter((p) => p.naVitrine === true), canal, opts);
+}
+
+/** Um produto da vitrine pelo SKU — a página pública dele. null = não está exposto. */
+export function daVitrinePorSku(sku) {
+  return daVitrine().find((p) => String(p.sku) === String(sku)) || null;
 }
 
 /** Visão da tela: números, alertas e o que está pronto pra cada canal. */

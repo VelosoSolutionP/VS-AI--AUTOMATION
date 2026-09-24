@@ -43,7 +43,7 @@ import * as docs from '../engine/vsdocumentos/index.mjs';
 import * as clientes from '../engine/vsclientes/index.mjs';
 import * as clientesSrv from './clientes-servicos.mjs';
 import * as midia from './midia.mjs';
-import { pagina as paginaVitrine } from './vitrine.mjs';
+import { pagina as paginaVitrine, paginaProduto, paginaSumiu } from './vitrine.mjs';
 import { lerCorpoLimitado, criarRateLimit, ipDe, segredoIgual, CORPO_MAX_BYTES } from './limites.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -826,14 +826,51 @@ const server = createServer(async (req, res) => {
      pelo link que o dono manda no WhatsApp. So produto marcado como exposto e
      ativo aparece; esgotado aparece marcado, nao sumido — sumir da a impressao
      de que a loja e menor do que e. */
-  if (req.method === 'GET' && (req.url === '/vitrine' || req.url.split('?')[0] === '/vitrine')) {
+  const rotaV = req.url.split('?')[0];
+  /* Robô de busca: a vitrine é pra ser achada; o painel, o login e a API não. */
+  if (req.method === 'GET' && rotaV === '/robots.txt') {
+    res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=3600' });
+    return res.end(['User-agent: *', 'Allow: /vitrine', 'Allow: /midia/', 'Disallow: /crm', 'Disallow: /api/', 'Disallow: /criar-acesso',
+      'Disallow: /redefinir-senha', 'Disallow: /ativar', 'Disallow: /assinar', `Sitemap: ${origemPublica()}/vitrine/sitemap.xml`, ''].join('\n'));
+  }
+  if (req.method === 'GET' && rotaV === '/vitrine/sitemap.xml') {
+    const o = origemPublica();
+    const urls = [`${o}/vitrine`, ...estoque.daVitrine().map((p) => `${o}/vitrine/p/${encodeURIComponent(p.sku)}`)];
+    res.writeHead(200, { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=3600' });
+    return res.end(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${
+      urls.map((u) => `  <url><loc>${u.replace(/&/g, '&amp;')}</loc></url>`).join('\n')}\n</urlset>\n`);
+  }
+  if (req.method === 'GET' && (rotaV === '/vitrine' || rotaV.startsWith('/vitrine/'))) {
+    /* O botão "pedir" cai no WhatsApp que ATENDE: o número configurado pra
+       vitrine ou, sem ele, o do bot conectado agora. Antes, sem a variável, todo
+       card dizia "Consulte a loja" e ninguém chegava na conversa. */
+    const lojaV = {
+      nome: process.env.VITRINE_NOME || 'Veloso Solution',
+      descricao: process.env.VITRINE_DESCRICAO,
+      whatsapp: process.env.VITRINE_WHATSAPP
+        || (canais.estado().canais || []).find((c) => c.nome === 'whatsapp-web' && c.numero)?.numero || null,
+      origem: origemPublica(),
+    };
     try {
-      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=60' });
-      return res.end(paginaVitrine(estoque.daVitrine(), {
-        nome: process.env.VITRINE_NOME || 'Veloso Solution',
-        descricao: process.env.VITRINE_DESCRICAO,
-        whatsapp: process.env.VITRINE_WHATSAPP,
-      }));
+      if (rotaV === '/vitrine') {
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=60' });
+        return res.end(paginaVitrine(estoque.daVitrine(), lojaV));
+      }
+      /* FEED DO GOOGLE (Merchant Center busca sozinho, todo dia). Só produto da
+         vitrine, e o link de cada um é a página dele aqui mesmo. */
+      if (rotaV === '/vitrine/google.xml') {
+        const f = estoque.exportarVitrine('google', { loja: lojaV.nome, site: `${lojaV.origem}/vitrine`,
+          linkDe: (sku) => `${lojaV.origem}/vitrine/p/${encodeURIComponent(sku)}` });
+        res.writeHead(200, { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=300',
+          'x-vs-incluidos': String(f.incluidos), 'x-vs-recusados': String((f.recusados || []).length) });
+        return res.end(f.conteudo);
+      }
+      if (rotaV.startsWith('/vitrine/p/')) {
+        const p = estoque.daVitrinePorSku(decodeURIComponent(rotaV.slice('/vitrine/p/'.length)));
+        if (!p) { res.writeHead(404, { 'content-type': 'text/html; charset=utf-8' }); return res.end(paginaSumiu(lojaV)); }
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=60' });
+        return res.end(paginaProduto(p, lojaV));
+      }
     } catch (e) { return json(res, 500, { erro: 'vitrine: ' + e.message }); }
   }
 

@@ -243,7 +243,12 @@ export function exportar(produtos = [], canal = 'json', opts = {}) {
   if (!spec) { return { ok: false, motivo: `formato desconhecido: "${canal}" (use ${FORMATOS.join(', ')})` }; }
 
   const em = opts.em || new Date().toISOString();
-  const candidatos = opts.incluirInativos ? produtos : produtos.filter((p) => p.ativo !== false);
+  /* `linkDe`: quem publica a página do produto (a vitrine) diz o endereço dela.
+     Link é o campo que mais derruba produto no Google e na Meta, e cobrar do
+     dono uma URL que o próprio sistema tem é trabalho à toa. Link escrito à mão
+     no produto continua valendo. */
+  const comLink = (p) => (!String(p.link || '').trim() && opts.linkDe ? { ...p, link: opts.linkDe(p.sku) } : p);
+  const candidatos = (opts.incluirInativos ? produtos : produtos.filter((p) => p.ativo !== false)).map(comLink);
 
   const itens = [];
   const recusados = [];
