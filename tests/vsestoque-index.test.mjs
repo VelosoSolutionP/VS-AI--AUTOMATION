@@ -224,3 +224,19 @@ test('esquecer canal tira o registro e nao o produto', () => {
 test('registrar canal em produto inexistente e recusado', () => {
   assert.equal(vs.registrarCanal('fantasma', 'tiktok', {}).ok, false);
 });
+
+/* Hamburgueria que vende so pelo WhatsApp: catalogo ativo, vitrine vazia. O bot
+   lia a vitrine e respondia "nao temos cardapio" com cinco itens cadastrados. */
+test('atendimento enxerga produto ativo fora da vitrine; inativo e excluido nao', () => {
+  assert.equal(vs.criar({ sku: 'jz-xtudo', nome: 'X-Tudo', preco: 28, quantidade: 40 }).ok, true);
+  assert.equal(vs.obter('jz-xtudo').naVitrine, false);
+  assert.equal(vs.daVitrine().some((p) => p.sku === 'jz-xtudo'), false, 'vitrine continua so com o exposto');
+  const item = vs.doAtendimento().find((p) => p.sku === 'jz-xtudo');
+  assert.ok(item, 'o bot ve o X-Tudo');
+  assert.equal(item.precoCentavos, 2800);
+  vs.inativar('jz-xtudo');
+  assert.equal(vs.doAtendimento().some((p) => p.sku === 'jz-xtudo'), false, 'inativo nao e oferecido');
+  vs.reativar('jz-xtudo');
+  vs.excluir('jz-xtudo');
+  assert.equal(vs.doAtendimento().some((p) => p.sku === 'jz-xtudo'), false, 'excluido nao e oferecido');
+});

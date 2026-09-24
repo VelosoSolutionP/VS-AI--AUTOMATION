@@ -85,7 +85,22 @@ export function vitrine(sku, expor = true) { return editar(sku, { naVitrine: exp
 
 /** O que a loja publica mostra: exposto, ativo e com saldo — nessa ordem. */
 export function daVitrine() {
-  return listar().filter((p) => p.naVitrine && p.ativo !== false).map((p) => ({
+  return listar().filter((p) => p.naVitrine && p.ativo !== false).map(paraCliente);
+}
+
+/**
+ * O que o atendimento (bot do WhatsApp, simulador) oferece: todo produto ATIVO, na vitrine ou não.
+ *
+ * Vitrine é a loja pública; o cardápio do WhatsApp é outra coisa. Quem vende só pelo WhatsApp
+ * mantém a vitrine vazia (é o que o cadastro recomenda), e o bot lendo `daVitrine()` respondia
+ * "não temos cardápio" com o catálogo inteiro cadastrado.
+ */
+export function doAtendimento() {
+  return listar().filter((p) => p.ativo !== false).map(paraCliente);
+}
+
+function paraCliente(p) {
+  return ({
     sku: p.sku,
     nome: p.nome,
     descricao: p.descricao,
@@ -96,7 +111,7 @@ export function daVitrine() {
     imagem: p.imagens?.[0] || null,
     disponivel: disponivel(p),
     esgotado: disponivel(p) <= 0,
-  }));
+  });
 }
 
 export function inativar(sku) { return editar(sku, { ativo: false }); }
