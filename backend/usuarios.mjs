@@ -39,6 +39,18 @@ const igual = (a, b) => { const x = Buffer.from(a), y = Buffer.from(b); return x
 /** E-mail do dono. É ele + a senha de sempre que abre o console completo. */
 export const emailAdmin = () => normEmail(process.env.CONSOLE_ADMIN_EMAIL || 'velosobil@gmail.com');
 
+/**
+ * Outros e-mails do dono que também abrem o console com a senha dele.
+ *
+ * Existe porque o e-mail pessoal do dono também é usuário CLIENTE (a assinatura de teste): com a
+ * senha do console ele caía na "Minha conta" do cliente em vez do dashboard. Com a senha de
+ * cliente, continua entrando como cliente — quem decide o papel é a senha, não só o e-mail.
+ */
+const emailsDoDono = () => new Set([
+  emailAdmin(),
+  ...String(process.env.CONSOLE_ADMIN_EMAILS_EXTRA ?? 'velosobil@gmail.com').split(',').map(normEmail).filter(Boolean),
+]);
+
 const usuarios = () => ler('usuarios.json', []);
 export const buscarPorEmail = (email) => usuarios().find((u) => u.email === normEmail(email)) || null;
 export const doCliente = (clienteId) => usuarios().find((u) => u.clienteId === clienteId) || null;
@@ -81,10 +93,10 @@ export function entrar(email, senha) {
   const e = normEmail(email);
   const falha = { ok: false, motivo: 'e-mail ou senha incorretos' };
   if (!e || !senha) { return falha; }
-  if (e === emailAdmin()) {
-    if (!acesso.confere(senha)) { return falha; }
+  if (emailsDoDono().has(e) && acesso.confere(senha)) {
     return { ok: true, ...abrirSessao({ email: e, papel: 'admin', nome: 'Administrador' }) };
   }
+  if (e === emailAdmin()) { return falha; }
   const u = buscarPorEmail(e);
   if (!u || !u.hash) { return falha; }
   if (!igual(derivar(senha, u.sal).toString('hex'), u.hash)) { return falha; }

@@ -114,3 +114,15 @@ test('trocar a senha logado exige a atual — dono e cliente', () => {
   assert.equal(U.trocarSenha('dono@exemplo.com', 'dono-nova-senha-1', 'dono-trocada-22').ok, true);
   assert.equal(U.entrar('dono@exemplo.com', 'dono-trocada-22').ok, true);
 });
+
+test('e-mail pessoal do dono que tambem e cliente: senha do console abre o dashboard, a de cliente abre a conta', () => {
+  process.env.CONSOLE_ADMIN_EMAILS_EXTRA = 'pessoal@dono.com';
+  const c = U.convidar({ email: 'pessoal@dono.com', clienteId: 'cli_dono', nome: 'Dono Testando' });
+  assert.equal(U.aceitarConvite(c.token, 'senha-de-cliente-9').ok, true);
+  const senhaConsole = 'console-do-dono-77';
+  acesso.definir(senhaConsole);
+  assert.equal(U.entrar('pessoal@dono.com', senhaConsole).papel, 'admin');
+  assert.equal(U.entrar('pessoal@dono.com', 'senha-de-cliente-9').papel, 'cliente');
+  assert.equal(U.entrar('outro@loja.com', senhaConsole).ok, false);
+  delete process.env.CONSOLE_ADMIN_EMAILS_EXTRA;
+});
