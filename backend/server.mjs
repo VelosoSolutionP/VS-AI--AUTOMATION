@@ -1402,11 +1402,17 @@ const server = createServer(async (req, res) => {
       const leads = crm.listar();
       const porTel = new Map(leads.map((l) => [l.telefone, l]));
       const eu = quem.papel === 'vendedor' ? quemAtende(quem) : null;
+      const todosEnc = proto.encerrados();
       const doVendedor = (p) => !eu || p.atendidoPor?.operadorId === eu.operadorId || p.encerradoPor?.operadorId === eu.operadorId
         || porTel.get(p.de)?.comercial?.responsavel?.operadorId === eu.operadorId;
       const linha = (p) => {
         const l = porTel.get(p.de) || null;
-        const inter = (l?.historico || []).filter((h) => h.tipo === 'interacao' && h.quando >= p.abertoEm && h.quando <= new Date(new Date(p.encerradoEm).getTime() + 60000).toISOString());
+        /* A 1a mensagem e gravada ANTES de o protocolo nascer (milissegundos):
+           a janela comeca 5 min antes da abertura, sem invadir o atendimento
+           anterior da mesma pessoa. */
+        const anterior = todosEnc.filter((x) => x.de === p.de && x.encerradoEm < p.abertoEm).map((x) => x.encerradoEm).sort().pop() || '';
+        const iniJanela = [new Date(new Date(p.abertoEm).getTime() - 300000).toISOString(), anterior].sort().pop();
+        const inter = (l?.historico || []).filter((h) => h.tipo === 'interacao' && h.quando > iniJanela && h.quando <= new Date(new Date(p.encerradoEm).getTime() + 60000).toISOString());
         return {
           numero: p.numero, telefone: p.de, nome: l?.nome || null, canal: ehTelegram(p.de) ? 'telegram' : 'whatsapp',
           abertoEm: p.abertoEm, encerradoEm: p.encerradoEm, duracaoMin: Math.max(0, Math.round((new Date(p.encerradoEm) - new Date(p.abertoEm)) / 60000)),

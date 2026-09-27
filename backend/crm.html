@@ -5264,8 +5264,9 @@ function telaAtendimento(canal){
           ${sSel==='com-vendedor'
             ?botao({t:`Devolver pro bot`,ic:'bot',v:'s',sz:'xs',on:`devolverAoBot('${esc(sel.telefone)}')`,tit:`${nomeBot()} volta a responder esta pessoa`})
             :botao({t:'Assumir atendimento',ic:'crm',v:'p',sz:'xs',on:`assumirAtendimento('${esc(sel.telefone)}')`,tit:'O bot para de responder esta pessoa até você devolver'})}
-          ${sel.protocoloEstado!=='encerrado'
-            ?botao({t:'Encerrar',ic:'check',v:'s',sz:'xs',on:`encerrarAtendimento('${esc(sel.telefone)}','${esc(sel.protocolo||'')}')`,tit:'Encerra, manda o protocolo e pede a avaliação'}):''}
+          ${/* Sempre: conversa na lista e atendimento vivo. Se o protocolo fechou
+               sozinho por silencio (ou nunca existiu), o servidor abre na hora. */''}
+          ${botao({t:'Encerrar',ic:'check',v:'s',sz:'xs',on:`encerrarAtendimento('${esc(sel.telefone)}','${esc(sel.protocoloEstado==='encerrado'?'':sel.protocolo||'')}')`,tit:'Encerra, manda o protocolo e pede a avaliação'})}
         </div>
       </div>
       ${pedido}${oportunidadeHtml(sel)}${ctx}
@@ -5386,7 +5387,7 @@ function telaFilaTelegram(){
       <div class="gv-acoes"><span class="cv-sit ${SITUACAO[sSel].cls}"><i></i>${SITUACAO[sSel].rot}</span>
         ${sSel==='com-vendedor'?botao({t:'Devolver pro bot',ic:'bot',v:'s',sz:'xs',on:`devolverAoBot('${esc(sel.telefone)}')`})
           :botao({t:'Assumir atendimento',ic:'crm',v:'p',sz:'xs',on:`assumirAtendimento('${esc(sel.telefone)}')`})}
-        ${sel.protocoloEstado!=='encerrado'?botao({t:'Encerrar',ic:'check',v:'s',sz:'xs',on:`encerrarAtendimento('${esc(sel.telefone)}','${esc(sel.protocolo||'')}')`,tit:'Encerra, manda o protocolo e pede a avaliação'}):''}</div>
+        ${botao({t:'Encerrar',ic:'check',v:'s',sz:'xs',on:`encerrarAtendimento('${esc(sel.telefone)}','${esc(sel.protocoloEstado==='encerrado'?'':sel.protocolo||'')}')`,tit:'Encerra, manda o protocolo e pede a avaliação'})}</div>
       ${ped}${oportunidadeHtml(sel)}${ctx}
       <div class="conversa-fluxo">${linha}</div>
       <div class="responder"><div class="cv-compor">

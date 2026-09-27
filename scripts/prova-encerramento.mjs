@@ -183,6 +183,24 @@ async function main() {
     ok('celular: histórico sem rolagem lateral da página', larg <= 390, `${larg}px`);
     await cel.screenshot({ path: join(FOTOS, '05-celular.png'), fullPage: true });
 
+    // WhatsApp: o dono encerra pela TELA (botão no topo da conversa).
+    await whatsapp('5531988880004', 'Diego Reis', 'oi, preciso de ajuda com meu pedido');
+    await espera(2500);
+    await d.goto(`${base}/crm?t=${token}#wa-atendimento`); await d.reload();
+    await d.waitForSelector('.conversa:has-text("Diego Reis")');
+    await d.click('.conversa:has-text("Diego Reis")');
+    ok('WhatsApp: botão Encerrar no topo da conversa', await d.isVisible('.inbox-conversa .cv-cab button:has-text("Encerrar")'));
+    await d.screenshot({ path: join(FOTOS, '06-whatsapp-botao-encerrar.png') });
+    await d.click('.inbox-conversa .cv-cab button:has-text("Encerrar")');
+    await d.click('.modal button:has-text("Encerrar e avisar")');
+    // O aviso ao cliente espera o WhatsApp responder (aqui ele nem está conectado): aguarda o resultado.
+    let diego = null;
+    for (let i = 0; i < 40 && !diego; i++) {
+      await espera(500);
+      diego = (await api('atendimentos/historico?canal=whatsapp&dias=30')).atendimentos.find((a) => a.nome === 'Diego Reis');
+    }
+    ok('WhatsApp: encerrado pelo atendente foi pro histórico e saiu da fila', diego?.encerradoPor?.tipo === 'atendente' && !(await api('atendimentos')).conversas.some((c) => c.nome === 'Diego Reis'));
+
     // Conversa antiga, de antes de todo atendimento ter protocolo: encerra do mesmo jeito.
     const antigo = await api('leads', { nome: 'Cliente Antigo', telefone: '31977776666' });
     const encA = await api('atendimentos/encerrar', { telefone: antigo.lead?.telefone || '5531977776666', avisar: false });
