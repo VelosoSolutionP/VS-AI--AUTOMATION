@@ -144,11 +144,15 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 ### Operação
 
 #### Visão geral  ·  `#visao`
-- **Pra que serve:** O que está realmente ligado nesta instalação. Número que a suíte não tem aparece como “—”, nunca como zero.
-- **O que tem:** indicadores: Leads abertos, Ganhos, Conversão, Whatsapp · cartões: Integrações, Sem fonte de dado ainda, Pra onde ir agora
-- **Botões:** Atualizar, Cadastrar produto catálogo e publicação, Ligar uma rede conexões e credenciais, Ajustar o bot regras de resposta
-- **Código da tela:** `backend/crm.html` → `telaVisao()`
-- **Rotas do servidor:** `/crm/api/painel`, `/crm/api/status` → `backend/server.mjs`
+- **Pra que serve:** o **painel do negócio** (opção A escolhida pelo dono em 2026-09-27): quanto entrou, quantos chegaram, quanto virou venda e o que precisa de atenção — WhatsApp + Telegram juntos. Número sem fonte aparece como "—", nunca como zero.
+- **O que tem:** período 7/30/90 dias com variação sobre o período anterior · KPIs: Receita confirmada (só pagamento confirmado), Pedidos, Leads novos (WhatsApp · Telegram), Conversão (ganhos ÷ fechados no período), 1ª resposta (TPR) · **Precisa de atenção agora** (fila sem ninguém no WhatsApp e no Telegram, leads esfriando, pedidos esperando pagamento, integrações paradas — cada um leva à tela) · gráficos: Leads novos por dia (verde-água = WhatsApp, violeta = Telegram), Onde os leads estão (funil), Receita confirmada por dia, Atendimentos bot × equipe (azul/laranja, igual ao Auditor) — todos com dica no hover e "ver dados" · Integrações compactas no fim (agora conta o Telegram: "N de 6").
+- **Botões:** 7/30/90 dias, Atualizar, Ver todas (integrações), atalhos da atenção
+- **Código da tela:** `backend/crm.html` → `telaVisao()`, `carregarVisao()`, `vizBarrasDia()`, `visIntegracoes()` (reusa `audKpi`, `audBarrasH`, `graficoReceita`)
+- **Cálculo:** `engine/vspainel/visao.mjs` → `montarVisao` (junta `vsresultados.resumo` dos dois canais, `montarAuditoria` de todos os canais e o CRM)
+- **Rotas do servidor:** `GET /crm/api/visao?dias=` (+ `/crm/api/painel`, `/crm/api/status`) → `backend/server.mjs`
+- **Paleta dos canais:** validada com o validador do dataviz (claro e escuro, daltonismo OK); verde-água no tema claro fica abaixo de 3:1 → legenda + tabela "ver dados" obrigatórias.
+- **Prova em navegador:** `node scripts/prova-visao.mjs` (18 verificações: tela vazia com "—", receita/pedidos/leads/conversão, atenção, cores dos canais, barras, hover, ver dados, troca de período, atalho, celular). Teste: `tests/vspainel-visao.test.mjs`
+- **Saiu da tela:** cartão "Sem fonte de dado ainda" (estava errado: dizia estoque vazio com produto cadastrado) e "Pra onde ir agora" (substituído pela atenção).
 
 #### Estoque  ·  `#estoque`
 - **Pra que serve:** Cadastro de produto, saldo com reserva e exportação para os canais de venda.
@@ -469,12 +473,14 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 | 2026-09-27 | **Tela Telegram · Canal e conexão FECHADA** pelo dono | Conexão do bot + "Onde o bot trabalha" (adicionar canal, grupo ou pelo ID). Campanhas: o dono vai revisar mais a fundo depois | (este) |
 | 2026-09-27 | **Tela Telegram · Atendimento FECHADA** pelo dono | Aprovada com o resultado do teste ao vivo. Teste de recebimento real (mensagem de um celular de verdade) fica pra depois, por escolha do dono (tempo da tela esgotado) | (este) |
 | 2026-09-27 | "Clientes questionando o funil de vendas" → melhorar o funil (item 1 da proposta: funil que anda sozinho) | Funil automático sem IA: equipe respondeu → contato; pedido/cobrança → proposta com valor; pagamento confirmado → Ganho; lead parado → Esfriando; cartão de regras no CRM. Prova 21/21 | (este) |
+| 2026-09-27 | "Visão geral deveria mostrar métricas, gráficos" — opção **A** (painel do negócio) | KPIs com variação, Precisa de atenção agora, 4 gráficos (leads por canal, funil, receita, bot × equipe), período 7/30/90, integrações compactas. Prova 18/18 | (este) |
 
 ---
 
 ## Pendências conhecidas
 
-- **Funil — próximos itens da proposta (não feitos, esperando o dono):** 2) motivo de perda obrigatório (lista fixa + gráfico); 3) métricas de funil (conversão etapa→etapa, tempo por etapa, previsão ponderada, canal × campanha); 4) quadro com arrastar e soltar + Tier/responsável no cartão + filtros; 5) próxima ação/lembrete por lead. **Visão geral com gráficos** espera o dono escolher o layout (A, B ou C, ver conversa de 2026-09-27).
+- **Visão geral — limites da V1:** "Pedidos esperando pagamento" leva ao Resultados do Telegram (o WhatsApp ainda não tem tela de Resultados); TPR fica "—" até a equipe responder alguém que estava na fila.
+- **Funil — próximos itens da proposta (não feitos, esperando o dono):** 2) motivo de perda obrigatório (lista fixa + gráfico); 3) métricas de funil (conversão etapa→etapa, tempo por etapa, previsão ponderada, canal × campanha); 4) quadro com arrastar e soltar + Tier/responsável no cartão + filtros; 5) próxima ação/lembrete por lead.
 - **Funil — limites da V1:** cliente que já é Ganho e compra de novo não reabre o lead (continua Ganho; o pedido conta em Resultados); cobrança avulsa feita pela tela de Pagamentos (sem pedido do bot) não tem elo com o lead e não fecha nada; "pago" do gateway real ainda não foi provado ponta a ponta — a prova grava o pagamento confirmado no arquivo da instância isolada (caminho `sincronizarPagamentos`).
 - **Lead do Telegram aparece com "telefone suspeito"** no CRM (id `999…` fora do padrão de celular) — cosmético, anterior.
 - **Provas quebradas antes desta mudança:** `prova-qualificacao` trava esperando `.q-sim`; `prova-encerramento` 25/27 (textos das telas vazias). Iguais sem o funil automático.
@@ -486,8 +492,6 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 - **Telegram sem mensagem real de cliente ainda** (Atendimento fechado sem esse teste, por decisão do dono em 2026-09-27; volume provado com o simulador) — provado com Telegram simulado; falta alguém escrever pro `@BolsoCheioVelosoBot`.
 - **Receita atribuída depende de fluxo do bot com passo de cobrança** e gateway de pagamento no ar; sem isso a tela fica (corretamente) em R$ 0,00.
 - **WhatsApp ainda sem tela de Resultados** — o motor (`engine/vsresultados`) já calcula por canal; falta só a tela.
-- **Cartão "Integrações" da Visão geral** conta "3 de 6" sem incluir o Telegram.
-- **Visão geral diz "Estoque: nenhuma fonte conectada"** mesmo com produtos cadastrados (anterior a esta sessão).
 - **Demo (`demo.velososolution.com.br`) fora do ar** desde o reinício — subir com `backend/subir-demo.sh` **só com credencial de teste** (o script herda o ambiente: não rodar com o `painel.env` carregado).
 - **Horário em UTC fora do Atendimento:** ~17 pontos do `crm.html` ainda formatam hora cortando o texto ISO (`slice(11,16)` / `slice(0,16)`) — Auditor, trilhas, retomada. Mostram 3 h adiantado no Brasil. Corrigido só no Atendimento.
 - **WhatsApp → Atendimento recebeu a v1 junto (sem ter sido pedido):** revisar com o dono depois de fechar o Telegram — aproveitar o que faz sentido e tirar o resto.

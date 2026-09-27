@@ -37,6 +37,7 @@ import * as resultados from '../engine/vsresultados/index.mjs';
 import * as campanhasTg from '../engine/vscampanhas/index.mjs';
 import * as qualif from '../engine/vsqualificacao/index.mjs';
 import { montarAuditoria } from '../engine/vsauditoria/index.mjs';
+import { montarVisao } from '../engine/vspainel/visao.mjs';
 import { lerImagem } from '../engine/vscampanhas/imagem.mjs';
 import * as seguranca from '../engine/vsseguranca/index.mjs';
 import * as operadores from '../engine/vsoperadores/index.mjs';
@@ -1268,6 +1269,23 @@ const server = createServer(async (req, res) => {
       });
     }
     if (req.method === 'GET' && rota === '/crm/api/painel') { sincronizarFunil(); return json(res, 200, crm.painel()); }
+    /* Visão geral: o painel do negócio (todos os canais) num período. Junta o
+       que Resultados, Auditor e CRM já calculam — engine/vspainel/visao.mjs. */
+    if (req.method === 'GET' && rota === '/crm/api/visao') {
+      const u = new URL(req.url, 'http://x');
+      const dias = [7, 30, 90].includes(Number(u.searchParams.get('dias'))) ? Number(u.searchParams.get('dias')) : 30;
+      sincronizarFunil();
+      const p = crm.painel();
+      const protocolos = proto.listar();
+      const pagamentos = pagar.listar();
+      const naFila = protocolos.filter((x) => x.estado === 'na_fila');
+      return json(res, 200, montarVisao({
+        dias, leads: p.leads, funil: p.resumo, ehTelegram,
+        auditoria: montarAuditoria({ canal: 'todos', doCanal: () => true, dias, leads: p.leads, protocolos, campanhas: campanhasTg.listar(), seguranca: seguranca.auditoria(500) }),
+        resultados: ['whatsapp', 'telegram'].map((canal) => resultados.resumo({ canal, dias, pagamentos })),
+        atencao: { esfriando: p.resumo.esfriando, filaSemDono: { whatsapp: naFila.filter((x) => !ehTelegram(x.de)).length, telegram: naFila.filter((x) => ehTelegram(x.de)).length } },
+      }));
+    }
     if (req.method === 'GET' && rota === '/crm/api/status') { return json(res, 200, crm.statusIntegracoes(canais.estado())); }
     if (req.method === 'GET' && rota === '/crm/api/indicacao') { return json(res, 200, crm.painelIndicacao()); }
     if (req.method === 'GET' && rota === '/crm/api/redes') { return json(res, 200, { credenciais: CREDENCIAL }); }

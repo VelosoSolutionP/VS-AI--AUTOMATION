@@ -1401,6 +1401,15 @@ td.num,th.num{text-align:right;white-space:nowrap}
 [data-theme="dark"] .viz{--s1:#3987e5;--s2:#d95926}
 .aud-per{font-size:12px;color:var(--dim);margin:-6px 0 12px}
 .aud-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.viz.vis{--c-wa:#1baf7a;--c-tg:#4a3aa7} [data-theme="dark"] .viz.vis{--c-wa:#199e70;--c-tg:#9085e9}
+.vis-kpis{grid-template-columns:repeat(5,minmax(0,1fr))} @media(max-width:1200px){.vis-kpis{grid-template-columns:repeat(3,1fr)}} @media(max-width:560px){.vis-kpis{grid-template-columns:1fr 1fr}}
+.vis-atencao{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.vis-at .vis-n{min-width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-weight:700;font-size:16px;background:var(--raised);color:var(--fg);flex:none}
+.vis-at.ruim .vis-n{background:var(--err-bg,var(--raised));color:var(--err,var(--fg))} .vis-at.aviso .vis-n{background:var(--warn-bg);color:var(--warn)} .vis-at.zero{opacity:.7}
+.vis-integ{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.vis-i{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--panel-2);min-width:0}
+.vis-i small{color:var(--dim);font-size:12px;margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vis-i .pt{width:8px;height:8px;border-radius:50%;background:var(--line-2);flex:none} .vis-i .pt.ok{background:var(--ok)}
 @media(max-width:1200px){.aud-kpis{grid-template-columns:repeat(3,1fr)}} @media(max-width:560px){.aud-kpis{grid-template-columns:1fr 1fr}}
 .aud-kpi{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px 13px;box-shadow:var(--sh-1);display:flex;flex-direction:column;gap:3px;min-width:0}
 .aud-kpi small{font-size:11px;color:var(--dim);font-weight:650;text-transform:uppercase;letter-spacing:.03em}
@@ -3950,50 +3959,94 @@ function auditorDoCanal(canal,titulo,sub){
     })}</div>`;
 }
 
+/* Visão geral = o painel do negócio (opção A escolhida pelo dono em 2026-09-27):
+   números do período com variação, gráficos, o que precisa de atenção e, no fim,
+   as integrações. Dados: GET /crm/api/visao (engine/vspainel/visao.mjs). */
+let VIS={}, VIS_DIAS=30;
+async function carregarVisao(forcar){
+  const k=VIS_DIAS; if(VIS[k]&&!forcar) return VIS[k];
+  try{ VIS[k]=await apiCru('visao?dias='+k); }catch(e){ VIS[k]={erro:e.message}; }
+  if(rota==='visao') render();
+  return VIS[k];
+}
+/* Barras empilhadas por dia, N séries (cor = identidade do canal, fixa). */
+function vizBarrasDia(serie,series,aria,unid){
+  const W=720,H=200,PB=22,PL=28, tot=(x)=>series.reduce((s,c)=>s+(x[c.k]||0),0), max=Math.max(1,...serie.map(tot)), n=serie.length||1, passo=(W-PL)/n, bw=Math.min(36,Math.max(3,passo-3)), off=(passo-bw)/2;
+  const y=(v)=>H-PB-(v/max)*(H-PB-10);
+  const ticks=[...new Set([0,Math.ceil(max/2),max])];
+  const barras=serie.map((x,i)=>{ const X=PL+i*passo+off, dt=x.dia.split('-').reverse().slice(0,2).join('/');
+    const tip=`${dt} · ${tot(x)} ${unid} — `+series.map(c=>`${c.rot} ${x[c.k]||0}`).join(' · ');
+    let acc=0; const seg=series.map(c=>{ const v=x[c.k]||0; if(!v) return ''; const y0=y(acc), y1=y(acc+v); acc+=v;
+      return `<rect x="${X}" y="${y1}" width="${bw}" height="${Math.max(1,y0-y1-(acc>v?2:0))}" rx="2" fill="var(${c.cor})"/>`; }).join('');
+    return `<g class="aud-hit" data-tip="${esc(tip)}"><rect x="${X-1}" y="0" width="${bw+2}" height="${H-PB}" fill="transparent"/>${seg}</g>`; }).join('');
+  const rot=serie.map((x,i)=>i%Math.ceil(n/8)===0?`<text x="${PL+i*passo+passo/2}" y="${H-6}" class="aud-eixo" text-anchor="middle">${x.dia.slice(8,10)}/${x.dia.slice(5,7)}</text>`:'').join('');
+  return `<svg viewBox="0 0 ${W} ${H}" class="aud-svg" role="img" aria-label="${esc(aria)}">
+    ${ticks.map(t=>`<line x1="${PL}" x2="${W}" y1="${y(t)}" y2="${y(t)}" class="aud-grade"/><text x="${PL-6}" y="${y(t)+4}" class="aud-eixo" text-anchor="end">${t}</text>`).join('')}
+    ${barras}${rot}</svg>`;
+}
+const visLeg=(series)=>`<div class="aud-leg">${series.map(c=>`<span><i style="background:var(${c.cor})"></i>${esc(c.rot)}</span>`).join('')}</div>`;
+const visDados=(cab,linhas)=>`<details class="aud-dados"><summary>ver dados</summary><table><thead><tr>${cab.map((c,i)=>`<th${i?' class="num"':''}>${c}</th>`).join('')}</tr></thead><tbody>${linhas.length?linhas.map(l=>`<tr>${l.map((c,i)=>`<td${i?' class="num"':''}>${c}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${cab.length}" class="hint">sem dado no período</td></tr>`}</tbody></table></details>`;
 function telaVisao(){
-  const r=ST.resumo,w=STATUS?.whatsapp||{};
-  const wpp=canalWhatsApp();
-  const estados=[wpp.no_ar,!!(w.waToken&&w.waPhoneId),!!STATUS?.bot?.webhook,
-    !!STATUS?.notify?.enabled,!!STATUS?.crm?.funil,!!IND?.regra];
-  const ligadas=estados.filter(Boolean).length;
-  const atalho=(id,icone,titulo,apoio)=>
-    `<button class="atalho" onclick="ir('${id}')"><span class="chip">${ico(icone)}</span>`+
-    `<span class="at-t"><b>${esc(titulo)}</b><small>${esc(apoio)}</small></span>${ico('prox')}</button>`;
-  return head('Visão geral','O que está realmente ligado nesta instalação. Número que a suíte não tem aparece como “—”, nunca como zero.',
-      botao({t:'Atualizar',ic:'atualizar',v:'s',on:'carregar()'}))+
-  `<div class="grid g-kpi" style="margin-bottom:16px">
-    ${kpi('Leads abertos',r.abertos,ST.funil.length?ST.funil.length+' etapas no funil':'sem funil')}
-    ${kpi('Ganhos',r.ganhos,'fechados no CRM')}
-    ${kpi('Conversão',r.conversao==null?'—':Math.round(r.conversao*100)+'%',r.conversao==null?'nenhum lead fechado ainda':'ganhos ÷ fechados')}
-    ${(()=>{const c=canalWhatsApp();return kpi('WhatsApp',c.no_ar?'no ar':'desligado',c.via?('por '+c.via+(c.numero?' · +'+esc(c.numero):'')):'nenhum canal conectado');})()}</div>
-  <div class="grid g-2" style="margin-bottom:16px">
-    <div class="card">
-      ${cardH('integra','Integrações','Estado real, lido do ambiente.',2,`<span class="badge ${ligadas===estados.length?'b-ok':'b-warn'}">${ligadas} de ${estados.length}</span>`)}
-      ${linha('Canal de WhatsApp',wpp.via?('por '+wpp.via):'nenhum canal conectado',wpp.no_ar?'no ar':'desligado',wpp.no_ar?'b-ok':'')}
-      ${linha('Canal de Telegram',TG?.estado==='conectado'?'bot '+(TG.numero||''):TG?.estado==='caido'?'caiu — '+(TG.ultimoErro||''):'nenhum bot conectado',
-        TG?.estado==='conectado'?'no ar':TG?.estado==='caido'?'caiu':'desligado',TG?.estado==='conectado'?'b-ok':TG?.estado==='caido'?'b-err':'')}
-      ${linha('Token da Meta','WA_TOKEN / WA_PHONE_ID',w.waToken&&w.waPhoneId?'presentes':'ausentes',w.waToken&&w.waPhoneId?'b-ok':'')}
-      ${linha('Webhook de entrada','recebe mensagem do cliente','não existe','')}
-      ${linha('Notificação do QA-Gate','CallMeBot',STATUS?.notify?.enabled?'ligada':'desligada',STATUS?.notify?.enabled?'b-ok':'')}
-      ${linha('CRM','funil de '+(STATUS?.crm?.funilOrigem||'—'),STATUS?.crm?.funil?'ativo':'sem funil',STATUS?.crm?.funil?'b-ok':'b-warn')}
-      ${linha('Indicação','regra de comissão',IND?.regra?'definida':'não definida',IND?.regra?'b-ok':'b-warn')}</div>
-    <div class="card">
-      ${cardH('alerta','Sem fonte de dado ainda','Telas prontas, esperando de onde puxar.',4)}
-      ${linha('Estoque','nenhuma fonte conectada','vazio','')}
-      ${linha('Financeiro','nenhuma fonte conectada','vazio','')}
-      ${linha('Auditor','sem execução registrada','vazio','')}
-      ${linha('Redes sociais','sem conta ligada','vazio','')}
-      ${linha('Relatórios','dependem das fontes acima','vazio','')}</div></div>
-  <div class="card">
-    ${cardH('seta','Pra onde ir agora','Os caminhos mais usados, sem passar pelo menu.',1)}
-    <div class="atalhos">
-      ${atalho('crm','crm','Trabalhar os leads',r.abertos?r.abertos+' em aberto no funil':'nenhum lead em aberto')}
-      ${atalho('estoque','estoque','Cadastrar produto','catálogo e publicação')}
-      ${atalho('redes','redes','Ligar uma rede',REDES?'conexões e credenciais':'nenhuma conta ligada')}
-      ${atalho('financeiro','financeiro','Ver o caixa','entradas e saídas do período')}
-      ${atalho('bot','bot','Ajustar o bot','regras de resposta')}
-      ${atalho('pl-recebimento','plano','Receber por Pix','chave do Asaas e cobranças')}
-    </div></div>`;
+  const v=VIS[VIS_DIAS]; if(!v) setTimeout(()=>carregarVisao(),0);
+  const periodo=`<div class="seg seg-sm">${[7,30,90].map(d=>`<button class="${VIS_DIAS===d?'on':''}" onclick="VIS_DIAS=${d};carregarVisao();render()">${d} dias</button>`).join('')}</div>`;
+  const cab=head('Visão geral','O negócio no período: quanto entrou, quantos chegaram, quanto virou venda e o que precisa de você agora. Número sem fonte aparece como “—”, nunca como zero.',
+    periodo+botao({t:'Atualizar',ic:'atualizar',v:'s',on:'VIS={};carregar();carregarVisao(true)'}));
+  if(!v) return cab+'<div class="card"><p class="hint">Carregando…</p></div>'+visIntegracoes();
+  if(v.erro) return cab+`<div class="card"><p class="hint">Não consegui carregar os números: ${esc(v.erro)}</p></div>`+visIntegracoes();
+  const K=v.kpis, V=v.variacao, dm=(d)=>d.split('-').reverse().slice(0,2).join('/');
+  const kpis=`<div class="aud-kpis vis-kpis">
+    ${audKpi('Receita confirmada',reais(K.receitaCentavos),`${K.pedidosPagos} pedido(s) pago(s)`,audDelta(V.receitaCentavos),'Só pedido cujo pagamento o gateway confirmou — WhatsApp + Telegram')}
+    ${audKpi('Pedidos',K.pedidos,K.pedidos?`${K.pedidos-K.pedidosPagos} sem pagamento ainda`:'nenhum pedido no período','','Pedidos que o bot gerou nas conversas')}
+    ${audKpi('Leads novos',K.leadsNovos,`WhatsApp ${v.serieLeads.reduce((s,x)=>s+x.whatsapp,0)} · Telegram ${v.serieLeads.reduce((s,x)=>s+x.telegram,0)}`,audDelta(V.leadsNovos),'Leads que entraram no CRM no período')}
+    ${audKpi('Conversão',audPct(K.conversao),K.conversao==null?'nenhum lead fechado no período':'ganhos ÷ fechados no período',audDelta(V.conversao),'Dos leads fechados no período, quantos foram ganhos')}
+    ${audKpi('1ª resposta (TPR)',audFmtMin(K.tprMedio),K.conversas!=null?`${K.conversas} conversa(s)`:'—',audDelta(V.tprMedio,true),'Tempo médio da fila até a equipe responder')}
+  </div>`;
+  const CAN=[{k:'whatsapp',rot:'WhatsApp',cor:'--c-wa'},{k:'telegram',rot:'Telegram',cor:'--c-tg'}];
+  const ATD=[{k:'bot',rot:'Bot',cor:'--s1'},{k:'equipe',rot:'Equipe',cor:'--s2'}];
+  const fMax=Math.max(0,...v.funil.map(e=>e.leads));
+  const funil=v.funil.length?audBarrasH(v.funil.map(e=>({rot:e.etapa,n:e.leads,extra:e.valor?brl(e.valor):''})),fMax)
+    :`<p class="hint">Sem funil cadastrado. ${botao({t:'Definir funil',ic:'crm',v:'s',sz:'xs',on:"ir('crm')"})}</p>`;
+  const A=v.atencao, fila=A.filaSemDono.whatsapp+A.filaSemDono.telegram;
+  const item=(n,titulo,sub,alvo,tom)=>`<button class="atalho vis-at ${n?tom:'zero'}" onclick="ir('${alvo}')"><span class="vis-n">${n}</span><span class="at-t"><b>${esc(titulo)}</b><small>${esc(sub)}</small></span>${ico('prox')}</button>`;
+  const atencao=`<div class="atalhos vis-atencao">
+    ${item(A.filaSemDono.whatsapp,'Na fila do WhatsApp sem ninguém','cliente esperando alguém assumir','wa-atendimento','ruim')}
+    ${item(A.filaSemDono.telegram,'Na fila do Telegram sem ninguém','cliente esperando alguém assumir','tg-atendimento','ruim')}
+    ${item(A.esfriando,'Leads esfriando','abertos e sem conversa — retome antes de perder','crm','aviso')}
+    ${item(A.aguardandoPagamento,'Pedidos esperando pagamento',A.aguardandoPagamento?`${reais(A.aguardandoCentavos)} parados — dá pra retomar`:'nenhum parado','tg-resultados','aviso')}
+    ${item(INTEG_CAIDAS.length,'Integrações paradas',INTEG_CAIDAS.length?INTEG_CAIDAS.map(c=>c.nome).join(', '):'tudo funcionando','config','ruim')}
+  </div>`;
+  const pend=fila+A.esfriando+A.aguardandoPagamento+INTEG_CAIDAS.length;
+  return cab+`<div class="viz aud vis">
+    <p class="aud-per">${new Date(v.de).toLocaleDateString('pt-BR')} a ${new Date(v.ate).toLocaleDateString('pt-BR')} · WhatsApp + Telegram · comparado com os ${v.dias} dias anteriores</p>
+    ${kpis}
+    <div class="card aud-card" style="margin-bottom:14px"><div class="aud-ct"><h3>Precisa de atenção agora</h3><span class="badge ${pend?'b-warn':'b-ok'}">${pend?pend+' pendência(s)':'nada pendente'}</span></div>${atencao}</div>
+    <div class="aud-grade2">
+      <div class="card aud-card"><div class="aud-ct"><h3>Leads novos por dia</h3>${visLeg(CAN)}</div>${vizBarrasDia(v.serieLeads,CAN,'Leads novos por dia, WhatsApp e Telegram','lead(s)')}
+        ${visDados(['Dia','WhatsApp','Telegram'],v.serieLeads.filter(x=>x.whatsapp+x.telegram).map(x=>[dm(x.dia),x.whatsapp,x.telegram]))}</div>
+      <div class="card aud-card"><div class="aud-ct"><h3>Onde os leads estão</h3><small class="hint">abertos, por etapa</small></div>${funil}</div>
+      <div class="card aud-card"><div class="aud-ct"><h3>Receita confirmada por dia</h3><small class="hint">${reais(K.receitaCentavos)} no período</small></div>${graficoReceita(v.serieReceita)}
+        ${visDados(['Dia','Receita'],v.serieReceita.filter(x=>x.centavos).map(x=>[dm(x.dia),reais(x.centavos)]))}</div>
+      <div class="card aud-card"><div class="aud-ct"><h3>Atendimentos: bot × equipe</h3>${visLeg(ATD)}</div>${vizBarrasDia(v.serieAtendimento,ATD,'Atendimentos por dia, bot e equipe','atendimento(s)')}
+        <p class="hint" style="margin-top:6px">${K.taxaBot==null?'Nenhum atendimento no período.':`O bot resolveu ${audPct(K.taxaBot)} sem precisar de gente.`}</p>
+        ${visDados(['Dia','Bot','Equipe'],v.serieAtendimento.filter(x=>x.bot+x.equipe).map(x=>[dm(x.dia),x.bot,x.equipe]))}</div>
+    </div>
+  </div>`+visIntegracoes();
+}
+/* Integrações, compactas, no fim da Visão geral. */
+function visIntegracoes(){
+  const w=STATUS?.whatsapp||{}, wpp=canalWhatsApp(), tgOk=TG?.estado==='conectado';
+  const itens=[
+    ['WhatsApp',wpp.no_ar,wpp.no_ar?(wpp.via?'por '+wpp.via:'no ar'):'desligado'],
+    ['Telegram',tgOk,tgOk?'bot '+(TG.numero||''):TG?.estado==='caido'?'caiu':'nenhum bot'],
+    ['API da Meta',!!(w.waToken&&w.waPhoneId),w.waToken&&w.waPhoneId?'token presente':'sem token'],
+    ['CRM',!!STATUS?.crm?.funil,STATUS?.crm?.funil?'funil ativo':'sem funil'],
+    ['Indicação',!!IND?.regra,IND?.regra?'regra definida':'sem regra'],
+    ['Avisos',!!STATUS?.notify?.enabled,STATUS?.notify?.enabled?'ligados':'desligados'],
+  ];
+  const lig=itens.filter(x=>x[1]).length;
+  return `<div class="card" style="margin-top:14px">
+    ${cardH('integra','Integrações','Estado real, lido do ambiente.',2,`<span class="badge ${lig===itens.length?'b-ok':'b-warn'}">${lig} de ${itens.length}</span>`+' '+botao({t:'Ver todas',ic:'prox',v:'g',sz:'xs',on:"ir('config')"}))}
+    <div class="vis-integ">${itens.map(([n,ok,d])=>`<div class="vis-i"><span class="pt ${ok?'ok':''}"></span><b>${esc(n)}</b><small>${esc(d)}</small></div>`).join('')}</div></div>`;
 }
 /* Barra de distribuição: quanto de cada etapa no total em aberto. Os tons giram
    na régua --t1..--t6 pra duas etapas vizinhas nunca saírem da mesma cor. */
