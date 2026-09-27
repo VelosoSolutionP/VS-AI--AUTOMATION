@@ -14,7 +14,7 @@ process.env.VSPROTOCOLO_DIR = _dirProto;
 process.on('exit', () => { try { _rm(_dirProto, { recursive: true, force: true }); } catch { /* ja foi */ } });
 
 import assert from 'node:assert/strict';
-import { validarFluxo, avancar, desenhar, ACOES } from '../engine/vsbot/fluxo.mjs';
+import { validarFluxo, avancar, desenhar, ACOES, opcoesPendentes } from '../engine/vsbot/fluxo.mjs';
 import { fluxoDeCsv, partirLinha, modeloCsv } from '../engine/vsbot/fluxo-csv.mjs';
 
 const exemplo = () => validarFluxo([
@@ -353,6 +353,30 @@ test('escolha errada DE VERDADE continua avisando — senao o cliente fica no es
   assert.match(r.texto, /Me ajuda a te levar pro lugar certo/);
   assert.doesNotMatch(r.texto, /Não entendi/, 'a culpa nao e de quem escreveu');
   assert.match(r.texto, /Não achei "xpto 9" nas opções/, 'citar o que a pessoa escreveu e o que faz ela entender');
+});
+
+/* Em campo (27/09): "Olá! Quero a senha da demonstração do Bolso Cheio." abriu o
+   menu — comecava com "ola" e contou como "oi". Quem ja diz o que quer na
+   primeira mensagem tem de ir direto pra opcao. */
+test('pedido que comeca com "Olá" nao e saudacao: a primeira mensagem ja pode escolher', () => {
+  const f = exemplo();
+  for (const s of ['Olá! Quero a senha da demonstração', 'Oi, meu sistema travou', 'Bom dia, quero um orçamento']) {
+    assert.ok(opcoesPendentes(f, null, s), `"${s}" devia ir pra escolha pela frase`);
+  }
+  for (const s of ['oi', 'Olá, tudo bem?', 'oi boa tarde', 'Bom dia pessoal', 'oii tudo bom com vc?']) {
+    assert.equal(opcoesPendentes(f, null, s), null, `"${s}" e so cumprimento`);
+  }
+});
+
+test('na primeira mensagem as opcoes levam os termos que o dono ensinou', () => {
+  const f = { inicio: 'inicio', passos: [
+    { id: 'inicio', mensagem: 'Olá!', opcoes: [
+      { tecla: '1', texto: 'Conhecer o produto', vaiPara: 'fim' },
+      { tecla: '2', texto: 'Testar a demonstração', vaiPara: 'fim', termos: ['senha', 'demo'] }] },
+    { id: 'fim', mensagem: 'ok', opcoes: [] }] };
+  const q = opcoesPendentes(f, null, 'quero a senha da demo');
+  assert.deepEqual(q.opcoes.find((o) => o.tecla === '2').termos, ['senha', 'demo']);
+  assert.equal(q.opcoes.find((o) => o.tecla === '1').termos, undefined);
 });
 
 test('saudacao nao atropela opcao valida que comeca parecido', () => {

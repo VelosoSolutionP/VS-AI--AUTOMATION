@@ -36,6 +36,8 @@ nohup env \
   PORT="$PORTA" \
   CRM_ENABLED=1 \
   DEMO=1 \
+  CONSOLE_ADMIN_EMAIL="${EMAIL_DEMO:-demo@velososolution.com.br}" \
+  CONSOLE_ADMIN_EMAILS_EXTRA= \
   PAINEL_URL="${URL_DEMO:-https://demo.velososolution.com.br}" \
   WHATSAPP_PROVIDER=log \
   MP_AMBIENTE=teste \

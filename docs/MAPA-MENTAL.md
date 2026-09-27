@@ -481,6 +481,9 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 | 2026-09-27 | Como o catálogo entra na vitrine e nas integrações; como marcar vitrine | Explicado (Estoque → vitrine/Google automático; Meta/TikTok/ML por arquivo). Achado: vitrine só pelo 🛒 "Vender no canal" (reserva 1 unidade e, com TikTok ligado, deixa de marcar vitrine). Correção proposta, **não feita** | — |
 | 2026-09-27 | "TikTok e rede social por último; Telegram ficou bom, QA vai dizer se os dados estão certos" | Prioridade registrada | — |
 | 2026-09-27 | Vitrine: "ajuste mínimo tá suave" | Botão Pôr/Tirar da vitrine na linha do Estoque, sem reserva e sem TikTok. Prova 8/8 | (este) |
+| 2026-09-27 | Site repaginado pra divulgar o Bolso Cheio (fora deste repo: `../Site`) | /bolso-cheio com identidade da marca, passos "1 · Peça a senha (Micaela) → 2 · Entre na demo", sem preço (sob orçamento), menu do topo parado, ☰ corrigido no celular; telefone antigo trocado (Micaela 553175536010 · comercial 31 97512-7978) | (este) |
+| 2026-09-27 | "A Micaela tem que reconhecer e passar a chave de teste" | Fluxo de produção: opção 7 "Testar a demonstração" (+ termos senha/demo/acesso) manda link, usuário e senha; Micaela 24h (horário tirado). Código: cumprimento só quando a mensagem INTEIRA é cumprimento ("Olá! Quero a senha…" não é "oi"); na 1ª mensagem as opções levam os `termos` da planilha. Painel reiniciado | (este) |
+| 2026-09-27 | "Tem usuário na tela também" | Demo com admin próprio `demo@velososolution.com.br` (`CONSOLE_ADMIN_EMAIL` em `subir-demo.sh`); e-mail pessoal do dono não entra mais na demo | (este) |
 
 ---
 
@@ -501,7 +504,11 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 - **Telegram sem mensagem real de cliente ainda** (Atendimento fechado sem esse teste, por decisão do dono em 2026-09-27; volume provado com o simulador) — provado com Telegram simulado; falta alguém escrever pro `@BolsoCheioVelosoBot`.
 - **Receita atribuída depende de fluxo do bot com passo de cobrança** e gateway de pagamento no ar; sem isso a tela fica (corretamente) em R$ 0,00.
 - **WhatsApp ainda sem tela de Resultados** — o motor (`engine/vsresultados`) já calcula por canal; falta só a tela.
-- **Demo (`demo.velososolution.com.br`) fora do ar** desde o reinício — subir com `backend/subir-demo.sh` **só com credencial de teste** (o script herda o ambiente: não rodar com o `painel.env` carregado).
+- **Preços de teste na produção:** WhatsApp Bronze R$ 0,50 e Prata R$ 1,00 em Clientes e licenças → Preços (padrão do código: 79 e 129). Quem assinar pelo painel paga centavos.
+- **Micaela e o Ollama:** em 27/09, 3 de 4 chamadas passaram de 8 s e caíram nas regras; quando o dicionário não resolve, a resposta atrasa 8 s.
+- **Telegram com horário** (seg–sex 10h–18h, fim de semana fechado) enquanto o WhatsApp atende 24h — decisão do dono.
+- **Estratégia comercial da fase 1** (doc "Bolso Cheio — Estratégia comercial (fase 1)"): validar 5+ pagantes em 30 dias antes de investir em redes.
+- **Demo (`demo.velososolution.com.br`) no ar de novo** (27/09, com usuário próprio) — antes estava fora desde o reinício — subir com `backend/subir-demo.sh` **só com credencial de teste** (o script herda o ambiente: não rodar com o `painel.env` carregado).
 - **Horário em UTC fora do Atendimento:** ~17 pontos do `crm.html` ainda formatam hora cortando o texto ISO (`slice(11,16)` / `slice(0,16)`) — Auditor, trilhas, retomada. Mostram 3 h adiantado no Brasil. Corrigido só no Atendimento.
 - **WhatsApp → Atendimento recebeu a v1 junto (sem ter sido pedido):** revisar com o dono depois de fechar o Telegram — aproveitar o que faz sentido e tirar o resto.
 - **Fila do Telegram — fases 3 e 4 do dono (não feitas):** marcadores (novo, pedido em andamento, pagamento pendente, cliente recorrente, urgente), filtro por status/atendente, atendente responsável, SLA; depois pedido/cliente/tags/histórico resumido/origem da campanha no cartão.

@@ -38,7 +38,15 @@ const VOLTAR = ['menu', 'voltar', 'inicio', 'começar', 'comecar', 'recomecar', 
 /* Abrir conversa nao e escolher opcao. Sem isso, "oi", "bom dia" e "opa" viram
    erro de digitacao aos olhos do fluxo. */
 const SAUDACAO = /^(oi+|ola|eai+|e ai|eae|opa|opah|bom dia|boa tarde|boa noite|alo+|hey|hi|hello|tudo bem|tudo bom|boa)\b/;
-const ehSaudacao = (t) => SAUDACAO.test(norm(t));
+/* Cumprimento e a mensagem INTEIRA ser cumprimento. "Olá! Quero a senha da
+   demonstração" comeca com "ola", mas e um pedido: tratar como "oi" jogava o
+   menu na cara de quem ja disse o que queria. */
+const PALAVRAS_OI = /\b(oi+|ola|eai+|e ai|eae|opa|opah|bom dia|boa tarde|boa noite|alo+|hey|hi|hello|tudo bem|tudo bom|td bem|blz|beleza|boa|bom|como vai|com|voce|vc|vcs|ai|ae|pessoal|gente|amigo|amiga)\b/g;
+const ehSaudacao = (t) => {
+  const n = norm(t);
+  if (!SAUDACAO.test(n)) { return false; }
+  return n.replace(PALAVRAS_OI, ' ').replace(/[^a-z0-9]+/g, ' ').trim().length < 4;
+};
 
 /** Ações que entregam o atendimento pra uma pessoa. */
 const ENCERRA_COM_GENTE = (a) => a === ACOES.ENCAMINHAR;
@@ -238,7 +246,9 @@ export function opcoesPendentes(fluxo, estado, texto) {
     const sub = (d?.opcoes || []).map((x) => x.texto).filter(Boolean).join('; ');
     return (sub || String(d?.mensagem || o.resposta || '').replace(/\s+/g, ' ')).slice(0, 160);
   };
-  const opcoes = ops.map((o) => ({ tecla: o.tecla, texto: String(o.texto || ''), sobre: sobre(o) }));
+  /* `termos` vai junto: e o vocabulario que o dono ensinou na planilha. Sem ele
+     o dicionario da primeira mensagem nao via "senha"/"demo" na opcao certa. */
+  const opcoes = ops.map((o) => ({ tecla: o.tecla, texto: String(o.texto || ''), sobre: sobre(o), ...(o.termos ? { termos: o.termos } : {}) }));
   if (primeira) {
     /* "oi" e "1" na primeira mensagem nao pedem ajuda de ninguem. */
     if (ehSaudacao(t) || t.length < 4 || ops.some((o) => t === norm(o.tecla))) { return null; }
