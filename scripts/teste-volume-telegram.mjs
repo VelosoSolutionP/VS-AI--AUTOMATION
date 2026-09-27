@@ -64,12 +64,21 @@ const idTg = (chat) => '999' + String(chat).padStart(12, '0');
 /* ── Telegram falso: só o que o provider usa ─────────────────────────────── */
 function servidorTelegramFalso() {
   const fila = []; let prox = 1; let msgId = 1;
-  const enviados = []; // { chat, texto, em }
+  const enviados = []; // { chat, texto, em, foto?, botao? }
+  const chats = {}; // canais/grupos simulados: id -> { chat, membro }
   let acorda = null;
+  const corpoCru = (req) => new Promise((ok) => { const partes = []; req.on('data', (c) => partes.push(c)); req.on('end', () => ok(Buffer.concat(partes).toString('latin1'))); });
+  const campo = (cru, nome) => (cru.match(new RegExp(`name="${nome}"\\r\\n\\r\\n([\\s\\S]*?)\\r\\n--`)) || [])[1];
+  const achaChat = (ref) => Object.values(chats).find((c) => String(c.chat.id) === String(ref) || (c.chat.username && '@' + c.chat.username === String(ref)));
+
   const corpoJson = (req) => new Promise((ok) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', () => { try { ok(JSON.parse(b || '{}')); } catch { ok({}); } }); });
   const srv = http.createServer(async (req, res) => {
     const metodo = req.url.split('/').pop().split('?')[0];
     const json = (r) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: true, result: r })); };
+    const erro = (code, desc) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: false, error_code: code, description: desc })); };
+    // ── canais e grupos (campanhas) ──
+    if (metodo === 'getChat') { const b = await corpoJson(req); const c = achaChat(b.chat_id); return c ? json(c.chat) : erro(400, 'Bad Request: chat not found'); }
+    if (metodo === 'getChatMember') { const b = await corpoJson(req); const c = achaChat(b.chat_id); return c ? json(c.membro) : erro(400, 'Bad Request: chat not found'); }
     // ── o que o provider do Bolso Cheio chama (Bot API) ──
     if (metodo === 'getMe') { return json({ id: 1, is_bot: true, username: 'loja_teste_bot', first_name: 'Loja de Teste' }); }
     if (metodo === 'deleteWebhook') { return json(true); }
@@ -81,10 +90,30 @@ function servidorTelegramFalso() {
     }
     if (metodo === 'sendMessage') {
       const b = await corpoJson(req);
-      enviados.push({ chat: String(b.chat_id), texto: String(b.text || ''), em: Date.now() });
-      return json({ message_id: msgId++ });
+      const c = achaChat(b.chat_id);
+      if (c && !['administrator', 'creator', 'member'].includes(c.membro.status)) { return erro(403, 'Forbidden: bot is not a member'); }
+      enviados.push({ chat: String(b.chat_id), texto: String(b.text || ''), em: Date.now(), botao: b.reply_markup?.inline_keyboard?.[0]?.[0] || null });
+      return json({ message_id: msgId++, chat: { id: b.chat_id, username: c?.chat.username } });
     }
-    if (['sendPhoto', 'sendDocument', 'deleteMessage'].includes(metodo)) { req.resume(); return json({ message_id: msgId++ }); }
+    if (metodo === 'sendPhoto') {
+      const cru = await corpoCru(req);
+      const chat = campo(cru, 'chat_id'); const c = achaChat(chat);
+      if (c && c.chat.type === 'channel' && !(c.membro.status === 'administrator' && c.membro.can_post_messages)) { return erro(403, 'Forbidden: need administrator rights in the channel chat'); }
+      let botao = null; try { botao = JSON.parse(campo(cru, 'reply_markup') || 'null')?.inline_keyboard?.[0]?.[0] || null; } catch { /* sem botao */ }
+      enviados.push({ chat: String(chat), texto: Buffer.from(campo(cru, 'caption') || '', 'latin1').toString('utf8'), em: Date.now(), foto: true, botao });
+      return json({ message_id: msgId++, chat: { id: chat, username: c?.chat.username } });
+    }
+    if (['sendDocument', 'deleteMessage'].includes(metodo)) { req.resume(); return json({ message_id: msgId++ }); }
+    /* Simulador: o dono adicionou o bot a um canal/grupo (ou tirou). Gera o
+       my_chat_member que o Telegram mandaria. */
+    if (metodo === '_membro') {
+      const b = await corpoJson(req);
+      const membro = { status: b.status || 'administrator', can_post_messages: b.podePostar !== false, user: { id: 1, is_bot: true } };
+      chats[b.chat.id] = { chat: { id: b.chat.id, title: b.chat.title, type: b.chat.type || 'channel', username: b.chat.username }, membro };
+      fila.push({ update_id: prox++, my_chat_member: { chat: chats[b.chat.id].chat, from: { id: 77, first_name: 'Dono' }, date: Math.floor(Date.now() / 1000), old_chat_member: { status: 'left' }, new_chat_member: membro } });
+      acorda?.();
+      return json(true);
+    }
     // ── controle do SIMULADOR (so em 127.0.0.1, so neste processo de teste) ──
     if (metodo === '_escrever') {
       const b = await corpoJson(req);

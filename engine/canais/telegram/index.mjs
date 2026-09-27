@@ -127,6 +127,17 @@ function dataUriParaBlob(dataUri) {
   return new Blob([bytes], { type: m[1] || 'application/octet-stream' });
 }
 
+/**
+ * O bot pode PUBLICAR aqui? Canal: precisa ser administrador com
+ * "publicar mensagens". Grupo: ser membro/admin sem restricao de envio.
+ */
+export function podePublicarCom(tipo, m = {}) {
+  if (['left', 'kicked'].includes(m.status) || !m.status) { return false; }
+  if (tipo === 'channel') { return m.status === 'creator' || (m.status === 'administrator' && m.can_post_messages === true); }
+  if (m.status === 'restricted') { return m.can_send_messages === true; }
+  return ['member', 'administrator', 'creator'].includes(m.status);
+}
+
 export function criarTelegramProvider({ fetchImpl = globalThis.fetch, api = 'https://api.telegram.org', esperaMs = 25, espera = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
   let token = null;
   let estado = ESTADOS.DESCONECTADO;
@@ -140,6 +151,7 @@ export function criarTelegramProvider({ fetchImpl = globalThis.fetch, api = 'htt
   let volta = null;
   const aoMsg = [];
   const aoSt = [];
+  const aoMembro = [];
 
   const status = () => ({
     estado,
@@ -190,11 +202,21 @@ export function criarTelegramProvider({ fetchImpl = globalThis.fetch, api = 'htt
     while (rodando) {
       try {
         ctrl = new AbortController();
-        const ups = await chamar('getUpdates', { offset, timeout: esperaMs, allowed_updates: ['message'] }, { sinal: ctrl.signal });
+        const ups = await chamar('getUpdates', { offset, timeout: esperaMs, allowed_updates: ['message', 'my_chat_member'] }, { sinal: ctrl.signal });
         falhas = 0;
         if (estado !== ESTADOS.CONECTADO) { mudar(ESTADOS.CONECTADO); }
         for (const u of ups || []) {
           offset = u.update_id + 1;
+          /* O bot entrou/saiu de um canal ou grupo, ou mudou de permissao: e
+             assim que o Bolso Cheio descobre os DESTINOS de publicacao (a Bot
+             API nao lista os canais em que o bot esta). */
+          if (u.my_chat_member) {
+            const m = u.my_chat_member; const nm = m.new_chat_member || {};
+            const ev = { chat: { id: m.chat?.id, titulo: m.chat?.title || m.chat?.username || null, tipo: m.chat?.type, username: m.chat?.username || null },
+              status: nm.status, podePublicar: podePublicarCom(m.chat?.type, nm), por: m.from ? { id: m.from.id, nome: [m.from.first_name, m.from.last_name].filter(Boolean).join(' ') || m.from.username || null } : null, quando: new Date((m.date || 0) * 1000 || Date.now()).toISOString() };
+            for (const fn of aoMembro) { try { await fn(ev); } catch (e) { console.error(`[telegram] quem recebe mudanca de membro quebrou: ${e.message}`); } }
+            continue;
+          }
           const msg = normalizarUpdate(u);
           if (!msg) { continue; }
           ultimaAtividade = new Date().toISOString();
@@ -318,6 +340,56 @@ export function criarTelegramProvider({ fetchImpl = globalThis.fetch, api = 'htt
       try { await chamar('deleteMessage', { chat_id: chat || chatDoId(para), message_id: Number(msgId) }); return { ok: true }; } catch (e) { return { ok: false, erro: explicar(e) }; }
     },
 
+    /**
+     * Consulta um canal/grupo (por @username ou id) e as permissoes do bot nele.
+     * E o que valida um destino cadastrado a mao.
+     */
+    async consultarChat(ref) {
+      if (!token || !bot) { return { ok: false, erro: 'o Telegram não está conectado' }; }
+      const chat_id = /^-?\d+$/.test(String(ref).trim()) ? Number(String(ref).trim()) : '@' + String(ref).trim().replace(/^@|^https?:\/\/t\.me\//g, '');
+      try {
+        const c = await chamar('getChat', { chat_id });
+        let membro = null;
+        try { membro = await chamar('getChatMember', { chat_id: c.id, user_id: bot.id }); } catch { /* bot fora do chat */ }
+        return { ok: true, chat: { id: c.id, titulo: c.title || c.username || null, tipo: c.type, username: c.username || null },
+          status: membro?.status || 'fora', podePublicar: podePublicarCom(c.type, membro || {}) };
+      } catch (e) {
+        if (e.codigo === 400) { return { ok: false, erro: 'o Telegram não achou esse canal/grupo — confira o @ (ou adicione o bot nele primeiro)' }; }
+        if (e.codigo === 403) { return { ok: false, erro: 'o bot não tem acesso a esse canal/grupo — adicione o bot nele primeiro' }; }
+        return { ok: false, erro: explicar(e) };
+      }
+    },
+
+    /**
+     * Publica num canal/grupo: foto com legenda (ou só texto) e um BOTAO de link
+     * (o link rastreavel da campanha). Devolve o id da mensagem e, em canal
+     * publico, o link da postagem.
+     */
+    async publicar({ chatId, texto, imagem, botao }) {
+      if (!token || !bot) { return { ok: false, erro: 'o Telegram não está conectado' }; }
+      const teclado = botao?.url ? { inline_keyboard: [[{ text: String(botao.texto || 'Abrir').slice(0, 64), url: botao.url }]] } : null;
+      try {
+        let r;
+        if (imagem?.buffer || imagem?.url) {
+          const fd = new FormData();
+          fd.append('chat_id', String(chatId));
+          if (imagem.buffer) { fd.append('photo', new Blob([imagem.buffer], { type: imagem.tipo || 'image/jpeg' }), imagem.nome || 'campanha.jpg'); } else { fd.append('photo', imagem.url); }
+          if (texto) { fd.append('caption', paraHtml(String(texto).slice(0, 1024))); fd.append('parse_mode', 'HTML'); }
+          if (teclado) { fd.append('reply_markup', JSON.stringify(teclado)); }
+          r = await chamar('sendPhoto', null, { multipart: fd });
+        } else {
+          r = await chamar('sendMessage', { chat_id: chatId, text: paraHtml(String(texto || '').slice(0, 4096)), parse_mode: 'HTML', ...(teclado ? { reply_markup: teclado } : {}) });
+        }
+        const user = r.chat?.username;
+        return { ok: true, mensagemId: r.message_id, link: user ? `https://t.me/${user}/${r.message_id}` : null };
+      } catch (e) {
+        if (e.codigo === 403) { return { ok: false, erro: 'o bot não tem permissão de publicar nesse destino (foi removido ou perdeu a permissão)' }; }
+        if (e.codigo === 429) { return { ok: false, erro: `o Telegram pediu para esperar ${e.depois || '?'} s (limite de envio)`, depois: e.depois }; }
+        return { ok: false, erro: explicar(e) };
+      }
+    },
+
+    aoMembro(fn) { aoMembro.push(fn); },
     aoReceber(fn) { aoMsg.push(fn); },
     aoMudarStatus(fn) { aoSt.push(fn); },
   };

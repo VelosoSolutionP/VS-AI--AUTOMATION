@@ -21,6 +21,7 @@ import * as seguranca from '../engine/vsseguranca/index.mjs';
 import * as pagamentos from '../engine/vspagamentos/index.mjs';
 import * as fin from '../engine/vsfinanceiro/index.mjs';
 import { emReais } from '../engine/vsbot/fluxo.mjs';
+import * as campanhasTg from '../engine/vscampanhas/index.mjs';
 
 /** Pedaco curto da mensagem: o log serve pra diagnosticar, nao pra guardar
     conversa de cliente. */
@@ -318,6 +319,12 @@ function montar({ produtos } = {}) {
     if (e === 'conectado') { console.log(`[canais] telegram CONECTADO${st.numero ? ' — ' + st.numero : ''}`); }
     else if (e === 'caido') { console.error(`[canais] telegram CAIU${st.ultimoErro ? ' — ' + st.ultimoErro : ''}`); }
     else { console.log(`[canais] telegram ${e}${st.ultimoErro ? ' — ' + st.ultimoErro : ''}`); }
+  });
+  /* O bot entrou/saiu de canal ou grupo: vira (ou deixa de ser) DESTINO de
+     publicacao das campanhas — pendente ate o dono confirmar no painel. */
+  telegram.aoMembro((ev) => {
+    const r = campanhasTg.registrarEventoMembro(ev);
+    if (r.destino) { console.log(`[campanhas] destino ${r.destino.estado}: ${r.destino.titulo || r.destino.id} (${ev.status}${ev.podePublicar ? ', pode publicar' : ''})`); }
   });
   gateway.registrar(telegram);
   return gateway;
@@ -717,6 +724,11 @@ async function conectarTelegram(p, token) {
 const semSegredo = (st) => { const { token: _t, ...resto } = st || {}; return resto; };
 
 /** O que a tela do Telegram precisa: estado e se ha token — nunca o token. */
+/** Consulta canal/grupo no Telegram (cadastro manual de destino). */
+export const telegramConsultarChat = (ref) => (telegram ? telegram.consultarChat(ref) : Promise.resolve({ ok: false, erro: 'o Telegram não está conectado' }));
+/** Publica num canal/grupo (campanhas). */
+export const telegramPublicar = (args) => (telegram ? telegram.publicar(args) : Promise.resolve({ ok: false, erro: 'o Telegram não está conectado' }));
+
 export function telegramInfo() {
   const g = lerTelegram();
   return { temToken: Boolean(g.token), ligado: Boolean(g.ligado), bot: g.bot || null, ...(telegram ? telegram.status() : { estado: 'desconectado' }) };

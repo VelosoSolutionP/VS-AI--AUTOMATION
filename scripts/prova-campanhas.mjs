@@ -51,7 +51,7 @@ async function telegramFalso() {
   const { url } = JSON.parse(readFileSync(arq, 'utf8'));
   rmSync(arq, { force: true });
   const post = async (m, corpo) => (await (await fetch(`${url}/bot/${m}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo || {}) })).json()).result;
-  return { url, filho, escrever: (d) => post('_escrever', d) };
+  return { url, filho, escrever: (d) => post('_escrever', d), membro: (d) => post('_membro', d), enviados: () => post('_enviados') };
 }
 
 async function subirPainel({ casa, telegramUrl }) {
@@ -98,7 +98,7 @@ async function main() {
     const page = await navegador.newPage({ viewport: { width: 1366, height: 900 } });
     const errosJs = [];
     page.on('pageerror', (e) => errosJs.push(e.message));
-    page.on('console', (m) => { if (m.type() === 'error' && !/favicon|404/.test(m.text())) { errosJs.push(m.text()); } });
+    page.on('console', (m) => { if (m.type() === 'error' && !/favicon|404|status of 400/.test(m.text())) { errosJs.push(m.text()); } }); // 400 = recusa esperada (regra), não erro de JS
     await page.goto(`${base}/crm?t=${token}#tg-campanhas`);
     await page.waitForSelector('text=Acompanhamento');
     await page.screenshot({ path: join(FOTOS, '01-vazio.png'), fullPage: true });
@@ -166,6 +166,50 @@ async function main() {
     const lista = await api('campanhas?dias=30');
     const vip = lista.campanhas.find((c) => c.id === rasc.campanha.id);
     ok('rascunho não atribui (sem métricas)', vip && vip.estado === 'rascunho' && vip.metricas === null);
+
+    // ── 2ª entrega: destinos e publicação ──
+    await tg.membro({ chat: { id: -100123, title: 'Ofertas da Loja', type: 'channel', username: 'ofertas_loja' }, status: 'administrator', podePostar: true });
+    await tg.membro({ chat: { id: -100456, title: 'Canal Sem Post', type: 'channel', username: 'sem_post' }, status: 'administrator', podePostar: false });
+    await espera(2500);
+    await page.reload();
+    await page.waitForSelector('.cp-dest');
+    ok('bot adicionado ao canal: destino aparece PENDENTE para confirmar', await page.isVisible('.cp-dest:has-text("Ofertas da Loja") button:has-text("Confirmar")'));
+    await page.click('.cp-dest:has-text("Ofertas da Loja") button:has-text("Confirmar")');
+    await page.waitForSelector('.cp-dest:has-text("Ofertas da Loja") .badge:has-text("Confirmado")');
+    await page.click('.cp-dest:has-text("Canal Sem Post") button:has-text("Confirmar")');
+    await page.waitForSelector('.cp-dest:has-text("Canal Sem Post") .badge:has-text("Sem permissão")');
+    ok('canal sem permissão de publicar fica marcado', true);
+    await page.fill('#cpDestRef', '@nao_existe_isso');
+    await page.click('button:has-text("Verificar e adicionar")');
+    await page.waitForSelector('.toast.t-err');
+    ok('cadastro manual de canal inexistente é recusado com o motivo', (await page.textContent('.toast.t-err')).includes('não achou'));
+    await page.screenshot({ path: join(FOTOS, '08b-destinos.png'), fullPage: true });
+
+    await page.click('tbody tr:has-text("Promo Camiseta preta")');
+    await page.waitForSelector('.modal .cpPubDest');
+    ok('publicar: só o destino confirmado e com permissão aparece', (await page.$$('.modal .cpPubDest')).length === 1);
+    await page.check('.modal .cpPubDest');
+    await page.click('.modal button:has-text("Publicar")');
+    await page.waitForSelector('.modal .cp-pub .badge:has-text("Publicada")', { timeout: 15000 });
+    const envs = (await tg.enviados()).filter((m) => m.chat === '-100123');
+    const post = envs.at(-1) || {};
+    ok('Telegram recebeu a FOTO com legenda e o botão do link rastreável', post.foto === true && /Camiseta preta/.test(post.texto) && post.botao?.url === 'https://t.me/loja_teste_bot?start=promo-camiseta-preta', JSON.stringify({ foto: post.foto, botao: post.botao }));
+    ok('publicação guarda o link da postagem', await page.isVisible('.modal .cp-pub a:has-text("ver postagem")'));
+    await page.locator('.modal').screenshot({ path: join(FOTOS, '08c-publicada.png') });
+    // Política: outra publicação no mesmo destino em menos de 4 h é barrada.
+    await page.check('.modal .cpPubDest');
+    await page.check('.modal input[name=cpQuando][value=agendar]');
+    const daqui1h = new Date(Date.now() + 3600e3 - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    await page.fill('#cpQuandoEm', daqui1h);
+    await page.click('.modal button:has-text("Publicar")');
+    await page.waitForSelector('.toast.t-err:has-text("entre campanhas")');
+    ok('política de frequência barra 2ª publicação no mesmo destino em menos de 4 h', true);
+    const daqui6h = new Date(Date.now() + 6 * 3600e3 - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    await page.fill('#cpQuandoEm', daqui6h);
+    await page.click('.modal button:has-text("Publicar")');
+    await page.waitForSelector('.modal .cp-pub .badge:has-text("Agendada")');
+    ok('agendar para depois do intervalo: fica Agendada, com cancelar', await page.isVisible('.modal .cp-pub:has-text("Agendada") button'));
+    await page.keyboard.press('Escape');
 
     const cel2 = await navegador.newPage({ viewport: { width: 390, height: 844 } });
     await cel2.goto(`${base}/crm?t=${token}#tg-campanhas`);

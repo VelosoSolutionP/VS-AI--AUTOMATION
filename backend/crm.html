@@ -1314,6 +1314,18 @@ td.num,th.num{text-align:right;white-space:nowrap}
 @media(max-width:560px){.hr-dia{width:100%}}
 .tranq-ic.tg{background:rgba(42,171,238,.14);color:#2aabee;border-color:rgba(42,171,238,.35)}
 .tranq-bts{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto}
+/* Campanhas: destinos e publicacoes */
+.cp-passo-a-passo{margin:4px 0 12px 18px;padding:0;font-size:12.5px;color:var(--muted);display:grid;gap:3px}
+.cp-dest .lbl{flex:1} .cp-dest-ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--ac-soft);color:var(--ac);flex:0 0 30px} .cp-dest-ic svg{width:15px;height:15px}
+.cp-politica{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.cp-politica input{width:64px!important;padding:4px 6px;font-size:12.5px;display:inline-block} .cp-politica label{display:inline-flex!important;align-items:center;gap:5px;margin:0!important;font-size:12.5px!important;color:var(--muted)!important}
+.cp-dests{display:grid;gap:6px;margin:6px 0 10px} .cp-dests label{display:flex!important;align-items:center;gap:8px;font-size:13px!important;color:var(--fg)!important;cursor:pointer;margin:0!important}
+.cp-dests input,.cp-quando input[type=radio]{width:auto!important;margin:0} .cp-dests small{color:var(--dim);font-size:11px}
+.cp-quando{display:flex;align-items:center;gap:10px;flex-wrap:wrap} .cp-quando label{display:inline-flex!important;align-items:center;gap:5px;font-size:13px!important;margin:0!important;color:var(--fg)!important;cursor:pointer}
+.cp-quando input[type=datetime-local]{width:auto;padding:5px 8px;font-size:13px}
+.cp-pubs{display:grid;gap:6px;margin-top:6px}
+.cp-pub{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--line);border-radius:10px;padding:7px 10px;background:var(--panel-2);font-size:12.5px}
+.cp-pub small{color:var(--dim)} .cp-pub a{font-size:12px} .cp-pub .cp-pub-erro{flex:1 1 100%;color:var(--err)}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
@@ -7473,7 +7485,7 @@ function telaCampanhas(){
   const n=(c,k)=>c.metricas?c.metricas[k]:'—';
   const linha=(c)=>{ const k=c.id||('legado:'+c.codigo); const link=['ativa','encerrada'].includes(c.estado)?cpLink(c.codigo):null;
     return `<tr class="cp-linha" tabindex="0" onclick="abrirCampanha('${esc(k)}')" onkeydown="if(event.key==='Enter')abrirCampanha('${esc(k)}')">
-      <td><b>${esc(c.nome||'(sem nome)')}</b><small style="display:block;color:var(--dim)">${esc(c.objetivoTexto||'')}${c.legado?' · link antigo':''}</small></td>
+      <td><b>${esc(c.nome||'(sem nome)')}</b><small style="display:block;color:var(--dim)">${esc(c.objetivoTexto||'')}${c.legado?' · link antigo':''}${(c.publicacoes||[]).length?` · ${(c.publicacoes||[]).filter(p=>p.estado==='publicada').length} publicada(s)${(c.publicacoes||[]).some(p=>p.estado==='agendada')?' · agendada':''}${(c.publicacoes||[]).some(p=>p.estado==='falha')?' · <span style="color:var(--err)">falha</span>':''}`:''}</small></td>
       <td><span class="badge ${CP_ESTADO[c.estado]||''}" style="margin:0">${esc(c.estadoTexto||c.estado)}</span></td>
       <td class="num">${n(c,'entradas')}</td><td class="num">${n(c,'conversas')}</td><td class="num">${n(c,'pedidos')}</td>
       <td class="num">${c.metricas?reais(c.metricas.receitaCentavos):'—'}</td>
@@ -7489,7 +7501,8 @@ function telaCampanhas(){
        <tbody>${lista.map(linha).join('')}</tbody></table></div>`
       :vazio('publicar','Nenhuma campanha ainda','Escolha o objetivo, o produto e a foto — o auditor confere antes de você divulgar.',['Clique em <b>Nova campanha</b>','Monte o texto e veja a prévia','Aprove e copie o link'])}
   </div>
-  <p class="hint regra">${ico('politica')}<span>O Telegram não deixa bot começar conversa com quem nunca falou com ele — a campanha trabalha com quem <b>escolheu</b> entrar pelo link. Nada de disparo em massa.</span></p>`;
+  ${r&&!r.erro?cpDestinosCard(r):''}
+  <p class="hint regra">${ico('politica')}<span>O Telegram não deixa bot começar conversa com quem nunca falou com ele — a campanha trabalha com quem <b>escolheu</b> entrar pelo link ou segue o canal. Nada de disparo em massa.</span></p>`;
 }
 
 /* ── assistente ── */
@@ -7662,9 +7675,86 @@ function cpTelaDivulgacao(){
     ${link?`<div class="linkbox"><span>${esc(link)}</span>${botao({t:'Copiar link',ic:'copiar',v:'p',sz:'xs',on:`cpCopiar('${esc(link)}')`})}</div>
       <div style="margin-top:10px">${botao({t:'Copiar texto + link',ic:'copiar',v:'s',sz:'xs',on:`cpCopiar(${esc(JSON.stringify(pacote))})`})}</div>`
       :`<p class="hint">Conecte o bot em <a href="#tg-canal" onclick="ir('tg-canal');return false">Canal e conexão</a> — o link aparece aqui.</p>`}
+    <div style="margin-top:14px">${cpPublicarHtml(c)}</div>
     <div class="cp-rodape">${botao({t:'Ver no acompanhamento',ic:'relatorios',v:'s',on:'fecharAssistente()'})}</div>`;
 }
 function cpCopiar(t){ navigator.clipboard?.writeText(t).then(()=>flash('Copiado.','ok'),()=>flash('Não consegui copiar — selecione e copie.','err')); }
+
+/* ── Campanhas · 2ª entrega: destinos e publicações ─────────────────────────
+   Publicação ORGÂNICA em canais e grupos onde o bot foi autorizado. O destino
+   só vale depois que o dono confirma; a política de frequência vale por destino. */
+const DEST_EST={pendente:['Confirmar','b-warn'],confirmado:['Confirmado','b-ok'],removido:['Bot removido','b-err']};
+const PUB_EST={agendada:['Agendada','b-ac'],publicando:['Publicando','b-ac'],publicada:['Publicada','b-ok'],falha:['Falha','b-err'],cancelada:['Cancelada','']};
+const dataBrTxt=(iso)=>new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+function cpDestinosCard(r){
+  const ds=r?.destinos||[], pol=r?.politica||{intervaloHoras:4,maxPorDia:3}, bot=r?.botArroba||'o seu bot';
+  const linha=(x)=>{ const [rot,cls]=x.estado==='confirmado'&&!x.podePublicar?['Sem permissão de publicar','b-err']:DEST_EST[x.estado]||[x.estado,''];
+    return `<div class="stat-row cp-dest"><span class="cp-dest-ic">${ico(x.tipo==='channel'?'publicar':'person')}</span>
+      <div class="lbl">${esc(x.titulo||x.id)}<small>${esc(x.tipo==='channel'?'Canal':'Grupo')}${x.username?' · @'+esc(x.username):''}${x.origem==='evento'&&x.adicionadoPor?` · adicionado por ${esc(x.adicionadoPor)}`:''}</small></div>
+      <span class="badge ${cls}">${esc(rot)}</span>
+      <div class="acoes">${x.estado==='pendente'?botao({t:'Confirmar',ic:'check',v:'p',sz:'xs',on:`cpConfirmarDestino('${esc(x.id)}')`,tit:'É um canal/grupo da loja — liberar para campanhas'}):''}
+        ${x.username?bi('atualizar','Verificar permissões de novo',`cpVerificarDestino('${esc(x.username)}')`):''}
+        ${bi('excluir','Remover destino',`cpRemoverDestino('${esc(x.id)}')`,'dan')}</div></div>`; };
+  return `<div class="card" style="margin-bottom:16px">
+    ${cardH('publicar','Destinos de publicação',`Canais e grupos onde o bot pode publicar suas campanhas. Publicação <b>orgânica</b>: o Telegram não cobra por postagem.`,3)}
+    <ol class="cp-passo-a-passo"><li>No Telegram, adicione <b>${esc(bot)}</b> ao canal ou grupo.</li><li>Em canal, dê a ele <b>administrador</b> com “Publicar mensagens”.</li><li>Ele aparece aqui como <b>Confirmar</b> — confirme se o canal é da loja.</li></ol>
+    ${ds.length?ds.map(linha).join(''):'<p class="hint">Nenhum destino ainda. Adicione o bot a um canal ou grupo — ou cadastre abaixo um canal onde ele já estava.</p>'}
+    <div class="cv-compor" style="padding-left:12px;margin-top:10px"><input id="cpDestRef" placeholder="@canal_da_loja ou t.me/canal_da_loja" style="border:0;background:none;box-shadow:none;padding:9px 0" onkeydown="if(event.key==='Enter')cpVerificarDestino()">
+      ${botao({t:'Verificar e adicionar',ic:'busca',v:'s',on:'cpVerificarDestino()'})}</div>
+    <div class="cp-politica"><span>Política de frequência, por destino:</span>
+      <label>no mínimo <input id="cpPolInt" type="number" min="0.5" max="168" step="0.5" value="${esc(pol.intervaloHoras)}"> h entre campanhas</label>
+      <label>e no máximo <input id="cpPolMax" type="number" min="1" max="24" value="${esc(pol.maxPorDia)}"> por dia</label>
+      ${botao({t:'Salvar',ic:'salvar',v:'g',sz:'xs',on:'cpSalvarPolitica()'})}</div>
+  </div>`;
+}
+async function cpVerificarDestino(ref){
+  ref=ref||document.getElementById('cpDestRef')?.value.trim();
+  if(!ref) return avisoErro('Informe o canal','Digite o @ do canal ou grupo (ex.: @ofertas_da_loja).');
+  try{ const r=await api('campanhas/destino/verificar',{ref}); await carregarCampanhas(true);
+    const d=r.destino; flash(d.podePublicar?`“${d.titulo}” verificado — o bot pode publicar. ${d.estado==='pendente'?'Confirme para liberar.':''}`:`“${d.titulo}” verificado, mas o bot ainda NÃO pode publicar lá (em canal, precisa ser admin com “Publicar mensagens”).`,d.podePublicar?'ok':'err'); }
+  catch(e){ avisoErro('Não consegui verificar',esc(e.message)); }
+}
+async function cpConfirmarDestino(id){ try{ await api('campanhas/destino/confirmar',{id}); await carregarCampanhas(true); flash('Destino confirmado — já aparece para publicar.','ok'); }catch(e){ avisoErro('Não confirmei',esc(e.message)); } }
+function cpRemoverDestino(id){ return confirmar({titulo:'Remover este destino?',texto:'Ele some da lista de publicação. O bot continua no canal — para tirar de vez, remova-o lá no Telegram.',rotulo:'Remover',
+  aoConfirmar:async()=>{ await api('campanhas/destino/remover',{id}); await carregarCampanhas(true); flash('Destino removido.','ok'); }}); }
+async function cpSalvarPolitica(){ try{ await api('campanhas/politica',{intervaloHoras:Number(String(document.getElementById('cpPolInt').value).replace(',','.')),maxPorDia:Number(document.getElementById('cpPolMax').value)}); await carregarCampanhas(true); flash('Política salva.','ok'); }catch(e){ avisoErro('Não salvei',esc(e.message)); } }
+
+/* Publicar/agendar uma campanha ATIVA: usado na Divulgação e no detalhe. */
+function cpPublicarHtml(c){
+  const ds=(CP[RES_DIAS]?.destinos||[]).filter(x=>x.estado==='confirmado'&&x.podePublicar);
+  const pubs=(c.publicacoes||[]).slice().sort((a,b)=>String(b.quando).localeCompare(String(a.quando)));
+  const lista=pubs.length?`<div class="cp-pubs">${pubs.map(p=>{ const [rot,cls]=PUB_EST[p.estado]||[p.estado,''];
+      return `<div class="cp-pub"><span class="badge ${cls}" style="margin:0">${rot}</span><b>${esc(p.destino||p.destinoId)}</b><small>${dataBrTxt(p.publicadaEm||p.quando)}</small>
+        ${p.link?`<a href="${esc(p.link)}" target="_blank" rel="noopener">ver postagem</a>`:''}${p.erro?`<small class="cp-pub-erro">${esc(p.erro)}</small>`:''}
+        ${p.estado==='agendada'?bi('fechar','Cancelar agendamento',`cpCancelarPub('${esc(c.id)}','${esc(p.id)}')`,'dan'):''}</div>`; }).join('')}</div>`:'';
+  if(c.estado!=='ativa') return lista?`<h4 class="cp-h">Publicações</h4>${lista}`:'';
+  return `<h4 class="cp-h">Publicar em canal ou grupo</h4>
+    ${ds.length?`<div class="cp-dests">${ds.map(x=>`<label><input type="checkbox" class="cpPubDest" value="${esc(x.id)}"> ${esc(x.titulo)} <small>${x.tipo==='channel'?'canal':'grupo'}</small></label>`).join('')}</div>
+      <div class="cp-quando"><label><input type="radio" name="cpQuando" value="agora" checked onchange="document.getElementById('cpQuandoEm').disabled=true"> Agora</label>
+        <label><input type="radio" name="cpQuando" value="agendar" onchange="document.getElementById('cpQuandoEm').disabled=false"> Agendar para</label>
+        <input type="datetime-local" id="cpQuandoEm" disabled>
+        ${botao({t:'Publicar',ic:'enviar',v:'p',sz:'xs',on:`cpPublicar('${esc(c.id)}')`})}</div>
+      <p class="hint">Vale a política de frequência de cada destino. Vai a imagem, o texto e o botão “${esc(c.botao||'Falar com a loja')}” com o link rastreável.</p>`
+      :`<p class="hint">Nenhum destino confirmado ainda — veja <b>Destinos de publicação</b> na lista de campanhas. Enquanto isso, divulgue o link.</p>`}
+    ${lista?`<h4 class="cp-h" style="margin-top:12px">Publicações</h4>${lista}`:''}`;
+}
+async function cpPublicar(id){
+  const destinos=[...document.querySelectorAll('.cpPubDest:checked')].map(x=>x.value);
+  if(!destinos.length) return avisoErro('Escolha o destino','Marque pelo menos um canal ou grupo.');
+  const agendar=document.querySelector('input[name=cpQuando]:checked')?.value==='agendar';
+  const em=document.getElementById('cpQuandoEm')?.value;
+  if(agendar&&!em) return avisoErro('Escolha a data e a hora','Ou marque “Agora”.');
+  try{
+    const r=await api('campanhas/publicar',{id,destinos,quando:agendar?new Date(em).toISOString():null});
+    const ok=(r.resultados||[]).filter(x=>x.ok).length, falha=(r.resultados||[]).filter(x=>!x.ok);
+    if(CP_ED?.c?.id===id&&r.campanha) CP_ED.c=r.campanha;
+    await carregarCampanhas(true);
+    if(falha.length) avisoErro(`${ok} ${agendar?'agendada(s)':'enviada(s)'}, ${falha.length} não`,falha.map(x=>esc(x.erro)).join('<br>'));
+    else flash(agendar?`Agendada em ${ok} destino(s).`:`Enviada para ${ok} destino(s) — veja o estado abaixo.`,'ok');
+    if(document.querySelector('.modal .cp-det')){ fecharModal(); abrirCampanha(id); }
+  }catch(e){ avisoErro('Não publiquei',esc(e.message)); }
+}
+async function cpCancelarPub(id,pubId){ try{ const r=await api('campanhas/publicacao/cancelar',{id,pubId}); if(CP_ED?.c?.id===id) CP_ED.c=r.campanha; await carregarCampanhas(true); flash('Agendamento cancelado.','ok'); if(document.querySelector('.modal .cp-det')){ fecharModal(); abrirCampanha(id); } }catch(e){ avisoErro('Não cancelei',esc(e.message)); } }
 
 /* ── detalhe (clicar na linha) ── */
 function abrirCampanha(k){
@@ -7682,6 +7772,7 @@ function abrirCampanha(k){
     ${c.legado?'<p class="hint">Link criado antes do assistente (só nome e código) — conta como “Captar clientes”.</p>'
       :`<h4 class="cp-h">Relatório do auditor</h4>${cpRelatorio(c.auditoria)}
         ${c.aprovacao?`<p class="hint">Aprovada em ${cpData(c.aprovacao.em)}${c.aprovacao.por?` por ${esc(c.aprovacao.por)}`:''}${c.aprovacao.ressalvas?.length?` — com ressalva: ${c.aprovacao.ressalvas.map(esc).join(' ')}`:''}.</p>`:''}
+        <div style="margin-top:12px">${cpPublicarHtml(c)}</div>
         <details style="margin-top:8px"><summary class="hint" style="cursor:pointer">Histórico</summary><ul class="notas">${(c.historico||[]).map(h=>`<li>${cpData(h.em)} — ${esc(h.evento)}</li>`).join('')}</ul></details>`}
   </div></div>`;
   const rod=BT.cancelar()+

@@ -332,3 +332,167 @@ export function excluir(id) {
   gravar(d);
   return { ok: true };
 }
+
+/* ── 2ª entrega: DESTINOS, PUBLICAÇÕES e FREQUÊNCIA ─────────────────────────
+   Publicação orgânica em canais e grupos onde o bot foi autorizado. O estado da
+   campanha (ativa…) é uma coisa; o estado de CADA publicação (agendada,
+   publicada, falha) é outra — uma campanha ativa pode nunca ter sido publicada
+   pelo Bolso Cheio (só link) ou ter três publicações, cada uma com seu destino. */
+
+export const TIPOS_DESTINO = { channel: 'Canal', group: 'Grupo', supergroup: 'Grupo' };
+export const ESTADOS_PUB = { agendada: 'Agendada', publicando: 'Publicando', publicada: 'Publicada', falha: 'Falha', cancelada: 'Cancelada' };
+/* Política INTERNA de frequência (a proposta do dono foi cortada no valor): o
+   Telegram aguenta ~20 msg/min num grupo, mas propaganda em sequência espanta
+   o público. Padrão conservador, ajustável na tela. */
+export const POLITICA_PADRAO = { intervaloHoras: 4, maxPorDia: 3 };
+
+const destinosDe = (d) => d.destinos || (d.destinos = []);
+export function listarDestinos() { return ler().destinos || []; }
+export function politica() { const d = ler(); return { ...POLITICA_PADRAO, ...(d.politica || {}) }; }
+export function salvarPolitica({ intervaloHoras, maxPorDia } = {}) {
+  const ih = Number(intervaloHoras); const mx = Number(maxPorDia);
+  if (!(ih >= 0.5 && ih <= 168)) { return { ok: false, erro: 'intervalo entre campanhas: de 0,5 a 168 horas' }; }
+  if (!(Number.isInteger(mx) && mx >= 1 && mx <= 24)) { return { ok: false, erro: 'máximo por dia: de 1 a 24' }; }
+  const d = ler(); d.politica = { intervaloHoras: ih, maxPorDia: mx }; gravar(d);
+  return { ok: true, politica: d.politica };
+}
+
+/**
+ * O Telegram avisou que o bot entrou/saiu/mudou de permissão num chat.
+ * Entrou: vira destino PENDENTE — só aparece para publicar depois que o dono
+ * confirma (o bot pode ser adicionado por qualquer um; o canal precisa ser da
+ * loja). Saiu/perdeu permissão: marcado, e as publicações agendadas nele falham
+ * com o motivo, em vez de sumirem.
+ */
+export function registrarEventoMembro(ev = {}) {
+  const id = String(ev.chat?.id ?? '');
+  if (!id || !['channel', 'group', 'supergroup'].includes(ev.chat?.tipo)) { return { ok: false, motivo: 'não é canal nem grupo' }; }
+  const d = ler(); const lista = destinosDe(d);
+  let x = lista.find((y) => y.id === id);
+  const saiu = ['left', 'kicked'].includes(ev.status);
+  if (!x) {
+    if (saiu) { return { ok: true, ignorado: true }; }
+    x = { id, titulo: ev.chat.titulo || null, tipo: ev.chat.tipo, username: ev.chat.username || null, estado: 'pendente', origem: 'evento', adicionadoEm: ev.quando || agoraIso(), adicionadoPor: ev.por?.nome || null };
+    lista.push(x);
+  }
+  Object.assign(x, { titulo: ev.chat.titulo || x.titulo, username: ev.chat.username ?? x.username, podePublicar: !!ev.podePublicar, statusBot: ev.status, verificadoEm: agoraIso() });
+  if (saiu) { x.estado = 'removido'; }
+  else if (x.estado === 'removido') { x.estado = 'pendente'; }
+  gravar(d);
+  return { ok: true, destino: x };
+}
+
+/** Cadastro manual (canal onde o bot já estava antes): vem da consulta ao Telegram. */
+export function cadastrarDestino(consulta = {}) {
+  if (!consulta.ok) { return { ok: false, erro: consulta.erro || 'não consegui consultar o destino' }; }
+  if (!['channel', 'group', 'supergroup'].includes(consulta.chat?.tipo)) { return { ok: false, erro: 'isso é uma conversa privada — publicação é só em canal ou grupo' }; }
+  const r = registrarEventoMembro({ chat: consulta.chat, status: consulta.status, podePublicar: consulta.podePublicar });
+  if (r.destino && r.destino.origem === 'evento' && !r.destino.adicionadoPor) { r.destino.origem = 'manual'; const d = ler(); const x = destinosDe(d).find((y) => y.id === r.destino.id); if (x) { x.origem = 'manual'; gravar(d); } }
+  return r;
+}
+
+export function confirmarDestino(id, por = null) {
+  const d = ler(); const x = destinosDe(d).find((y) => y.id === String(id));
+  if (!x) { return { ok: false, erro: 'destino não encontrado' }; }
+  if (x.estado === 'removido') { return { ok: false, erro: 'o bot não está mais nesse destino — adicione de novo' }; }
+  x.estado = 'confirmado'; x.confirmadoEm = agoraIso(); x.confirmadoPor = por;
+  gravar(d); return { ok: true, destino: x };
+}
+export function removerDestino(id) {
+  const d = ler(); const lista = destinosDe(d); const i = lista.findIndex((y) => y.id === String(id));
+  if (i < 0) { return { ok: false, erro: 'destino não encontrado' }; }
+  lista.splice(i, 1); gravar(d); return { ok: true };
+}
+
+/** Publicações (de todas as campanhas) num destino, para a regra de frequência. */
+function publicacoesNoDestino(d, destinoId) {
+  return (d.campanhas || []).flatMap((c) => (c.publicacoes || []).filter((p) => p.destinoId === destinoId && ['agendada', 'publicando', 'publicada'].includes(p.estado)).map((p) => ({ ...p, campanhaId: c.id })));
+}
+
+/**
+ * Pode publicar esta campanha neste destino, neste horário? Checa destino
+ * confirmado com permissão e a política: intervalo mínimo entre campanhas
+ * no mesmo destino e máximo por dia.
+ */
+export function podeAgendar(d, campanha, destinoId, quando, pol = politica()) {
+  const dest = destinosDe(d).find((y) => y.id === destinoId);
+  if (!dest) { return { ok: false, erro: 'destino não encontrado' }; }
+  if (dest.estado !== 'confirmado') { return { ok: false, erro: `“${dest.titulo}” ainda não foi confirmado` }; }
+  if (!dest.podePublicar) { return { ok: false, erro: `o bot não tem permissão de publicar em “${dest.titulo}”` }; }
+  const t = new Date(quando).getTime();
+  const outras = publicacoesNoDestino(d, destinoId);
+  if (outras.some((p) => p.campanhaId === campanha.id && ['agendada', 'publicando'].includes(p.estado))) { return { ok: false, erro: `esta campanha já está agendada em “${dest.titulo}”` }; }
+  const perto = outras.find((p) => Math.abs(new Date(p.quando).getTime() - t) < pol.intervaloHoras * 3600e3);
+  if (perto) {
+    return { ok: false, erro: `em “${dest.titulo}” já há campanha às ${new Date(perto.quando).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} — a política pede ${String(pol.intervaloHoras).replace('.', ',')} h entre campanhas no mesmo destino` };
+  }
+  const dia = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(t));
+  const noDia = outras.filter((p) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(p.quando)) === dia).length;
+  if (noDia >= pol.maxPorDia) { return { ok: false, erro: `“${dest.titulo}” já tem ${noDia} campanha(s) nesse dia — o máximo é ${pol.maxPorDia}` }; }
+  return { ok: true, destino: dest };
+}
+
+/**
+ * Agenda (ou publica já, com `quando` = agora) a campanha ATIVA em destinos.
+ * Devolve o resultado de cada destino: um pode passar e outro esbarrar na regra.
+ */
+export function agendarPublicacao(id, { destinos = [], quando = null, por = null, agora = new Date() } = {}) {
+  const d = ler();
+  const c = (d.campanhas || []).find((x) => x.id === id);
+  if (!c) { return { ok: false, erro: 'campanha não encontrada' }; }
+  if (c.estado !== 'ativa') { return { ok: false, erro: 'só campanha aprovada (ativa) é publicada' }; }
+  if (!destinos.length) { return { ok: false, erro: 'escolha pelo menos um destino' }; }
+  const t = quando ? new Date(quando) : new Date(agora);
+  if (Number.isNaN(t.getTime())) { return { ok: false, erro: 'data/hora inválida' }; }
+  if (quando && t.getTime() < agora.getTime() - 60000) { return { ok: false, erro: 'esse horário já passou' }; }
+  c.publicacoes = c.publicacoes || [];
+  const resultados = [];
+  for (const destinoId of destinos.map(String)) {
+    const v = podeAgendar(d, c, destinoId, t.toISOString());
+    if (!v.ok) { resultados.push({ destinoId, ok: false, erro: v.erro }); continue; }
+    const pub = { id: 'pb_' + randomBytes(5).toString('hex'), destinoId, destino: v.destino.titulo, quando: t.toISOString(), estado: 'agendada', criadaEm: agoraIso(), por };
+    c.publicacoes.push(pub);
+    c.historico.push({ em: agoraIso(), evento: `publicação ${quando ? 'agendada' : 'pedida agora'} em ${v.destino.titulo}` });
+    resultados.push({ destinoId, ok: true, publicacao: pub });
+  }
+  gravar(d);
+  return { ok: resultados.some((x) => x.ok), resultados, erro: resultados.every((x) => !x.ok) ? resultados.map((x) => x.erro).join(' · ') : undefined, campanha: publico(c) };
+}
+
+export function cancelarPublicacao(id, pubId) {
+  const d = ler(); const c = (d.campanhas || []).find((x) => x.id === id);
+  const p = c?.publicacoes?.find((x) => x.id === pubId);
+  if (!p) { return { ok: false, erro: 'publicação não encontrada' }; }
+  if (p.estado !== 'agendada') { return { ok: false, erro: `publicação ${ESTADOS_PUB[p.estado].toLowerCase()} não se cancela` }; }
+  p.estado = 'cancelada'; p.canceladaEm = agoraIso();
+  c.historico.push({ em: p.canceladaEm, evento: `publicação em ${p.destino} cancelada` });
+  gravar(d); return { ok: true, campanha: publico(c) };
+}
+
+/**
+ * O AGENDADOR: publica o que venceu, uma por vez (≤ 1/s — limite do Telegram).
+ * `publicar(pub, campanha, destino)` é quem fala com o Telegram (injetado pelo
+ * backend). Falha fica registrada com o motivo; nada some calado.
+ */
+export async function rodarAgendador({ publicar, agora = new Date(), espera = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
+  const d0 = ler();
+  const vencidas = (d0.campanhas || []).flatMap((c) => (c.publicacoes || []).filter((p) => p.estado === 'agendada' && new Date(p.quando) <= agora).map((p) => ({ c: c.id, p: p.id })));
+  const feitas = [];
+  for (const [i, v] of vencidas.entries()) {
+    if (i) { await espera(1100); }
+    let d = ler(); let c = d.campanhas.find((x) => x.id === v.c); let p = c?.publicacoes.find((x) => x.id === v.p);
+    if (!p || p.estado !== 'agendada') { continue; }
+    const dest = destinosDe(d).find((y) => y.id === p.destinoId);
+    p.estado = 'publicando'; gravar(d);
+    let r;
+    if (!dest || dest.estado !== 'confirmado' || !dest.podePublicar) { r = { ok: false, erro: 'o destino não está mais confirmado ou o bot perdeu a permissão' }; }
+    else if (c.estado !== 'ativa') { r = { ok: false, erro: 'a campanha foi encerrada antes da hora' }; }
+    else { try { r = await publicar(p, publico(c), dest); } catch (e) { r = { ok: false, erro: e.message }; } }
+    d = ler(); c = d.campanhas.find((x) => x.id === v.c); p = c.publicacoes.find((x) => x.id === v.p);
+    Object.assign(p, r.ok ? { estado: 'publicada', publicadaEm: agoraIso(), mensagemId: r.mensagemId || null, link: r.link || null, erro: null } : { estado: 'falha', falhouEm: agoraIso(), erro: r.erro || 'motivo não informado' });
+    c.historico.push({ em: agoraIso(), evento: r.ok ? `publicada em ${p.destino}` : `falhou em ${p.destino}: ${p.erro}` });
+    gravar(d);
+    feitas.push({ id: p.id, ok: r.ok, erro: r.erro || null });
+  }
+  return { publicadas: feitas.filter((x) => x.ok).length, falhas: feitas.filter((x) => !x.ok).length, feitas };
+}

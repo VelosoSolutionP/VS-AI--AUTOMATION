@@ -232,6 +232,30 @@ function contextoFechamento(quem, tel) {
   return { ok: true, p, fila, lead: crm.listar().find((l) => l.telefone === tel) || null };
 }
 
+/* O que o agendador manda pro Telegram: a imagem da campanha (arquivo nosso,
+   lido do disco; ou URL externa), o texto e o BOTAO com o link rastreavel. */
+function publicarCampanha(pub, c, dest) {
+  const link = canais.telegramInfo().link;
+  let imagem = null;
+  if (c.imagem) {
+    const nome = midia.nomeValido(c.imagem.arquivo) ? c.imagem.arquivo : String(c.imagem.url || '').match(/\/midia\/([0-9a-f]{24}\.[a-z]+)$/)?.[1];
+    if (nome && midia.nomeValido(nome)) {
+      try { imagem = { buffer: readFileSync(join(midia.baseDir(), nome)), nome, tipo: /png$/.test(nome) ? 'image/png' : /webp$/.test(nome) ? 'image/webp' : 'image/jpeg' }; } catch { imagem = null; }
+    } else if (/^https:\/\//.test(c.imagem.url || '')) { imagem = { url: c.imagem.url }; }
+  }
+  return canais.telegramPublicar({ chatId: dest.id, texto: c.texto, imagem, botao: link ? { texto: c.botao || 'Falar com a loja', url: `${link}?start=${c.codigo}` } : null });
+}
+
+/* UMA rodada do agendador por vez: o botao "publicar agora" e o relogio usam a
+   mesma trava — duas rodadas juntas podiam publicar a mesma campanha 2 vezes. */
+let rodadaCampanhas = null;
+function agendadorCampanhas() {
+  if (!rodadaCampanhas) {
+    rodadaCampanhas = campanhasTg.rodarAgendador({ publicar: publicarCampanha }).finally(() => { rodadaCampanhas = null; });
+  }
+  return rodadaCampanhas;
+}
+
 function contextoCampanha(extra = {}) {
   return {
     produto: (sku) => {
@@ -1399,7 +1423,8 @@ const server = createServer(async (req, res) => {
         })),
       ].sort((a, b) => String(b.atualizadaEm || b.criadaEm).localeCompare(String(a.atualizadaEm || a.criadaEm)));
       return json(res, 200, {
-        dias, campanhas: lista, linkBot: canais.telegramInfo().link || null,
+        dias, campanhas: lista, linkBot: canais.telegramInfo().link || null, botArroba: canais.telegramInfo().numero || null,
+        destinos: campanhasTg.listarDestinos(), politica: campanhasTg.politica(),
         catalogo: estoque.doAtendimento().map((p) => ({ sku: p.sku, nome: p.nome, descricao: p.descricao, precoCentavos: p.precoCentavos, precoDeCentavos: p.precoDeCentavos, imagem: p.imagem, esgotado: p.esgotado })),
         limites: campanhasTg.LIMITE,
       });
@@ -1882,6 +1907,28 @@ const server = createServer(async (req, res) => {
         case '/crm/api/campanhas/aprovar': r = campanhasTg.aprovar(String(d.id || ''), { ...contextoCampanha(), por: quem.email || null, aceitarRessalvas: d.aceitarRessalvas === true }); break;
         case '/crm/api/campanhas/encerrar': r = campanhasTg.encerrar(String(d.id || '')); break;
         case '/crm/api/campanhas/excluir': r = campanhasTg.excluir(String(d.id || '')); break;
+        /* Destinos de publicacao (canais/grupos onde o bot foi autorizado). */
+        case '/crm/api/campanhas/destino/verificar': {
+          const ref = String(d.ref || d.id || '').trim();
+          if (!ref) { r = { ok: false, motivo: 'informe o @ do canal/grupo ou o link t.me' }; break; }
+          r = campanhasTg.cadastrarDestino(await canais.telegramConsultarChat(ref));
+          break;
+        }
+        case '/crm/api/campanhas/destino/confirmar': r = campanhasTg.confirmarDestino(String(d.id || ''), quem.email || null); break;
+        case '/crm/api/campanhas/destino/remover': r = campanhasTg.removerDestino(String(d.id || '')); break;
+        case '/crm/api/campanhas/politica': r = campanhasTg.salvarPolitica(d); break;
+        /* Publicar agora ou agendar. "Agora" entra na fila e o agendador manda
+           na mesma hora — e o mesmo caminho, com as mesmas regras. */
+        case '/crm/api/campanhas/publicar': {
+          r = campanhasTg.agendarPublicacao(String(d.id || ''), { destinos: Array.isArray(d.destinos) ? d.destinos : [], quando: d.quando || null, por: quem.email || null });
+          if (r.ok && !d.quando) {
+            // Duas voltas: se o relogio ja estava rodando, a 1a e a dele (anterior a este pedido).
+            await agendadorCampanhas(); await agendadorCampanhas();
+            r = { ...r, campanha: campanhasTg.obter(String(d.id)) };
+          }
+          break;
+        }
+        case '/crm/api/campanhas/publicacao/cancelar': r = campanhasTg.cancelarPublicacao(String(d.id || ''), String(d.pubId || '')); break;
         case '/crm/api/resultados/campanha': r = resultados.criarCampanha({ nome: d.nome, canal: d.canal === 'whatsapp' ? 'whatsapp' : 'telegram' }); break;
         case '/crm/api/resultados/campanha/arquivar': r = resultados.arquivarCampanha(String(d.codigo || ''), d.arquivada !== false); break;
         /* Retomar um pedido parado: UMA mensagem, pelo canal de onde a pessoa
@@ -2171,6 +2218,15 @@ server.listen(...(process.env.HOST ? [PORT, process.env.HOST] : [PORT]), () => {
     canais.resgatarFila().catch((e) => console.error(`[fila] varredura falhou: ${e.message}`));
   }, 60000);
   relogio.unref?.();
+
+  /* Agendador das campanhas do Telegram: a cada 30 s publica o que venceu. */
+  const agenda = setInterval(async () => {
+    try {
+      const r = await agendadorCampanhas();
+      if (r.publicadas || r.falhas) { console.log(`[campanhas] agendador: ${r.publicadas} publicada(s), ${r.falhas} falha(s)`); }
+    } catch (e) { console.error(`[campanhas] agendador falhou: ${e.message}`); }
+  }, 30000);
+  agenda.unref?.();
 
   /* Quem pagou e ficou sem o link (e-mail fora, WhatsApp caído) recebe de novo
      sozinho, sem depender de alguém notar no histórico. */
