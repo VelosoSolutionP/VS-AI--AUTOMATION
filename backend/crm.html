@@ -1497,8 +1497,12 @@ function toast(t,tipo,segundos,op){
   // O mesmo aviso de novo (clique duplo, tentar de novo) nao empilha: renova o que ja esta la.
   const chave=tipo+'|'+(op.titulo||'')+'|'+corpo;
   [...c.children].forEach(x=>{ if(x.dataset.chave===chave) x.remove(); });
-  const fica=op.fixo??(tipo==='err'&&!segundos);
-  const dur=(segundos||(op.titulo?6:4))*1000;
+  /* TODO aviso fecha sozinho — erro tambem, so que mais devagar (10 a 20 s,
+     conforme o tamanho), pra dar tempo de ler. Aviso que nunca sai obrigava a
+     fechar um por um. So fica quem pedir `fixo` explicitamente. */
+  const fica=op.fixo===true;
+  const tamanho=String(op.titulo||'').length+String(corpo).replace(/<[^>]+>/g,'').length+lista.join(' ').length;
+  const dur=(segundos||(tipo==='err'?Math.min(20,10+Math.floor(tamanho/40)):(op.titulo?6:4)))*1000;
   const el=document.createElement('div');
   el.className='toast t-'+tipo; el.dataset.chave=chave;
   el.setAttribute('role',tipo==='err'?'alert':'status');
@@ -1511,7 +1515,16 @@ function toast(t,tipo,segundos,op){
   const sair=()=>{ if(el.classList.contains('saindo')) return; el.classList.add('saindo'); setTimeout(()=>el.remove(),230); };
   el.querySelector('.t-x').onclick=sair;
   if(op.acao) el.querySelector('.t-acao').onclick=()=>{ sair(); op.acao.on(); };
-  if(!fica) el.querySelector('.t-barra').addEventListener('animationend',sair);
+  /* Relogio, nao `animationend`: com "reduzir animacoes" ligado no sistema a
+     barra fica escondida, a animacao nunca termina — e o aviso ficava pra
+     sempre. Mouse em cima pausa (a barra tambem pausa, pelo CSS). */
+  if(!fica){
+    let resta=dur, ini=0, tm=null;
+    const armar=()=>{ ini=Date.now(); clearTimeout(tm); tm=setTimeout(sair,resta); };
+    el.addEventListener('mouseenter',()=>{ clearTimeout(tm); resta=Math.max(800,resta-(Date.now()-ini)); });
+    el.addEventListener('mouseleave',armar);
+    armar();
+  }
   c.appendChild(el);
   while(c.children.length>4) c.firstElementChild.remove();
   return el;
@@ -2364,8 +2377,9 @@ function avisoOk(titulo, corpo) {
 }
 
 /**
- * Nao deu. Erro NAO vira toast: some em quatro segundos e some junto a chance
- * de a pessoa ler o motivo. Fica na tela ate ela fechar.
+ * Nao deu. Fica mais que o de sucesso (10 a 20 s, conforme o tamanho) pra dar
+ * tempo de ler o motivo — mas fecha sozinho: aviso que nunca sai (era assim)
+ * obrigava a fechar um por um. Mouse em cima segura; o × fecha na hora.
  */
 function avisoErro(titulo, corpo, motivos, acao) {
   toast(null, 'err', 0, { titulo: titulo || 'Não consegui fazer isso', html: corpo || 'O servidor recusou a operação.', motivos, acao });
