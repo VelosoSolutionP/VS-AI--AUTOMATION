@@ -1128,6 +1128,40 @@ body.sem-nav main,body.sem-nav .main{margin-left:0!important}
 @media(max-width:900px){.cv-cab{flex-wrap:wrap}.cv-cab .cv-sit{margin-left:0}.cv-cab-a{width:100%;justify-content:flex-end}}
 
 body.tela-chat .toasts{top:66px;bottom:auto}
+
+/* ── Telegram: quadro de fila + painel lateral ── */
+.fila{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
+.fila-col{border:1px solid var(--line);border-radius:14px;background:var(--panel-2);min-height:220px;border-top:3px solid currentColor}
+.fila-col.sit-aguarda{color:var(--err)} .fila-col.sit-vendedor{color:var(--ac-2)} .fila-col.sit-bot{color:var(--line-2)}
+.fila-col header{display:flex;align-items:center;justify-content:space-between;padding:11px 13px;border-bottom:1px solid var(--line)}
+.fila-col header em{font-style:normal;font-size:12px;font-weight:700;color:var(--fg);background:var(--raised);border-radius:99px;padding:1px 9px}
+.fila-cards{display:grid;gap:8px;padding:10px;max-height:calc(100vh - 330px);overflow-y:auto}
+.fila-vazia{color:var(--dim);font-size:12.5px;text-align:center;padding:26px 8px}
+.fila-card{display:block;width:100%;text-align:left;color:var(--fg);padding:11px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel);
+  transition:border-color .15s,transform .15s,box-shadow .15s}
+.fila-card:hover{border-color:var(--ac-line);transform:translateY(-1px);box-shadow:var(--sh-2)}
+.fila-card.ativo{border-color:var(--ac);box-shadow:0 0 0 1px var(--ac)}
+.fc-top{display:flex;align-items:center;gap:10px}
+.fc-t{min-width:0;flex:1} .fc-t b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .fc-t small{font-size:11.5px;color:var(--dim)}
+.sit-aguarda .fc-t small{color:var(--err);font-weight:600}
+.fc-msg{margin:8px 0 0;font-size:12.5px;color:var(--muted);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.fc-ped{display:inline-flex;align-items:center;gap:5px;margin-top:8px;font-size:11.5px;font-weight:650}
+.fc-ped svg{width:12px;height:12px} .fc-ped.ok{color:var(--ok)} .fc-ped.aberto{color:var(--warn)}
+.fila-aviso{display:flex;align-items:center;gap:12px;margin-bottom:14px;padding:11px 14px;border-radius:12px;border:1px solid var(--ac-line);background:var(--ac-soft);font-size:13px}
+.fila-aviso > svg{width:18px;height:18px;color:var(--ac-2);flex:none} .fila-aviso span{flex:1}
+.fila-busca{margin-bottom:12px;max-width:360px}
+.gaveta-bg{position:fixed;inset:0;background:rgba(5,8,16,.45);z-index:35;animation:t-entra .2s ease}
+.gaveta{position:fixed;top:0;right:0;bottom:0;width:min(540px,100vw);z-index:36;display:flex;flex-direction:column;
+  background:var(--panel);border-left:1px solid var(--line-2);box-shadow:var(--sh-3);animation:gaveta-entra .22s ease}
+@keyframes gaveta-entra{from{transform:translateX(30px);opacity:0}to{transform:none;opacity:1}}
+.gaveta .cv-cab{padding:14px 16px}
+.gv-acoes{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.gv-acoes .cv-sit{margin-right:auto}
+.gaveta .conversa-fluxo{flex:1;min-height:0}
+[data-theme="dark"] .gaveta{background:#101829}
+[data-theme="dark"] .fila-col{background:#0e1627}
+@media(max-width:900px){.fila{grid-template-columns:1fr}.fila-cards{max-height:none}.fila-col{min-height:0}}
+@media (prefers-reduced-motion:reduce){.gaveta,.gaveta-bg{animation:none}}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
@@ -4973,7 +5007,8 @@ Object.assign(S,{
     chat no meio — quem atende precisa ler a conversa e responder, nao estudar
     metricas. Indicador foi pro Consumo, trilha voltou pro Auditor. */
  'wa-atendimento':()=>telaAtendimento('whatsapp'),
- 'tg-atendimento':()=>telaAtendimento('telegram'),
+ /* Telegram tem o SEU layout (quadro de fila); o do WhatsApp segue como esta. */
+ 'tg-atendimento':()=>telaFilaTelegram(),
  'tg-canal':()=>telaTelegram(),
  'tg-auditor':()=>auditorDoCanal('telegram','Telegram · Auditor','Tudo que passou pelo Telegram: quem falou, quando e o que o bot respondeu.'),
  'tg-consumo':()=>consumoDoCanal('telegram'),
@@ -5124,6 +5159,106 @@ function telaAtendimento(canal){
       </div>`:''}
     </div>
   </div>`;
+}
+/* ── Telegram · Atendimento: QUADRO DE FILA ─────────────────────────────────
+   Tres colunas — Aguardando vendedor, Com vendedor, Com o bot — pra ver a fila
+   de relance. O cartao abre a conversa num painel lateral. Layout proprio do
+   Telegram por decisao do dono: nao e o inbox do WhatsApp com outra cor. */
+let TG_GAVETA=false;
+function abrirCartaoTg(tel){ CONVERSA=tel; TG_GAVETA=true; render();
+  setTimeout(()=>{ const f=document.querySelector('.gaveta .conversa-fluxo'); if(f) f.scrollTop=f.scrollHeight; },0); }
+function fecharGavetaTg(){ TG_GAVETA=false; render(); }
+addEventListener('keydown',(e)=>{ if(e.key==='Escape'&&TG_GAVETA&&rota==='tg-atendimento'&&!document.getElementById('modalBg')?.classList.contains('show')) fecharGavetaTg(); });
+function telaFilaTelegram(){
+  const dados=ATEND||{conversas:[]};
+  const todas=(dados.conversas||[]).filter(c=>(c.canal||(ehTg(c.telefone)?'telegram':'whatsapp'))==='telegram');
+  const online=TG?.estado==='conectado';
+  const botLigado=BOT?.config?.ativo!==false;
+  const q=BUSCA_CONV.trim().toLowerCase();
+  const achou=(c)=>!q||[c.nome,c.telefone,c.protocolo].some(x=>String(x||'').toLowerCase().includes(q));
+  const agoraMs=Date.now();
+  const ha=(iso)=>{ if(!iso) return ''; const m=Math.max(0,Math.round((agoraMs-new Date(iso))/60000));
+    return m<1?'agora':m<60?`há ${m} min`:m<1440?`há ${Math.round(m/60)} h`:`há ${Math.round(m/1440)} d`; };
+  const hora=(x)=>x?new Date(x).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'';
+  const dia=(x)=>{ if(!x) return ''; const h=new Date(); const d=new Date(x);
+    if(d.toDateString()===h.toDateString()) return 'hoje';
+    const o=new Date(h); o.setDate(h.getDate()-1);
+    return d.toDateString()===o.toDateString()?'ontem':d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}); };
+  const itensTxt=(it)=>{ const g=new Map(); (it||[]).forEach(i=>{ const n=i?.nome||String(i||''); if(n) g.set(n,(g.get(n)||0)+1); });
+    return [...g].map(([n,k])=>k>1?`${k}x ${n}`:n).join(' + ')||'pedido'; };
+  const col={aguardando:[],vendedor:[],bot:[]};
+  todas.filter(achou).forEach(c=>{ const s=situacaoDe(c); (s==='aguardando'?col.aguardando:s==='com-vendedor'?col.vendedor:col.bot).push(c); });
+  // Quem espera ha mais tempo primeiro; nas outras, a conversa mais recente em cima.
+  col.aguardando.sort((a,b)=>String(a.transferidaEm||a.desde||'').localeCompare(String(b.transferidaEm||b.desde||'')));
+  const recente=(a,b)=>String(b.ultima?.quando||'').localeCompare(String(a.ultima?.quando||''));
+  col.vendedor.sort(recente); col.bot.sort(recente);
+
+  const cartao=(c)=>{ const s=situacaoDe(c);
+    const quando=s==='aguardando'?`esperando ${ha(c.transferidaEm||c.desde)}`:ha(c.ultima?.quando);
+    const ped=c.pedido?(c.pedido.estado==='pago'?`<span class="fc-ped ok">${ico('check')}pedido pago</span>`
+      :c.pedido.estado==='pendente'?`<span class="fc-ped aberto">${reais(c.pedido.valorCentavos)} em aberto</span>`:''):'';
+    return `<button class="fila-card${c.telefone===CONVERSA&&TG_GAVETA?' ativo':''}" onclick="abrirCartaoTg('${esc(c.telefone)}')">
+      <div class="fc-top">${avatar(c.nome,c.telefone)}<div class="fc-t"><b>${esc(c.nome||'Cliente do Telegram')}</b><small>${esc(quando)}</small></div></div>
+      <p class="fc-msg">${c.ultima?.direcao==='saida'?`<span class="cv-eu">${c.ultima?.autor==='atendente'?'você':'bot'}: </span>`:''}“${esc(String(c.ultima?.texto||'').replace(/\n/g,' ').slice(0,90))}”</p>
+      ${ped}</button>`; };
+  const coluna=(id,titulo,cls,lista,vazioTxt)=>`<section class="fila-col ${cls}">
+      <header><span class="cv-sit ${cls}"><i></i>${titulo}</span><em>${lista.length}</em></header>
+      <div class="fila-cards">${lista.length?lista.map(cartao).join(''):`<p class="fila-vazia">${vazioTxt}</p>`}</div></section>`;
+
+  const semConversa=!todas.length;
+  const lembrete=semConversa?`<div class="fila-aviso">${ico('telegram')}<span><b>A fila enche sozinha.</b> Quando alguém escrever para
+      ${online?`<a href="${esc(TG.link)}" target="_blank" rel="noopener">${esc(TG.numero)}</a>`:'o seu bot'}, a conversa aparece aqui — primeiro com o bot; se pedir uma pessoa, vai pra <b>Aguardando</b>.</span>
+      ${online?`<a class="btn btn-s btn-xs" href="${esc(TG.link)}" target="_blank" rel="noopener">${ico('ver')}<span>Abrir o bot</span></a>`:botao({t:'Conectar o bot',ic:'telegram',v:'p',sz:'xs',on:"ir('tg-canal')"})}</div>`:'';
+
+  const quadro=`<div class="fila">
+      ${coluna('aguardando','Aguardando vendedor','sit-aguarda',col.aguardando,semConversa?'Ninguém aqui ainda.':'Ninguém esperando. 👌')}
+      ${coluna('vendedor','Com vendedor','sit-vendedor',col.vendedor,'Nenhuma conversa assumida.')}
+      ${coluna('bot','Com o bot','sit-bot',col.bot,semConversa?'O bot atende quem chegar.':'Nada com o bot agora.')}
+    </div>`;
+
+  // painel lateral com a conversa
+  const sel=TG_GAVETA?todas.find(c=>c.telefone===CONVERSA):null;
+  let gaveta='';
+  if(sel){
+    const sSel=situacaoDe(sel);
+    const marcos=[]; if(sel.transferidaEm) marcos.push({tipo:'_t',quando:sel.transferidaEm}); if(sel.assumidaEm) marcos.push({tipo:'_a',quando:sel.assumidaEm});
+    let ultimoDia='';
+    const linha=[...(sel.historico||[]),...marcos].sort((a,b)=>String(a.quando||'').localeCompare(String(b.quando||''))).map(h=>{
+      const d=dia(h.quando); let out=''; if(d&&d!==ultimoDia){ ultimoDia=d; out+=`<div class="cv-dia"><span>${esc(d)}</span></div>`; }
+      if(h.tipo==='interacao') return out+`<div class="bolha ${h.direcao==='saida'?'b-nossa':'b-cliente'}">${h.direcao==='saida'&&h.autor==='atendente'?'<span class="b-autor">equipe</span>':''}<div>${esc(h.texto||'').replace(/\n/g,'<br>')}</div><small>${hora(h.quando)}</small></div>`;
+      if(h.tipo==='_t') return out+`<div class="cv-evento ev-transf">${ico('alerta')}Transferido para humano · ${hora(h.quando)}</div>`;
+      if(h.tipo==='_a') return out+`<div class="cv-evento ev-assum">${ico('crm')}Vendedor assumiu a conversa · ${hora(h.quando)}</div>`;
+      return out; }).join('');
+    const P={pago:['Pedido concluído','Pago','ok'],pendente:['Pedido em aberto','Pagamento pendente','aberto'],'sem-pagamento':['Pedido','Pagar na entrega','aberto'],cancelado:['Pedido cancelado','Cancelado ou estornado','morto']};
+    const ped=sel.pedido?(()=>{ const [r,e,c]=P[sel.pedido.estado]||P.pendente; return `<div class="cv-pedido cp-${c}"><div><span class="cp-rot">${r} · <span class="cv-proto">${esc(sel.pedido.referencia)}</span></span><b>${reais(sel.pedido.valorCentavos)}</b><small>${esc(itensTxt(sel.pedido.itens))} · ${e}</small></div></div>`; })():'';
+    const ctx=Object.keys(sel.contexto||{}).length?`<div class="ctx-micaela">${ico('registrar')}<div><b>${esc(nomeBot())} já apurou</b>${Object.entries(sel.contexto).map(([k,v])=>`<span>${esc(k.replace(/_/g,' '))}: <i>${esc(String(v).slice(0,90))}</i></span>`).join('')}</div></div>`:'';
+    gaveta=`<div class="gaveta-bg" onclick="fecharGavetaTg()"></div>
+    <aside class="gaveta" role="dialog" aria-label="Conversa com ${esc(sel.nome||'cliente')}">
+      <div class="cv-cab">${avatar(sel.nome,sel.telefone,'lg')}
+        <div class="cv-cab-t"><b>${esc(sel.nome||'Cliente do Telegram')}</b><small>Telegram · ${esc(sel.etapa||'sem etapa')}${sel.protocolo?` · <span class="cv-proto">${esc(sel.protocolo)}</span>`:''}</small></div>
+        <button class="x" onclick="fecharGavetaTg()" aria-label="Fechar conversa">&times;</button></div>
+      <div class="gv-acoes"><span class="cv-sit ${SITUACAO[sSel].cls}"><i></i>${SITUACAO[sSel].rot}</span>
+        ${sSel==='com-vendedor'?botao({t:'Devolver pro bot',ic:'bot',v:'s',sz:'xs',on:`devolverAoBot('${esc(sel.telefone)}')`})
+          :botao({t:'Assumir atendimento',ic:'crm',v:'p',sz:'xs',on:`assumirAtendimento('${esc(sel.telefone)}')`})}
+        ${sel.protocoloEstado&&sel.protocoloEstado!=='encerrado'?bi('check','Encerrar atendimento (manda o protocolo pro cliente)',`encerrarAtendimento('${esc(sel.telefone)}','${esc(sel.protocolo||'')}')`):''}</div>
+      ${ped}${ctx}
+      <div class="conversa-fluxo">${linha}</div>
+      <div class="responder"><div class="cv-compor">
+        <textarea id="respTexto" rows="1" placeholder="${online?(sSel==='com-vendedor'?'Escreva a resposta…':'Escreva pra assumir e responder…'):'Conecte o Telegram para responder'}" ${online?'':'disabled'}
+          onkeydown="teclaResposta(event,'${esc(sel.telefone)}')" oninput="crescerResposta(this)"></textarea>
+        <button class="cv-enviar" id="btResponder" title="Enviar (Enter)" aria-label="Enviar" ${online?'':'disabled'} onclick="responderCliente('${esc(sel.telefone)}')">${ico('enviar')}</button></div>
+        ${online&&sSel!=='com-vendedor'?'<p class="hint cv-dica" style="margin-top:6px">Ao responder, você assume — o bot para de falar com esta pessoa.</p>':''}</div>
+    </aside>`;
+  } else if(TG_GAVETA){ TG_GAVETA=false; }
+
+  return head('Telegram · Atendimento',
+      col.aguardando.length?`<b>${col.aguardando.length}</b> pessoa(s) esperando você.`:'Quem precisa da sua atenção agora.',
+      `<span class="badge ${botLigado?'b-ok':'b-warn'}">${ico('bot')}${botLigado?'Bot ativo':'Bot desligado'}</span>`+
+      (online?botao({t:'Atualizar',ic:'atualizar',v:'s',on:'recarregarAtendimento(true)'}):botao({t:'Conectar o Telegram',ic:'telegram',v:'p',on:"ir('tg-canal')"})))+
+    (online?'':`<div class="cv-offline">${ico('alerta')}<span><b>Telegram desconectado.</b> Dá pra ler as conversas, mas nada sai até conectar de novo.</span><button class="t-acao" onclick="ir('tg-canal')">Conectar agora</button></div>`)+
+    lembrete+
+    (todas.length?`<label class="cv-busca fila-busca">${ico('busca')}<input id="cvBusca" placeholder="Buscar nome ou protocolo" value="${esc(BUSCA_CONV)}" oninput="buscarConversa(this.value)" autocomplete="off"></label>`:'')+
+    quadro+gaveta;
 }
 function filtrarConversas(f){ FILTRO_CONV=f; CONVERSA=null; render(); }
 async function assumirAtendimento(tel){

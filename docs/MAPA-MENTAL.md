@@ -88,6 +88,7 @@ backend/usuarios.mjs .... login, sessões, convites (dono × cliente)
 | Situação da conversa: **aguardando** (bot transferiu, ninguém pegou) ≠ **com vendedor** (alguém assumiu) ≠ **com o bot**; "Pedido concluído" = com o bot + último pedido pago | `server.mjs` (GET atendimentos) + `situacaoDe()` no crm.html | É o que responde "quem precisa de mim agora". |
 | Assumir **não apaga** a hora da transferência: `transferidaEm` e `assumidaEm` são marcos fixos; só `handoffEm` renova (é ele que segura o silêncio) | `engine/vsbot` → `assumirConversa()` | O histórico mostra os dois momentos; o cliente não precisa repetir a história. |
 | Hora no Atendimento no **fuso de quem olha** (`toLocaleTimeString`), nunca cortando o texto ISO | `telaAtendimento()` → `hora()` / `dia()` | Cortar o ISO dava UTC: 3 h adiantado no Brasil. |
+| **Cada canal tem a sua tela**: pedido sobre o Telegram não altera o WhatsApp (e vice-versa). Layout do Telegram é **diferente** do WhatsApp. Layout novo: mostrar opções e **perguntar antes** | `telaFilaTelegram()` × `telaAtendimento('whatsapp')` | "A tela do Telegram é do Telegram"; evita retrabalho. |
 | Consumo × Resultados são telas separadas | menu Telegram | Consumo = quanto se conversou; Resultado = quanto virou dinheiro (é o que vende). |
 | Financeiro fica **fora do menu** (a tela existe no código) | comentário em `GRUPOS` | Cada empresa controla caixa do seu jeito; genérico é pior que nada. |
 | QA-Gate e MCP `vs-ia-dev` **desligados** por decisão do tech lead (2026-09-27) — ele vai refatorar | fora do repo (`~/.claude/settings.json`, `~/.claude.json`) | "Não é funcional." Ausência de recibo do gate não é bloqueio enquanto valer. |
@@ -233,15 +234,13 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 - **Rotas do servidor:** `/crm/api/canais/conectar`, `/crm/api/canais/desparear` → `backend/server.mjs`
 
 #### Telegram → Atendimento  ·  `#tg-atendimento`
-- **Pra que serve:** a **central de conversas** entre cliente, bot e vendedor. Responde uma pergunta: *quem precisa da minha atenção agora?* (Atendimento é a operação; Resultados é a análise dela — indicador financeiro NÃO entra aqui.)
-- **O que tem:** filtros com contagem **Precisam de você · Com vendedor · Com o bot · Todas** (abre em "Precisam de você" se houver alguém); busca; lista com a **situação** de cada conversa (`Aguardando vendedor` pulsando, `Com vendedor`, `Atendido pelo bot`, `Pedido concluído`) e "R$ em aberto"; conversa com cartão do **pedido** (em aberto / concluído / pagar na entrega / cancelado), "o bot já apurou", histórico com marcos **Transferido para humano** e **Vendedor assumiu**, e balão "equipe" nas respostas do vendedor; selo **Bot ativo/desligado** no cabeçalho.
-- **Botões:** Assumir atendimento, Devolver pro bot, Encerrar atendimento (ícone ✓), Enviar (Enter envia, Shift+Enter pula linha), Atualizar
-- **Atualiza sozinha** a cada 8 s (`recarregarAtendimento`) sem apagar o que o vendedor está digitando nem pular a leitura; só quando a aba está visível e sem modal aberto.
-- **Código da tela:** `backend/crm.html` → `telaAtendimento('telegram')` · situação: `situacaoDe()` / `SITUACAO` · filtros: `filtrarConversas()` · `assumirAtendimento()` · `recarregarAtendimento()`
-- **Ações (funções JS):** `filtrarConversas()`, `buscarConversa()`, `abrirConversa()`, `assumirAtendimento()`, `devolverAoBot()`, `encerrarAtendimento()`, `responderCliente()`, `teclaResposta()`, `crescerResposta()`
-- **Rotas do servidor:** `/crm/api/atendimentos` (traz `situacao`, `assumidaEm`, `transferidaEm`, `pedido`), `/crm/api/atendimentos/assumir`, `/crm/api/atendimentos/responder` (**assume sozinho**), `/crm/api/atendimentos/devolver`, `/crm/api/atendimentos/encerrar` → `backend/server.mjs`
-- **Motor:** `engine/vsbot` → `emAtendimento()` (fila com `assumida`, `assumidaEm`, `transferidaEm`), `assumirConversa()`, `entregarParaEquipe()`, `devolverAoBot()` · pedido: `engine/vsresultados` → `ultimoPedido()`
-- **Testes:** `tests/atendimento-v1.test.mjs`
+- **Pra que serve:** a **fila de atendimento** do Telegram — *quem precisa da minha atenção agora?* Layout **próprio do Telegram** (quadro de fila), escolhido pelo dono entre 3 opções em 2026-09-27; **não é** o inbox do WhatsApp.
+- **O que tem:** 3 colunas com contagem — **Aguardando vendedor** (quem espera há mais tempo em cima, "esperando há X min"), **Com vendedor**, **Com o bot** (inclui "pedido pago"); cartão com avatar, última mensagem (bot/você), pedido em aberto ou pago; busca; com zero conversas mostra as colunas vazias + lembrete com o link do bot. Clicar no cartão abre o **painel lateral** (tela cheia no celular): situação, Assumir/Devolver, Encerrar, cartão do pedido, "o bot já apurou", histórico com marcos Transferido/Assumiu, resposta (Enter envia). Esc ou × fecha.
+- **Atualiza sozinha** a cada 8 s com o painel aberto, sem apagar o texto digitado.
+- **Código da tela:** `backend/crm.html` → `telaFilaTelegram()` · abrir/fechar: `abrirCartaoTg()`, `fecharGavetaTg()` (estado `TG_GAVETA` + `CONVERSA`) · situação compartilhada: `situacaoDe()` / `SITUACAO`
+- **Ações (funções JS):** `abrirCartaoTg()`, `fecharGavetaTg()`, `buscarConversa()`, `assumirAtendimento()`, `devolverAoBot()`, `encerrarAtendimento()`, `responderCliente()`, `teclaResposta()`, `recarregarAtendimento()`
+- **Rotas do servidor:** as mesmas do Atendimento do WhatsApp (`/crm/api/atendimentos`, `…/assumir`, `…/responder`, `…/devolver`, `…/encerrar`) → `backend/server.mjs`
+- **Motor e testes:** idem WhatsApp (`engine/vsbot`, `engine/vsresultados` → `ultimoPedido()`, `tests/atendimento-v1.test.mjs`)
 
 #### Telegram → Resultados  ·  `#tg-resultados`
 - **Pra que serve:** Quanto o Telegram colocou no seu bolso. Só conta venda com pagamento confirmado.
@@ -372,6 +371,7 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 | 2026-09-27 | Desligar QA-Gate e MCP global | Bloqueado pela permissão do Claude Code (automodificação); comandos entregues pro dono rodar | — |
 | 2026-09-27 | Criar este mapa mental | `docs/MAPA-MENTAL.md` | (este) |
 | 2026-09-27 | Tela Atendimento v1 (modelo do dono: central cliente ↔ bot ↔ vendedor) | Situações e filtros, Assumir/Devolver, responder assume sozinho, cartão do pedido, marcos no histórico, atualização a cada 8 s sem perder o texto, selo Bot ativo; corrigidos: hora em UTC, filtros cortados, avatares iguais, aviso tapando o Enviar | (este) |
+| 2026-09-27 | "Não carrega nada" no Atendimento do Telegram; Telegram ≠ WhatsApp; layout diferente, perguntar antes | Não era cache: bot ainda sem nenhuma mensagem (tela vazia). Dono escolheu **quadro de fila** → `telaFilaTelegram()` com painel lateral; WhatsApp intocado | (este) |
 
 ---
 
@@ -384,6 +384,7 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 - **Visão geral diz "Estoque: nenhuma fonte conectada"** mesmo com produtos cadastrados (anterior a esta sessão).
 - **Demo (`demo.velososolution.com.br`) fora do ar** desde o reinício — subir com `backend/subir-demo.sh` **só com credencial de teste** (o script herda o ambiente: não rodar com o `painel.env` carregado).
 - **Horário em UTC fora do Atendimento:** ~17 pontos do `crm.html` ainda formatam hora cortando o texto ISO (`slice(11,16)` / `slice(0,16)`) — Auditor, trilhas, retomada. Mostram 3 h adiantado no Brasil. Corrigido só no Atendimento.
+- **WhatsApp → Atendimento recebeu a v1 junto (sem ter sido pedido):** revisar com o dono depois de fechar o Telegram — aproveitar o que faz sentido e tirar o resto.
 - **Atendimento v2 (fora da v1, por escolha do dono):** 3ª coluna com catálogo, pedidos anteriores, etiquetas e dados do cliente.
 - **Indicadores de valor do bot** sugeridos na proposta (resolvidos sem humano, transferidos, vendas após atendimento): pertencem a Consumo/Resultados, não ao Atendimento — ainda não feitos.
 - **Próxima tela do Telegram a trabalhar:** escolha do dono (Atendimento v1 entregue; sugestão: Campanhas).
