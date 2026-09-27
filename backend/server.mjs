@@ -1494,10 +1494,11 @@ const server = createServer(async (req, res) => {
         })
         .filter(Boolean)
         /* Encerrado SAI da lista: vai pro Historico. Fica quem tem atendimento
-           aberto ou esta na fila; conversa antiga sem protocolo nenhum (de antes
-           de todo atendimento ter um) fica 24 h e depois so no historico do lead. */
-        .filter((c) => c.esperandoGente || c.protocoloEstado && c.protocoloEstado !== 'encerrado'
-          || (!c.protocolo && (Date.now() - new Date(c.ultima?.quando || 0)) < 86400000))
+           aberto, quem esta na fila e a conversa antiga SEM protocolo nenhum (de
+           antes de todo atendimento ter um): ela nunca foi encerrada, e tirar da
+           lista fazia sumir da tela — no historico ela nao entra, porque ele vem
+           dos protocolos. Encerrou pelo botao, ganha protocolo e vai pro historico. */
+        .filter((c) => c.esperandoGente || (c.protocoloEstado && c.protocoloEstado !== 'encerrado') || !c.protocolo)
         .filter((c) => quem.papel !== 'vendedor' || vendedorVe(c, quemAtende(quem)))
         .sort((a, b) => {
           // Quem espera gente vem primeiro; depois, conversa mais recente.
@@ -1832,7 +1833,8 @@ const server = createServer(async (req, res) => {
           if (!pode.ok) { r = pode; break; }
           bot.assumirConversa(tel, { por: quemAtende(quem) });
           assumiuVira(quem, tel);
-          const envio = await canais.enviar({ canal: d.canal, para: d.telefone, texto });
+          // Contato por LID so recebe pelo endereco guardado no protocolo.
+          const envio = await canais.enviar({ canal: d.canal, para: proto.enderecoDe(tel), texto });
           if (!envio.ok) { r = { ok: false, motivo: envio.erro || 'não consegui enviar' }; break; }
           const lead = crm.listar().find((l) => l.telefone === String(d.telefone || '').replace(/\D/g, ''));
           if (lead) { crm.interagir(lead.id, { canal: ehTelegram(d.telefone) ? 'telegram' : 'whatsapp', direcao: 'saida', texto, autor: 'atendente' }); }
@@ -1938,7 +1940,7 @@ const server = createServer(async (req, res) => {
           let avisado = false;
           if (d.avisar !== false) {
             const env = await canais.enviar({
-              para: fechado.endereco || tel,
+              para: fechado.endereco || proto.enderecoDe(tel),
               texto: proto.textoDeEncerramento(fechado) + (avaliar ? `\n\n${proto.textoAvaliacao()}` : ''),
             }).catch((e) => ({ ok: false, erro: e.message }));
             if (env?.ok && leadE) { crm.interagir(leadE.id, { canal: ehTelegram(tel) ? 'telegram' : 'whatsapp', direcao: 'saida', texto: proto.textoDeEncerramento(fechado) + (avaliar ? `\n\n${proto.textoAvaliacao()}` : ''), autor: 'atendente' }); }

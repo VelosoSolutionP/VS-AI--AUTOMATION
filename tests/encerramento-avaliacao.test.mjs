@@ -96,3 +96,13 @@ test('atendente encerra: guarda quem encerrou e quem atendeu', () => {
   assert.equal(proto.avaliacaoPendente(de, new Date(Date.now() + 3 * 3600e3).toISOString()), null, 'avaliação vence em 2 h');
   assert.ok(proto.encerrados().some((p) => p.numero === f.numero));
 });
+
+test('contato por LID: protocolo novo herda o endereço do anterior (senão o aviso não sai)', () => {
+  const de = '130894144782430';
+  const a = proto.aoChegar(de, { endereco: `${de}@lid` }).protocolo;
+  proto.encerrarPorNumero(a.numero, { motivo: 'inatividade', quando: new Date(Date.now() - 48 * 3600e3).toISOString() });
+  const b = proto.aoChegar(de).protocolo; // aberto pelo painel, sem endereço na mão
+  assert.equal(b.endereco, `${de}@lid`);
+  assert.equal(proto.enderecoDe(de), `${de}@lid`);
+  assert.equal(proto.enderecoDe('5531999999999'), '5531999999999', 'sem nada guardado, usa o próprio id');
+});

@@ -76,7 +76,11 @@ export function aoChegar(de, { quando = new Date().toISOString(), endereco = nul
     }
   }
 
-  const p = { ...R.abrir({ de, quando }), endereco };
+  /* Contato do WhatsApp por LID ("…@lid") so recebe mensagem por esse
+     endereco — o `de` sozinho nao serve. Protocolo aberto sem ele (pelo painel,
+     numa conversa antiga) herda o do atendimento anterior da mesma pessoa. */
+  const herdado = endereco || lista.filter((x) => x.de === de && x.endereco).map((x) => x.endereco).pop() || null;
+  const p = { ...R.abrir({ de, quando }), endereco: herdado };
   lista = [...lista, p];
   gravar(lista);
   return { protocolo: p, volta: { acao: 'seguir' }, novo: true };
@@ -175,3 +179,6 @@ export const semResposta = (numero) => mexerAvaliacao(numero, (a) => ({ ...a, es
 /** Encerrados (o histórico), mais recentes primeiro. */
 export const encerrados = () => ler().filter((p) => p.estado === R.ESTADOS.ENCERRADO)
   .sort((a, b) => String(b.encerradoEm).localeCompare(String(a.encerradoEm)));
+
+/** Por onde falar com esta pessoa: o endereço guardado (LID etc.) ou o próprio id. */
+export const enderecoDe = (de) => ler().filter((x) => x.de === de && x.endereco).map((x) => x.endereco).pop() || de;
