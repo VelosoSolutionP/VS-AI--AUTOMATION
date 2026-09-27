@@ -36,6 +36,7 @@ import { ehTelegram } from '../engine/canais/telegram/index.mjs';
 import * as resultados from '../engine/vsresultados/index.mjs';
 import * as campanhasTg from '../engine/vscampanhas/index.mjs';
 import * as qualif from '../engine/vsqualificacao/index.mjs';
+import { montarAuditoria } from '../engine/vsauditoria/index.mjs';
 import { lerImagem } from '../engine/vscampanhas/imagem.mjs';
 import * as seguranca from '../engine/vsseguranca/index.mjs';
 import * as operadores from '../engine/vsoperadores/index.mjs';
@@ -1210,6 +1211,15 @@ const server = createServer(async (req, res) => {
       return json(res, 200, estoque.painel({ limiteProdutos: limitesAtuais().produtos }));
     }
     // Telas que eram casca: leem recibo do gate, dinheiro e cruzamento de dado real.
+    /* Auditor de um canal no padrão de mercado: desempenho (TPR, TMA, SLA, CSAT,
+       resolução pelo bot) + log de auditoria. Só dados do canal pedido. */
+    if (req.method === 'GET' && rota === '/crm/api/auditor/canal') {
+      const u = new URL(req.url, 'http://x');
+      const canal = u.searchParams.get('canal') === 'whatsapp' ? 'whatsapp' : 'telegram';
+      const dias = [7, 30, 90].includes(Number(u.searchParams.get('dias'))) ? Number(u.searchParams.get('dias')) : 30;
+      const doCanal = (id) => (canal === 'telegram' ? ehTelegram(id) : !ehTelegram(id));
+      return json(res, 200, montarAuditoria({ canal, doCanal, dias, leads: crm.listar(), protocolos: proto.listar(), campanhas: canal === 'telegram' ? campanhasTg.listar() : [], seguranca: seguranca.auditoria(500) }));
+    }
     if (req.method === 'GET' && rota === '/crm/api/auditor') { return json(res, 200, await vspainel.painelAuditor()); }
     if (req.method === 'GET' && rota === '/crm/api/financeiro') { return json(res, 200, await vspainel.painelFinanceiro()); }
     if (req.method === 'GET' && rota === '/crm/api/relatorios') { return json(res, 200, await vspainel.painelRelatorios()); }

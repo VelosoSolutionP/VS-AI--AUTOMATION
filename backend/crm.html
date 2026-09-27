@@ -1350,6 +1350,40 @@ td.num,th.num{text-align:right;white-space:nowrap}
 @keyframes gira{to{transform:rotate(360deg)}}
 .cp-dests-ok{display:flex;flex-wrap:wrap;gap:6px} .cp-dest-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ok-line);background:var(--ok-bg);color:var(--ok);border-radius:99px;padding:4px 10px;font-size:12.5px;font-weight:600}
 .cp-dest-chip svg{width:13px;height:13px}
+/* Auditor: paleta validada (dataviz): s1 = bot (azul), s2 = equipe (laranja) */
+.viz{--s1:#2a78d6;--s2:#eb6834}
+[data-theme="dark"] .viz{--s1:#3987e5;--s2:#d95926}
+.aud-per{font-size:12px;color:var(--dim);margin:-6px 0 12px}
+.aud-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:14px}
+@media(max-width:1200px){.aud-kpis{grid-template-columns:repeat(3,1fr)}} @media(max-width:560px){.aud-kpis{grid-template-columns:1fr 1fr}}
+.aud-kpi{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px 13px;box-shadow:var(--sh-1);display:flex;flex-direction:column;gap:3px;min-width:0}
+.aud-kpi small{font-size:11px;color:var(--dim);font-weight:650;text-transform:uppercase;letter-spacing:.03em}
+.aud-kpi b{font-size:24px;letter-spacing:-.03em;font-variant-numeric:tabular-nums} .aud-sub{font-size:11.5px;color:var(--muted)}
+.aud-delta{font-size:11.5px;color:var(--dim);font-weight:600} .aud-delta small{font-weight:400;color:var(--dim)}
+.aud-delta.bom{color:var(--ok)} .aud-delta.ruim{color:var(--err)}
+.aud-grade2{display:grid;grid-template-columns:1.4fr 1fr;gap:14px} @media(max-width:1000px){.aud-grade2{grid-template-columns:1fr}}
+.aud-card{margin:0;min-width:0} .aud-grade2>*,.viz.aud{min-width:0} .aud .tbl-wrap{overflow-x:auto}
+@media(max-width:640px){.aud-hb-l{grid-template-columns:110px 1fr 56px} .aud .tbl-bar{flex-wrap:wrap} .aud .tbl-bar>*{max-width:100%!important;flex:1 1 100%}}
+ .aud-ct{display:flex;align-items:baseline;gap:10px;margin-bottom:10px;flex-wrap:wrap} .aud-ct h3{margin:0;font-size:14px;font-weight:680} .aud-ct .hint{margin:0}
+.aud-leg{display:flex;gap:12px;margin-left:auto;font-size:12px;color:var(--muted)} .aud-leg span{display:inline-flex;align-items:center;gap:5px} .aud-leg i{width:10px;height:10px;border-radius:3px}
+.aud-svg{width:100%;height:auto;display:block} .aud-grade{stroke:var(--line);stroke-width:1} .aud-eixo{font-size:10px;fill:var(--dim);font-family:inherit}
+.aud-hit:hover rect[fill^="var"]{opacity:.8}
+.aud-dados{margin-top:6px} .aud-dados summary{font-size:11.5px;color:var(--dim);cursor:pointer} .aud-dados table{margin-top:6px;font-size:12px}
+.aud-calor{display:grid;grid-template-columns:30px repeat(24,1fr);gap:2px;align-items:center}
+.aud-cel{aspect-ratio:1;border-radius:3px;background:var(--raised)} .aud-h{font-size:9.5px;color:var(--dim);text-align:center} .aud-d{font-size:10.5px;color:var(--dim)}
+.aud-escala{display:flex;align-items:center;gap:4px;justify-content:flex-end;margin-top:6px} .aud-escala span{width:14px;height:10px;border-radius:2px} .aud-escala small{font-size:10.5px;color:var(--dim)}
+.aud-hb{display:grid;gap:8px} .aud-hb-l{display:grid;grid-template-columns:140px 1fr 70px;gap:10px;align-items:center;font-size:12.5px}
+.aud-hb-r{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .aud-hb-t{height:12px;background:var(--raised);border-radius:4px;overflow:hidden} .aud-hb-t i{display:block;height:100%;border-radius:4px}
+.aud-hb-l b{font-variant-numeric:tabular-nums;text-align:right} .aud-hb-l b small{color:var(--dim);font-weight:500}
+.aud-log td{vertical-align:top;font-size:12.5px} .aud-q{white-space:nowrap;color:var(--muted)} .aud-det{max-width:420px;overflow-wrap:anywhere}
+.aud-tipo{display:inline-block;font-size:11px;font-weight:650;border:1px solid var(--line);border-radius:99px;padding:2px 8px;white-space:nowrap;color:var(--muted);background:var(--raised)}
+.aud-tipo.t-finalizado{color:var(--ok);border-color:var(--ok-line);background:var(--ok-bg)} .aud-tipo.t-encerrado,.aud-tipo.t-moderacao,.aud-tipo.t-seguranca{color:var(--err);border-color:var(--err-line);background:var(--err-bg)}
+.aud-tipo.t-transferido,.aud-tipo.t-assumido,.aud-tipo.t-responsavel,.aud-tipo.t-encaminhado{color:var(--ac);border-color:var(--ac-line);background:var(--ac-soft)} .aud-tipo.t-avaliacao{color:var(--warn);border-color:var(--warn-line);background:var(--warn-bg)}
+.aud-pag{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:8px} .aud-pag small{margin-right:auto;color:var(--dim)}
+.aud-tip{position:fixed;z-index:80;pointer-events:none;background:var(--ink);color:var(--ink-fg);font-size:12px;padding:6px 9px;border-radius:8px;box-shadow:var(--sh-3);max-width:250px;display:none}
+body.aud-apresentar aside,body.aud-apresentar .topbar,body.aud-apresentar header.top,body.aud-apresentar .tbl-bar,body.aud-apresentar .page-head .ph-acts{display:none!important}
+body.aud-apresentar main{margin:0!important;max-width:none!important} body.aud-apresentar .aud-kpi b{font-size:32px}
+@media print{aside,.topbar,header.top,.page-head .ph-acts,.tbl-bar,.aud-pag,.aud-dados,#toasts{display:none!important} main{margin:0!important} .card{break-inside:avoid;box-shadow:none} body{background:#fff}}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
@@ -3707,6 +3741,122 @@ async function excluirLancamento(id,desc){
  * Evento sem canal declarado entra no WhatsApp, que e de onde vieram todos ate
  * hoje: escondê-lo seria pior que classificá-lo com uma suposição declarada.
  */
+/* ── Auditor do canal no padrão de mercado ───────────────────────────────────
+   Camada 1: desempenho (TPR, TMA, SLA, CSAT, resolução pelo bot) com variação
+   sobre o período anterior e gráficos padrão. Camada 2: log de auditoria.
+   Gráficos em SVG próprio: paleta validada (azul = bot, laranja = equipe),
+   marcas finas, dica no hover e "ver dados" em tabela. */
+let AUDC={}, AUDC_DIAS=30, AUDC_TIPO='', AUDC_Q='', AUDC_PAG=0;
+async function carregarAuditorCanal(canal,forcar){
+  const k=canal+':'+AUDC_DIAS; if(AUDC[k]&&!forcar) return AUDC[k];
+  try{ AUDC[k]=await apiCru(`auditor/canal?canal=${canal}&dias=${AUDC_DIAS}`); }catch(e){ AUDC[k]={erro:e.message}; }
+  if(rota==='tg-auditor') render();
+  return AUDC[k];
+}
+const audFmtMin=(m)=>m==null?'—':m<1?'< 1 min':m<60?`${String(Math.round(m*10)/10).replace('.',',')} min`:`${Math.floor(m/60)} h ${Math.round(m%60)} min`;
+const audPct=(x)=>x==null?'—':`${Math.round(x*100)}%`;
+/* Variação: seta + texto; a COR diz se melhorou (tempo menor é melhor). */
+function audDelta(v,menorMelhor){
+  if(v==null) return '<span class="aud-delta">sem base anterior</span>';
+  const bom=menorMelhor?v<0:v>0, zero=Math.abs(v)<0.005;
+  return `<span class="aud-delta ${zero?'':bom?'bom':'ruim'}">${zero?'=':v>0?'▲':'▼'} ${Math.abs(Math.round(v*100))}% <small>vs período anterior</small></span>`;
+}
+function audKpi(rot,val,sub,delta,dica){ return `<div class="aud-kpi" title="${esc(dica||'')}"><small>${rot}</small><b>${val}</b><span class="aud-sub">${sub||''}</span>${delta||''}</div>`; }
+function audBarrasDia(serie){
+  const W=720,H=200,PB=22,PL=28, max=Math.max(1,...serie.map(x=>x.bot+x.equipe)), n=serie.length, passo=(W-PL)/n, bw=Math.min(36,Math.max(3,passo-3)), off=(passo-bw)/2;
+  const y=(v)=>H-PB-(v/max)*(H-PB-10);
+  const ticks=[0,Math.ceil(max/2),max];
+  const barras=serie.map((x,i)=>{ const X=PL+i*passo+off, yb=y(x.bot), ye=y(x.bot+x.equipe), dt=x.dia.split('-').reverse().slice(0,2).join('/');
+    const tip=`${dt} · ${x.bot+x.equipe} atendimento(s) — bot ${x.bot} · equipe ${x.equipe}`;
+    return `<g class="aud-hit" data-tip="${esc(tip)}"><rect x="${X-1}" y="0" width="${bw+2}" height="${H-PB}" fill="transparent"/>
+      ${x.bot?`<rect x="${X}" y="${yb}" width="${bw}" height="${H-PB-yb}" rx="2" fill="var(--s1)"/>`:''}
+      ${x.equipe?`<rect x="${X}" y="${ye}" width="${bw}" height="${Math.max(0,yb-ye-2)}" rx="2" fill="var(--s2)"/>`:''}</g>`; }).join('');
+  const rot=serie.map((x,i)=>i%Math.ceil(n/8)===0?`<text x="${PL+i*passo+passo/2}" y="${H-6}" class="aud-eixo" text-anchor="middle">${x.dia.slice(8,10)}/${x.dia.slice(5,7)}</text>`:'').join('');
+  return `<svg viewBox="0 0 ${W} ${H}" class="aud-svg" role="img" aria-label="Atendimentos por dia, bot e equipe">
+    ${ticks.map(t=>`<line x1="${PL}" x2="${W}" y1="${y(t)}" y2="${y(t)}" class="aud-grade"/><text x="${PL-6}" y="${y(t)+4}" class="aud-eixo" text-anchor="end">${t}</text>`).join('')}
+    ${barras}${rot}</svg>`;
+}
+function audCalor(calor){
+  const dias=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'], max=Math.max(1,...calor.flat());
+  const cel=(v,d,hh)=>`<span class="aud-cel" data-tip="${esc(`${dias[d]} ${String(hh).padStart(2,'0')}h — ${v} mensagem(ns)`)}" style="${v?`background:color-mix(in srgb,var(--s1) ${Math.round(15+85*v/max)}%,transparent)`:''}"></span>`;
+  return `<div class="aud-calor" role="img" aria-label="Mensagens de clientes por dia da semana e hora">
+    <span></span>${Array.from({length:24},(_,h)=>`<small class="aud-h">${h%3===0?h:''}</small>`).join('')}
+    ${calor.map((l,d)=>`<small class="aud-d">${dias[d]}</small>${l.map((v,h)=>cel(v,d,h)).join('')}`).join('')}</div>
+    <div class="aud-escala"><small>menos</small>${[15,40,65,90].map(p=>`<span style="background:color-mix(in srgb,var(--s1) ${p}%,transparent)"></span>`).join('')}<small>mais</small></div>`;
+}
+function audBarrasH(itens,max,fmt=(x)=>x){ max=Math.max(1,max);
+  return `<div class="aud-hb">${itens.map(it=>`<div class="aud-hb-l" data-tip="${esc(`${it.rot}: ${fmt(it.n)}`)}"><span class="aud-hb-r">${esc(it.rot)}</span>
+    <span class="aud-hb-t"><i style="width:${Math.max(it.n?2:0,100*it.n/max)}%;background:var(${it.cor||'--s1'})"></i></span><b>${fmt(it.n)}${it.extra?` <small>${it.extra}</small>`:''}</b></div>`).join('')}</div>`;
+}
+function telaAuditorCanal(canal){
+  const k=canal+':'+AUDC_DIAS, a=AUDC[k]; if(!a) setTimeout(()=>carregarAuditorCanal(canal),0);
+  const nomeC=canal==='telegram'?'Telegram':'WhatsApp';
+  const periodo=`<div class="seg seg-sm">${[7,30,90].map(d=>`<button class="${AUDC_DIAS===d?'on':''}" onclick="AUDC_DIAS=${d};AUDC_PAG=0;carregarAuditorCanal('${canal}');render()">${d} dias</button>`).join('')}</div>`;
+  const acoes=periodo+botao({t:'Apresentar',ic:'ver',v:'s',on:'audApresentar()',tit:'Tela cheia, sem menus — para mostrar em reunião'})+botao({t:'Imprimir / PDF',ic:'baixar',v:'s',on:'window.print()'})+botao({t:'Exportar log',ic:'exportar',v:'g',on:`audCsv('${canal}')`,tit:'Log de auditoria em CSV (abre no Excel)'});
+  const cab=head(`${nomeC} · Auditor`,`Desempenho do atendimento e log de auditoria — só o que passou pelo ${nomeC}. Cada número vem do que foi gravado na hora.`,acoes);
+  if(!a) return cab+'<div class="card"><p class="hint">Carregando…</p></div>';
+  if(a.erro) return cab+`<div class="card"><p class="hint">Não consegui carregar: ${esc(a.erro)}</p></div>`;
+  const K=a.kpis, V=a.variacao;
+  const kpis=`<div class="aud-kpis">
+    ${audKpi('Conversas',K.conversas,`${K.pelaEquipe} com a equipe`,audDelta(V.conversas),'Atendimentos (protocolos) abertos no período')}
+    ${audKpi('Resolvidas pelo bot',audPct(K.taxaBot),`${K.pelaBot} sem precisar de gente`,audDelta(V.taxaBot),'Taxa de resolução pelo bot: atendimentos que não foram para a equipe')}
+    ${audKpi('TPR · 1ª resposta',audFmtMin(K.tprMedio),K.tprP90!=null?`9 em 10 em até ${audFmtMin(K.tprP90)}`:'—',audDelta(V.tprMedio,true),'Tempo da primeira resposta humana: da fila até a equipe responder')}
+    ${audKpi('TMA',audFmtMin(K.tmaMedio),'abertura → encerramento',audDelta(V.tmaMedio,true),'Tempo médio de atendimento dos que passaram pela equipe')}
+    ${audKpi(`SLA · até ${a.slaMin} min`,audPct(K.sla),'respondidos no prazo',audDelta(V.sla),`% atendidos pela equipe em até ${a.slaMin} min`)}
+    ${audKpi('CSAT',audPct(K.csat),K.notaMedia!=null?`nota média ${String(K.notaMedia).replace('.',',')} · ${K.avaliacoes} avaliação(ões)`:'sem avaliação',audDelta(V.csat),'Satisfação: % de notas 4 e 5')}
+  </div>`;
+  const leg=`<div class="aud-leg"><span><i style="background:var(--s1)"></i>Bot</span><span><i style="background:var(--s2)"></i>Equipe</span></div>`;
+  const tabDia=`<details class="aud-dados"><summary>ver dados</summary><table><thead><tr><th>Dia</th><th class="num">Bot</th><th class="num">Equipe</th></tr></thead><tbody>${a.serie.filter(x=>x.bot+x.equipe).map(x=>`<tr><td>${x.dia.split('-').reverse().join('/')}</td><td class="num">${x.bot}</td><td class="num">${x.equipe}</td></tr>`).join('')||'<tr><td colspan="3">sem atendimentos</td></tr>'}</tbody></table></details>`;
+  const fMax=a.funil[0]?.n||1;
+  const funil=audBarrasH(a.funil.map((f,i)=>({rot:f.etapa,n:f.n,extra:i&&fMax?`${Math.round(100*f.n/fMax)}%`:''})),fMax);
+  const desf=audBarrasH([{rot:'Finalizados',n:K.finalizados},{rot:'Encerrados à força',n:K.encerradosAForca,cor:'--s2'},{rot:'Por silêncio',n:K.porSilencio},{rot:'Moderação',n:K.moderacao,cor:'--s2'}],Math.max(K.finalizados,K.encerradosAForca,K.porSilencio,K.moderacao));
+  const notas=audBarrasH(a.notas.slice().reverse().map(n=>({rot:`${n.nota} ★`,n:n.n})),Math.max(...a.notas.map(n=>n.n)));
+  const ats=a.atendentes.length?`<div class="tbl-wrap"><table><thead><tr><th>Atendente</th><th class="num">Atendimentos</th><th class="num">TPR</th><th class="num">TMA</th><th class="num">Nota</th><th class="num">À força</th></tr></thead><tbody>
+    ${a.atendentes.map(x=>`<tr><td><b>${esc(x.nome)}</b></td><td class="num">${x.atendimentos}</td><td class="num">${audFmtMin(x.tprMedio)}</td><td class="num">${audFmtMin(x.tmaMedio)}</td><td class="num">${x.notaMedia!=null?String(x.notaMedia).replace('.',',')+` <small>(${x.avaliacoes})</small>`:'—'}</td><td class="num">${x.encerradosAForca||0}</td></tr>`).join('')}</tbody></table></div>`
+    :'<p class="hint">Ninguém da equipe atendeu pelo canal neste período.</p>';
+  // LOG
+  const tipos=a.tipos||{};
+  const logF=(a.log||[]).filter(e=>(!AUDC_TIPO||e.tipo===AUDC_TIPO)&&(!AUDC_Q||[e.quem,e.detalhe,e.protocolo,e.cliente].some(x=>String(x||'').toLowerCase().includes(AUDC_Q.toLowerCase()))));
+  const POR=50, pag=logF.slice(AUDC_PAG*POR,(AUDC_PAG+1)*POR);
+  const log=`<div class="tbl-bar"><select onchange="AUDC_TIPO=this.value;AUDC_PAG=0;render()" style="max-width:240px"><option value="">Todos os tipos</option>${Object.entries(tipos).map(([k2,v])=>`<option value="${k2}" ${AUDC_TIPO===k2?'selected':''}>${esc(v)}</option>`).join('')}</select>
+      <input id="audBusca" placeholder="Buscar cliente, protocolo, atendente ou texto" value="${esc(AUDC_Q)}" oninput="AUDC_Q=this.value;AUDC_PAG=0;render();const e=document.getElementById('audBusca');e.focus();e.setSelectionRange(e.value.length,e.value.length)"></div>
+    <div class="tbl-wrap"><table class="aud-log"><thead><tr><th>Quando</th><th>Evento</th><th>Quem</th><th>Detalhe</th><th>Protocolo</th></tr></thead><tbody>
+    ${pag.map(e=>`<tr><td class="aud-q">${new Date(e.quando).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</td><td><span class="aud-tipo t-${esc(e.tipo)}">${esc(tipos[e.tipo]||e.tipo)}</span></td><td>${esc(e.quem||'—')}${e.cliente&&e.cliente!==e.quem?`<small style="display:block;color:var(--dim)">${esc(e.cliente)}</small>`:''}</td><td class="aud-det">${esc(e.detalhe||'')}</td><td>${e.protocolo?`<span class="cv-proto">${esc(e.protocolo)}</span>`:''}</td></tr>`).join('')||'<tr><td colspan="5" class="hint">Nenhum evento neste filtro.</td></tr>'}</tbody></table></div>
+    <div class="aud-pag"><small>${logF.length} evento(s)${a.totalLog>(a.log||[]).length?` · mostrando os ${(a.log||[]).length} mais recentes`:''}</small>
+      ${AUDC_PAG?botao({t:'Anteriores',ic:'ant',v:'g',sz:'xs',on:'AUDC_PAG--;render()'}):''}${(AUDC_PAG+1)*POR<logF.length?botao({t:'Próximos',ic:'prox',v:'g',sz:'xs',on:'AUDC_PAG++;render()'}):''}</div>`;
+  const motivos=a.motivos.length?`<p class="hint" style="margin-top:8px"><b>Motivos do “à força”:</b> ${a.motivos.map(m=>`${esc(m.motivo)} (${m.n})`).join(' · ')}</p>`:'';
+  return cab+`<div class="viz aud">
+    <p class="aud-per">${new Date(a.de).toLocaleDateString('pt-BR')} a ${new Date(a.ate).toLocaleDateString('pt-BR')} · comparado com os ${a.dias} dias anteriores</p>
+    ${kpis}
+    <div class="aud-grade2">
+      <div class="card aud-card"><div class="aud-ct"><h3>Atendimentos por dia</h3>${leg}</div>${audBarrasDia(a.serie)}${tabDia}</div>
+      <div class="card aud-card"><div class="aud-ct"><h3>Funil do atendimento</h3></div>${funil}</div>
+      <div class="card aud-card"><div class="aud-ct"><h3>Horário de pico</h3><small class="hint">mensagens de clientes</small></div>${audCalor(a.calor)}</div>
+      <div class="card aud-card"><div class="aud-ct"><h3>Desfechos</h3></div>${desf}${motivos}</div>
+      <div class="card aud-card"><div class="aud-ct"><h3>Satisfação (CSAT)</h3><small class="hint">${K.avaliacoes} de ${K.pedidasAvaliacao} avaliaram</small></div>${notas}</div>
+      <div class="card aud-card"><div class="aud-ct"><h3>Desempenho por atendente</h3></div>${ats}</div>
+    </div>
+    <div class="card aud-card" style="margin-top:14px"><div class="aud-ct"><h3>Log de auditoria</h3><small class="hint">cada linha gravada quando aconteceu — é a evidência dos números acima</small></div>${log}</div>
+  </div>`;
+}
+function audApresentar(){ document.body.classList.toggle('aud-apresentar'); if(document.body.classList.contains('aud-apresentar')){ document.documentElement.requestFullscreen?.().catch(()=>{}); flash('Modo apresentação — Esc para sair.','ok'); } }
+addEventListener('keydown',(e)=>{ if(e.key==='Escape'&&document.body.classList.contains('aud-apresentar')){ document.body.classList.remove('aud-apresentar'); document.fullscreenElement&&document.exitFullscreen?.(); } });
+document.addEventListener('fullscreenchange',()=>{ if(!document.fullscreenElement) document.body.classList.remove('aud-apresentar'); });
+function audCsv(canal){
+  const a=AUDC[canal+':'+AUDC_DIAS]; if(!a?.log) return;
+  const q=(v)=>`"${String(v??'').replace(/"/g,'""')}"`;
+  const linhas=[['quando','evento','quem','cliente','detalhe','protocolo'].join(';'),...a.log.map(e=>[new Date(e.quando).toLocaleString('pt-BR'),a.tipos[e.tipo]||e.tipo,e.quem,e.cliente,e.detalhe,e.protocolo].map(q).join(';'))];
+  const url=URL.createObjectURL(new Blob(['﻿'+linhas.join('\n')],{type:'text/csv;charset=utf-8'}));
+  const l=document.createElement('a'); l.href=url; l.download=`auditor-${canal}-${new Date().toISOString().slice(0,10)}.csv`; l.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+/* Dica no hover: um só balão para todos os gráficos (data-tip). */
+(()=>{ let tip=null;
+  document.addEventListener('mouseover',(e)=>{ const el=e.target.closest?.('[data-tip]'); if(!el) { tip&&(tip.style.display='none'); return; }
+    if(!tip){ tip=document.createElement('div'); tip.className='aud-tip'; document.body.appendChild(tip); }
+    tip.textContent=el.getAttribute('data-tip'); tip.style.display='block'; });
+  document.addEventListener('mousemove',(e)=>{ if(tip&&tip.style.display==='block'){ tip.style.left=Math.min(innerWidth-260,e.clientX+14)+'px'; tip.style.top=(e.clientY+14)+'px'; } });
+})();
+
 function auditorDoCanal(canal,titulo,sub){
   const todos=trilhaDeLeads();
   const eventos=todos.filter(e=>{
@@ -5286,7 +5436,7 @@ Object.assign(S,{
  /* Telegram tem o SEU layout (quadro de fila); o do WhatsApp segue como esta. */
  'tg-atendimento':()=>telaFilaTelegram(),
  'tg-canal':()=>telaTelegram(),
- 'tg-auditor':()=>auditorDoCanal('telegram','Telegram · Auditor','Tudo que passou pelo Telegram: quem falou, quando e o que o bot respondeu.'),
+ 'tg-auditor':()=>telaAuditorCanal('telegram'),
  'tg-consumo':()=>consumoDoCanal('telegram'),
  'tg-resultados':()=>telaResultados('telegram'),
  'tg-campanhas':()=>telaCampanhas('telegram'),

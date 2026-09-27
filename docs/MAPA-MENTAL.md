@@ -325,11 +325,11 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 - **Rotas do servidor:** `/crm/api/canais/conectar`, `/crm/api/canais/desconectar`, `/crm/api/canais/telegram` → `backend/server.mjs`
 
 #### Telegram → Auditor  ·  `#tg-auditor`
-- **Pra que serve:** Tudo que passou pelo Telegram: quem falou, quando e o que o bot respondeu.
-- **O que tem:** indicadores: Eventos, Mensagens, Leads com trilha · cartões: Trilha
-- **Botões:** Atualizar
-- **Código da tela:** `backend/crm.html` → `auditorDoCanal('telegram')`
-- **Ações (funções JS):** `buscarEm()`
+- **Pra que serve:** auditoria no padrão de mercado (Zendesk/Intercom/Blip): desempenho do atendimento + log de auditoria, só do Telegram, pronto para apresentar.
+- **O que tem:** período 7/30/90 dias com **variação sobre o período anterior** · KPIs: Conversas, Resolvidas pelo bot, **TPR** (fila → 1ª resposta da equipe, com p90), **TMA** (abertura → encerramento), **SLA** (≤ 5 min), **CSAT** (% notas 4–5) · gráficos: Atendimentos por dia (bot × equipe, com "ver dados"), Funil, Horário de pico (dia × hora), Desfechos + motivos do "à força", Satisfação 1–5, Desempenho por atendente · **Log de auditoria** (quem, evento, detalhe, protocolo; filtro por tipo, busca, paginação).
+- **Botões:** 7/30/90 dias · Apresentar (tela cheia, sem menu; Esc sai) · Imprimir / PDF · Exportar log (CSV para Excel)
+- **Código da tela:** `backend/crm.html` → `telaAuditorCanal('telegram')`; dados `GET /crm/api/auditor/canal?canal=telegram&dias=30` → `engine/vsauditoria` (`montarAuditoria`). Sem IA: tudo calculado do que foi gravado (protocolos, histórico do lead, segurança, campanhas). Paleta validada: azul = bot, laranja = equipe.
+- **Testes/prova:** `tests/vsauditoria.test.mjs` · `scripts/prova-auditor.mjs` (36/36). WhatsApp → Auditor continua o antigo (`auditorDoCanal`).
 
 #### Telegram → Consumo  ·  `#tg-consumo`
 - **Pra que serve:** Volume de conversa, quanto o bot resolveu sozinho e o que isso custa. O que virou dinheiro está em Resultados.
@@ -448,6 +448,7 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 | 2026-09-27 | Campanha aceitava qualquer texto/imagem ("MONTA PRA MIM" em Captar) → especificação do dono do auditor | Campos por objetivo, 3 resultados, pedido de ajuda, assistente sem inventar, estética como recomendação, evidências, revalidação no backend antes de publicar, reabrir. Prova 38/38 com o caso exato do dono | (este) |
 | 2026-09-27 | "Criou a imagem mas não o texto" — criar automático tem que criar os dois | Assistente: "Criar texto e imagem"; resultado da auditoria: "Criar texto e imagem e auditar" (com dados completos); arte passa a usar só o informado (solução, benefício, ação) — tirada a frase inventada | (este) |
 | 2026-09-27 | Canal e conexão: cliente coloca o bot nos canais e grupos dele | Cartão "Onde o bot trabalha" + "Adicionar destino" (canal · grupo · ID), confirmação automática do que o dono adiciona pelo painel; Campanhas só lista os liberados. Prova 43/43 | (este) |
+| 2026-09-27 | Auditor gera histórico → tela com gráficos e valores para apresentar, "perto de como o mercado mostra auditoria" | Telegram · Auditor refeito: KPIs de mercado (TPR, TMA, SLA, CSAT, resolução pelo bot) com variação, 6 gráficos, log de auditoria com filtro/busca/CSV, Apresentar e Imprimir. Prova 36/36 | (este) |
 | 2026-09-27 | **Tela Telegram · Canal e conexão FECHADA** pelo dono | Conexão do bot + "Onde o bot trabalha" (adicionar canal, grupo ou pelo ID). Campanhas: o dono vai revisar mais a fundo depois | (este) |
 | 2026-09-27 | **Tela Telegram · Atendimento FECHADA** pelo dono | Aprovada com o resultado do teste ao vivo. Teste de recebimento real (mensagem de um celular de verdade) fica pra depois, por escolha do dono (tempo da tela esgotado) | (este) |
 
@@ -475,7 +476,7 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 - **Avatar de nome com número** ("Cliente 001") vira "C0" — cosmético.
 - **Avaliação — próximos passos possíveis:** média por vendedor/equipe em Resultados; alerta ao dono em nota ≤ 2; texto da pergunta configurável.
 - **Teste intermitente:** `tests/vsresultados.test.mjs` → "conversa pelo link da campanha…" falhou 1 vez em 4 rodadas da bateria completa (passa sozinho). Observar.
-- **Próxima tela do Telegram a trabalhar:** escolha do dono (Resultados, Atendimento e Canal e conexão fechados; Campanhas feita, dono revisa depois; restam Auditor e Consumo). Depois do Telegram: revisar o Atendimento do WhatsApp com o dono.
+- **Próxima tela do Telegram a trabalhar:** escolha do dono (Resultados, Atendimento e Canal e conexão fechados; Campanhas feita, dono revisa depois; Auditor feito, dono revisa; resta Consumo). Depois do Telegram: revisar o Atendimento do WhatsApp com o dono.
 
 ---
 
@@ -489,6 +490,6 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 
 **Próximo:** o dono vai "dar uma olhada mais a fundo" em Campanhas. Canal real de teste já conectado: **"Teste campanha Bolso Cheio"** (`-1003782351972`, privado, bot admin com permissão) — está **pendente** (entrou antes do botão novo), falta o dono clicar em Confirmar em **Telegram → Canal e conexão → Onde o bot trabalha**. Pendente dele também: o valor da política de frequência (hoje 4 h / 3 por dia).
 
-**Provas (instâncias isoladas):** `prova-campanhas` 40/40, `prova-qualificacao` 26/26, `prova-encerramento` 27/27, `prova-bot-telegram` 8/8, `prova-horario` 11/11.
+**Provas (instâncias isoladas):** `prova-auditor` 36/36, `prova-campanhas` 40/40, `prova-qualificacao` 26/26, `prova-encerramento` 27/27, `prova-bot-telegram` 8/8, `prova-horario` 11/11.
 
 **Como trabalhar (regra do dono):** implementar direto a V1 da proposta; perguntar só o absurdo, em TEXTO (nunca AskUserQuestion). Sem IA em recurso novo (custo). Tela de um canal não mostra dado do outro.
