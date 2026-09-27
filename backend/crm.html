@@ -1143,7 +1143,6 @@ body.tela-chat .toasts{top:66px;bottom:auto}
 .fila-card.ativo{border-color:var(--ac);box-shadow:0 0 0 1px var(--ac)}
 .fc-top{display:flex;align-items:center;gap:10px}
 .fc-t{min-width:0;flex:1} .fc-t b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .fc-t small{font-size:11.5px;color:var(--dim)}
-.sit-aguarda .fc-t small{color:var(--err);font-weight:600}
 .fc-msg{margin:8px 0 0;font-size:12.5px;color:var(--muted);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .fc-ped{display:inline-flex;align-items:center;gap:5px;margin-top:8px;font-size:11.5px;font-weight:650}
 .fc-ped svg{width:12px;height:12px} .fc-ped.ok{color:var(--ok)} .fc-ped.aberto{color:var(--warn)}
@@ -1162,6 +1161,18 @@ body.tela-chat .toasts{top:66px;bottom:auto}
 [data-theme="dark"] .fila-col{background:#0e1627}
 @media(max-width:900px){.fila{grid-template-columns:1fr}.fila-cards{max-height:none}.fila-col{min-height:0}}
 @media (prefers-reduced-motion:reduce){.gaveta,.gaveta-bg{animation:none}}
+
+/* fila: resumo, tempo de espera, assumir no cartao */
+.fila-resumo{display:flex;gap:18px;flex-wrap:wrap;margin:-8px 0 14px;font-size:12.5px}
+.fila-resumo .cv-sit{font-size:12.5px} .fila-resumo b{color:var(--fg);margin-left:2px}
+.fila-card{cursor:pointer}
+.fila-card:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.fc-rodape{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:9px}
+.fc-rodape .fc-ped{margin-top:0}
+.fc-espera{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--dim)}
+.fc-espera svg{width:12px;height:12px}
+.fc-espera.aguarda{color:var(--muted)} .fc-espera.morno{color:var(--warn)} .fc-espera.quente{color:var(--err)}
+.fc-assumir{margin-left:auto}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
@@ -5178,7 +5189,8 @@ function telaFilaTelegram(){
   const achou=(c)=>!q||[c.nome,c.telefone,c.protocolo].some(x=>String(x||'').toLowerCase().includes(q));
   const agoraMs=Date.now();
   const ha=(iso)=>{ if(!iso) return ''; const m=Math.max(0,Math.round((agoraMs-new Date(iso))/60000));
-    return m<1?'agora':m<60?`há ${m} min`:m<1440?`há ${Math.round(m/60)} h`:`há ${Math.round(m/1440)} d`; };
+    // "ha menos de 1 min", nao "agora": "Aguardando agora" / "Sem resposta agora" nao se le.
+    return m<1?'há menos de 1 min':m<60?`há ${m} min`:m<1440?`há ${Math.round(m/60)} h`:`há ${Math.round(m/1440)} d`; };
   const hora=(x)=>x?new Date(x).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'';
   const dia=(x)=>{ if(!x) return ''; const h=new Date(); const d=new Date(x);
     if(d.toDateString()===h.toDateString()) return 'hoje';
@@ -5193,14 +5205,30 @@ function telaFilaTelegram(){
   const recente=(a,b)=>String(b.ultima?.quando||'').localeCompare(String(a.ultima?.quando||''));
   col.vendedor.sort(recente); col.bot.sort(recente);
 
-  const cartao=(c)=>{ const s=situacaoDe(c);
-    const quando=s==='aguardando'?`esperando ${ha(c.transferidaEm||c.desde)}`:ha(c.ultima?.quando);
+  /* O tempo e o que decide quem atender primeiro: quem espera mais ou quem
+     ficou sem resposta. A cor esquenta com a espera (5 min ambar, 15 min
+     vermelho) — da pra varrer a fila sem ler numero por numero. */
+  const minDe=(iso)=>iso?Math.max(0,(agoraMs-new Date(iso))/60000):0;
+  const calor=(m)=>m>=15?'quente':m>=5?'morno':'';
+  const espera=(c,s)=>{
+    if(s==='aguardando'){ const d=c.transferidaEm||c.desde; return {txt:`Aguardando ${ha(d)}`,cls:calor(minDe(d))||'aguarda'}; }
+    if(s==='com-vendedor'&&c.ultima?.direcao==='entrada') return {txt:`Sem resposta ${ha(c.ultima.quando)}`,cls:calor(minDe(c.ultima.quando))};
+    if(s==='com-vendedor') return {txt:`Respondido ${ha(c.ultima?.quando)}`,cls:''};
+    return {txt:`Última mensagem ${ha(c.ultima?.quando)}`,cls:''};
+  };
+  const cartao=(c)=>{ const s=situacaoDe(c); const e=espera(c,s);
     const ped=c.pedido?(c.pedido.estado==='pago'?`<span class="fc-ped ok">${ico('check')}pedido pago</span>`
       :c.pedido.estado==='pendente'?`<span class="fc-ped aberto">${reais(c.pedido.valorCentavos)} em aberto</span>`:''):'';
-    return `<button class="fila-card${c.telefone===CONVERSA&&TG_GAVETA?' ativo':''}" onclick="abrirCartaoTg('${esc(c.telefone)}')">
-      <div class="fc-top">${avatar(c.nome,c.telefone)}<div class="fc-t"><b>${esc(c.nome||'Cliente do Telegram')}</b><small>${esc(quando)}</small></div></div>
+    /* div + role, nao <button>: o cartao tem um botao (Assumir) dentro, e botao
+       dentro de botao e HTML invalido. */
+    return `<div class="fila-card${c.telefone===CONVERSA&&TG_GAVETA?' ativo':''}" role="button" tabindex="0"
+        onclick="abrirCartaoTg('${esc(c.telefone)}')" onkeydown="if(event.key==='Enter'&&event.target===this)abrirCartaoTg('${esc(c.telefone)}')">
+      <div class="fc-top">${avatar(c.nome,c.telefone)}<div class="fc-t"><b>${esc(c.nome||'Cliente do Telegram')}</b>
+        <small>Última mensagem: ${esc(hora(c.ultima?.quando))}</small></div></div>
       <p class="fc-msg">${c.ultima?.direcao==='saida'?`<span class="cv-eu">${c.ultima?.autor==='atendente'?'você':'bot'}: </span>`:''}“${esc(String(c.ultima?.texto||'').replace(/\n/g,' ').slice(0,90))}”</p>
-      ${ped}</button>`; };
+      <div class="fc-rodape"><span class="fc-espera ${e.cls}">${ico('relogio')}${esc(e.txt)}</span>${ped}
+        ${s==='aguardando'?`<button class="btn btn-p btn-xs fc-assumir" onclick="event.stopPropagation();assumirAtendimento('${esc(c.telefone)}',true)">${ico('crm')}<span>Assumir</span></button>`:''}</div>
+    </div>`; };
   const coluna=(id,titulo,cls,lista,vazioTxt)=>`<section class="fila-col ${cls}">
       <header><span class="cv-sit ${cls}"><i></i>${titulo}</span><em>${lista.length}</em></header>
       <div class="fila-cards">${lista.length?lista.map(cartao).join(''):`<p class="fila-vazia">${vazioTxt}</p>`}</div></section>`;
@@ -5233,7 +5261,9 @@ function telaFilaTelegram(){
     const ped=sel.pedido?(()=>{ const [r,e,c]=P[sel.pedido.estado]||P.pendente; return `<div class="cv-pedido cp-${c}"><div><span class="cp-rot">${r} · <span class="cv-proto">${esc(sel.pedido.referencia)}</span></span><b>${reais(sel.pedido.valorCentavos)}</b><small>${esc(itensTxt(sel.pedido.itens))} · ${e}</small></div></div>`; })():'';
     const ctx=Object.keys(sel.contexto||{}).length?`<div class="ctx-micaela">${ico('registrar')}<div><b>${esc(nomeBot())} já apurou</b>${Object.entries(sel.contexto).map(([k,v])=>`<span>${esc(k.replace(/_/g,' '))}: <i>${esc(String(v).slice(0,90))}</i></span>`).join('')}</div></div>`:'';
     gaveta=`<div class="gaveta-bg" onclick="fecharGavetaTg()"></div>
-    <aside class="gaveta" role="dialog" aria-label="Conversa com ${esc(sel.nome||'cliente')}">
+    <!-- div, nao <aside>: o CSS do menu lateral vale pra todo aside e, no celular,
+         empurrava o painel pra fora da tela. -->
+    <div class="gaveta" role="dialog" aria-label="Conversa com ${esc(sel.nome||'cliente')}">
       <div class="cv-cab">${avatar(sel.nome,sel.telefone,'lg')}
         <div class="cv-cab-t"><b>${esc(sel.nome||'Cliente do Telegram')}</b><small>Telegram · ${esc(sel.etapa||'sem etapa')}${sel.protocolo?` · <span class="cv-proto">${esc(sel.protocolo)}</span>`:''}</small></div>
         <button class="x" onclick="fecharGavetaTg()" aria-label="Fechar conversa">&times;</button></div>
@@ -5248,7 +5278,7 @@ function telaFilaTelegram(){
           onkeydown="teclaResposta(event,'${esc(sel.telefone)}')" oninput="crescerResposta(this)"></textarea>
         <button class="cv-enviar" id="btResponder" title="Enviar (Enter)" aria-label="Enviar" ${online?'':'disabled'} onclick="responderCliente('${esc(sel.telefone)}')">${ico('enviar')}</button></div>
         ${online&&sSel!=='com-vendedor'?'<p class="hint cv-dica" style="margin-top:6px">Ao responder, você assume — o bot para de falar com esta pessoa.</p>':''}</div>
-    </aside>`;
+    </div>`;
   } else if(TG_GAVETA){ TG_GAVETA=false; }
 
   return head('Telegram · Atendimento',
@@ -5256,15 +5286,20 @@ function telaFilaTelegram(){
       `<span class="badge ${botLigado?'b-ok':'b-warn'}">${ico('bot')}${botLigado?'Bot ativo':'Bot desligado'}</span>`+
       (online?botao({t:'Atualizar',ic:'atualizar',v:'s',on:'recarregarAtendimento(true)'}):botao({t:'Conectar o Telegram',ic:'telegram',v:'p',on:"ir('tg-canal')"})))+
     (online?'':`<div class="cv-offline">${ico('alerta')}<span><b>Telegram desconectado.</b> Dá pra ler as conversas, mas nada sai até conectar de novo.</span><button class="t-acao" onclick="ir('tg-canal')">Conectar agora</button></div>`)+
+    `<div class="fila-resumo" aria-label="Resumo da fila">
+      <span class="cv-sit sit-aguarda"><i></i>Aguardando <b>${col.aguardando.length}</b></span>
+      <span class="cv-sit sit-vendedor"><i></i>Com vendedor <b>${col.vendedor.length}</b></span>
+      <span class="cv-sit sit-bot"><i></i>Com o bot <b>${col.bot.length}</b></span></div>`+
     lembrete+
     (todas.length?`<label class="cv-busca fila-busca">${ico('busca')}<input id="cvBusca" placeholder="Buscar nome ou protocolo" value="${esc(BUSCA_CONV)}" oninput="buscarConversa(this.value)" autocomplete="off"></label>`:'')+
     quadro+gaveta;
 }
 function filtrarConversas(f){ FILTRO_CONV=f; CONVERSA=null; render(); }
-async function assumirAtendimento(tel){
+async function assumirAtendimento(tel,abrirPainel){
   try{
     await api('atendimentos/assumir',{telefone:tel});
-    CONVERSA=tel; await recarregarAtendimento(true);
+    CONVERSA=tel; if(abrirPainel) TG_GAVETA=true;
+    await recarregarAtendimento(true);
     flash(`Conversa é sua agora. ${nomeBot()} fica quieto com esta pessoa até você devolver.`,'ok',6);
     document.getElementById('respTexto')?.focus();
   }catch(e){ avisoErro('Não consegui assumir a conversa',esc(e.message)); }
@@ -5285,11 +5320,15 @@ async function recarregarAtendimento(forcar){
   if(foco==='cvBusca'){ const b=document.getElementById('cvBusca'); b?.focus(); b?.setSelectionRange(b.value.length,b.value.length); }
   const fl2=document.querySelector('.conversa-fluxo'); if(fl2&&!noFim) fl2.scrollTop=topo;
 }
+let TICK_ATEND=0;
 setInterval(()=>{
   if(!(rota==='wa-atendimento'||rota==='tg-atendimento'||rota==='whats'||rota==='tg')) return;
   if(document.visibilityState!=='visible'||document.getElementById('modalBg')?.classList.contains('show')) return;
   if(!TOKEN||document.body.classList.contains('sem-nav')) return;
-  recarregarAtendimento(false);
+  /* A cada ~1 min redesenha mesmo sem novidade: "aguardando ha 3 min" parado
+     na tela mentiria sobre quem espera mais. */
+  TICK_ATEND=(TICK_ATEND+1)%8;
+  recarregarAtendimento(TICK_ATEND===0);
 },8000);
 const S2={
  /* Auditor de canal. Mesma trilha, recortada pelo canal que gerou o evento —

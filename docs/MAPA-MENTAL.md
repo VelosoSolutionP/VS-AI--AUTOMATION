@@ -21,6 +21,7 @@
 **Erros que já apareceram e o que eram:**
 | Sintoma | Causa real |
 |---|---|
+| Painel lateral não aparece no celular (só o fundo escurece) | Era `<aside>`: o CSS do menu lateral vale pra todo `aside` e no celular desliza pra fora da tela. Painel é `<div class="gaveta">`. |
 | Tela abre sem o menu lateral | Página ficou com a classe `sem-nav` do login. Trocar o `#` com o login aberto não desenha mais tela (guarda no `hashchange`). |
 | Elemento que devia sumir fica aparecendo (caixa vazia) | CSS com `display:` anula o atributo `hidden`. Precisa de `.x[hidden]{display:none}` (já corrigido em `.pill` e `.g-dica`). |
 | Volta pro login no meio do teste automatizado | Limite de 300 pedidos/minuto (`LIM_CRM`) estourado pelo robô. Uso normal não chega nisso. |
@@ -235,7 +236,9 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 
 #### Telegram → Atendimento  ·  `#tg-atendimento`
 - **Pra que serve:** a **fila de atendimento** do Telegram — *quem precisa da minha atenção agora?* Layout **próprio do Telegram** (quadro de fila), escolhido pelo dono entre 3 opções em 2026-09-27; **não é** o inbox do WhatsApp.
-- **O que tem:** 3 colunas com contagem — **Aguardando vendedor** (quem espera há mais tempo em cima, "esperando há X min"), **Com vendedor**, **Com o bot** (inclui "pedido pago"); cartão com avatar, última mensagem (bot/você), pedido em aberto ou pago; busca; com zero conversas mostra as colunas vazias + lembrete com o link do bot. Clicar no cartão abre o **painel lateral** (tela cheia no celular): situação, Assumir/Devolver, Encerrar, cartão do pedido, "o bot já apurou", histórico com marcos Transferido/Assumiu, resposta (Enter envia). Esc ou × fecha.
+- **Resumo no topo** (pequeno): Aguardando N · Com vendedor N · Com o bot N — mesmos nomes das colunas.
+- **Cartão** (fase 2 do dono): nome, última mensagem (bot/você), **"Última mensagem: HH:MM"** (fuso local), **tempo** — `Aguardando há X` / `Sem resposta há X` (cliente escreveu, vendedor não respondeu) / `Respondido há X` / `Última mensagem há X` — com cor que esquenta (≥5 min âmbar, ≥15 min vermelho), pedido em aberto/pago e botão **Assumir** direto no cartão de quem aguarda (abre o painel). Tempos redesenham a cada ~1 min.
+- **O que tem:** 3 colunas com contagem — **Aguardando vendedor** (quem espera há mais tempo em cima), **Com vendedor**, **Com o bot** (inclui "pedido pago"); cartão com avatar, última mensagem (bot/você), pedido em aberto ou pago; busca; com zero conversas mostra as colunas vazias + lembrete com o link do bot. Clicar no cartão abre o **painel lateral** (tela cheia no celular): situação, Assumir/Devolver, Encerrar, cartão do pedido, "o bot já apurou", histórico com marcos Transferido/Assumiu, resposta (Enter envia). Esc ou × fecha.
 - **Atualiza sozinha** a cada 8 s com o painel aberto, sem apagar o texto digitado.
 - **Código da tela:** `backend/crm.html` → `telaFilaTelegram()` · abrir/fechar: `abrirCartaoTg()`, `fecharGavetaTg()` (estado `TG_GAVETA` + `CONVERSA`) · situação compartilhada: `situacaoDe()` / `SITUACAO`
 - **Ações (funções JS):** `abrirCartaoTg()`, `fecharGavetaTg()`, `buscarConversa()`, `assumirAtendimento()`, `devolverAoBot()`, `encerrarAtendimento()`, `responderCliente()`, `teclaResposta()`, `recarregarAtendimento()`
@@ -372,6 +375,7 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 | 2026-09-27 | Criar este mapa mental | `docs/MAPA-MENTAL.md` | (este) |
 | 2026-09-27 | Tela Atendimento v1 (modelo do dono: central cliente ↔ bot ↔ vendedor) | Situações e filtros, Assumir/Devolver, responder assume sozinho, cartão do pedido, marcos no histórico, atualização a cada 8 s sem perder o texto, selo Bot ativo; corrigidos: hora em UTC, filtros cortados, avatares iguais, aviso tapando o Enviar | (este) |
 | 2026-09-27 | "Não carrega nada" no Atendimento do Telegram; Telegram ≠ WhatsApp; layout diferente, perguntar antes | Não era cache: bot ainda sem nenhuma mensagem (tela vazia). Dono escolheu **quadro de fila** → `telaFilaTelegram()` com painel lateral; WhatsApp intocado | (este) |
+| 2026-09-27 | Fila mais completa sem perder a simplicidade (fase 2 do dono) | Resumo no topo, horário da última mensagem, tempo de espera com cor, Assumir no cartão; corrigido: painel fora da tela no celular, "agora" → "há menos de 1 min" | (este) |
 
 ---
 
@@ -385,6 +389,7 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 - **Demo (`demo.velososolution.com.br`) fora do ar** desde o reinício — subir com `backend/subir-demo.sh` **só com credencial de teste** (o script herda o ambiente: não rodar com o `painel.env` carregado).
 - **Horário em UTC fora do Atendimento:** ~17 pontos do `crm.html` ainda formatam hora cortando o texto ISO (`slice(11,16)` / `slice(0,16)`) — Auditor, trilhas, retomada. Mostram 3 h adiantado no Brasil. Corrigido só no Atendimento.
 - **WhatsApp → Atendimento recebeu a v1 junto (sem ter sido pedido):** revisar com o dono depois de fechar o Telegram — aproveitar o que faz sentido e tirar o resto.
+- **Fila do Telegram — fases 3 e 4 do dono (não feitas):** marcadores (novo, pedido em andamento, pagamento pendente, cliente recorrente, urgente), filtro por status/atendente, atendente responsável, SLA; depois pedido/cliente/tags/histórico resumido/origem da campanha no cartão.
 - **Atendimento v2 (fora da v1, por escolha do dono):** 3ª coluna com catálogo, pedidos anteriores, etiquetas e dados do cliente.
 - **Indicadores de valor do bot** sugeridos na proposta (resolvidos sem humano, transferidos, vendas após atendimento): pertencem a Consumo/Resultados, não ao Atendimento — ainda não feitos.
 - **Próxima tela do Telegram a trabalhar:** escolha do dono (Atendimento v1 entregue; sugestão: Campanhas).
