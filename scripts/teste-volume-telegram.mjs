@@ -23,6 +23,9 @@
  *   node scripts/teste-volume-telegram.mjs concorrencia # só um: funcional | concorrencia | carga
  *   ... --tela <arquivo.png>   tira foto da fila no navegador (precisa de Chrome)
  *   ... --manter               não apaga a pasta de dados do teste no fim
+ *   ... --ao-vivo              abre o console da instância de teste no navegador,
+ *                              manda os clientes UM A UM (--intervalo ms, padrão 2000)
+ *                              e deixa tudo NA TELA até você parar (Ctrl+C). Não apaga nada.
  */
 import http from 'node:http';
 import { spawn } from 'node:child_process';
@@ -35,7 +38,9 @@ import { fileURLToPath } from 'node:url';
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const opc = (n) => { const i = args.indexOf(n); return i >= 0 ? (args[i + 1] || true) : null; };
-const MANTER = args.includes('--manter');
+const AO_VIVO = args.includes('--ao-vivo');
+const MANTER = args.includes('--manter') || AO_VIVO;
+const INTERVALO = Number(opc('--intervalo')) || 2000;
 const TELA = opc('--tela');
 
 /* Distribuição por cenário: quem pede gente e ninguém pega (aguardando), quem
@@ -57,7 +62,7 @@ const pct = (v, p) => { if (!v.length) { return null; } const o = [...v].sort((a
 const idTg = (chat) => '999' + String(chat).padStart(12, '0');
 
 /* ── Telegram falso: só o que o provider usa ─────────────────────────────── */
-function telegramFalso() {
+function servidorTelegramFalso() {
   const fila = []; let prox = 1; let msgId = 1;
   const enviados = []; // { chat, texto, em }
   let acorda = null;
@@ -65,6 +70,7 @@ function telegramFalso() {
   const srv = http.createServer(async (req, res) => {
     const metodo = req.url.split('/').pop().split('?')[0];
     const json = (r) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: true, result: r })); };
+    // ── o que o provider do Bolso Cheio chama (Bot API) ──
     if (metodo === 'getMe') { return json({ id: 1, is_bot: true, username: 'loja_teste_bot', first_name: 'Loja de Teste' }); }
     if (metodo === 'deleteWebhook') { return json(true); }
     if (metodo === 'getUpdates') {
@@ -79,23 +85,51 @@ function telegramFalso() {
       return json({ message_id: msgId++ });
     }
     if (['sendPhoto', 'sendDocument', 'deleteMessage'].includes(metodo)) { req.resume(); return json({ message_id: msgId++ }); }
-    res.writeHead(404); res.end('{"ok":false,"description":"metodo nao simulado"}');
-  });
-  return new Promise((ok) => srv.listen(0, '127.0.0.1', () => ok({
-    url: `http://127.0.0.1:${srv.address().port}`,
-    enviados,
-    /** Um cliente escreve. `repetir` reentrega o MESMO update (como o Telegram faz em falha de rede). */
-    escrever({ chat, nome, texto, repetirId }) {
-      const u = repetirId ? fila.find((x) => x.message.message_id === repetirId) : null;
+    // ── controle do SIMULADOR (so em 127.0.0.1, so neste processo de teste) ──
+    if (metodo === '_escrever') {
+      const b = await corpoJson(req);
+      const u = b.repetirId ? fila.find((x) => x.message.message_id === b.repetirId) : null;
       const update = u ? { ...u, update_id: prox++ } : {
         update_id: prox++,
-        message: { message_id: 100000 + prox, date: Math.floor(Date.now() / 1000), text: texto, chat: { id: chat, type: 'private' }, from: { id: chat, is_bot: false, first_name: nome } },
+        message: { message_id: 100000 + prox, date: Math.floor(Date.now() / 1000), text: b.texto, chat: { id: b.chat, type: 'private' }, from: { id: b.chat, is_bot: false, first_name: b.nome } },
       };
       fila.push(update); acorda?.();
-      return update.message.message_id;
-    },
-    fechar: () => new Promise((r) => srv.close(r)),
-  })));
+      return json({ message_id: update.message.message_id });
+    }
+    if (metodo === '_enviados') { return json(enviados); }
+    res.writeHead(404); res.end('{"ok":false,"description":"metodo nao simulado"}');
+  });
+  return new Promise((ok) => srv.listen(0, '127.0.0.1', () => ok({ srv, url: `http://127.0.0.1:${srv.address().port}` })));
+}
+
+/** O simulador fala com o Telegram falso por HTTP — igual se ele roda aqui ou em processo proprio (ao vivo). */
+function clienteTelegramFalso(url, fecharServidor) {
+  const post = async (m, corpo) => (await (await fetch(`${url}/bot/${m}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo || {}) })).json()).result;
+  const c = {
+    url,
+    enviados: [],
+    async atualizar() { c.enviados = await post('_enviados'); return c.enviados; },
+    /** Um cliente escreve. `repetirId` reentrega o MESMO update (como o Telegram faz em falha de rede). */
+    async escrever(d) { return (await post('_escrever', d)).message_id; },
+    fechar: () => (fecharServidor ? new Promise((r) => fecharServidor.close(r)) : Promise.resolve()),
+  };
+  return c;
+}
+
+async function telegramFalso() {
+  if (!AO_VIVO) { const { srv, url } = await servidorTelegramFalso(); return clienteTelegramFalso(url, srv); }
+  /* Ao vivo, o Telegram falso roda em processo PROPRIO e fica no ar depois que o
+     simulador termina — senao o bot do teste perderia o "Telegram" e a tela
+     mostraria o canal caido. */
+  const arq = join(tmpdir(), `bolso-telegram-falso-${process.pid}.json`);
+  const filho = spawn(process.execPath, [fileURLToPath(import.meta.url), '--servir-telegram-falso', arq], { detached: true, stdio: 'ignore' });
+  filho.unref();
+  for (let i = 0; i < 40 && !existsSync(arq); i++) { await espera(100); }
+  const { url } = JSON.parse(readFileSync(arq, 'utf8'));
+  rmSync(arq, { force: true });
+  const c = clienteTelegramFalso(url, null);
+  c.pid = filho.pid;
+  return c;
 }
 
 /* ── instância isolada do painel ─────────────────────────────────────────── */
@@ -133,7 +167,8 @@ async function subirPainel({ casa, telegramUrl }) {
     TELEGRAM_API_URL: telegramUrl, RATE_CRM: '1000000', PAINEL_URL: `http://127.0.0.1:${porta}` };
   const { openSync } = await import('node:fs');
   const fd = openSync(log, 'a');
-  const proc = spawn(process.execPath, [join(RAIZ, 'backend/server.mjs')], { cwd: RAIZ, env, stdio: ['ignore', fd, fd] });
+  const proc = spawn(process.execPath, [join(RAIZ, 'backend/server.mjs')], { cwd: RAIZ, env, stdio: ['ignore', fd, fd], detached: AO_VIVO });
+  if (AO_VIVO) { proc.unref(); } // fica no ar como servidor depois que o simulador termina
   const base = `http://127.0.0.1:${porta}`;
   for (let i = 0; i < 80; i++) {
     try { if ((await fetch(base + '/health')).ok) { return { proc, base, log }; } } catch { /* subindo */ }
@@ -165,6 +200,13 @@ async function rodar(nomeCen) {
   try {
     const con = await api('canais/conectar', { canal: 'telegram', token: TOKEN_BOT });
     ok('instância isolada conectou no Telegram falso', con.ok, con.numero || con.erro);
+    if (AO_VIVO) {
+      // Link direto com a sessão da instância de TESTE (só existe nesta máquina, em 127.0.0.1).
+      const url = `${base}/crm?t=${token}#tg-atendimento`;
+      console.log(`\n  🔴 AO VIVO — abrindo no navegador:\n     ${url}\n  (instância de teste isolada; seus dados reais não são tocados)\n`);
+      try { spawn('xdg-open', [url], { detached: true, stdio: 'ignore' }).unref(); } catch { /* abre na mão */ }
+      await espera(7000); // tempo do navegador abrir antes do primeiro cliente
+    }
 
     // Quem é quem
     const clientes = Array.from({ length: cen.total }, (_, i) => {
@@ -176,14 +218,18 @@ async function rodar(nomeCen) {
 
     // 1ª onda: todos escrevem de uma vez
     const t0 = Date.now();
-    for (const c of clientes) { c.t0 = Date.now(); c.msgId = tg.escrever({ chat: c.chat, nome: c.nome, texto: c.texto }); c.enviou.push(c.texto); }
+    for (const c of clientes) {
+      c.t0 = Date.now(); c.msgId = await tg.escrever({ chat: c.chat, nome: c.nome, texto: c.texto }); c.enviou.push(c.texto);
+      if (AO_VIVO) { console.log(`  → ${c.nome}: "${c.texto}"`); await espera(INTERVALO); }
+    }
     // Reentrega do MESMO update pra alguns (o Telegram faz isso em falha de rede): não pode duplicar nada
     const repetidos = clientes.slice(0, Math.min(5, clientes.length));
-    for (const c of repetidos) { tg.escrever({ repetirId: c.msgId }); }
+    for (const c of repetidos) { await tg.escrever({ repetirId: c.msgId }); }
 
     const respostasDe = (c) => tg.enviados.filter((e) => e.chat === String(c.chat));
     const limite = Date.now() + 90000;
-    while (Date.now() < limite && clientes.some((c) => !respostasDe(c).length)) { await espera(100); }
+    await tg.atualizar();
+    while (Date.now() < limite && clientes.some((c) => !respostasDe(c).length)) { await espera(100); await tg.atualizar(); }
     const tProc = Date.now() - t0;
     const lat = clientes.map((c) => { const r = respostasDe(c)[0]; return r ? r.em - c.t0 : null; }).filter((x) => x != null);
     ok('todo cliente recebeu resposta do bot', lat.length === clientes.length, `${lat.length}/${clientes.length}`);
@@ -192,18 +238,25 @@ async function rodar(nomeCen) {
       clientes.every((c) => (respostasDe(c)[0]?.texto || '').includes(c.grupo === 'bot' ? 'segunda a sábado' : 'chamar um vendedor')));
 
     // Vendedor assume as conversas do grupo "vendedor"
-    for (const c of clientes.filter((x) => x.grupo === 'vendedor')) { await api('atendimentos/assumir', { telefone: c.id }); }
+    for (const c of clientes.filter((x) => x.grupo === 'vendedor')) {
+      await api('atendimentos/assumir', { telefone: c.id });
+      if (AO_VIVO) { console.log(`  ✋ vendedor assumiu ${c.nome}`); await espera(INTERVALO); }
+    }
 
     // 2ª onda: quem está com gente escreve de novo (o bot tem que ficar QUIETO); quem está com o bot pergunta de novo
+    await tg.atualizar();
     const antes = new Map(clientes.map((c) => [c.n, respostasDe(c).length]));
     for (const c of clientes) {
       const t = c.grupo === 'bot' ? 'Qual o endereço de vocês?' : 'Alguém aí? (' + c.nome + ')';
-      tg.escrever({ chat: c.chat, nome: c.nome, texto: t }); c.enviou.push(t);
+      await tg.escrever({ chat: c.chat, nome: c.nome, texto: t }); c.enviou.push(t);
+      if (AO_VIVO) { await espera(Math.round(INTERVALO / 3)); }
     }
     const limite2 = Date.now() + 60000;
     const doBot = clientes.filter((c) => c.grupo === 'bot');
-    while (Date.now() < limite2 && doBot.some((c) => respostasDe(c).length <= antes.get(c.n))) { await espera(100); }
+    await tg.atualizar();
+    while (Date.now() < limite2 && doBot.some((c) => respostasDe(c).length <= antes.get(c.n))) { await espera(100); await tg.atualizar(); }
     await espera(1500); // tempo pra uma resposta indevida aparecer, se fosse aparecer
+    await tg.atualizar();
     ok('bot fica quieto com quem está esperando ou com vendedor',
       clientes.filter((c) => c.grupo !== 'bot').every((c) => respostasDe(c).length === antes.get(c.n)));
     ok('bot continua respondendo quem está com ele', doBot.every((c) => respostasDe(c).length === antes.get(c.n) + 1
@@ -250,6 +303,16 @@ async function rodar(nomeCen) {
     };
   } finally {
     clearInterval(vigia);
+    if (AO_VIVO) {
+      /* Fica NO AR como servidor: o quadro continua na tela e o Telegram falso
+         segue atendendo o bot. Desliga com --parar; a pasta de dados fica. */
+      writeFileSync(ESTADO_AO_VIVO, JSON.stringify({ pids: [proc.pid, tg.pid].filter(Boolean), casa, url: `${base}/crm?t=${token}#tg-atendimento`, desde: new Date().toISOString() }, null, 2));
+      console.log(`\n  🟢 tudo na tela. A instância de teste continua no ar em:\n     ${base}/crm?t=${token}#tg-atendimento`);
+      console.log(`     dados do teste guardados em ${casa}`);
+      console.log('     para desligar: node scripts/teste-volume-telegram.mjs --parar');
+      R.pasta = casa;
+      return R;
+    }
     proc.kill('SIGTERM'); await espera(300); try { proc.kill('SIGKILL'); } catch { /* ja saiu */ }
     await tg.fechar();
     if (MANTER) { R.pasta = casa; } else { rmSync(casa, { recursive: true, force: true }); }
@@ -271,6 +334,24 @@ async function foto(base, token, arquivo) {
 }
 
 /* ── execução ────────────────────────────────────────────────────────────── */
+const ESTADO_AO_VIVO = join(tmpdir(), 'bolso-volume-ao-vivo.json');
+if (args[0] === '--servir-telegram-falso') {
+  const { url } = await servidorTelegramFalso();
+  writeFileSync(args[1], JSON.stringify({ url, pid: process.pid }));
+  await new Promise(() => {}); // fica no ar ate --parar
+}
+if (args.includes('--parar')) {
+  if (!existsSync(ESTADO_AO_VIVO)) { console.log('nenhum teste ao vivo rodando'); process.exit(0); }
+  const e = JSON.parse(readFileSync(ESTADO_AO_VIVO, 'utf8'));
+  for (const pid of e.pids) { try { process.kill(pid, 'SIGTERM'); } catch { /* ja tinha saido */ } }
+  rmSync(ESTADO_AO_VIVO, { force: true });
+  console.log(`teste ao vivo desligado. Dados guardados em ${e.casa} (apague a pasta quando nao precisar mais).`);
+  process.exit(0);
+}
+if (AO_VIVO && existsSync(ESTADO_AO_VIVO)) {
+  console.log('já existe um teste ao vivo no ar — desligue antes com: node scripts/teste-volume-telegram.mjs --parar');
+  process.exit(1);
+}
 const alvo = args.find((a) => CENARIOS[a]);
 const ordem = alvo ? [alvo] : ['funcional', 'concorrencia', 'carga'];
 const resultados = [];
