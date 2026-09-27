@@ -1292,6 +1292,7 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && rota === '/crm/api/atendimentos') {
       const esperando = bot.emAtendimento();
       const leads = crm.listar();
+      const pagamentos = pagar.listar();
       const conversas = leads
         .map((l) => {
           const inter = (l.historico || []).filter((h) => h.tipo === 'interacao');
@@ -1309,6 +1310,13 @@ const server = createServer(async (req, res) => {
             mensagens: inter.length,
             ultima: inter[inter.length - 1],
             esperandoGente: !!fila,
+            /* Quem precisa de atencao AGORA: aguardando = foi pra gente e ninguem
+               pegou; com-vendedor = alguem ja assumiu; com-bot = o bot esta dando
+               conta. Pedido pago sem ninguem na conversa fecha como concluido. */
+            situacao: fila ? (fila.assumida ? 'com-vendedor' : 'aguardando') : 'com-bot',
+            assumidaEm: fila?.assumidaEm || null,
+            transferidaEm: fila?.transferidaEm || null,
+            pedido: resultados.ultimoPedido(l.telefone, pagamentos),
             desde: fila?.desde || null,
             departamento: fila?.departamento || null,
             contexto: fila?.contexto || {},
@@ -1645,6 +1653,11 @@ const server = createServer(async (req, res) => {
         case '/crm/api/atendimentos/responder': {
           const texto = String(d.texto || '').trim();
           if (!texto) { r = { ok: false, motivo: 'escreva a mensagem antes de enviar' }; break; }
+          const tel = String(d.telefone || '').replace(/\D/g, '');
+          /* Quem responde pelo painel ASSUME a conversa: o bot sai de cena antes
+             da mensagem sair. Sem isto, numa conversa que estava com o bot, ele
+             continuava respondendo por cima do vendedor. */
+          bot.assumirConversa(tel);
           const envio = await canais.enviar({ canal: d.canal, para: d.telefone, texto });
           if (!envio.ok) { r = { ok: false, motivo: envio.erro || 'não consegui enviar' }; break; }
           const lead = crm.listar().find((l) => l.telefone === String(d.telefone || '').replace(/\D/g, ''));
@@ -1669,6 +1682,14 @@ const server = createServer(async (req, res) => {
           const lead = crm.listar().find((l) => l.telefone === p.telefone);
           if (lead) { crm.interagir(lead.id, { canal: p.canal, direcao: 'saida', texto, autor: 'atendente' }); }
           r = { ok: true, enviado: true };
+          break;
+        }
+        /* O vendedor pega a conversa antes de responder (ler o historico,
+           checar o pedido): o bot para de falar com esta pessoa ja. */
+        case '/crm/api/atendimentos/assumir': {
+          const tel = String(d.telefone || '').replace(/\D/g, '');
+          if (!tel) { r = { ok: false, motivo: 'conversa sem identificador' }; break; }
+          r = bot.assumirConversa(tel);
           break;
         }
         case '/crm/api/atendimentos/devolver': r = bot.devolverAoBot(String(d.telefone || '').replace(/\D/g, '')); break;

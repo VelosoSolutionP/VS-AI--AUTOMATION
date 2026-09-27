@@ -286,6 +286,12 @@ export function emAtendimento() {
       desde: c.handoffEm,
       departamento: c.departamento || 'humano',
       contexto: c.contexto || {},
+      /* "Aguardando vendedor" e "com vendedor" sao situacoes diferentes na tela
+         de atendimento: uma pede acao, a outra ja tem dono. */
+      assumida: Boolean(c.assumidaPeloDono),
+      assumidaEm: c.assumidaEm || (c.assumidaPeloDono ? c.handoffEm : null),
+      // Quando o BOT passou pra gente. Conversa antiga (sem o campo) usa o handoffEm.
+      transferidaEm: c.transferidaEm || (!c.assumidaPeloDono ? c.handoffEm : null),
     }))
     .sort((a, b) => String(b.desde).localeCompare(String(a.desde)));
 }
@@ -306,12 +312,19 @@ export function assumirConversa(de, { endereco } = {}) {
   if (!de) { return { ok: false, erro: 'sem remetente' }; }
   const atual = conversas()[de] || null;
   const novo = !atual?.handoffEm;
+  const agora = new Date().toISOString();
   salvarConversa(de, {
     ...(atual || {}),
-    handoffEm: new Date().toISOString(),
-    departamento: 'humano',
+    // Renovado a cada mensagem de quem atende: e ele que segura o silencio do bot.
+    handoffEm: agora,
+    departamento: atual?.departamento || 'humano',
     contexto: atual?.contexto || {},
     assumidaPeloDono: true,
+    /* Os dois marcos NAO se renovam: sao o que o historico mostra ("transferido
+       as 14:02", "vendedor assumiu as 14:05"). Renovar o handoffEm apagava a
+       hora da transferencia. */
+    assumidaEm: atual?.assumidaEm || agora,
+    transferidaEm: atual?.transferidaEm || (atual?.handoffEm && !atual?.assumidaPeloDono ? atual.handoffEm : null),
   });
   try {
     const p = proto.aberto(de);
@@ -819,7 +832,8 @@ export function atender(texto, ctx = {}) {
 
 /** Pedido pago (ou resolvido fora do fluxo): a conversa passa pra equipe, com o contexto. */
 export function entregarParaEquipe(de, { departamento = 'humano', contexto = {} } = {}) {
-  salvarConversa(de, { handoffEm: new Date().toISOString(), contexto, departamento });
+  const agora = new Date().toISOString();
+  salvarConversa(de, { handoffEm: agora, transferidaEm: agora, contexto, departamento });
   return { ok: true };
 }
 

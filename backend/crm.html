@@ -1099,6 +1099,35 @@ body.sem-nav main,body.sem-nav .main{margin-left:0!important}
 .camp-fantasma td{padding:16px 12px}
 .camp-fantasma thead th{opacity:.7}
 .camp-fantasma code{font-size:11.5px}
+
+/* ── Atendimento v1: situacao, filtros, pedido, marcos ── */
+/* 2x2: quatro filtros numa linha nao cabem na coluna da lista (o ultimo ia parar
+   debaixo da conversa, sem clique). */
+.cv-filtros{display:grid;grid-template-columns:1fr 1fr;gap:2px;width:100%;flex:none;border-radius:14px}
+.cv-filtros button{padding:6px 8px;font-size:11.5px;white-space:nowrap;border-radius:11px;display:flex;justify-content:space-between;align-items:center}
+.cv-filtros button em{font-style:normal;font-size:10.5px;margin-left:4px;padding:0 5px;border-radius:99px;background:var(--raised);color:var(--muted)}
+.cv-filtros button.on em{background:var(--ac-soft);color:var(--ac)}
+.cv-sit{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:650;white-space:nowrap}
+.cv-sit i{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+.sit-aguarda{color:var(--err)} .sit-aguarda i{box-shadow:0 0 0 0 var(--err);animation:pulsa 1.6s infinite}
+.sit-vendedor{color:var(--ac-2)} .sit-ok{color:var(--ok)} .sit-bot{color:var(--dim)}
+.cv-mini-ped{font-size:11px;color:var(--warn);font-weight:600}
+.cv-cab .cv-sit{margin-left:auto}
+.cv-cab-a{display:flex;gap:6px;align-items:center;flex:none}
+.cv-pedido{display:flex;align-items:center;gap:12px;margin:10px 16px 0;padding:10px 14px;border-radius:12px;border:1px solid var(--line);
+  background:var(--panel-2);border-left:3px solid var(--warn);flex:none}
+.cv-pedido.cp-ok{border-left-color:var(--ok)} .cv-pedido.cp-morto{border-left-color:var(--dim);opacity:.8}
+.cp-rot{display:block;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--dim)}
+.cv-pedido b{display:block;font-size:17px;font-variant-numeric:tabular-nums;margin-top:1px}
+.cv-pedido.cp-ok b{color:var(--ok)}
+.cv-pedido small{display:block;font-size:12px;color:var(--muted)}
+.ev-transf{color:var(--warn);border-color:var(--warn-line);background:var(--warn-bg)} .ev-transf svg{color:var(--warn)}
+.ev-assum{color:var(--ac-2);border-color:var(--ac-line);background:var(--ac-soft)} .ev-assum svg{color:var(--ac-2)}
+.b-autor{display:block;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ac-2);margin-bottom:2px}
+.page-head .ph-acts .badge svg{width:13px;height:13px;margin-right:4px;vertical-align:-2px}
+@media(max-width:900px){.cv-cab{flex-wrap:wrap}.cv-cab .cv-sit{margin-left:0}.cv-cab-a{width:100%;justify-content:flex-end}}
+
+body.tela-chat .toasts{top:66px;bottom:auto}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
@@ -4952,47 +4981,76 @@ Object.assign(S,{
  'tg-campanhas':()=>telaCampanhas('telegram'),
 });
 /* Mesma caixa de entrada pros dois canais: cada um ve SO as suas conversas. */
+/* A central de conversas entre cliente, bot e vendedor. Responde UMA pergunta:
+   quem precisa da minha atencao agora? Indicador financeiro mora em Resultados,
+   campanha em Campanhas, configuracao em Canal e conexao — aqui e operacao. */
+const SITUACAO={
+  'aguardando':{rot:'Aguardando vendedor',cls:'sit-aguarda'},
+  'com-vendedor':{rot:'Com vendedor',cls:'sit-vendedor'},
+  'concluido':{rot:'Pedido concluído',cls:'sit-ok'},
+  'com-bot':{rot:'Atendido pelo bot',cls:'sit-bot'},
+};
+const situacaoDe=(c)=>{ const s=c.situacao||(c.esperandoGente?'aguardando':'com-bot');
+  return s==='com-bot'&&c.pedido?.estado==='pago'?'concluido':s; };
+let FILTRO_CONV=null; // null = escolhe sozinho (quem precisa de voce, se houver)
 function telaAtendimento(canal){
   const tg=canal==='telegram';
   const dados=ATEND||{conversas:[],esperando:0};
   const todas=(dados.conversas||[]).filter(c=>(c.canal||(ehTg(c.telefone)?'telegram':'whatsapp'))===canal);
-  const esperandoAqui=todas.filter(c=>c.esperandoGente).length;
   const irConexao=tg?"ir('tg-canal')":"ir('canais')";
   const nomeCanal=tg?'Telegram':'WhatsApp';
+  const cont={agora:0,vendedor:0,bot:0,todas:todas.length};
+  todas.forEach(c=>{ const s=situacaoDe(c); if(s==='aguardando') cont.agora++; else if(s==='com-vendedor') cont.vendedor++; else cont.bot++; });
+  const filtro=FILTRO_CONV||(cont.agora?'agora':'todas');
+  const passa=(c)=>{ const s=situacaoDe(c);
+    return filtro==='todas'||(filtro==='agora'&&s==='aguardando')||(filtro==='vendedor'&&s==='com-vendedor')||(filtro==='bot'&&(s==='com-bot'||s==='concluido')); };
   /* Busca por nome, telefone ou protocolo: com trinta conversas abertas, rolar
      a lista procurando alguem e o que mais cansa quem atende. */
   const q=BUSCA_CONV.trim().toLowerCase();
-  const lista=q?todas.filter(c=>[c.nome,c.telefone,c.protocolo].some(x=>String(x||'').toLowerCase().includes(q))):todas;
+  const lista=todas.filter(passa).filter(c=>!q||[c.nome,c.telefone,c.protocolo].some(x=>String(x||'').toLowerCase().includes(q)));
   const sel=todas.find(c=>c.telefone===CONVERSA)||lista[0]||null;
   const online=tg?TG?.estado==='conectado':(CANAIS?.canais||[])[0]?.estado==='conectado';
+  const botLigado=BOT?.config?.ativo!==false;
   const contato=(c)=>tg?'Telegram':'+'+c.telefone;
-  const hora=(x)=>x?String(x).slice(11,16):'';
+  /* Hora e dia no fuso de QUEM ESTA OLHANDO. Cortar o texto ISO dava a hora UTC:
+     tres horas adiantada no Brasil, e "ontem" em cima de mensagem de 23:55 que
+     aparecia como 02:55. */
+  const hora=(x)=>x?new Date(x).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'';
   const dia=(x)=>{ if(!x) return ''; const h=new Date(); const d=new Date(x);
     if(d.toDateString()===h.toDateString()) return 'hoje';
     const ontem=new Date(h); ontem.setDate(h.getDate()-1);
-    return d.toDateString()===ontem.toDateString()?'ontem':String(x).slice(8,10)+'/'+String(x).slice(5,7); };
+    return d.toDateString()===ontem.toDateString()?'ontem':d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}); };
+  const itensTxt=(it)=>{ const g=new Map(); (it||[]).forEach(i=>{ const n=i?.nome||String(i||''); if(n) g.set(n,(g.get(n)||0)+1); });
+    return [...g].map(([n,k])=>k>1?`${k}x ${n}`:n).join(' + ')||'pedido'; };
 
-  const item=(c)=>`<button class="conversa${c.telefone===sel?.telefone?' ativa':''}${c.esperandoGente?' espera':''}" onclick="abrirConversa('${esc(c.telefone)}')">
+  const item=(c)=>{ const s=situacaoDe(c), S=SITUACAO[s];
+    return `<button class="conversa${c.telefone===sel?.telefone?' ativa':''}${s==='aguardando'?' espera':''}" onclick="abrirConversa('${esc(c.telefone)}')">
     ${avatar(c.nome,c.telefone)}
     <div class="cv-corpo">
       <div class="cv-top"><b>${esc(c.nome||contato(c))}</b><small>${dia(c.ultima?.quando)==='hoje'?hora(c.ultima?.quando):dia(c.ultima?.quando)}</small></div>
       <div class="cv-msg">${c.ultima?.direcao==='saida'?'<span class="cv-eu">você: </span>':''}${esc(String(c.ultima?.texto||'').replace(/\n/g,' ').slice(0,80))}</div>
-      ${c.esperandoGente||c.protocolo?`<div class="cv-tags">
-        ${c.esperandoGente?`<span class="cv-espera"><i></i>esperando${c.departamento?' · '+esc(c.departamento):''}</span>`:''}
-        ${c.protocolo?`<span class="cv-proto">${esc(c.protocolo)}</span>`:''}</div>`:''}
+      <div class="cv-tags"><span class="cv-sit ${S.cls}"><i></i>${S.rot}${s==='aguardando'&&c.departamento&&c.departamento!=='humano'?' · '+esc(c.departamento):''}</span>
+        ${c.pedido&&c.pedido.estado==='pendente'?`<span class="cv-mini-ped">${reais(c.pedido.valorCentavos)} em aberto</span>`:''}</div>
     </div>
-  </button>`;
+  </button>`; };
 
-  /* Mensagem e evento na mesma linha do tempo, com a virada de dia marcada: sem
-     o separador, "19:08" de ontem e de hoje parecem a mesma hora. A troca de
-     etapa aparece no meio da conversa, onde ela aconteceu. */
-  const linhaDoTempo=(hist)=>{
+  /* Mensagem, evento do CRM e a passagem bot -> gente na MESMA linha do tempo.
+     E o que evita o cliente contar a historia de novo: quem assume ve o que ele
+     disse pro bot e em que momento pediu uma pessoa. */
+  const linhaDoTempo=(c)=>{
+    const marcos=[];
+    if(c.transferidaEm) marcos.push({tipo:'_transferida',quando:c.transferidaEm});
+    if(c.assumidaEm) marcos.push({tipo:'_assumida',quando:c.assumidaEm});
+    const hist=[...(c.historico||[]),...marcos].sort((a,b)=>String(a.quando||'').localeCompare(String(b.quando||'')));
     let ultimoDia='';
-    return (hist||[]).map(h=>{
+    return hist.map(h=>{
       const d=dia(h.quando); let out='';
       if(d&&d!==ultimoDia){ ultimoDia=d; out+=`<div class="cv-dia"><span>${esc(d)}</span></div>`; }
       if(h.tipo==='interacao') return out+`<div class="bolha ${h.direcao==='saida'?'b-nossa':'b-cliente'}">
+        ${h.direcao==='saida'&&h.autor==='atendente'?'<span class="b-autor">equipe</span>':''}
         <div>${esc(h.texto||'').replace(/\n/g,'<br>')}</div><small>${hora(h.quando)}</small></div>`;
+      if(h.tipo==='_transferida') return out+`<div class="cv-evento ev-transf">${ico('alerta')}Transferido para humano${c.departamento&&c.departamento!=='humano'?' · '+esc(c.departamento):''} · ${hora(h.quando)}</div>`;
+      if(h.tipo==='_assumida') return out+`<div class="cv-evento ev-assum">${ico('crm')}Vendedor assumiu a conversa · ${hora(h.quando)}</div>`;
       if(h.tipo==='etapa') return out+`<div class="cv-evento">${ico('seta')}etapa: <b>${esc(h.de||'—')}</b> → <b>${esc(h.para||'—')}</b> · ${hora(h.quando)}</div>`;
       if(h.tipo==='fechado') return out+`<div class="cv-evento">${ico('check')}atendimento fechado${h.motivo?' · '+esc(h.motivo):''} · ${hora(h.quando)}</div>`;
       return out;
@@ -5004,56 +5062,100 @@ function telaAtendimento(canal){
         ${Object.entries(sel.contexto).map(([k,v])=>`<span>${esc(k.replace(/_/g,' '))}: <i>${esc(String(v).slice(0,90))}</i></span>`).join('')}
        </div></div>`:'';
 
+  const P={pago:['Pedido concluído','Pago','ok'],pendente:['Pedido em aberto','Pagamento pendente','aberto'],
+           'sem-pagamento':['Pedido','Pagar na entrega','aberto'],cancelado:['Pedido cancelado','Pagamento cancelado ou estornado','morto']};
+  const pedido=sel?.pedido?(()=>{ const [rot,est,cls]=P[sel.pedido.estado]||P.pendente;
+    return `<div class="cv-pedido cp-${cls}"><div><span class="cp-rot">${rot} · <span class="cv-proto">${esc(sel.pedido.referencia)}</span></span>
+      <b>${reais(sel.pedido.valorCentavos)}</b><small>${esc(itensTxt(sel.pedido.itens))} · ${est}</small></div></div>`; })():'';
+
+  const cabecalho=head(`${nomeCanal} · Atendimento`,
+      cont.agora?`<b>${cont.agora}</b> pessoa(s) esperando você.`:`Ninguém esperando — ${nomeBot()} está dando conta.`,
+      `<span class="badge ${botLigado?'b-ok':'b-warn'}" title="${botLigado?'O bot responde sozinho até alguém assumir':'Bot desligado: ninguém recebe resposta automática'}">${ico('bot')}${botLigado?'Bot ativo':'Bot desligado'}</span>`+
+      (online?botao({t:'Atualizar',ic:'atualizar',v:'s',on:'recarregarAtendimento(true)'})
+            :botao({t:`Conectar o ${nomeCanal}`,ic:tg?'telegram':'whats',v:'p',on:irConexao})));
+
   if(!todas.length){
-    return head(`${nomeCanal} · Atendimento`,`Quem escreve no ${nomeCanal} aparece aqui.`,
-      online?'':botao({t:`Conectar o ${nomeCanal}`,ic:tg?'telegram':'whats',v:'p',on:irConexao}))+
+    return cabecalho+
       vazio(tg?'telegram':'whats','Nenhuma conversa ainda',`Quando alguém escrever, a conversa abre aqui — com o que ${nomeBot()} já perguntou.`,
         tg?[online?`Abrir <a href="${esc(TG.link)}" target="_blank" rel="noopener">${esc(TG.numero)}</a> no Telegram e apertar <b>Começar</b>`:'Conectar o bot em <b>Telegram → Canal e conexão</b>',
             'Mandar uma mensagem pro bot','Voltar aqui pra responder']
           :['Conectar o WhatsApp em Canais','Mandar uma mensagem de outro número','Voltar aqui pra responder']);
   }
-
-  return head(`${nomeCanal} · Atendimento`,
-      esperandoAqui?`<b>${esperandoAqui}</b> pessoa(s) esperando você.`:`Ninguém esperando — ${nomeBot()} está dando conta.`,
-      online?botao({t:'Atualizar',ic:'atualizar',v:'s',on:'carregar()'})
-            :botao({t:`Conectar o ${nomeCanal}`,ic:tg?'telegram':'whats',v:'p',on:irConexao}))+
+  const fBt=(id,rot)=>`<button class="${filtro===id?'on':''}" onclick="filtrarConversas('${id}')">${rot}<em>${cont[id]}</em></button>`;
+  const sSel=sel?situacaoDe(sel):null;
+  return cabecalho+
   (online?'':`<div class="cv-offline">${ico('alerta')}<span><b>${nomeCanal} desconectado.</b> Dá pra ler as conversas, mas nada sai até conectar de novo.</span>
       <button class="t-acao" onclick="${irConexao}">Conectar agora</button></div>`)+
   `<div class="inbox">
     <div class="inbox-lateral">
+      <div class="seg seg-sm cv-filtros" role="tablist">${fBt('agora','Precisam de você')}${fBt('vendedor','Com vendedor')}${fBt('bot','Com o bot')}${fBt('todas','Todas')}</div>
       <label class="cv-busca">${ico('busca')}<input id="cvBusca" placeholder="Buscar nome, telefone ou protocolo" value="${esc(BUSCA_CONV)}"
         oninput="buscarConversa(this.value)" autocomplete="off"></label>
-      <div class="inbox-lista">${lista.length?lista.map(item).join(''):`<p class="hint" style="padding:14px 6px">Ninguém com “${esc(BUSCA_CONV)}”.</p>`}</div>
+      <div class="inbox-lista">${lista.length?lista.map(item).join('')
+        :`<p class="vazio-curto" style="padding:14px 6px">${q?`<b>Ninguém com “${esc(BUSCA_CONV)}”.</b>`
+          :filtro==='agora'?`<b>Ninguém esperando você.</b><small>${esc(nomeBot())} está dando conta. Quando alguém pedir uma pessoa, aparece aqui.</small>`
+          :'<b>Nenhuma conversa neste filtro.</b>'}</p>`}</div>
     </div>
     <div class="inbox-conversa">${sel?`
       <div class="cv-cab">
         ${avatar(sel.nome,sel.telefone,'lg')}
-        <div class="cv-cab-t"><b>${esc(sel.nome||contato(sel))}</b><small>${esc(contato(sel))} · ${esc(sel.etapa||'sem etapa')}</small></div>
-        ${sel.protocolo?`<span class="badge cv-proto" title="Protocolo deste atendimento — é este número que o cliente tem">${esc(sel.protocolo)}</span>`:''}
-        ${sel.esperandoGente
-          ? `<span class="badge b-err">esperando desde ${hora(sel.desde)}</span>`
-          : `<span class="badge b-ok">com ${esc(nomeBot())}</span>`}
+        <div class="cv-cab-t"><b>${esc(sel.nome||contato(sel))}</b><small>${esc(contato(sel))} · ${esc(sel.etapa||'sem etapa')}${sel.protocolo?` · <span class="cv-proto" title="Protocolo deste atendimento — é este número que o cliente tem">${esc(sel.protocolo)}</span>`:''}</small></div>
+        <span class="cv-sit ${SITUACAO[sSel].cls}"><i></i>${SITUACAO[sSel].rot}</span>
+        <div class="cv-cab-a">
+          ${sSel==='com-vendedor'
+            ?botao({t:`Devolver pro bot`,ic:'bot',v:'s',sz:'xs',on:`devolverAoBot('${esc(sel.telefone)}')`,tit:`${nomeBot()} volta a responder esta pessoa`})
+            :botao({t:'Assumir atendimento',ic:'crm',v:'p',sz:'xs',on:`assumirAtendimento('${esc(sel.telefone)}')`,tit:'O bot para de responder esta pessoa até você devolver'})}
+          ${sel.protocoloEstado&&sel.protocoloEstado!=='encerrado'
+            ?bi('check','Encerrar atendimento (manda o protocolo pro cliente)',`encerrarAtendimento('${esc(sel.telefone)}','${esc(sel.protocolo||'')}')`):''}
+        </div>
       </div>
-      ${ctx}
-      <div class="conversa-fluxo">${linhaDoTempo(sel.historico)}</div>
+      ${pedido}${ctx}
+      <div class="conversa-fluxo">${linhaDoTempo(sel)}</div>
       <div class="responder">
         <div class="cv-compor">
-          <textarea id="respTexto" rows="1" placeholder="${online?'Escreva a resposta…':`Conecte o ${nomeCanal} para responder`}" ${online?'':'disabled'}
+          <textarea id="respTexto" rows="1" placeholder="${online?(sSel==='com-vendedor'?'Escreva a resposta…':'Escreva pra assumir e responder…'):`Conecte o ${nomeCanal} para responder`}" ${online?'':'disabled'}
             onkeydown="teclaResposta(event,'${esc(sel.telefone)}')" oninput="crescerResposta(this)"></textarea>
           <button class="cv-enviar" id="btResponder" title="Enviar (Enter)" aria-label="Enviar" ${online?'':'disabled'}
             onclick="responderCliente('${esc(sel.telefone)}')">${ico('enviar')}</button>
         </div>
         <div class="responder-acoes">
-          ${online?'<span class="hint cv-dica"><kbd>Enter</kbd> envia · <kbd>Shift</kbd>+<kbd>Enter</kbd> pula linha</span>':''}
-          ${sel.esperandoGente?botao({t:`Devolver pra ${nomeBot()}`,ic:'bot',v:'g',sz:'xs',on:`devolverAoBot('${esc(sel.telefone)}')`}):''}
-          ${sel.protocoloEstado&&sel.protocoloEstado!=='encerrado'
-            ?botao({t:'Encerrar atendimento',ic:'check',v:'g',sz:'xs',on:`encerrarAtendimento('${esc(sel.telefone)}','${esc(sel.protocolo||'')}')`,
-              tit:'Fecha o caso e manda o protocolo pro cliente'}):''}
+          ${online?`<span class="hint cv-dica">${sSel==='com-vendedor'?'':'Ao responder, você assume — o bot para de falar com esta pessoa. · '}<kbd>Enter</kbd> envia · <kbd>Shift</kbd>+<kbd>Enter</kbd> pula linha</span>`:''}
         </div>
       </div>`:''}
     </div>
   </div>`;
 }
+function filtrarConversas(f){ FILTRO_CONV=f; CONVERSA=null; render(); }
+async function assumirAtendimento(tel){
+  try{
+    await api('atendimentos/assumir',{telefone:tel});
+    CONVERSA=tel; await recarregarAtendimento(true);
+    flash(`Conversa é sua agora. ${nomeBot()} fica quieto com esta pessoa até você devolver.`,'ok',6);
+    document.getElementById('respTexto')?.focus();
+  }catch(e){ avisoErro('Não consegui assumir a conversa',esc(e.message)); }
+}
+/* Atualiza SO a caixa de conversas, sem perder o que o vendedor esta digitando
+   nem o ponto em que ele parou de ler. */
+async function recarregarAtendimento(forcar){
+  const novo=await apiCru('atendimentos').catch(()=>null); if(!novo) return;
+  const sig=(d)=>(d?.conversas||[]).map(c=>[c.telefone,c.situacao,c.mensagens,c.pedido?.estado,c.ultima?.quando].join(':')).join('|');
+  if(!forcar&&sig(novo)===sig(ATEND)) return;
+  const campo=document.getElementById('respTexto'), busca=document.getElementById('cvBusca');
+  const texto=campo?.value||'', ini=campo?.selectionStart, fim=campo?.selectionEnd, foco=document.activeElement?.id;
+  const fl=document.querySelector('.conversa-fluxo');
+  const noFim=!fl||fl.scrollHeight-fl.scrollTop-fl.clientHeight<80, topo=fl?.scrollTop;
+  ATEND=novo; render();
+  const c2=document.getElementById('respTexto');
+  if(c2&&texto){ c2.value=texto; crescerResposta(c2); if(foco==='respTexto'){ c2.focus(); try{ c2.setSelectionRange(ini,fim); }catch{} } }
+  if(foco==='cvBusca'){ const b=document.getElementById('cvBusca'); b?.focus(); b?.setSelectionRange(b.value.length,b.value.length); }
+  const fl2=document.querySelector('.conversa-fluxo'); if(fl2&&!noFim) fl2.scrollTop=topo;
+}
+setInterval(()=>{
+  if(!(rota==='wa-atendimento'||rota==='tg-atendimento'||rota==='whats'||rota==='tg')) return;
+  if(document.visibilityState!=='visible'||document.getElementById('modalBg')?.classList.contains('show')) return;
+  if(!TOKEN||document.body.classList.contains('sem-nav')) return;
+  recarregarAtendimento(false);
+},8000);
 const S2={
  /* Auditor de canal. Mesma trilha, recortada pelo canal que gerou o evento —
     e por isso ele vive dentro de cada canal em vez de ser um item solto que
@@ -5386,6 +5488,8 @@ function render(){
   renderNav();
   const t=TITULO[rota]||['Console'];
   document.getElementById('crumb').innerHTML=t.map((x,i)=>i===t.length-1?`<b>${esc(x)}</b>`:`<span class="pai">${esc(x)} <i>/</i></span>`).join(' ');
+  /* Na caixa de conversas o aviso vai pro alto: embaixo ele tapava o botao de enviar. */
+  document.body.classList.toggle('tela-chat',/^(wa|tg)-atendimento$|^(whats|tg)$/.test(rota));
   document.getElementById('view').innerHTML=(TELAS[rota]||telaVisao)();
   if(rota==='indicacao') trocaModelo();
   /* O perfil do assistente e buscado DEPOIS de desenhar: ele baixa a foto do
@@ -6371,8 +6475,10 @@ function abrirConversa(tel){ CONVERSA=tel; render(); }
 function avatar(nome,tel,tam){
   const n=String(nome||'').trim();
   const ini=(n?n.split(/\s+/).slice(0,2).map(p=>p[0]).join(''):String(tel||'').slice(-2)).toUpperCase();
-  let h=0; for(const ch of String(tel||n)) h=(h*31+ch.charCodeAt(0))>>>0;
-  return `<span class="av${tam?' av-'+tam:''}" style="--h:${h%360}" aria-hidden="true">${esc(ini)}</span>`;
+  /* FNV-1a + passo aureo: ids do Telegram diferem so no fim (999000…011, …012)
+     e o hash antigo dava a mesma cor pra todo mundo. */
+  let h=2166136261; for(const ch of String(tel||n)){ h^=ch.charCodeAt(0); h=Math.imul(h,16777619)>>>0; }
+  return `<span class="av${tam?' av-'+tam:''}" style="--h:${Math.round(((h*0.6180339887)%1)*360)}" aria-hidden="true">${esc(ini)}</span>`;
 }
 let BUSCA_CONV='';
 /* Quem chegou pelo Telegram tem "telefone" na faixa 999 + 12 digitos (ver

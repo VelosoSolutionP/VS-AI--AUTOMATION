@@ -139,6 +139,19 @@ export function obterPedido(referencia) {
   return ler().pedidos.find((p) => p.referencia === String(referencia || '')) || null;
 }
 
+/**
+ * O pedido mais recente desta pessoa, com o estado do pagamento lido do
+ * gateway — é o que o vendedor vê no topo da conversa ("pedido em aberto").
+ */
+export function ultimoPedido(telefone, pagamentos = []) {
+  const tel = String(telefone || '').replace(/\D/g, '');
+  const p = ler().pedidos.filter((x) => x.telefone === tel).sort((a, b) => String(b.criadoEm).localeCompare(String(a.criadoEm)))[0];
+  if (!p) { return null; }
+  const pg = p.pagamentoId ? (pagamentos || []).find((x) => String(x.id) === p.pagamentoId) : null;
+  const estado = !p.pagamentoId ? 'sem-pagamento' : PAGO.includes(pg?.estado) ? 'pago' : MORTO.includes(pg?.estado) ? 'cancelado' : 'pendente';
+  return { referencia: p.referencia, valorCentavos: p.valorCentavos, itens: p.itens, criadoEm: p.criadoEm, estado };
+}
+
 /** Retomada é UMA por pedido: insistir com quem não respondeu vira incômodo, não venda. */
 export function marcarRetomada(referencia, quando = agoraIso()) {
   const d = ler();
