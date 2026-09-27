@@ -175,23 +175,40 @@ async function main() {
     const vip = lista.campanhas.find((c) => c.id === rasc.campanha.id);
     ok('rascunho não atribui (sem métricas)', vip && vip.estado === 'rascunho' && vip.metricas === null);
 
-    // ── 2ª entrega: destinos e publicação ──
+    // ── destinos: configurados em Telegram → Canal e conexão ──
+    await page.goto(`${base}/crm?t=${token}#tg-canal`); await page.reload();
+    await page.waitForSelector('#btTgAddDest');
+    await page.evaluate(() => { window.__abriu = []; window.open = (u) => { window.__abriu.push(u); return null; }; });
+    await page.click('#btTgAddDest');
+    await page.waitForSelector('#tgOpcCanal');
+    ok('“Adicionar destino” oferece canal, grupo e cadastro pelo ID', await page.isVisible('#tgOpcGrupo') && await page.isVisible('#tgOpcId'));
+    await page.locator('.modal').screenshot({ path: join(FOTOS, '08a-adicionar-destino.png') });
+    await page.click('#tgOpcCanal');
+    await page.waitForFunction(() => (window.__abriu || []).length > 0);
+    const abriu = await page.evaluate(() => window.__abriu[0]);
+    ok('“Conectar canal” abre o Telegram no convite de admin com publicar', /t\.me\/loja_teste_bot\?startchannel=true&admin=post_messages/.test(abriu || ''), abriu);
+    await page.waitForSelector('.tg-espera');
     await tg.membro({ chat: { id: -100123, title: 'Ofertas da Loja', type: 'channel', username: 'ofertas_loja' }, status: 'administrator', podePostar: true });
+    await page.waitForSelector('.cp-dest:has-text("Ofertas da Loja") .badge:has-text("Confirmado")', { timeout: 15000 });
+    ok('canal adicionado pelo painel chega sozinho e JÁ confirmado', true);
+    // Alguém pôs o bot num canal sem passar pelo painel (janela passou): fica pendente.
+    await espera(500);
+    await fetch(`${base}/crm/api/campanhas/destino/aguardar`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-crm-token': token }, body: '{}' }).catch(() => {});
     await tg.membro({ chat: { id: -100456, title: 'Canal Sem Post', type: 'channel', username: 'sem_post' }, status: 'administrator', podePostar: false });
     await espera(2500);
-    await page.reload();
-    await page.waitForSelector('.cp-dest');
-    ok('bot adicionado ao canal: destino aparece PENDENTE para confirmar', await page.isVisible('.cp-dest:has-text("Ofertas da Loja") button:has-text("Confirmar")'));
-    await page.click('.cp-dest:has-text("Ofertas da Loja") button:has-text("Confirmar")');
-    await page.waitForSelector('.cp-dest:has-text("Ofertas da Loja") .badge:has-text("Confirmado")');
-    await page.click('.cp-dest:has-text("Canal Sem Post") button:has-text("Confirmar")');
-    await page.waitForSelector('.cp-dest:has-text("Canal Sem Post") .badge:has-text("Sem permissão")');
-    ok('canal sem permissão de publicar fica marcado', true);
-    await page.fill('#cpDestRef', '@nao_existe_isso');
-    await page.click('button:has-text("Verificar e adicionar")');
+    await page.reload(); await page.waitForSelector('.cp-dest');
+    ok('canal sem permissão de publicar fica marcado e não é liberado', await page.isVisible('.cp-dest:has-text("Canal Sem Post") .badge:has-text("Confirmar"), .cp-dest:has-text("Canal Sem Post") .badge:has-text("Sem permissão")'));
+    await page.click('#btTgAddDest');
+    await page.click('#tgOpcId');
+    await page.fill('#tgDestRef', '@nao_existe_isso');
+    await page.click('.modal button:has-text("Verificar e adicionar")');
     await page.waitForSelector('.toast.t-err');
-    ok('cadastro manual de canal inexistente é recusado com o motivo', (await page.textContent('.toast.t-err')).includes('não achou'));
+    ok('cadastro pelo @ de canal inexistente é recusado com o motivo', (await page.textContent('.toast.t-err')).includes('não achou'));
+    await page.keyboard.press('Escape');
     await page.screenshot({ path: join(FOTOS, '08b-destinos.png'), fullPage: true });
+    await page.goto(`${base}/crm?t=${token}#tg-campanhas`); await page.reload();
+    await page.waitForSelector('.cp-dest-chip');
+    ok('Campanhas mostra os destinos liberados (vindos de Canal e conexão)', (await page.textContent('.cp-dests-ok')).includes('Ofertas da Loja') && !(await page.textContent('.cp-dests-ok')).includes('Sem Post'));
 
     await page.click('tbody tr:has-text("Promo Camiseta preta")');
     await page.waitForSelector('.modal .cpPubDest');

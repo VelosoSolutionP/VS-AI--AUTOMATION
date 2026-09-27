@@ -1341,6 +1341,15 @@ td.num,th.num{text-align:right;white-space:nowrap}
 .cp-ajuda-q label{display:block;font-size:12.5px;font-weight:650;margin-bottom:4px;color:var(--fg)}
 .cp-sug{border:1px dashed var(--ac-line);background:var(--panel);color:var(--fg);border-radius:8px;padding:4px 9px;font:inherit;font-size:12px;margin:0 6px 6px 0;cursor:pointer}
 .cp-evid{display:block;font-size:11px;color:var(--dim);margin-top:2px}
+.tg-opcs{display:grid;gap:8px}
+.tg-opc{display:flex;gap:12px;align-items:flex-start;text-align:left;border:1px solid var(--line);background:var(--panel-2);border-radius:12px;padding:12px;font:inherit;color:var(--fg);cursor:pointer}
+.tg-opc:hover{border-color:var(--ac-line);background:var(--ac-soft)} .tg-opc svg{width:20px;height:20px;color:var(--ac);flex:0 0 20px;margin-top:2px}
+.tg-opc b{display:block;font-size:13.5px} .tg-opc small{font-size:12px;color:var(--muted)}
+.tg-espera{display:flex;gap:8px;align-items:center;border:1px solid var(--ac-line);background:var(--ac-soft);border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:10px}
+.tg-espera svg{width:15px;height:15px;color:var(--ac);flex:0 0 15px;animation:gira 1.4s linear infinite}
+@keyframes gira{to{transform:rotate(360deg)}}
+.cp-dests-ok{display:flex;flex-wrap:wrap;gap:6px} .cp-dest-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ok-line);background:var(--ok-bg);color:var(--ok);border-radius:99px;padding:4px 10px;font-size:12.5px;font-weight:600}
+.cp-dest-chip svg{width:13px;height:13px}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
@@ -7265,13 +7274,87 @@ const ehTg=(tel)=>/^999\d{12}$/.test(String(tel||''));
 
 /* Tela de conexao do Telegram. Sem QR: o bot e criado no @BotFather, que
    entrega um token; colar o token aqui e o que liga o canal. */
+/* ── Telegram · Canal e conexão: ONDE o bot trabalha ─────────────────────────
+   Canal e conexão configura onde o bot pode trabalhar (canais e grupos);
+   Campanhas decide o que publicar e quando. O cliente adiciona o bot pelo
+   próprio Telegram (link pronto) e o destino aparece aqui sozinho. */
+let TG_DEST=null, TG_DEST_ESPERA=null;
+async function carregarDestinosTg(forcar){
+  if(TG_DEST&&!forcar) return TG_DEST;
+  try{ TG_DEST=await apiCru('telegram/destinos'); }catch(e){ TG_DEST={erro:e.message,destinos:[]}; }
+  if(rota==='tg-canal') render();
+  return TG_DEST;
+}
+function tgDestinosCard(){
+  const r=TG_DEST; if(!r){ setTimeout(()=>carregarDestinosTg(),0); }
+  const ds=r?.destinos||[];
+  const linha=(x)=>{ const [rot,cls]=x.estado==='confirmado'&&!x.podePublicar?['Sem permissão de publicar','b-err']:DEST_EST[x.estado]||[x.estado,''];
+    return `<div class="stat-row cp-dest"><span class="cp-dest-ic">${ico(x.tipo==='channel'?'publicar':'person')}</span>
+      <div class="lbl">${esc(x.titulo||x.id)}<small>${x.tipo==='channel'?'Canal':'Grupo'}${x.username?' · @'+esc(x.username):' · ID '+esc(x.id)}${x.estado==='pendente'&&x.adicionadoPor?` · adicionado por ${esc(x.adicionadoPor)} fora do painel`:''}</small></div>
+      <span class="badge ${cls}">${esc(rot)}</span>
+      <div class="acoes">${x.estado==='pendente'?botao({t:'Confirmar',ic:'check',v:'p',sz:'xs',on:`tgConfirmarDestino('${esc(x.id)}')`,tit:'É um canal/grupo da loja — liberar para campanhas'}):''}
+        ${bi('atualizar','Verificar permissões de novo',`tgVerificar('${esc(x.username||x.id)}')`)}
+        ${bi('excluir','Remover destino',`tgRemoverDestino('${esc(x.id)}')`,'dan')}</div></div>`; };
+  const esperando=TG_DEST_ESPERA&&Date.now()<TG_DEST_ESPERA.ate;
+  return `<div class="card" style="margin-bottom:16px">
+    ${cardH('publicar','Onde o bot trabalha',`Canais e grupos onde o bot pode publicar. Quanto mais lugares, maior o alcance das <b>campanhas</b> — elas escolhem daqui o que publicar e quando.`,3,
+      botao({t:'Adicionar destino',ic:'mais',v:'p',sz:'xs',on:'tgAdicionarDestino()',id:'btTgAddDest'}))}
+    ${esperando?`<div class="tg-espera">${ico('relogio')}<span>Esperando o Telegram avisar… adicione o bot ao ${TG_DEST_ESPERA.tipo==='canal'?'canal (como administrador com “Publicar mensagens”)':'grupo'} na janela que abriu. Ele aparece aqui sozinho.</span></div>`:''}
+    ${!r?'<p class="hint">Carregando…</p>':ds.length?ds.map(linha).join(''):'<p class="hint">Nenhum canal ou grupo ainda. Clique em <b>Adicionar destino</b> — leva menos de um minuto.</p>'}
+  </div>`;
+}
+function tgAdicionarDestino(){
+  const link=TG?.link; if(!link) return avisoErro('Conecte o bot primeiro','O link para adicionar o bot aparece depois de conectar.');
+  const opc=(ic,t,d,on,id)=>`<button class="tg-opc" onclick="${on}" id="${id}">${ico(ic)}<div><b>${t}</b><small>${d}</small></div></button>`;
+  abrirModal('Adicionar destino',
+    `<div class="tg-opcs">
+      ${opc('publicar','Conectar canal','Abre o Telegram para escolher o canal e dar ao bot permissão de publicar.',"tgConectar('canal')",'tgOpcCanal')}
+      ${opc('person','Conectar grupo','Abre o Telegram para escolher o grupo onde o bot vai entrar.',"tgConectar('grupo')",'tgOpcGrupo')}
+      ${opc('busca','Cadastrar pelo ID ou @','Para canal ou grupo onde o bot já está. Eu confiro as permissões.',"document.getElementById('tgIdBox').style.display=''",'tgOpcId')}
+    </div>
+    <div id="tgIdBox" style="display:none;margin-top:12px"><div class="cv-compor" style="padding-left:12px">
+      <input id="tgDestRef" placeholder="@canal_da_loja, t.me/canal ou -100…" style="border:0;background:none;box-shadow:none;padding:9px 0" onkeydown="if(event.key==='Enter')tgVerificar()">
+      ${botao({t:'Verificar e adicionar',ic:'busca',v:'s',on:'tgVerificar()'})}</div>
+      <p class="hint" style="margin-top:6px">O ID de canal privado começa com <code>-100</code>. Em canal, o bot precisa ser administrador com “Publicar mensagens”.</p></div>`,
+    BT.cancelar('Fechar'),{classe:'modal-sm'});
+}
+/* Abre o Telegram no convite certo e espera o aviso (my_chat_member). O que
+   chegar nos próximos minutos, com permissão, entra JÁ confirmado — foi o dono. */
+async function tgConectar(tipo){
+  const bot=TG.link.replace('https://t.me/','');
+  const url=tipo==='canal'?`https://t.me/${bot}?startchannel=true&admin=post_messages`:`https://t.me/${bot}?startgroup=true`;
+  try{ await api('campanhas/destino/aguardar',{}); }catch(e){ return avisoErro('Não consegui preparar',esc(e.message)); }
+  window.open(url,'_blank','noopener');
+  fecharModal();
+  const antes=new Set((TG_DEST?.destinos||[]).map(x=>x.id+':'+x.estado));
+  TG_DEST_ESPERA={tipo,ate:Date.now()+120000}; render();
+  const vigia=setInterval(async()=>{
+    const r=await carregarDestinosTg(true).catch(()=>null);
+    const novo=(r?.destinos||[]).find(x=>!antes.has(x.id+':'+x.estado)&&x.estado!=='removido');
+    if(novo||Date.now()>TG_DEST_ESPERA.ate){ clearInterval(vigia); TG_DEST_ESPERA=null; render();
+      if(novo) (novo.estado==='confirmado'?flash(`“${novo.titulo}” conectado — já aparece nas campanhas.`,'ok'):avisoErro(`“${novo.titulo}” chegou sem permissão de publicar`,'Em canal, dê ao bot administrador com “Publicar mensagens” e clique em verificar de novo.'));
+    }
+  },3000);
+}
+async function tgVerificar(ref){
+  ref=ref||document.getElementById('tgDestRef')?.value.trim();
+  if(!ref) return avisoErro('Informe o canal','Digite o @, o link t.me ou o ID (-100…).');
+  try{ const r=await api('campanhas/destino/verificar',{ref,confirmar:true}); fecharModal(); await carregarDestinosTg(true); CP={};
+    const d=r.destino; d.podePublicar?flash(`“${d.titulo}” verificado — o bot pode publicar${d.estado==='confirmado'?' e já aparece nas campanhas':''}.`,'ok')
+      :avisoErro(`“${d.titulo}”: o bot ainda NÃO pode publicar`,'Em canal, ele precisa ser administrador com “Publicar mensagens”.'); }
+  catch(e){ avisoErro('Não consegui verificar',esc(e.message)); }
+}
+async function tgConfirmarDestino(id){ try{ await api('campanhas/destino/confirmar',{id}); await carregarDestinosTg(true); CP={}; flash('Destino confirmado — já aparece nas campanhas.','ok'); }catch(e){ avisoErro('Não confirmei',esc(e.message)); } }
+function tgRemoverDestino(id){ return confirmar({titulo:'Remover este destino?',texto:'Ele sai da lista de publicação das campanhas. O bot continua no canal — para tirar de vez, remova-o lá no Telegram.',rotulo:'Remover',
+  aoConfirmar:async()=>{ await api('campanhas/destino/remover',{id}); await carregarDestinosTg(true); CP={}; flash('Destino removido.','ok'); }}); }
+
 function telaTelegram(){
   const t=TG||{estado:'desconectado'};
   const on=t.estado==='conectado', caiu=t.estado==='caido';
   const conversas=((ATEND?.conversas)||[]).filter(c=>ehTg(c.telefone)).length;
   const quando=(x)=>x?String(x).slice(8,10)+'/'+String(x).slice(5,7)+' '+String(x).slice(11,16):'—';
   const pedirToken=!on||TG_TROCAR;
-  return head('Telegram · Canal e conexão','O bot do Telegram atende com o mesmo robô, o mesmo funil e a mesma fila do WhatsApp.',
+  return head('Telegram · Canal e conexão','A conexão do bot do Telegram e os canais e grupos onde ele trabalha. O que ele responde se configura em Telegram → Bot do Telegram.',
       on?botao({t:'Desconectar',ic:'power',v:'s',on:'desconectarTelegram()'}):'')+
   `<div class="grid g-kpi" style="margin-bottom:16px">
     ${kpi('Estado',on?'conectado':caiu?'caiu':'desligado',on?'recebendo e respondendo':caiu?'tentando voltar sozinho':'cole o token pra ligar',on?2:caiu?4:5,'telegram')}
@@ -7290,7 +7373,8 @@ function telaTelegram(){
     ${linha('API','oficial do Telegram — sem risco de bloqueio de número','oficial','b-ok')}
     ${linha('Custo por mensagem','o Telegram não cobra','R$ 0','b-ok')}
     ${!TG_TROCAR?`<div style="margin-top:12px">${botao({t:'Trocar o token',ic:'editar',v:'g',sz:'xs',on:'TG_TROCAR=true;render()'})}</div>`:''}
-  </div>`:''}
+  </div>
+  ${tgDestinosCard()}`:''}
   ${pedirToken?`<div class="card">
     ${cardH('telegram',on?'Trocar o token do bot':'Conectar o bot','Leva dois minutos e é de graça. O token fica guardado só nesta máquina.',1)}
     <div class="steps" style="max-width:none;margin:4px 0 16px">
@@ -7903,36 +7987,20 @@ const DEST_EST={pendente:['Confirmar','b-warn'],confirmado:['Confirmado','b-ok']
 const PUB_EST={agendada:['Agendada','b-ac'],publicando:['Publicando','b-ac'],publicada:['Publicada','b-ok'],falha:['Falha','b-err'],cancelada:['Cancelada','']};
 const dataBrTxt=(iso)=>new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
 function cpDestinosCard(r){
-  const ds=r?.destinos||[], pol=r?.politica||{intervaloHoras:4,maxPorDia:3}, bot=r?.botArroba||'o seu bot';
-  const linha=(x)=>{ const [rot,cls]=x.estado==='confirmado'&&!x.podePublicar?['Sem permissão de publicar','b-err']:DEST_EST[x.estado]||[x.estado,''];
-    return `<div class="stat-row cp-dest"><span class="cp-dest-ic">${ico(x.tipo==='channel'?'publicar':'person')}</span>
-      <div class="lbl">${esc(x.titulo||x.id)}<small>${esc(x.tipo==='channel'?'Canal':'Grupo')}${x.username?' · @'+esc(x.username):''}${x.origem==='evento'&&x.adicionadoPor?` · adicionado por ${esc(x.adicionadoPor)}`:''}</small></div>
-      <span class="badge ${cls}">${esc(rot)}</span>
-      <div class="acoes">${x.estado==='pendente'?botao({t:'Confirmar',ic:'check',v:'p',sz:'xs',on:`cpConfirmarDestino('${esc(x.id)}')`,tit:'É um canal/grupo da loja — liberar para campanhas'}):''}
-        ${x.username?bi('atualizar','Verificar permissões de novo',`cpVerificarDestino('${esc(x.username)}')`):''}
-        ${bi('excluir','Remover destino',`cpRemoverDestino('${esc(x.id)}')`,'dan')}</div></div>`; };
+  const ds=r?.destinos||[], pol=r?.politica||{intervaloHoras:4,maxPorDia:3};
+  const ok=ds.filter(x=>x.estado==='confirmado'&&x.podePublicar), pend=ds.filter(x=>x.estado==='pendente'||(x.estado==='confirmado'&&!x.podePublicar));
   return `<div class="card" style="margin-bottom:16px">
-    ${cardH('publicar','Destinos de publicação',`Canais e grupos onde o bot pode publicar suas campanhas. Publicação <b>orgânica</b>: o Telegram não cobra por postagem.`,3)}
-    <ol class="cp-passo-a-passo"><li>No Telegram, adicione <b>${esc(bot)}</b> ao canal ou grupo.</li><li>Em canal, dê a ele <b>administrador</b> com “Publicar mensagens”.</li><li>Ele aparece aqui como <b>Confirmar</b> — confirme se o canal é da loja.</li></ol>
-    ${ds.length?ds.map(linha).join(''):'<p class="hint">Nenhum destino ainda. Adicione o bot a um canal ou grupo — ou cadastre abaixo um canal onde ele já estava.</p>'}
-    <div class="cv-compor" style="padding-left:12px;margin-top:10px"><input id="cpDestRef" placeholder="@canal_da_loja ou t.me/canal_da_loja" style="border:0;background:none;box-shadow:none;padding:9px 0" onkeydown="if(event.key==='Enter')cpVerificarDestino()">
-      ${botao({t:'Verificar e adicionar',ic:'busca',v:'s',on:'cpVerificarDestino()'})}</div>
+    ${cardH('publicar',`Onde publicar (${ok.length})`,`Canais e grupos onde o bot pode publicar suas campanhas. Publicação <b>orgânica</b>: o Telegram não cobra por postagem.`,3,
+      botao({t:'Adicionar ou gerenciar',ic:'mais',v:'s',sz:'xs',on:"ir('tg-canal')",tit:'Os destinos são configurados em Telegram → Canal e conexão'}))}
+    ${ok.length?`<div class="cp-dests-ok">${ok.map(x=>`<span class="cp-dest-chip">${ico(x.tipo==='channel'?'publicar':'person')}${esc(x.titulo||x.id)}</span>`).join('')}</div>`
+      :'<p class="hint">Nenhum canal ou grupo liberado. Adicione em <a href="#tg-canal" onclick="ir(\'tg-canal\');return false">Telegram → Canal e conexão</a>.</p>'}
+    ${pend.length?`<p class="hint" style="margin-top:8px">${ico('alerta')} ${pend.length} destino(s) esperando confirmação ou permissão — veja em <a href="#tg-canal" onclick="ir('tg-canal');return false">Canal e conexão</a>.</p>`:''}
     <div class="cp-politica"><span>Política de frequência, por destino:</span>
       <label>no mínimo <input id="cpPolInt" type="number" min="0.5" max="168" step="0.5" value="${esc(pol.intervaloHoras)}"> h entre campanhas</label>
       <label>e no máximo <input id="cpPolMax" type="number" min="1" max="24" value="${esc(pol.maxPorDia)}"> por dia</label>
       ${botao({t:'Salvar',ic:'salvar',v:'g',sz:'xs',on:'cpSalvarPolitica()'})}</div>
   </div>`;
 }
-async function cpVerificarDestino(ref){
-  ref=ref||document.getElementById('cpDestRef')?.value.trim();
-  if(!ref) return avisoErro('Informe o canal','Digite o @ do canal ou grupo (ex.: @ofertas_da_loja).');
-  try{ const r=await api('campanhas/destino/verificar',{ref}); await carregarCampanhas(true);
-    const d=r.destino; flash(d.podePublicar?`“${d.titulo}” verificado — o bot pode publicar. ${d.estado==='pendente'?'Confirme para liberar.':''}`:`“${d.titulo}” verificado, mas o bot ainda NÃO pode publicar lá (em canal, precisa ser admin com “Publicar mensagens”).`,d.podePublicar?'ok':'err'); }
-  catch(e){ avisoErro('Não consegui verificar',esc(e.message)); }
-}
-async function cpConfirmarDestino(id){ try{ await api('campanhas/destino/confirmar',{id}); await carregarCampanhas(true); flash('Destino confirmado — já aparece para publicar.','ok'); }catch(e){ avisoErro('Não confirmei',esc(e.message)); } }
-function cpRemoverDestino(id){ return confirmar({titulo:'Remover este destino?',texto:'Ele some da lista de publicação. O bot continua no canal — para tirar de vez, remova-o lá no Telegram.',rotulo:'Remover',
-  aoConfirmar:async()=>{ await api('campanhas/destino/remover',{id}); await carregarCampanhas(true); flash('Destino removido.','ok'); }}); }
 async function cpSalvarPolitica(){ try{ await api('campanhas/politica',{intervaloHoras:Number(String(document.getElementById('cpPolInt').value).replace(',','.')),maxPorDia:Number(document.getElementById('cpPolMax').value)}); await carregarCampanhas(true); flash('Política salva.','ok'); }catch(e){ avisoErro('Não salvei',esc(e.message)); } }
 
 /* Publicar/agendar uma campanha ATIVA: usado na Divulgação e no detalhe. */
@@ -7951,7 +8019,7 @@ function cpPublicarHtml(c){
         <input type="datetime-local" id="cpQuandoEm" disabled>
         ${botao({t:'Publicar',ic:'enviar',v:'p',sz:'xs',on:`cpPublicar('${esc(c.id)}')`})}</div>
       <p class="hint">Vale a política de frequência de cada destino. Vai a imagem, o texto e o botão “${esc(c.botao||'Falar com a loja')}” com o link rastreável.</p>`
-      :`<p class="hint">Nenhum destino confirmado ainda — veja <b>Destinos de publicação</b> na lista de campanhas. Enquanto isso, divulgue o link.</p>`}
+      :`<p class="hint">Nenhum canal ou grupo liberado ainda — adicione em <a href="#tg-canal" onclick="ir('tg-canal');return false">Telegram → Canal e conexão</a>. Enquanto isso, divulgue o link.</p>`}
     ${lista?`<h4 class="cp-h" style="margin-top:12px">Publicações</h4>${lista}`:''}`;
 }
 async function cpPublicar(id){

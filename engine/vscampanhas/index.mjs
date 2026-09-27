@@ -586,16 +586,41 @@ export function registrarEventoMembro(ev = {}) {
   Object.assign(x, { titulo: ev.chat.titulo || x.titulo, username: ev.chat.username ?? x.username, podePublicar: !!ev.podePublicar, statusBot: ev.status, verificadoEm: agoraIso() });
   if (saiu) { x.estado = 'removido'; }
   else if (x.estado === 'removido') { x.estado = 'pendente'; }
+  /* O dono clicou em "Conectar canal/grupo" no painel e, nos minutos seguintes,
+     o bot entrou com permissão: é ELE adicionando — entra já confirmado. Fora
+     dessa janela (alguém pôs o bot sem passar pelo painel) continua pendente. */
+  if (!saiu && x.estado === 'pendente' && x.podePublicar && d.aguardandoDestinoAte && d.aguardandoDestinoAte >= agoraIso()) {
+    x.estado = 'confirmado'; x.confirmadoEm = agoraIso(); x.confirmadoPor = d.aguardandoDestinoPor || 'dono (pelo painel)'; x.origem = 'painel';
+  }
   gravar(d);
   return { ok: true, destino: x };
 }
 
-/** Cadastro manual (canal onde o bot já estava antes): vem da consulta ao Telegram. */
-export function cadastrarDestino(consulta = {}) {
+/**
+ * O dono vai adicionar o bot a um canal/grupo pelo painel: abre uma janela de
+ * 10 min em que o destino que chegar (com permissão) entra confirmado.
+ */
+export function aguardarDestino({ minutos = 10, por = null } = {}) {
+  const d = ler();
+  d.aguardandoDestinoAte = new Date(Date.now() + minutos * 60000).toISOString();
+  d.aguardandoDestinoPor = por;
+  gravar(d);
+  return { ok: true, ate: d.aguardandoDestinoAte };
+}
+
+/** Cadastro manual (canal onde o bot já estava antes): vem da consulta ao Telegram. `confirmar`: foi o dono, no painel. */
+export function cadastrarDestino(consulta = {}, { confirmar = false, por = null } = {}) {
   if (!consulta.ok) { return { ok: false, erro: consulta.erro || 'não consegui consultar o destino' }; }
   if (!['channel', 'group', 'supergroup'].includes(consulta.chat?.tipo)) { return { ok: false, erro: 'isso é uma conversa privada — publicação é só em canal ou grupo' }; }
   const r = registrarEventoMembro({ chat: consulta.chat, status: consulta.status, podePublicar: consulta.podePublicar });
-  if (r.destino && r.destino.origem === 'evento' && !r.destino.adicionadoPor) { r.destino.origem = 'manual'; const d = ler(); const x = destinosDe(d).find((y) => y.id === r.destino.id); if (x) { x.origem = 'manual'; gravar(d); } }
+  if (r.destino) {
+    const d = ler(); const x = destinosDe(d).find((y) => y.id === r.destino.id);
+    if (x) {
+      if (x.origem === 'evento' && !x.adicionadoPor) { x.origem = 'manual'; }
+      if (confirmar && x.podePublicar && x.estado === 'pendente') { x.estado = 'confirmado'; x.confirmadoEm = agoraIso(); x.confirmadoPor = por || 'dono (pelo painel)'; }
+      gravar(d); r.destino = x;
+    }
+  }
   return r;
 }
 

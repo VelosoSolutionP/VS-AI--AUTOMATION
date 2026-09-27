@@ -109,3 +109,17 @@ test('bot removido do canal: destino marcado e a agendada falha com o motivo; ca
   assert.match(pub.erro, /não está mais confirmado|perdeu a permissão/);
   assert.equal(C.obter(ag2.campanha.id).publicacoes[0].estado, 'cancelada');
 });
+
+test('conectar pelo painel: destino que chega na janela de 10 min entra confirmado; fora dela, pendente', () => {
+  C.aguardarDestino({ por: 'dono' });
+  C.registrarEventoMembro(canal(-2001, 'Canal pelo painel'));
+  const a = C.listarDestinos().find((x) => x.id === '-2001');
+  assert.equal(a.estado, 'confirmado');
+  assert.equal(a.origem, 'painel');
+  // Sem permissão, mesmo na janela, não confirma.
+  C.registrarEventoMembro(canal(-2002, 'Sem post', { podePublicar: false }));
+  assert.equal(C.listarDestinos().find((x) => x.id === '-2002').estado, 'pendente');
+  // Cadastro pelo ID feito pelo dono, com permissão: confirmado.
+  const r = C.cadastrarDestino({ ok: true, chat: { id: -2003, titulo: 'Pelo ID', tipo: 'supergroup' }, status: 'member', podePublicar: true }, { confirmar: true, por: 'dono' });
+  assert.equal(r.destino.estado, 'confirmado');
+});

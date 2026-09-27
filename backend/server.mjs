@@ -1430,6 +1430,10 @@ const server = createServer(async (req, res) => {
         limites: campanhasTg.LIMITE,
       });
     }
+    /* Onde o bot trabalha (canais e grupos) — configurado em Canal e conexão. */
+    if (req.method === 'GET' && rota === '/crm/api/telegram/destinos') {
+      return json(res, 200, { destinos: campanhasTg.listarDestinos(), link: canais.telegramInfo().link || null, bot: canais.telegramInfo().numero || null });
+    }
     /* Tela do Telegram: estado do bot e se ha token guardado. O token nao sai. */
     if (req.method === 'GET' && rota === '/crm/api/canais/telegram') {
       return json(res, 200, canais.telegramInfo());
@@ -1913,9 +1917,10 @@ const server = createServer(async (req, res) => {
         case '/crm/api/campanhas/destino/verificar': {
           const ref = String(d.ref || d.id || '').trim();
           if (!ref) { r = { ok: false, motivo: 'informe o @ do canal/grupo ou o link t.me' }; break; }
-          r = campanhasTg.cadastrarDestino(await canais.telegramConsultarChat(ref));
+          r = campanhasTg.cadastrarDestino(await canais.telegramConsultarChat(ref), { confirmar: d.confirmar === true, por: quem.email || null });
           break;
         }
+        case '/crm/api/campanhas/destino/aguardar': r = campanhasTg.aguardarDestino({ por: quem.email || null }); break;
         case '/crm/api/campanhas/destino/confirmar': r = campanhasTg.confirmarDestino(String(d.id || ''), quem.email || null); break;
         case '/crm/api/campanhas/destino/remover': r = campanhasTg.removerDestino(String(d.id || '')); break;
         case '/crm/api/campanhas/politica': r = campanhasTg.salvarPolitica(d); break;
