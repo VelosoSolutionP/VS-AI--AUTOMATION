@@ -223,6 +223,16 @@ async function main() {
     const encA = await api('atendimentos/encerrar', { telefone: telA, avisar: false, motivo: 'Engano / spam' });
     ok('conversa antiga sem protocolo também encerra (ganha protocolo na hora)', encA.ok && /^VS-/.test(encA.protocolo || ''), encA.erro || encA.protocolo);
 
+    // Sem atendimento: a tela mostra bot, canal, equipe e o dia — não um vazio.
+    for (const [r0, nomeC] of [['tg-atendimento', 'Telegram'], ['wa-atendimento', 'WhatsApp']]) {
+      await d.goto(`${base}/crm?t=${token}#${r0}`); await d.reload();
+      await d.waitForSelector('.tranq');
+      await d.waitForSelector('.tranq-card:has-text("finalizado")');
+      const t = await d.textContent('.tranq');
+      ok(`${nomeC} sem atendimento: mostra bot ativo, a equipe (Marta) e o resumo do dia`, t.includes('Bia ativo') && t.includes('Marta Vendas') && /\d+ finalizado/.test(t), t.replace(/\s+/g, ' ').slice(0, 120));
+      await d.screenshot({ path: join(FOTOS, `08-vazio-${nomeC.toLowerCase()}.png`) });
+    }
+
     ok('sem erro de JavaScript na tela', !errosJs.length, errosJs.slice(0, 3).join(' / '));
   } finally {
     await navegador.close().catch(() => {});

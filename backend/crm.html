@@ -1269,6 +1269,26 @@ td.num,th.num{text-align:right;white-space:nowrap}
 .cv-final{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn-line);padding:4px 9px;border-radius:99px}
 .cv-final svg{width:12px;height:12px}
 .h-motivo{display:block;color:var(--muted);font-size:11px;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Tela sem atendimento */
+.tranq{border:1px solid var(--line);border-radius:var(--r);background:linear-gradient(180deg,var(--panel),var(--panel-2));padding:22px;box-shadow:var(--sh-1)}
+.tranq-top{display:flex;gap:14px;align-items:center;margin-bottom:18px}
+.tranq-top h3{margin:0 0 3px;font-size:16px}
+.tranq-ic{width:44px;height:44px;flex:0 0 44px;border-radius:14px;display:grid;place-items:center;background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-line)}
+.tranq-ic svg{width:22px;height:22px}
+.tranq-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.tranq-card{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:13px 14px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.tranq-card small{font-size:11px;color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.tranq-card b{font-size:14px;display:inline-flex;align-items:center;gap:7px}
+.tranq-card p{margin:0;font-size:12.5px;color:var(--muted);line-height:1.45}
+.tranq-card .btn{margin-top:auto}
+.dot-st{width:9px;height:9px;border-radius:50%;background:var(--dim);display:inline-block}
+.dot-st.on{background:var(--ok);box-shadow:0 0 0 3px var(--ok-bg)} .dot-st.off{background:var(--err);box-shadow:0 0 0 3px var(--err-bg)}
+.tranq-equipe ul{list-style:none;margin:2px 0 0;padding:0;display:grid;gap:7px;width:100%}
+.tranq-equipe li{display:flex;align-items:center;gap:9px}
+.tranq-equipe li>div{flex:1;min-width:0} .tranq-equipe li b{font-size:12.5px;display:block} .tranq-equipe li span{font-size:11px;color:var(--dim)}
+.tranq-equipe li em{font-style:normal;font-size:10.5px;font-weight:600;color:var(--dim);border:1px solid var(--line);border-radius:99px;padding:2px 7px}
+.tranq-equipe li em.st-on{color:var(--ok);border-color:var(--ok-line);background:var(--ok-bg)}
+.tranq-equipe .av{width:28px;height:28px;font-size:11px}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
@@ -5237,11 +5257,8 @@ function telaAtendimento(canal){
             :botao({t:`Conectar o ${nomeCanal}`,ic:tg?'telegram':'whats',v:'p',on:irConexao})));
 
   if(!todas.length){
-    return cabecalho+
-      vazio(tg?'telegram':'whats','Nenhuma conversa ainda',`Quando alguém escrever, a conversa abre aqui — com o que ${nomeBot()} já perguntou.`,
-        tg?[online?`Abrir <a href="${esc(TG.link)}" target="_blank" rel="noopener">${esc(TG.numero)}</a> no Telegram e apertar <b>Começar</b>`:'Conectar o bot em <b>Telegram → Canal e conexão</b>',
-            'Mandar uma mensagem pro bot','Voltar aqui pra responder']
-          :['Conectar o WhatsApp em Canais','Mandar uma mensagem de outro número','Voltar aqui pra responder']);
+    return cabecalho+(online?'':`<div class="cv-offline">${ico('alerta')}<span><b>${nomeCanal} desconectado.</b> Ninguém recebe resposta até conectar de novo.</span>
+      <button class="t-acao" onclick="${irConexao}">Conectar agora</button></div>`)+painelTranquilo(canal,online);
   }
   const fBt=(id,rot)=>`<button class="${filtro===id?'on':''}" onclick="filtrarConversas('${id}')">${rot}<em>${cont[id]}</em></button>`;
   const sSel=sel?situacaoDe(sel):null;
@@ -5411,9 +5428,9 @@ function telaFilaTelegram(){
       <span class="cv-sit sit-aguarda"><i></i>Aguardando <b>${col.aguardando.length}</b></span>
       <span class="cv-sit sit-vendedor"><i></i>Com vendedor <b>${col.vendedor.length}</b></span>
       <span class="cv-sit sit-bot"><i></i>Com o bot <b>${col.bot.length}</b></span></div>`+
-    lembrete+
+    (semConversa?painelTranquilo('telegram',online):lembrete)+
     (todas.length?`<label class="cv-busca fila-busca">${ico('busca')}<input id="cvBusca" placeholder="Buscar nome ou protocolo" value="${esc(BUSCA_CONV)}" oninput="buscarConversa(this.value)" autocomplete="off"></label>`:'')+
-    quadro+gaveta;
+    (semConversa?'':quadro)+gaveta;
 }
 /* ── Qualificação e roteamento (WhatsApp e Telegram) ─────────────────────────
    A conversa chega ao vendedor como OPORTUNIDADE: o que o cliente quer, o porte,
@@ -5642,6 +5659,49 @@ async function abrirAtendimentoHist(numero){
        <div class="conversa-fluxo h-conversa">${conversa||'<p class="hint">Sem mensagens registradas neste atendimento.</p>'}</div>`,
       BT.fechar('Fechar'));
   }catch(e){ avisoErro('Não consegui abrir',esc(e.message)); }
+}
+
+/* ── Tela sem atendimento: em vez de um vazio, o que está de pé ───────────────
+   Bot ligado, canal no ar, quem da equipe pode atender (e quem está com o
+   painel aberto agora) e como foi o dia. É o "tudo tranquilo" que dá confiança
+   — tela em branco parecia sistema quebrado. */
+let HOJE={};
+async function carregarHoje(canal){
+  if(HOJE[canal]&&Date.now()-HOJE[canal].em<60000) return;
+  HOJE[canal]={em:Date.now(),r:HOJE[canal]?.r||null};
+  try{ HOJE[canal]={em:Date.now(),r:await apiCru(`atendimentos/historico?canal=${canal}&dias=1`)}; }catch{ /* resumo do dia e enfeite */ }
+  if(rota===(canal==='telegram'?'tg-atendimento':'wa-atendimento')) render();
+}
+function painelTranquilo(canal,online){
+  const tg=canal==='telegram';
+  setTimeout(()=>carregarHoje(canal),0);
+  const b=ATEND?.bot||{ativo:BOT?.config?.ativo!==false,nome:BOT?.config?.nome};
+  const nomeB=b.nome||nomeBot();
+  const equipe=ATEND?.equipe||(OPERADORES?.operadores||[]).filter(o=>o.ativo!==false).map(o=>({nome:o.nome,setor:o.setor}));
+  const noPainel=equipe.filter(o=>o.noPainel).length;
+  const h=HOJE[canal]?.r, s=h?.resumo||{};
+  const canalTxt=tg?(online?`<b>${esc(TG?.numero||'bot')}</b> no ar`:'bot desconectado'):(online?`<b>+${esc((CANAIS?.canais||[])[0]?.numero||'')}</b> no ar`:'WhatsApp desconectado');
+  const irCanal=tg?"ir('tg-canal')":"ir('canais')";
+  return `<div class="tranq">
+    <div class="tranq-top"><span class="tranq-ic">${ico('check')}</span><div><h3>Nenhum atendimento agora</h3>
+      <p class="hint">${b.ativo?`${esc(nomeB)} responde quem chegar e chama a equipe quando precisar. A conversa aparece aqui na hora.`:'O bot está desligado: quem escrever cai direto aqui para a equipe.'}</p></div></div>
+    <div class="tranq-grade">
+      <div class="tranq-card"><small>Bot</small>
+        <b><span class="dot-st ${b.ativo?'on':'off'}"></span>${b.ativo?`${esc(nomeB)} ativo`:'Bot desligado'}</b>
+        <p>${b.ativo?'Atende sozinho, 24 h, e passa para gente o que não resolver.':'Ninguém recebe resposta automática.'}</p>
+        ${ehVendedor()?'':botao({t:'Regras do bot',ic:'bot',v:'g',sz:'xs',on:"ir('bot-regras')"})}</div>
+      <div class="tranq-card"><small>Canal</small>
+        <b><span class="dot-st ${online?'on':'off'}"></span>${tg?'Telegram':'WhatsApp'}</b>
+        <p>${canalTxt}</p>
+        ${online?(tg&&TG?.link?`<a class="btn btn-g btn-xs" href="${esc(TG.link)}" target="_blank" rel="noopener">${ico('ver')}<span>Abrir o bot</span></a>`:''):(ehVendedor()?'':botao({t:'Conectar',ic:tg?'telegram':'whats',v:'p',sz:'xs',on:irCanal}))}</div>
+      <div class="tranq-card tranq-equipe"><small>Equipe${noPainel?` · ${noPainel} no painel agora`:equipe.length?' · ninguém no painel agora':''}</small>
+        ${equipe.length?`<ul>${equipe.slice(0,8).map(o=>`<li>${avatar(o.nome,o.nome)}<div><b>${esc(o.nome)}</b><span>${esc(o.setor||'')}</span></div>
+            ${o.noPainel?'<em class="st-on">no painel</em>':o.temAcesso===false?'<em>sem acesso</em>':'<em>fora</em>'}</li>`).join('')}</ul>${equipe.length>8?`<p class="hint">+${equipe.length-8}</p>`:''}`
+          :`<p>Nenhum atendente cadastrado — o que for para gente fica esperando na fila.</p>${ehVendedor()?'':botao({t:'Cadastrar',ic:'mais',v:'g',sz:'xs',on:"ir('qualificacao')"})}`}</div>
+      <div class="tranq-card"><small>Hoje</small>
+        ${h?`<b>${s.finalizados||0} finalizado(s)</b><p>${s.media!=null?`nota média <b>${String(s.media).replace('.',',')}</b> (${s.avaliados} ${s.avaliados===1?'avaliação':'avaliações'})`:'sem avaliação ainda'}${s.encerradosAForca?` · ${s.encerradosAForca} encerrado(s) à força`:''}</p>`:'<b>—</b><p>carregando…</p>'}
+        ${botao({t:'Ver histórico',ic:'relogio',v:'g',sz:'xs',on:`abrirHistorico('${canal}')`})}</div>
+    </div></div>`;
 }
 
 function filtrarConversas(f){ FILTRO_CONV=f; CONVERSA=null; render(); }

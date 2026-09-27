@@ -146,6 +146,12 @@ export function removerAcessoVendedor(operadorId) {
   return { ok: true };
 }
 
+/** Vendedores com sessão aberta agora (logados e não expirados): é o "no painel" da tela vazia. */
+export function vendedoresNoPainel() {
+  const agoraIso = agora();
+  return new Set(Object.values(ler('sessoes.json', {})).filter((x) => x.papel === 'vendedor' && x.expira > agoraIso && x.operadorId).map((x) => x.operadorId));
+}
+
 export const acessosVendedores = () => usuarios().filter((u) => u.papel === 'vendedor')
   .map((u) => ({ email: u.email, nome: u.nome, operadorId: u.operadorId, ultimoLogin: u.ultimoLogin || null }));
 

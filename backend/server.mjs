@@ -225,8 +225,8 @@ function contextoFechamento(quem, tel) {
   if (quem?.papel === 'vendedor' && fila.assumidaPor?.operadorId && fila.assumidaPor.operadorId !== quem.operadorId) {
     return { ok: false, motivo: `quem está atendendo é ${fila.assumidaPor.nome}` };
   }
-  // Conversa de antes de todo atendimento ter protocolo: abre um agora.
-  if (!proto.aberto(tel)) { proto.aoChegar(tel, { voltarParaFila: false }); }
+  // Conversa de antes de todo atendimento ter protocolo: abre um agora (marcado legado).
+  if (!proto.aberto(tel)) { const n = proto.aoChegar(tel, { voltarParaFila: false }); if (n.novo) { proto.marcarLegado(n.protocolo.numero); } }
   const p = proto.aberto(tel);
   if (!p) { return { ok: false, motivo: 'não há atendimento aberto para este cliente' }; }
   return { ok: true, p, fila, lead: crm.listar().find((l) => l.telefone === tel) || null };
@@ -1428,7 +1428,7 @@ const server = createServer(async (req, res) => {
            a janela comeca 5 min antes da abertura, sem invadir o atendimento
            anterior da mesma pessoa. */
         const anterior = todosEnc.filter((x) => x.de === p.de && x.encerradoEm < p.abertoEm).map((x) => x.encerradoEm).sort().pop() || '';
-        const iniJanela = [new Date(new Date(p.abertoEm).getTime() - 300000).toISOString(), anterior].sort().pop();
+        const iniJanela = p.legado ? anterior : [new Date(new Date(p.abertoEm).getTime() - 300000).toISOString(), anterior].sort().pop();
         const inter = (l?.historico || []).filter((h) => h.tipo === 'interacao' && h.quando > iniJanela && h.quando <= new Date(new Date(p.encerradoEm).getTime() + 60000).toISOString());
         return {
           numero: p.numero, telefone: p.de, nome: l?.nome || null, canal: ehTelegram(p.de) ? 'telegram' : 'whatsapp',
@@ -1450,7 +1450,7 @@ const server = createServer(async (req, res) => {
       const dias = [1, 7, 30, 90].includes(Number(u.searchParams.get('dias'))) ? Number(u.searchParams.get('dias')) : 30;
       const desde = new Date(Date.now() - dias * 86400000).toISOString();
       const lista = proto.encerrados().filter((p) => p.encerradoEm >= desde && doVendedor(p)).map(linha)
-        .filter((x) => !canal || x.canal === canal).filter((x) => x.mensagens > 0 || x.comGente);
+        .filter((x) => !canal || x.canal === canal).filter((x) => x.mensagens > 0 || x.comGente || x.desfecho === 'encerrado');
       const notas = lista.map((x) => x.avaliacao?.nota).filter((n) => n != null);
       return json(res, 200, {
         dias, atendimentos: lista.slice(0, 500), total: lista.length,
@@ -1526,7 +1526,13 @@ const server = createServer(async (req, res) => {
           if (a.esperandoGente !== b.esperandoGente) { return a.esperandoGente ? -1 : 1; }
           return String(b.ultima?.quando || '').localeCompare(String(a.ultima?.quando || ''));
         });
-      return json(res, 200, { conversas, esperando: esperando.length, canal: canais.estado() });
+      /* Quem pode atender agora — a tela SEM conversa mostra isto em vez de um
+         vazio: bot ligado, atendentes ativos e quem esta com o painel aberto. */
+      const noPainel = usuarios.vendedoresNoPainel();
+      const acessos = new Set(usuarios.acessosVendedores().map((a) => a.operadorId));
+      const equipe = operadores.ativos(operadores.listar()).map((o) => ({ nome: o.nome, setor: o.setor, temAcesso: acessos.has(o.id), noPainel: noPainel.has(o.id) }));
+      const cfgBot = bot.getConfig();
+      return json(res, 200, { conversas, esperando: esperando.length, canal: canais.estado(), equipe, bot: { ativo: cfgBot.ativo !== false, nome: cfgBot.nome || null } });
     }
     if (req.method === 'GET' && rota === '/crm/api/bot') { return json(res, 200, bot.painel()); }
     /* Segurança de quem atende e de quem é atendido: config, responsáveis e

@@ -212,3 +212,17 @@ export function continuarAtendimento(numero, quando = new Date().toISOString()) 
   gravar(trocar(lista, n));
   return n;
 }
+
+/**
+ * Protocolo aberto só para fechar uma conversa ANTIGA (de antes de todo
+ * atendimento ter protocolo): o histórico dele vai buscar as mensagens desde o
+ * atendimento anterior da pessoa — senão aparecia vazio.
+ */
+export function marcarLegado(numero) {
+  const lista = ler();
+  const p = lista.find((x) => x.numero === numero);
+  if (!p) { return null; }
+  const n = { ...p, legado: true };
+  gravar(trocar(lista, n));
+  return n;
+}
