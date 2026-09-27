@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 /**
- * Prova do horário de funcionamento em calendário, em navegador de verdade,
- * numa instância ISOLADA (pasta temporária, Telegram falso).
+ * Prova de "um bot por canal" em navegador de verdade, numa instância ISOLADA.
  *
- * Liga o horário na tela do bot, usa os atalhos (horário comercial, copiar para
- * os dias úteis, 2º turno, feriados nacionais), marca HOJE como data especial
- * fechada, salva — e confere que o cliente que escreve recebe "fechado" com a
- * data especial na mensagem. Pedir uma pessoa continua indo para a fila.
+ * O bot do WhatsApp se chama Micaela. A tela Telegram → Bot abre com a cópia,
+ * o dono renomeia pra "Tina", salva — e: o WhatsApp continua Micaela, o cliente
+ * do Telegram é respondido pela Tina, e a tela de atendimento do Telegram mostra
+ * a Tina. Cada bot com as suas configurações.
  *
- * Uso: node scripts/prova-horario.mjs [--fotos dir]
+ * Uso: node scripts/prova-bot-telegram.mjs [--fotos dir]
  */
 import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync, readFileSync, writeFileSync, mkdirSync, existsSync, openSync } from 'node:fs';
@@ -20,14 +19,14 @@ import { fileURLToPath } from 'node:url';
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TOKEN_BOT = '123456789:AAHtesteDeVolumeSomenteLocal0000000000';
 const args = process.argv.slice(2);
-const FOTOS = args.includes('--fotos') ? args[args.indexOf('--fotos') + 1] : mkdtempSync(join(tmpdir(), 'prova-horario-fotos-'));
+const FOTOS = args.includes('--fotos') ? args[args.indexOf('--fotos') + 1] : mkdtempSync(join(tmpdir(), 'prova-bot-telegram-fotos-'));
 mkdirSync(FOTOS, { recursive: true });
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 const verif = [];
 const ok = (nome, cond, det = '') => { verif.push({ ok: !!cond, nome, det }); console.log(`${cond ? '  ✔' : '  ✘'} ${nome}${det ? ' — ' + det : ''}`); };
 
 async function montarCasa() {
-  const casa = mkdtempSync(join(tmpdir(), 'bolso-horario-'));
+  const casa = mkdtempSync(join(tmpdir(), 'bolso-bot-tg-'));
   if (casa.startsWith(join(homedir(), '.qa-gate'))) { throw new Error('recusado: a pasta de teste não pode ser a de produção'); }
   const antes = process.env.VS_HOME;
   process.env.VS_HOME = casa;
@@ -83,59 +82,36 @@ async function main() {
     const con = await api('canais/conectar', { canal: 'telegram', token: TOKEN_BOT });
     ok('instância isolada conectou no Telegram falso', con.ok, con.numero || con.erro);
     await api('funil', { etapas: ['Novo lead', 'Fechado'] });
-    await api('bot/config', { ativo: true, nome: 'Bia' });
-    await api('bot/config', { canal: 'telegram', ativo: true, nome: 'Bia' });
-    const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+    await api('bot/config', { ativo: true, nome: 'Micaela', assinarMensagens: true, mensagemFallback: 'Sou a {assistente} do WhatsApp, não entendi.' });
 
     const p = await navegador.newPage({ viewport: { width: 1366, height: 900 } });
     p.on('pageerror', (e) => errosJs.push(e.message));
     await p.goto(`${base}/crm?t=${token}#tg-bot`);
-    await p.waitForSelector('#bcHorOn');
-    await p.check('#bcHorOn');
-    await p.waitForSelector('.hr-semana');
-    ok('calendário aparece com os 7 dias', (await p.$$('.hr-semana .hr-linha')).length === 7);
-    await p.click('button:has-text("Horário comercial")');
-    // Segunda com 2º turno (almoço) e copiada para os dias úteis.
-    await p.fill('.hr-semana .hr-linha:nth-child(1) input[type=time] >> nth=1', '12:00');
-    await p.dispatchEvent('.hr-semana .hr-linha:nth-child(1) input[type=time] >> nth=1', 'change');
-    await p.click('.hr-semana .hr-linha:nth-child(1) button:has-text("2º turno")');
-    await p.click('button:has-text("Copiar segunda para os dias úteis")');
-    ok('sexta ficou igual à segunda (dois turnos)', (await p.$$('.hr-semana .hr-linha:nth-child(5) input[type=time]')).length === 4);
-    await p.click('button:has-text("Feriados nacionais")');
-    const nFer = (await p.$$('.hr-esp .hr-linha')).length;
-    ok('feriados nacionais que faltam no ano entraram como fechado', nFer >= 1, `${nFer} data(s)`);
-    await p.click('button:has-text("Adicionar data")');
-    const ult = '.hr-esp .hr-linha >> nth=-1';
-    await p.fill(`${ult} >> input[type=date]`, hoje);
-    await p.dispatchEvent(`${ult} >> input[type=date]`, 'change');
-    await p.fill(`${ult} >> .hr-nome`, 'Inventário');
-    await p.dispatchEvent(`${ult} >> .hr-nome`, 'input');
-    await p.screenshot({ path: join(FOTOS, '01-calendario.png'), fullPage: true });
+    await p.waitForSelector('#bcNome');
+    const menu = await p.$$eval('.sub-item', (b) => b.map((x) => x.innerText.trim()));
+    ok('menu do Telegram tem "Bot do Telegram"', menu.includes('Bot do Telegram'));
+    ok('tela é do bot do Telegram e nasce como cópia (Micaela)', (await p.textContent('.page-head')).includes('Telegram · Bot') && (await p.inputValue('#bcNome')) === 'Micaela');
+    await p.fill('#bcNome', 'Tina');
+    await p.fill('#bcFall', 'Aqui é a Tina, do Telegram. Não entendi — pode repetir?');
+    await p.screenshot({ path: join(FOTOS, '01-tela-bot-telegram.png'), fullPage: true });
     await p.click('button:has-text("Salvar"):not(:has-text("regras"))');
-    await espera(1200);
-    const cfg = (await api('bot?canal=telegram')).config;
-    ok('salvou no formato do bot: semana com 2 turnos + datas especiais', cfg.horario?.seg === '08:00-12:00, 13:00-18:00' && cfg.horario?.sex === '08:00-12:00, 13:00-18:00' && cfg.horario?.dom === 'fechado' && cfg.horario?.excecoes?.[hoje]?.horario === 'fechado', JSON.stringify({ seg: cfg.horario?.seg, dom: cfg.horario?.dom, hoje: cfg.horario?.excecoes?.[hoje] }));
+    await espera(1500);
+    const bTg = await api('bot?canal=telegram'), bWa = await api('bot');
+    ok('salvou só no bot do Telegram', bTg.config?.nome === 'Tina' && bWa.config?.nome === 'Micaela', `tg=${bTg.config?.nome} wa=${bWa.config?.nome}`);
 
-    await tg.escrever({ chat: 930001, nome: 'Cliente', texto: 'oi, vocês estão abertos?' });
+    await p.goto(`${base}/crm?t=${token}#bot-regras`); await p.reload();
+    await p.waitForSelector('#bcNome');
+    ok('tela do bot do WhatsApp continua com a Micaela', (await p.inputValue('#bcNome')) === 'Micaela' && (await p.textContent('.page-head')).includes('Bot do WhatsApp'));
+
+    await tg.escrever({ chat: 940001, nome: 'Ana', texto: 'xyzzy blablabla' });
     await espera(2500);
-    const r = (await saiuPara(930001)).at(-1) || '';
-    ok('hoje (data especial fechada) o bot responde que está fechado e mostra a data', /fechados/.test(r) && /Inventário\): fechado/.test(r), r.split('\n').slice(0, 2).join(' | '));
-    ok('a mensagem mostra a semana com os dois turnos', /Segunda: 08:00 às 12:00 e 13:00 às 18:00/.test(r));
-    await tg.escrever({ chat: 930002, nome: 'Outro', texto: 'quero falar com um atendente' });
-    await espera(2500);
-    const at = await api('atendimentos');
-    ok('pedir uma pessoa fora do horário vai para a fila', at.conversas.some((c) => c.nome === 'Outro' && c.situacao === 'aguardando'));
+    const r = (await saiuPara(940001)).at(-1) || '';
+    ok('cliente do Telegram é respondido pela Tina, com a mensagem do bot do Telegram', /Tina/.test(r) && /do Telegram/.test(r) && !/Micaela/.test(r), r.slice(0, 120));
 
-    await p.reload(); await p.waitForSelector('#bcHorOn');
-    ok('reabrindo a tela, o calendário volta como foi salvo', (await p.$$('.hr-esp .hr-linha')).length === nFer + 1 && (await p.$$eval('.hr-esp .hr-nome', (i) => i.map((x) => x.value))).includes('Inventário'));
-
-    const cel = await navegador.newPage({ viewport: { width: 390, height: 844 } });
-    cel.on('pageerror', (e) => errosJs.push(e.message));
-    await cel.goto(`${base}/crm?t=${token}#tg-bot`);
-    await cel.waitForSelector('.hr-semana');
-    const larg = await cel.evaluate(() => document.documentElement.scrollWidth);
-    ok('celular: calendário sem rolagem lateral', larg <= 390, `${larg}px`);
-    await cel.screenshot({ path: join(FOTOS, '02-celular.png'), fullPage: true });
+    await p.goto(`${base}/crm?t=${token}#tg-atendimento`); await p.reload();
+    await p.waitForSelector('.fila-card');
+    ok('atendimento do Telegram mostra o bot do Telegram ligado', await p.isVisible('.badge:has-text("Bot ativo")'));
+    await p.screenshot({ path: join(FOTOS, '02-atendimento-telegram.png') });
     ok('sem erro de JavaScript na tela', !errosJs.length, errosJs.slice(0, 3).join(' / '));
   } finally {
     await navegador.close().catch(() => {});

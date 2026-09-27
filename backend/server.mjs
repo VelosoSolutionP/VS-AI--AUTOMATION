@@ -190,7 +190,7 @@ function vendedorVe(c, eu) {
   if (resp === eu.operadorId || c.assumidaPor?.operadorId === eu.operadorId) { return true; }
   if (resp || c.assumidaPor?.operadorId) { return false; }
   // Bot desligado: ninguem atende sozinho, entao conversa sem dono e de toda a equipe.
-  if (bot.getConfig().ativo === false) { return true; }
+  if (bot.comCanal(c.canal, () => bot.getConfig()).ativo === false) { return true; }
   if (c.situacao !== 'aguardando') { return false; }
   const dep = operadores.norm(c.departamento || 'humano');
   return dep === 'humano' || dep === eu.equipe;
@@ -1534,9 +1534,16 @@ const server = createServer(async (req, res) => {
       const acessos = new Set(usuarios.acessosVendedores().map((a) => a.operadorId));
       const equipe = operadores.ativos(operadores.listar()).map((o) => ({ nome: o.nome, setor: o.setor, temAcesso: acessos.has(o.id), noPainel: noPainel.has(o.id) }));
       const cfgBot = bot.getConfig();
-      return json(res, 200, { conversas, esperando: esperando.length, canal: canais.estado(), equipe, bot: { ativo: cfgBot.ativo !== false, nome: cfgBot.nome || null } });
+      const cfgTg = bot.comCanal('telegram', () => bot.getConfig());
+      return json(res, 200, { conversas, esperando: esperando.length, canal: canais.estado(), equipe,
+        bot: { ativo: cfgBot.ativo !== false, nome: cfgBot.nome || null },
+        botTelegram: { ativo: cfgTg.ativo !== false, nome: cfgTg.nome || null } });
     }
-    if (req.method === 'GET' && rota === '/crm/api/bot') { return json(res, 200, bot.painel()); }
+    // Um bot por canal: ?canal=telegram abre o bot do Telegram.
+    if (req.method === 'GET' && rota === '/crm/api/bot') {
+      const canalBot = new URL(req.url, 'http://x').searchParams.get('canal') === 'telegram' ? 'telegram' : 'whatsapp';
+      return json(res, 200, { canal: canalBot, ...bot.comCanal(canalBot, () => bot.painel()) });
+    }
     /* Segurança de quem atende e de quem é atendido: config, responsáveis e
        o que aconteceu (auditoria). */
     /* A sirene do painel pergunta aqui a cada poucos segundos: leve de propósito. */
@@ -1985,13 +1992,18 @@ const server = createServer(async (req, res) => {
           r = { ok: true, protocolo: fechado.numero, avisado, erroAviso };
           break;
         }
-        case '/crm/api/bot/config': r = bot.salvarConfig(d); break;
+        case '/crm/api/bot/config': r = bot.comCanal(d.canal, () => bot.salvarConfig(d)); break;
         case '/crm/api/seguranca/config': {
+          /* Seguranca (socorro, moderacao) vale para OS DOIS bots: quem pede
+             socorro no Telegram merece a mesma resposta que no WhatsApp. */
           const antes = bot.getConfig();
           r = bot.salvarConfig({
             emergencia: { ...(antes.emergencia || {}), ...(d.emergencia || {}) },
             moderacao: { ...(antes.moderacao || {}), ...(d.moderacao || {}) },
           });
+          if (r?.ok !== false) {
+            bot.comCanal('telegram', () => { const a2 = bot.getConfig(); return bot.salvarConfig({ emergencia: { ...(a2.emergencia || {}), ...(d.emergencia || {}) }, moderacao: { ...(a2.moderacao || {}), ...(d.moderacao || {}) } }); });
+          }
           if (r?.ok !== false) {
             const e = { ...(antes.emergencia || {}), ...(d.emergencia || {}) };
             seguranca.auditar({ tipo: 'config', detalhe: `configuração salva por ${quem.email}: socorro ${e.ativo === false ? 'DESLIGADO' : 'ligado'}` });
@@ -2007,19 +2019,19 @@ const server = createServer(async (req, res) => {
           if (!r.ok) { r = { ...r, ok: false, erro: r.motivo || `ninguém recebeu: ${(r.falhas || []).map((f) => `${f.nome} (${f.erro})`).join(', ')}` }; }
           break;
         }
-        case '/crm/api/bot/regra': r = bot.salvarRegra(d); break;
-        case '/crm/api/bot/regra-excluir': r = bot.excluirRegra(d.id); break;
-        case '/crm/api/bot/fluxo-csv': r = bot.importarFluxoCsv(String(d.csv || '')); break;
-        case '/crm/api/bot/fluxo-apagar': r = bot.apagarFluxo(); break;
+        case '/crm/api/bot/regra': r = bot.comCanal(d.canal, () => bot.salvarRegra(d)); break;
+        case '/crm/api/bot/regra-excluir': r = bot.comCanal(d.canal, () => bot.excluirRegra(d.id)); break;
+        case '/crm/api/bot/fluxo-csv': r = bot.comCanal(d.canal, () => bot.importarFluxoCsv(String(d.csv || ''))); break;
+        case '/crm/api/bot/fluxo-apagar': r = bot.comCanal(d.canal, () => bot.apagarFluxo()); break;
         case '/crm/api/bot/midia-apagar': r = bot.apagarMidia(d.nome); break;
         /* Simulador: o catalogo real entra como contexto, entao o teste mostra o
            que o cliente veria de verdade — nao um exemplo inventado. */
         case '/crm/api/bot/simular': {
-          const sim = bot.simular(d.mensagens || [], {
+          const sim = bot.comCanal(d.canal, () => bot.simular(d.mensagens || [], {
             nome: d.nome || 'Cliente',
             empresa: process.env.VITRINE_NOME || 'nossa loja',
             produtos: estoque.doAtendimento(),
-          });
+          }));
           /* Cobranca no simulador e OPT-IN, e so no ambiente de teste. Simular
              uma conversa nao pode gerar cobranca por acidente — mas quem esta
              conferindo o fluxo precisa poder ver o link chegar de verdade, que e

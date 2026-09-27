@@ -4,7 +4,8 @@
  * O canal (WhatsApp, Instagram, site) é de fora: aqui entra texto e sai texto.
  * É o que permite o bot funcionar HOJE, testado, antes de qualquer token da Meta.
  */
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, unlinkSync, existsSync } from 'node:fs';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { responder, conversar, validarRegra, escolher, GATILHOS, pediuHumano, preencher } from './regras.mjs';
@@ -17,8 +18,29 @@ import { entender } from './entender.mjs';
 import { fluxoDeCsv } from './fluxo-csv.mjs';
 
 const dir = () => process.env.VSBOT_DIR || dentroDaCasa('vsbot');
-const arq = (n) => join(dir(), `${n}.json`);
-const load = (n, p = null) => { try { return JSON.parse(readFileSync(arq(n), 'utf8')); } catch { return p; } };
+/* ── UM BOT POR CANAL ───────────────────────────────────────────────────────
+   Cada canal tem o SEU bot: configuracao (nome, mensagens, horario, ligado),
+   regras e fluxo. O Telegram e outro programa, com outro publico — usar o bot
+   do WhatsApp nele fazia a "Micaela" do WhatsApp responder no Telegram.
+   O canal vem de um contexto (`comCanal`), entao nenhuma funcao do motor
+   precisa receber parametro novo. Sem contexto = WhatsApp (o de sempre).
+   Conversas ficam num arquivo so: os ids dos dois canais nunca se misturam. */
+const CANAL = new AsyncLocalStorage();
+export const CANAIS_BOT = ['whatsapp', 'telegram'];
+export const comCanal = (canal, fn) => CANAL.run(canal === 'telegram' ? 'telegram' : 'whatsapp', fn);
+export const canalAtual = () => CANAL.getStore() || 'whatsapp';
+const POR_CANAL = new Set(['config', 'regras', 'fluxo']);
+const arqBase = (n) => join(dir(), `${n}.json`);
+const nomePorCanal = (n) => (POR_CANAL.has(n) && canalAtual() === 'telegram' ? `${n}.telegram` : n);
+const arq = (n) => arqBase(nomePorCanal(n));
+/* Primeira vez que o Telegram le o bot dele: nasce como COPIA do atual, pra
+   nada mudar pro cliente na troca. Dali em diante, cada um e independente. */
+function garantirCopia(n) {
+  if (!POR_CANAL.has(n) || canalAtual() !== 'telegram' || existsSync(arq(n)) || !existsSync(arqBase(n))) { return; }
+  mkdirSync(dir(), { recursive: true, mode: 0o700 });
+  writeFileSync(arq(n), readFileSync(arqBase(n)), { mode: 0o600 });
+}
+const load = (n, p = null) => { garantirCopia(n); try { return JSON.parse(readFileSync(arq(n), 'utf8')); } catch { return p; } };
 const save = (n, d) => { mkdirSync(dir(), { recursive: true, mode: 0o700 }); writeFileSync(arq(n), JSON.stringify(d, null, 2), { mode: 0o600 }); };
 
 export { responder, conversar, GATILHOS };
@@ -284,7 +306,15 @@ export function importarFluxoCsv(texto) {
   return { ok: true, ...r.resumo };
 }
 
-export function apagarFluxo() { save('fluxo', null); save('conversas', {}); return { ok: true }; }
+/* Apagar o fluxo zera onde cada conversa DESTE canal estava na arvore — so
+   deste: apagar o fluxo do Telegram nao pode derrubar conversa do WhatsApp. */
+const ehIdTelegram = (de) => /^999\d{12}$/.test(String(de || ''));
+export function apagarFluxo() {
+  save('fluxo', null);
+  const tg = canalAtual() === 'telegram';
+  save('conversas', Object.fromEntries(Object.entries(conversas()).filter(([de]) => ehIdTelegram(de) !== tg)));
+  return { ok: true };
+}
 
 /* Onde cada pessoa parou na arvore. Fica em disco (e nao so em memoria) porque
    restart do painel no meio de um atendimento nao pode jogar o cliente de volta

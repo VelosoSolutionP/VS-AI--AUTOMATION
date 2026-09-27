@@ -1312,6 +1312,8 @@ td.num,th.num{text-align:right;white-space:nowrap}
 .hr-esp>b{font-size:13px} .hr-esp>small{margin-top:-4px}
 .hr-data{width:auto!important;padding:5px 8px;font-size:13px} .hr-nome{width:150px!important;padding:5px 8px;font-size:13px}
 @media(max-width:560px){.hr-dia{width:100%}}
+.tranq-ic.tg{background:rgba(42,171,238,.14);color:#2aabee;border-color:rgba(42,171,238,.35)}
+.tranq-bts{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
@@ -1480,6 +1482,7 @@ const GRUPOS=[
       o funil sao os mesmos — quem escreve por la cai no mesmo atendimento. */
    {id:'tg',nome:'Telegram',icone:'telegram',filhos:[
      {id:'tg-atendimento',nome:'Atendimento'},
+     {id:'tg-bot',nome:'Bot do Telegram'},
      /* Resultado e Consumo separados de proposito: consumo diz quanto se
         conversou; resultado diz quanto isso virou dinheiro — e e o que vende. */
      {id:'tg-resultados',nome:'Resultados'},
@@ -1675,7 +1678,16 @@ function numeroBonito(n){
  * comprar isto, a tela ficaria falando de uma pessoa que nao existe. O motor ja
  * fazia certo (o padrao dele e "Atendente"); quem inventava era a tela.
  */
-const nomeBot=()=>String(BOT?.config?.nome||'').trim()||'o atendimento';
+/* UM BOT POR CANAL: nas telas do Telegram vale o bot do Telegram (nome, regras,
+   horario proprios); no resto, o do WhatsApp. */
+let BOT_TG=null, BOT_CANAL='whatsapp';
+const naTelaTg=()=>typeof rota==='string'&&(rota==='tg'||rota.startsWith('tg-'));
+const botDaTela=()=>BOT_CANAL==='telegram'?BOT_TG:BOT;
+const nomeBot=()=>String((naTelaTg()?BOT_TG:BOT)?.config?.nome||'').trim()||'o atendimento';
+function canalTelegramSt(){ const on=TG?.estado==='conectado'; return {no_ar:on,via:'Telegram',numero:TG?.numero||null,rotulo:on?'no ar · Telegram':(TG?.estado||'desconectado'),telegram:true}; }
+/* Trocar de canal zera a conversa de teste: o teste de um bot nao e do outro. */
+function telaBotDo(canal){ if(BOT_CANAL!==canal){ BOT_CANAL=canal; if(typeof SIMULACAO!=='undefined') SIMULACAO=[]; EDITANDO_REGRA=null; } return S.bot(); }
+const canalDoBot=()=>BOT_CANAL==='telegram'?canalTelegramSt():canalWhatsApp();
 
 function canalWhatsApp(){
   const web=(CANAIS?.canais||[]).find(c=>c.provider==='whatsapp-web');
@@ -3267,7 +3279,7 @@ async function simular(){
     // Manda a conversa INTEIRA: o contador de falhas seguidas depende do que veio
     // antes, e mandar so a ultima mensagem faria o bot nunca chamar gente.
     const msgs=[...SIMULACAO.map(t=>t.recebida),txt];
-    const r=await api('bot/simular',{mensagens:msgs,cobrar:SIM_COBRAR});
+    const r=await api('bot/simular',{mensagens:msgs,cobrar:SIM_COBRAR,canal:BOT_CANAL});
     SIMULACAO=r.turnos||[];
     campo.value='';
     render();
@@ -3305,7 +3317,7 @@ function novaRegra(){
 }
 
 function editarRegra(id){
-  const r=(BOT?.regras||[]).find(x=>x.id===id);
+  const r=(botDaTela()?.regras||[]).find(x=>x.id===id);
   if(!r) return avisoErro('Não consegui concluir','Regra não encontrada.');
   EDITANDO_REGRA=id;
   abrirModal('Editar regra',formRegra(r),
@@ -3320,7 +3332,7 @@ async function salvarRegraBot(){
   if(!termos.length) return avisoErro('Não consegui concluir','Informe ao menos um termo que dispara a regra.');
   if(!v('brResp')) return avisoErro('Não consegui concluir','A resposta é obrigatória.');
   try{
-    const r=await api('bot/regra',{id:EDITANDO_REGRA||undefined,termos,gatilho:v('brGatilho'),
+    const r=await api('bot/regra',{canal:BOT_CANAL,id:EDITANDO_REGRA||undefined,termos,gatilho:v('brGatilho'),
       resposta:v('brResp'),prioridade:Number(v('brPrio')||0),ativa:ck('brAtiva'),handoff:ck('brHandoff')});
     if(r.erros?.length||r.ok===false) return avisoErro('Não consegui concluir',r.erros?.join(' · ')||r.motivo);
     const feito=EDITANDO_REGRA?'Regra atualizada.':'Regra cadastrada.';
@@ -3336,7 +3348,7 @@ async function excluirRegra(id,nome){
     rotulo:'Excluir regra', icone:'excluir', perigo:true,
     aoConfirmar:async()=>{
       try{
-        const r=await api('bot/regra-excluir',{id});
+        const r=await api('bot/regra-excluir',{id,canal:BOT_CANAL});
         if(r.erros?.length||r.ok===false) return avisoErro('Não consegui concluir',r.erros?.join(' · ')||r.motivo);
         await carregar(); flash('Regra excluída.','ok');
       }catch(e){avisoErro('Não consegui concluir',e.message);}
@@ -3453,7 +3465,8 @@ async function salvarBot(){
     rota:'bot/config',
     corpo:()=>({nome:v('bcNome'),saudacao:v('bcSaud'),mensagemFallback:v('bcFall'),
       mensagemHandoff:v('bcHand'),falhasAteHumano:Number(v('bcFalhas')||2),ativo:ck('bcAtivo'),
-      cerebro:{...(BOT.config?.cerebro||{}),ligado:ck('bcCerebro')},
+      canal:BOT_CANAL,
+      cerebro:{...(botDaTela()?.config?.cerebro||{}),ligado:ck('bcCerebro')},
       avisosAntesDePausa:Number(v('bcAvisos')),horasDePausa:Number(String(v('bcPausa')).replace(',','.')),errosDeOpcaoAtePausa:Number(v('bcErros')),
       usarCatalogo:ck('bcCat'),assinarMensagens:ck('bcAssina'),
       horario:ck('bcHorOn')?hrLer():null,
@@ -4641,14 +4654,17 @@ const S={
     ${f.lacunas.length?notas(f.lacunas):'<p class="hint">Sem lacunas: todas as fontes estão preenchidas.</p>'}</div>`;
  },
  bot:()=>{
-  if(!BOT) return head('Bot','Atendimento automático: regras, respostas e quando chamar gente.')+
+  const tgBot=BOT_CANAL==='telegram';
+  const BOT=botDaTela();
+  const tituloBot=tgBot?'Telegram · Bot':'Bot do WhatsApp';
+  if(!BOT) return head(tituloBot,'Atendimento automático: regras, respostas e quando chamar gente.')+
     vazio('bot','Backend sem a rota do bot','Atualize o servidor.',['Subir o backend novo','Recarregar']);
   const c=BOT.config;
   /* O subtitulo tambem falava so de regras. Com fluxo no ar, ele descrevia um
      bot que nao e o que esta atendendo — e quem le acha que veio na tela errada. */
-  return head('Bot',(BOT.fluxo?.passos||[]).length
+  return head(tituloBot,(tgBot?'<b>Bot só do Telegram</b> — nome, mensagens, regras, fluxo e horário próprios; mexer aqui não muda o WhatsApp. ':'')+((BOT.fluxo?.passos||[]).length
       ? 'A árvore de atendimento no ar, o que ela responde e quando chama gente. Teste aqui antes de qualquer cliente ver.'
-      : 'Atendimento automático: regras, respostas e quando chamar gente. Funciona aqui antes de ligar em qualquer canal.')+
+      : 'Atendimento automático: regras, respostas e quando chamar gente. Funciona aqui antes de ligar em qualquer canal.'))+
   `<div class="grid g-kpi" style="margin-bottom:16px">
     ${(()=>{
       /* Esta tela nasceu para o bot de REGRAS por palavra e nunca soube do
@@ -4667,28 +4683,28 @@ const S={
          diziam a verdade SEPARADAMENTE, o que juntas vira mentira: quem olha
          aqui ve "ligado" e vai embora tranquilo enquanto o cliente fala
          sozinho. Aconteceu em campo. */
-      const w=canalWhatsApp();
+      const w=canalDoBot();
       if(c.ativo&&!w.no_ar) return kpi('Estado','ligado, mas MUDO',`o canal está ${esc(w.rotulo)} — ninguém é atendido`);
       return kpi('Estado',c.ativo?'ligado':'desligado',BOT.pronto?'respondendo':'não responde ainda');
     })()}
     ${(()=>{
       /* Estava CRAVADO em "nenhum". A tela dizia que nao havia canal com a
          Micaela pareada e conversando — e quem le o painel confia nele. */
-      const w=canalWhatsApp();
+      const w=canalDoBot();
       return kpi('Canal',w.no_ar?(w.via||'no ar'):'nenhum',
-        w.no_ar?(w.numero?'+'+esc(w.numero):'conectado'):esc(w.rotulo));
+        w.no_ar?(w.numero?(w.telegram?esc(w.numero):'+'+esc(w.numero)):'conectado'):esc(w.rotulo));
     })()}
   </div>
   ${BOT.aviso?`<div class="card" style="margin-bottom:16px;border-style:dashed">
     ${cardH('alerta',`Atenção`,``,5)}${linha('Bot ligado sem regra',esc(BOT.aviso),'corrigir','b-err')}</div>`:''}
-  ${(()=>{const w=canalWhatsApp();return c.ativo&&!w.no_ar?`<div class="card" style="margin-bottom:16px;border-style:dashed">
+  ${(()=>{const w=canalDoBot();return c.ativo&&!w.no_ar?`<div class="card" style="margin-bottom:16px;border-style:dashed">
     ${cardH('alerta',`O bot está ligado, mas não tem por onde falar`,
-      `O canal de WhatsApp está <b>${esc(w.rotulo)}</b>. Enquanto isso, mensagem de cliente não chega aqui e nada é respondido — o bot ligado não muda isso.`,5,
+      `O canal de ${w.telegram?'Telegram':'WhatsApp'} está <b>${esc(w.rotulo)}</b>. Enquanto isso, mensagem de cliente não chega aqui e nada é respondido — o bot ligado não muda isso.`,5,
       '<span class="badge b-err">ninguém é atendido</span>')}
-    ${botao({t:'Ir para o canal',ic:'whats',v:'p',on:"ir('canais')"})}</div>`:'';})()}
+    ${botao({t:'Ir para o canal',ic:w.telegram?'telegram':'whats',v:'p',on:w.telegram?"ir('tg-canal')":"ir('canais')"})}</div>`:'';})()}
 
   <div class="card" style="margin-bottom:16px">
-    ${cardH('whats',`Testar a conversa`,`Escreva como um cliente escreveria. O bot responde com as regras de verdade e com o seu catálogo real — sem precisar de WhatsApp nem de token nenhum.`,3)}
+    ${cardH(tgBot?'telegram':'whats',`Testar a conversa`,`Escreva como um cliente escreveria. O bot ${tgBot?'do Telegram':'do WhatsApp'} responde com as regras de verdade e com o seu catálogo real — sem precisar de ${tgBot?'Telegram':'WhatsApp'} nem de token nenhum.`,3)}
     <div class="tbl-bar" style="margin-top:12px">
       <input id="simTxt" placeholder="Ex.: qual o horário de vocês?" onkeydown="if(event.key==='Enter')simular()">
       <button class="btn btn-p" onclick="simular()">${ico('enviar')}Enviar</button>
@@ -5397,6 +5413,7 @@ function fecharGavetaTg(){ TG_GAVETA=false; render(); }
 addEventListener('keydown',(e)=>{ if(e.key==='Escape'&&TG_GAVETA&&rota==='tg-atendimento'&&!document.getElementById('modalBg')?.classList.contains('show')) fecharGavetaTg(); });
 function telaFilaTelegram(){
   if(HIST_ON.telegram) return telaHistorico('telegram');
+  const BOT=BOT_TG;
   const dados=ATEND||{conversas:[]};
   const todas=(dados.conversas||[]).filter(c=>(c.canal||(ehTg(c.telefone)?'telegram':'whatsapp'))==='telegram');
   const online=TG?.estado==='conectado';
@@ -5776,7 +5793,48 @@ async function carregarHoje(canal){
   try{ HOJE[canal]={em:Date.now(),r:await apiCru(`atendimentos/historico?canal=${canal}&dias=1`)}; }catch{ /* resumo do dia e enfeite */ }
   if(rota===(canal==='telegram'?'tg-atendimento':'wa-atendimento')) render();
 }
+/* Telegram: MESMO desenho do painel do WhatsApp, mas so com dado do Telegram
+   — o nome e o @ do bot no Telegram (nao a persona do WhatsApp), o icone do
+   Telegram e, na equipe, QUEM ATENDEU conversas do Telegram (a lista de
+   operadores e cadastrada no WhatsApp e nao diz quem atende aqui). */
+let HIST30_TG=null;
+async function carregarEquipeTg(){
+  if(HIST30_TG&&Date.now()-HIST30_TG.em<120000) return;
+  HIST30_TG={em:Date.now(),r:HIST30_TG?.r||null};
+  try{ HIST30_TG={em:Date.now(),r:await apiCru('atendimentos/historico?canal=telegram&dias=30')}; }catch{ /* complemento */ }
+  if(rota==='tg-atendimento') render();
+}
+function painelTranquiloTelegram(online){
+  setTimeout(()=>{carregarHoje('telegram');carregarEquipeTg();},0);
+  const ativo=(ATEND?.botTelegram||{ativo:BOT_TG?.config?.ativo!==false}).ativo;
+  const nomeTg=String(ATEND?.botTelegram?.nome||BOT_TG?.config?.nome||'').trim()||TG?.nomeBot||(TG?.numero||'O bot do Telegram');
+  const h=HOJE.telegram?.r, s=h?.resumo||{};
+  const noPainel=new Set((ATEND?.equipe||[]).filter(o=>o.noPainel).map(o=>o.nome));
+  const cont={}; (HIST30_TG?.r?.atendimentos||[]).forEach(a=>{ const n=a.atendidoPor?.nome; if(n) cont[n]=(cont[n]||0)+1; });
+  const quem=Object.entries(cont).sort((a,b)=>b[1]-a[1]);
+  return `<div class="tranq tranq-tg">
+    <div class="tranq-top"><span class="tranq-ic tg">${ico('telegram')}</span><div><h3>Nenhum atendimento no Telegram agora</h3>
+      <p class="hint">${ativo?`${esc(nomeTg)}${TG?.numero?` (${esc(TG.numero)})`:''} responde quem chega pelo Telegram e chama a equipe quando precisar. A conversa aparece aqui na hora.`:'O bot está desligado: quem escrever no Telegram cai direto aqui para a equipe.'}</p></div></div>
+    <div class="tranq-grade">
+      <div class="tranq-card"><small>Bot do Telegram</small>
+        <b><span class="dot-st ${ativo?'on':'off'}"></span>${esc(nomeTg)} ${ativo?'ativo':'desligado'}</b>
+        <p>${ativo?'Responde sozinho no Telegram, 24 h, e passa para gente o que não resolver.':'Ninguém recebe resposta automática no Telegram.'}</p>
+        ${ehVendedor()?'':botao({t:'Regras do bot',ic:'bot',v:'g',sz:'xs',on:"ir('bot-regras')"})}</div>
+      <div class="tranq-card"><small>Canal</small>
+        <b><span class="dot-st ${online?'on':'off'}"></span>${online?esc(TG?.numero||'Telegram'):'Telegram desconectado'}</b>
+        <p>${online&&TG?.link?esc(TG.link.replace('https://','')):'Conecte o bot para voltar a atender.'}</p>
+        <div class="tranq-bts">${online&&TG?.link?`<a class="btn btn-g btn-xs" href="${esc(TG.link)}" target="_blank" rel="noopener">${ico('ver')}<span>Abrir o bot</span></a>${botao({t:'Copiar link',ic:'copiar',v:'g',sz:'xs',on:`navigator.clipboard?.writeText('${esc(TG.link)}').then(()=>flash('Link do bot copiado.','ok'))`})}`
+          :(ehVendedor()?'':botao({t:'Conectar',ic:'telegram',v:'p',sz:'xs',on:"ir('tg-canal')"}))}</div></div>
+      <div class="tranq-card tranq-equipe"><small>Quem atende o Telegram · 30 dias</small>
+        ${quem.length?`<ul>${quem.slice(0,6).map(([n,k])=>`<li>${avatar(n,n)}<div><b>${esc(n)}</b><span>${k} atendimento(s)</span></div>${noPainel.has(n)?'<em class="st-on">no painel</em>':''}</li>`).join('')}</ul>`
+          :`<p>${HIST30_TG?.r?'Ninguém da equipe atendeu pelo Telegram nos últimos 30 dias — até agora o bot deu conta.':'carregando…'}</p>`}</div>
+      <div class="tranq-card"><small>Hoje no Telegram</small>
+        ${h?`<b>${s.finalizados||0} finalizado(s)</b><p>${s.media!=null?`nota média <b>${String(s.media).replace('.',',')}</b> (${s.avaliados} ${s.avaliados===1?'avaliação':'avaliações'})`:'sem avaliação ainda'}${s.encerradosAForca?` · ${s.encerradosAForca} encerrado(s) à força`:''}</p>`:'<b>—</b><p>carregando…</p>'}
+        ${botao({t:'Ver histórico',ic:'relogio',v:'g',sz:'xs',on:"abrirHistorico('telegram')"})}</div>
+    </div></div>`;
+}
 function painelTranquilo(canal,online){
+  if(canal==='telegram') return painelTranquiloTelegram(online);
   const tg=canal==='telegram';
   setTimeout(()=>carregarHoje(canal),0);
   const b=ATEND?.bot||{ativo:BOT?.config?.ativo!==false,nome:BOT?.config?.nome};
@@ -6153,7 +6211,8 @@ Object.assign(S,S2);
 const TELAS={
   visao:telaVisao, crm:telaCrm, indicacao:telaIndicacao, clientes:telaClientes, 'wa-desconectar':telaDesconectar,
   whats:S['wa-atendimento'], tg:S['tg-atendimento'],
-  bot:S.bot, 'bot-regras':S.bot,
+  bot:()=>telaBotDo('whatsapp'), 'bot-regras':()=>telaBotDo('whatsapp'),
+  'tg-bot':()=>telaBotDo('telegram'),
   redes:S.redes, 'redes-canal':S.redes,
   quebragalho:S.quebragalho, 'qg-painel':S.quebragalho,
   plano:S['pl-consumo'],
@@ -6816,6 +6875,7 @@ async function carregar(){
     LOTES=await api('estoque/lotes').catch(()=>null);
     PUB=await api('estoque/publicados').catch(()=>null);
     BOT=await api('bot').catch(()=>null);
+    BOT_TG=await api('bot?canal=telegram').catch(()=>null);
     CANAIS=await api('canais').catch(()=>null);
     TG=await api('canais/telegram').catch(()=>null);
     OPERADORES=await api('operadores').catch(()=>null);
@@ -7013,7 +7073,7 @@ async function importarFluxo(input){
   const f=input.files&&input.files[0]; if(!f) return;
   try{
     const csv=await f.text();
-    const r=await api('bot/fluxo-csv',{csv});
+    const r=await api('bot/fluxo-csv',{csv,canal:BOT_CANAL});
     let msg=`Fluxo importado de ${f.name}: ${r.passos} passo(s), ${r.opcoes} opção(ões).`;
     if(r.avisos&&r.avisos.length){ msg+='\n\nAtenção:\n• '+r.avisos.join('\n• '); }
     flash(msg, r.avisos&&r.avisos.length?'err':'ok', 14);
@@ -7050,7 +7110,7 @@ async function apagarFluxo(){
     consequencia:'As conversas em andamento perdem o ponto onde pararam.',
     rotulo:'Apagar fluxo', icone:'excluir', perigo:true,
     aoConfirmar:async()=>{
-      try{ await api('bot/fluxo-apagar',{}); flash('Fluxo apagado.','ok'); carregar(); }
+      try{ await api('bot/fluxo-apagar',{canal:BOT_CANAL}); flash('Fluxo apagado.','ok'); carregar(); }
       catch(e){ avisoErro('Não consegui concluir',e.message); }
     },
   });

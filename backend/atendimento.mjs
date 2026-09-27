@@ -126,7 +126,13 @@ export function extrairMensagens(evento) {
 const falhas = new Map();
 
 /** Uma mensagem. Devolve o que aconteceu — quem chama decide o que logar. */
-export async function receberMensagem(msg, deps = {}) {
+/* O bot DO CANAL: a mensagem do Telegram e atendida pelo bot do Telegram
+   (config, regras, fluxo e horario proprios); a do WhatsApp, pelo dele. */
+export function receberMensagem(msg, deps = {}) {
+  return bot.comCanal(msg?.canal === 'telegram' ? 'telegram' : 'whatsapp', () => receberNoCanal(msg, deps));
+}
+
+async function receberNoCanal(msg, deps = {}) {
   const enviar = deps.enviar || enviarTexto;
   const reservar = deps.reservar || reservarEvento;
   const produtos = deps.produtos || (() => []);

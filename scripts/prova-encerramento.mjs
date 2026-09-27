@@ -95,6 +95,7 @@ async function main() {
     ok('instância isolada conectou no Telegram falso', con.ok, con.numero || con.erro);
     await api('funil', { etapas: ['Novo lead', 'Fechado'] });
     await api('bot/config', { ativo: true, nome: 'Bia' });
+    await api('bot/config', { canal: 'telegram', ativo: true, nome: 'Tina' });
     const marta = await api('operadores/salvar', { nome: 'Marta Vendas', setor: 'vendas', email: 'marta@loja.teste' });
     await api('vendedores/acesso', { operadorId: marta.operador.id, email: 'marta@loja.teste', senha: 'senha-marta-1' });
     const ent = await api('entrar', { email: 'marta@loja.teste', senha: 'senha-marta-1' }, '');
@@ -228,8 +229,14 @@ async function main() {
       await d.goto(`${base}/crm?t=${token}#${r0}`); await d.reload();
       await d.waitForSelector('.tranq');
       await d.waitForSelector('.tranq-card:has-text("finalizado")');
+      if (nomeC === 'Telegram') { await d.waitForSelector('.tranq-equipe li'); }
       const t = await d.textContent('.tranq');
-      ok(`${nomeC} sem atendimento: mostra bot ativo, a equipe (Marta) e o resumo do dia`, t.includes('Bia ativo') && t.includes('Marta Vendas') && /\d+ finalizado/.test(t), t.replace(/\s+/g, ' ').slice(0, 120));
+      if (nomeC === 'Telegram') {
+        ok('Telegram sem atendimento: dados do Telegram (bot do Telegram, quem atendeu pelo Telegram), nada do WhatsApp',
+          t.includes('Tina ativo') && t.includes('@loja_teste_bot') && t.includes('Marta Vendas') && /1 atendimento/.test(t) && !t.includes('Bia') && !/whatsapp/i.test(t) && await d.isVisible('.tranq-ic.tg'), t.replace(/\s+/g, ' ').slice(0, 160));
+      } else {
+        ok(`${nomeC} sem atendimento: mostra bot ativo, a equipe (Marta) e o resumo do dia`, t.includes('Bia ativo') && t.includes('Marta Vendas') && /\d+ finalizado/.test(t), t.replace(/\s+/g, ' ').slice(0, 120));
+      }
       await d.screenshot({ path: join(FOTOS, `08-vazio-${nomeC.toLowerCase()}.png`) });
     }
 

@@ -111,7 +111,8 @@ async function avisarPixPago(reg, pagamento) {
     const a = await canalDoCliente(reg.para)?.apagarMensagem?.({ para: reg.para, id });
     if (!a?.ok) { console.warn(`[pix] ${reg.referencia}: nao apaguei a mensagem ${id} — ${a?.erro || 'canal fora'}`); }
   }
-  const cfg = bot.getConfig();
+  // O Pix pago fala com a voz do bot do canal do cliente.
+  const cfg = bot.comCanal(ehTelegram(reg.para) ? 'telegram' : 'whatsapp', () => bot.getConfig());
   const texto = [
     `${cfg.nome ? `*${cfg.nome}:* ` : ''}✅ *Pagamento recebido!*`,
     '',
