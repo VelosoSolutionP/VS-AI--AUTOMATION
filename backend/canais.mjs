@@ -21,6 +21,7 @@ import * as vigiaPix from './vigia-pix.mjs';
 import * as seguranca from '../engine/vsseguranca/index.mjs';
 import * as pagamentos from '../engine/vspagamentos/index.mjs';
 import * as fin from '../engine/vsfinanceiro/index.mjs';
+import * as crm from '../engine/vscrm/index.mjs';
 import { emReais } from '../engine/vsbot/fluxo.mjs';
 import * as campanhasTg from '../engine/vscampanhas/index.mjs';
 
@@ -147,6 +148,9 @@ async function avisarPixPago(reg, pagamento) {
   proto.anotar(reg.referencia, { estado: proto.ESTADOS.NA_FILA, departamento: 'comercial' });
   const l = fin.lancarPagamento(pagamento);
   if (l?.ok && !l.repetido) { console.log(`[caixa] entrada de ${pagamento.id} lancada`); }
+  /* Pago → o lead vira Ganho no funil, com o valor do pedido. */
+  try { crm.eventoDeVenda(reg.de, 'pago', { referencia: reg.referencia, valorCentavos: reg.totalCentavos }); }
+  catch (e) { console.error(`[crm] ${reg.referencia}: pago, mas o funil nao andou — ${e.message}`); }
 }
 
 /**

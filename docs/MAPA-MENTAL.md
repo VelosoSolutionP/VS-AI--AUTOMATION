@@ -229,11 +229,14 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 
 #### Integração CRM  ·  `#crm`
 - **Pra que serve:** Pipeline de vendas. O bot vai escrever aqui: cada mensagem vira interação, cada qualificação vira score auditável.
-- **O que tem:** indicadores: Abertos, Ganhos, Perdidos, Conversão · cartões: Onde os leads estão, Leads
-- **Botões:** Atualizar, Novo lead, Abrir no WhatsApp, Marcar como ganho, Marcar como perdido
-- **Código da tela:** `backend/crm.html` → `telaCrm()`
+- **O que tem:** indicadores: Abertos, Ganhos, Perdidos, Conversão, **Esfriando** · cartões: Onde os leads estão, **Funil automático**, Leads (selo "parado há N dias" na lista e no quadro)
+- **Funil automático (2026-09-27, sem IA):** WhatsApp e Telegram. **Equipe respondeu** (autor `atendente`, não o bot) → etapa de contato · **saiu cobrança/pedido na conversa** → etapa de proposta + valor do pedido vira o valor do lead · **pagamento confirmado** (vigia do Pix, webhook MP/Asaas, conferência, ou ao abrir o CRM) → **Ganho** (e vai para a coluna "Ganho/Fechado" se o funil tiver) · lead aberto sem conversa há N dias (padrão 3) → Esfriando. **Só anda pra frente**; lead fechado não mexe, exceto pago que vence "perdido". Etapas escolhidas pelo **nome** (contato/atend…, proposta/orçam…) ou pela posição; o dono troca no cartão ou desliga. Tudo no histórico com `auto: true` ("· automático" na linha do tempo)
+- **Botões:** Atualizar, Novo lead, Abrir no WhatsApp, Marcar como ganho, Marcar como perdido, Salvar regras
+- **Código da tela:** `backend/crm.html` → `telaCrm()`, `funilAutoCard()`, `salvarFunilAuto()`, `seloParado()`
+- **Código do motor:** `engine/vscrm/automacao.mjs` (`padrao`, `resolver`, `aplicar`, `diasParado`); `engine/vscrm/index.mjs` → `interagir` (resposta da equipe), `eventoDeVenda`, `sincronizarPagamentos`, `getAutomacao`/`setAutomacao`; ligações em `backend/atendimento.mjs` → `funilCobranca()`, `backend/canais.mjs` → `avisarPixPago()`, `backend/server.mjs` → `sincronizarFunil()`
 - **Ações (funções JS):** `buscarEm()`, `novoLead()`, `fechar()`
-- **Rotas do servidor:** `/crm/api/fechar` → `backend/server.mjs`
+- **Rotas do servidor:** `/crm/api/fechar`, `/crm/api/funil/automacao` → `backend/server.mjs`
+- **Prova em navegador:** `node scripts/prova-funil.mjs` (21 verificações: pedido pelo bot → Proposta com valor, dono responde pela tela → Em atendimento, pago → Ganho, parado 5 dias, regra trocada pela tela, recusa de etapa inexistente, celular). Teste: `tests/vscrm-automacao.test.mjs`
 
 #### WhatsApp → Atendimento  ·  `#wa-atendimento`
 - **Pra que serve:** a **central de conversas** entre cliente, bot e vendedor. Responde uma pergunta: *quem precisa da minha atenção agora?* (Atendimento é a operação; Resultados é a análise dela — indicador financeiro NÃO entra aqui.)
@@ -465,11 +468,16 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 | 2026-09-27 | **Telas Telegram · Auditor e WhatsApp · Auditor FECHADAS** pelo dono | Padrão de mercado (KPIs, gráficos, log em acordeão, Apresentar/Imprimir/CSV), cada canal com os seus dados | (este) |
 | 2026-09-27 | **Tela Telegram · Canal e conexão FECHADA** pelo dono | Conexão do bot + "Onde o bot trabalha" (adicionar canal, grupo ou pelo ID). Campanhas: o dono vai revisar mais a fundo depois | (este) |
 | 2026-09-27 | **Tela Telegram · Atendimento FECHADA** pelo dono | Aprovada com o resultado do teste ao vivo. Teste de recebimento real (mensagem de um celular de verdade) fica pra depois, por escolha do dono (tempo da tela esgotado) | (este) |
+| 2026-09-27 | "Clientes questionando o funil de vendas" → melhorar o funil (item 1 da proposta: funil que anda sozinho) | Funil automático sem IA: equipe respondeu → contato; pedido/cobrança → proposta com valor; pagamento confirmado → Ganho; lead parado → Esfriando; cartão de regras no CRM. Prova 21/21 | (este) |
 
 ---
 
 ## Pendências conhecidas
 
+- **Funil — próximos itens da proposta (não feitos, esperando o dono):** 2) motivo de perda obrigatório (lista fixa + gráfico); 3) métricas de funil (conversão etapa→etapa, tempo por etapa, previsão ponderada, canal × campanha); 4) quadro com arrastar e soltar + Tier/responsável no cartão + filtros; 5) próxima ação/lembrete por lead. **Visão geral com gráficos** espera o dono escolher o layout (A, B ou C, ver conversa de 2026-09-27).
+- **Funil — limites da V1:** cliente que já é Ganho e compra de novo não reabre o lead (continua Ganho; o pedido conta em Resultados); cobrança avulsa feita pela tela de Pagamentos (sem pedido do bot) não tem elo com o lead e não fecha nada; "pago" do gateway real ainda não foi provado ponta a ponta — a prova grava o pagamento confirmado no arquivo da instância isolada (caminho `sincronizarPagamentos`).
+- **Lead do Telegram aparece com "telefone suspeito"** no CRM (id `999…` fora do padrão de celular) — cosmético, anterior.
+- **Provas quebradas antes desta mudança:** `prova-qualificacao` trava esperando `.q-sim`; `prova-encerramento` 25/27 (textos das telas vazias). Iguais sem o funil automático.
 - **Campanhas — depois da 2ª entrega:** valores da política de frequência que o dono propôs (texto cortado em "Intervalo sugerido") — hoje 4 h / 3 por dia; Telegram Ads (pago) fora; texto por IA só quando liberar custo; lote por planilha (3ª entrega).
 - **Teste que depende de arquivo fora do repo:** `tests/vsbot-fluxo.test.mjs` → "o fluxo REAL da Micaela" lê `../Micaela/fluxo-atendimento-micaela-completo.csv`, que não existe mais nesta máquina.
 - **Qualificação — próximos passos da proposta:** vendas concluídas pelo bot × por humano em Resultados; disponibilidade/região na distribuição; SLA e marcadores da fila (fases 3 e 4); campo "responsável" no Funil/Integração CRM. Ficha é por palavras: frases muito fora do padrão ficam "não informado".

@@ -14,7 +14,8 @@ import {
   novoLead, moverEtapa, fechar, aplicarQualificacao, registrarInteracao,
   upsert, resumoFunil,
 } from './leads.mjs';
-import { normalizarTelefone } from './leads.mjs';
+import { normalizarTelefone, leadId } from './leads.mjs';
+import * as auto from './automacao.mjs';
 import { normalizarRegra, novoParceiro, resumoParceiros, linkDe, comissao } from './parceiros.mjs';
 
 import { dentroDaCasa } from '../casa.mjs';
@@ -111,14 +112,72 @@ export function comercial(id, { ficha, decisao, responsavel } = {}) {
 }
 
 export function interagir(id, interacao) {
-  return comLead(id, (lead) => ({ lead: registrarInteracao(lead, interacao) }));
+  return comLead(id, (lead) => {
+    const l = registrarInteracao(lead, interacao);
+    /* A equipe respondeu: o lead saiu do "ninguém falou com ele ainda". */
+    const equipe = interacao?.autor === 'atendente' && (interacao.direcao || 'saida') === 'saida';
+    return { lead: equipe ? regra(l, 'resposta-equipe') : l };
+  });
+}
+
+/* ── funil automático (ver automacao.mjs) ─────────────────────────────── */
+
+export function getAutomacao() {
+  const { funil } = getFunil();
+  return { ...auto.resolver(load('config', {})?.automacao, funil), padrao: auto.padrao(funil) };
+}
+
+export function setAutomacao(d) {
+  const { funil } = getFunil();
+  const v = auto.validar(d, funil);
+  if (v.erros) { return { erro: v.erros.join('; ') }; }
+  const cfg = load('config', {}) || {};
+  save('config', { ...cfg, automacao: v.config });
+  return { automacao: getAutomacao() };
+}
+
+function regra(lead, tipo, dados) {
+  const { funil } = getFunil();
+  return auto.aplicar(lead, tipo, dados, { funil, config: auto.resolver(load('config', {})?.automacao, funil) });
+}
+
+/** Evento de venda pelo TELEFONE do cliente ('cobranca' | 'pago'). Sem lead, não faz nada. */
+export function eventoDeVenda(telefone, tipo, dados = {}) {
+  const t = normalizarTelefone(telefone);
+  if (!t.telefone) { return { ok: false, erro: t.erro }; }
+  const leads = listar();
+  const lead = leads.find((l) => l.id === leadId(t.telefone));
+  if (!lead) { return { ok: false, erro: 'sem lead para ' + t.telefone }; }
+  const novo = regra(lead, tipo, dados);
+  if (novo === lead) { return { ok: true, mudou: false, lead }; }
+  gravar(upsert(leads, novo));
+  return { ok: true, mudou: true, lead: novo };
+}
+
+/**
+ * Confere pedido × pagamento e aplica "pago → Ganho" no que faltou. Cobre o
+ * pagamento confirmado por qualquer caminho (webhook, vigia do Pix, conferência
+ * manual) — idempotente: lead já ganho não muda.
+ */
+export function sincronizarPagamentos(pedidos = [], pagamentos = [], pagos = ['CONFIRMADO', 'DISPONIVEL']) {
+  const porId = new Map((pagamentos || []).map((p) => [String(p.id), p]));
+  let mudou = 0;
+  for (const p of pedidos || []) {
+    if (!p.pagamentoId || !pagos.includes(porId.get(String(p.pagamentoId))?.estado)) { continue; }
+    const r = eventoDeVenda(p.telefone, 'pago', { referencia: p.referencia, valorCentavos: p.valorCentavos });
+    if (r.mudou) { mudou++; }
+  }
+  return { mudou };
 }
 
 /** Tudo que o painel precisa numa chamada só. */
 export function painel() {
   const { funil, origem } = getFunil();
-  const leads = listar();
-  return { funil, funilOrigem: origem, leads, resumo: resumoFunil(leads, funil) };
+  const automacao = getAutomacao();
+  const agora = Date.now();
+  const leads = listar().map((l) => ({ ...l, diasParado: auto.diasParado(l, agora) }));
+  const esfriando = leads.filter((l) => l.diasParado != null && l.diasParado >= automacao.diasEsfriar).length;
+  return { funil, funilOrigem: origem, leads, automacao, resumo: { ...resumoFunil(leads, funil), esfriando } };
 }
 
 /**

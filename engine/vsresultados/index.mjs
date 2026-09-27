@@ -149,6 +149,9 @@ export function registrarPedido({ referencia, pagamentoId, telefone, endereco, c
   return { ok: true, pedido };
 }
 
+/** Todos os pedidos (o CRM confere quais já foram pagos). */
+export const pedidos = () => ler().pedidos;
+
 export function obterPedido(referencia) {
   return ler().pedidos.find((p) => p.referencia === String(referencia || '')) || null;
 }

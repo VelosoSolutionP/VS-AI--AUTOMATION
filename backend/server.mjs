@@ -55,6 +55,15 @@ import * as consumo from '../engine/vsconsumo/index.mjs';
 import * as integ from '../engine/vsintegracoes/index.mjs';
 import { dentroDaCasa } from '../engine/casa.mjs';
 
+/* Pagamento confirmado por QUALQUER caminho → o lead do pedido vira Ganho no
+   funil (regra do funil automático, engine/vscrm/automacao.mjs). Idempotente. */
+function sincronizarFunil() {
+  try {
+    const r = crm.sincronizarPagamentos(resultados.pedidos(), pagar.listar());
+    if (r.mudou) { console.log(`[crm] funil: ${r.mudou} lead(s) viraram Ganho pelo pagamento`); }
+  } catch (e) { console.error(`[crm] funil nao sincronizou com os pagamentos: ${e.message}`); }
+}
+
 /* Medidor de banda: toda chamada que o servidor faz (Telegram, Meta,
    integrações) passa a ser contada. Precisa vir antes de qualquer provider
    nascer — eles leem globalThis.fetch na hora de chamar. */
@@ -722,6 +731,7 @@ const server = createServer(async (req, res) => {
     if (r.ok && ['CONFIRMADO', 'DISPONIVEL'].includes(r.estado) && r.pagamento) {
       const l = fin.lancarPagamento(r.pagamento);
       if (l.ok && !l.repetido) { console.log(`[caixa] entrada de ${r.pagamento.id} lancada`); }
+      sincronizarFunil();
       await liberarSeForCliente(r.pagamento);
       await canais.pixConfirmado(r.pagamento).catch((e) => console.warn(`[pix] aviso pelo webhook falhou: ${e.message}`));
     }
@@ -747,6 +757,7 @@ const server = createServer(async (req, res) => {
     if (r.ok && ['CONFIRMADO', 'DISPONIVEL'].includes(r.estado) && r.pagamento) {
       const l = fin.lancarPagamento(r.pagamento);
       if (l.ok && !l.repetido) { console.log(`[caixa] entrada de ${r.pagamento.id} lancada`); }
+      sincronizarFunil();
       await liberarSeForCliente(r.pagamento);
     }
     console.log(`[asaas] ${evento.event || '?'} ${evento.payment?.id || ''} -> ${r.ok ? r.estado : 'recusado: ' + r.motivo}`);
@@ -923,7 +934,7 @@ const server = createServer(async (req, res) => {
       if (e.ok && e.estado === 'AGUARDANDO' && e.pagamentoId) {
         const a = await pagar.atualizarEstado(e.pagamentoId);
         if (a.ok && ['CONFIRMADO', 'DISPONIVEL'].includes(a.pagamento?.estado)) {
-          if (a.mudou) { const l = fin.lancarPagamento(a.pagamento); if (l.ok && !l.repetido) { console.log(`[caixa] entrada de ${a.pagamento.id} lancada`); } }
+          if (a.mudou) { const l = fin.lancarPagamento(a.pagamento); if (l.ok && !l.repetido) { console.log(`[caixa] entrada de ${a.pagamento.id} lancada`); } sincronizarFunil(); }
           await liberarSeForCliente(a.pagamento);
           e = clientes.estadoCheckout(q.get('id'), q.get('ref'));
         }
@@ -1256,7 +1267,7 @@ const server = createServer(async (req, res) => {
         equipes, porTier, tierMin: qualif.TIER_MIN, tierMax: qualif.TIER_MAX, operadores: ops.map((o) => ({ ...o, comercial: operadores.ehComercial(o.setor), acesso: acessos.find((a) => a.operadorId === o.id) || null })),
       });
     }
-    if (req.method === 'GET' && rota === '/crm/api/painel') { return json(res, 200, crm.painel()); }
+    if (req.method === 'GET' && rota === '/crm/api/painel') { sincronizarFunil(); return json(res, 200, crm.painel()); }
     if (req.method === 'GET' && rota === '/crm/api/status') { return json(res, 200, crm.statusIntegracoes(canais.estado())); }
     if (req.method === 'GET' && rota === '/crm/api/indicacao') { return json(res, 200, crm.painelIndicacao()); }
     if (req.method === 'GET' && rota === '/crm/api/redes') { return json(res, 200, { credenciais: CREDENCIAL }); }
@@ -1443,7 +1454,7 @@ const server = createServer(async (req, res) => {
       if (e.ok && e.estado === 'AGUARDANDO' && e.pagamentoId) {
         const a = await pagar.atualizarEstado(e.pagamentoId);
         if (a.ok && ['CONFIRMADO', 'DISPONIVEL'].includes(a.pagamento?.estado)) {
-          if (a.mudou) { const l = fin.lancarPagamento(a.pagamento); if (l.ok && !l.repetido) { console.log(`[caixa] entrada de ${a.pagamento.id} lancada`); } }
+          if (a.mudou) { const l = fin.lancarPagamento(a.pagamento); if (l.ok && !l.repetido) { console.log(`[caixa] entrada de ${a.pagamento.id} lancada`); } sincronizarFunil(); }
           await liberarSeForCliente(a.pagamento);
           e = clientes.estadoCheckout(q.get('id'), q.get('ref'));
         }
@@ -2336,6 +2347,7 @@ const server = createServer(async (req, res) => {
         case '/crm/api/estoque/lote': r = estoque.criarLote(d); break;
         case '/crm/api/estoque/lote-excluir': r = estoque.excluirLote(d.id); break;
         case '/crm/api/funil': r = crm.setFunil(d.etapas); break;
+        case '/crm/api/funil/automacao': r = crm.setAutomacao(d); break;
         case '/crm/api/leads': r = crm.criar(d); break;
         case '/crm/api/mover': r = crm.mover(d.id, d.etapa); break;
         case '/crm/api/fechar': r = crm.encerrar(d.id, d.status, d.motivo); break;

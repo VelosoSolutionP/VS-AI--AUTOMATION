@@ -1295,6 +1295,11 @@ td.num,th.num{text-align:right;white-space:nowrap}
 .q-tierl{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--panel-2);flex-wrap:wrap}
 .q-tierl b{font-size:13px} .q-tierl input{flex:0 1 220px;font-size:13px;padding:5px 8px} .q-tierl small{flex:1;color:var(--dim);font-size:12px;min-width:140px}
 .q-tierl.fixo{opacity:.85}
+.fa-regras{display:grid;gap:8px}
+.fa-l{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel-2)}
+.fa-l>span:first-child{display:flex;flex-direction:column;min-width:180px;flex:1}
+.fa-l small{color:var(--dim);font-size:12px}
+.fa-l select{width:auto;min-width:160px}
 /* Horario de funcionamento: calendario */
 .hr-cal{display:grid;gap:12px}
 .hr-semana,.hr-esp{display:grid;gap:6px}
@@ -3171,11 +3176,14 @@ const rotuloEvento=(e)=>({
   fechado:'lead fechado',
   qualificado:'score calculado',
   interacao:'mensagem',
+  valor:'valor do lead',
 }[e.tipo]||e.tipo);
 
 function detalheEvento(e){
-  if(e.tipo==='etapa') return `${e.de||'—'} → ${e.para||'—'}`;
-  if(e.tipo==='fechado') return e.status+(e.motivo?` · ${e.motivo}`:'');
+  const au=e.auto?' · automático'+(e.motivo&&e.tipo==='etapa'?` (${e.motivo})`:''):'';
+  if(e.tipo==='etapa') return `${e.de||'—'} → ${e.para||'—'}${au}`;
+  if(e.tipo==='fechado') return e.status+(e.motivo?` · ${e.motivo}`:'')+(e.auto?' · automático':'');
+  if(e.tipo==='valor') return `${brl(e.de)} → ${brl(e.para)}${e.motivo?' · '+e.motivo:''}${e.auto?' · automático':''}`;
   if(e.tipo==='qualificado') return `${e.faixa||'—'}${e.score!=null?' · '+e.score:''}${(e.motivos||[]).length?' · '+e.motivos.join('; '):''}`;
   if(e.tipo==='interacao') return `${e.direcao==='saida'?'enviada':'recebida'} · ${String(e.texto||'').slice(0,60)}`;
   if(e.tipo==='criado') return e.etapa||'';
@@ -4016,8 +4024,10 @@ function telaCrm(){
   return head('Integração CRM','Pipeline de vendas. O bot vai escrever aqui: cada mensagem vira interação, cada qualificação vira score auditável.')+
   `<div class="grid g-kpi" style="margin-bottom:16px">
     ${kpi('Abertos',r.abertos,'no funil')}${kpi('Ganhos',r.ganhos,'fechados')}${kpi('Perdidos',r.perdidos,'fechados')}
-    ${kpi('Conversão',r.conversao==null?'—':Math.round(r.conversao*100)+'%',r.conversao==null?'sem fechamento ainda':'ganhos ÷ fechados')}</div>
+    ${kpi('Conversão',r.conversao==null?'—':Math.round(r.conversao*100)+'%',r.conversao==null?'sem fechamento ainda':'ganhos ÷ fechados')}
+    ${kpi('Esfriando',r.esfriando??'—',`abertos sem conversa há ${ST.automacao?.diasEsfriar||3}+ dias`)}</div>
   ${VISAO_LEAD==='funil'?'':funilBarra()}
+  ${funilAutoCard()}
   <div class="card" style="margin-bottom:16px">
     ${cardH('crm','Leads','Cada mensagem do bot vira interação; cada qualificação, um score auditável.',1)}
     <div class="tbl-bar">
@@ -4036,7 +4046,7 @@ function telaCrm(){
           vazio:'Nenhum lead ainda — clique em <b>+ Novo lead</b>.',
           nenhum:'Nenhum lead com esse termo.',
           colunas:[
-            {t:'Lead',cel:(l)=>`<b>${esc(l.nome||'sem nome')}</b><br><small class="hint">+${esc(l.telefone)}</small>`},
+            {t:'Lead',cel:(l)=>`<b>${esc(l.nome||'sem nome')}</b>${seloParado(l)}<br><small class="hint">+${esc(l.telefone)}</small>`},
             {t:'Interesse',cel:(l)=>esc(l.interesse||'—')},
             {t:'Valor',al:'right',cel:(l)=>brl(l.valor)},
             {t:'Etapa',cel:(l)=>l.status==='aberto'
@@ -4061,10 +4071,44 @@ function colHtml(etapa){
   return `<div class="col"><div class="col-h"><h3>${esc(etapa)}</h3><span class="n">${et.leads}</span><span class="v">${brl(et.valor)}</span></div>
    ${g.map(cardLead).join('')||'<div class="hint" style="padding:12px 0;text-align:center">vazio</div>'}</div>`;
 }
+/* Lead aberto sem conversa há N+ dias (N vem do funil automático). */
+function seloParado(l){
+  const n=l.diasParado, lim=ST.automacao?.diasEsfriar||3;
+  return n!=null&&n>=lim?` <span class="tag t-morno" title="última conversa há ${n} dia(s)">parado há ${n} ${n===1?'dia':'dias'}</span>`:'';
+}
+/* Funil automático: as regras que movem o lead sozinho (engine/vscrm/automacao.mjs). */
+function funilAutoCard(){
+  const a=ST.automacao; if(!a) return '';
+  const op=(sel)=>`<option value="">não mover</option>`+ST.funil.map(e=>`<option${e===sel?' selected':''}>${esc(e)}</option>`).join('');
+  return `<div class="card" style="margin-bottom:16px" id="funilAuto">
+    ${cardH('seta','Funil automático','O lead anda sozinho com o que já acontece na conversa. Só pra frente: nunca desfaz o que você moveu.',1,
+      `<span class="badge ${a.ligada?'b-ok':''}">${a.ligada?'ligado':'desligado'}</span>`)}
+    <div class="fa-regras">
+      <label class="fa-l"><span><b>A equipe respondeu o cliente</b><small>a 1ª resposta de alguém do time</small></span>
+        <select id="faContato">${op(a.contato)}</select></label>
+      <label class="fa-l"><span><b>Saiu cobrança na conversa</b><small>o valor do pedido vira o valor do lead</small></span>
+        <select id="faProposta">${op(a.proposta)}</select></label>
+      <div class="fa-l"><span><b>Pagamento confirmado</b><small>Pix, cartão ou link — pelo gateway</small></span>
+        <span class="badge b-ok">marca como Ganho</span></div>
+      <label class="fa-l"><span><b>Avisar lead parado</b><small>aberto e sem conversa há</small></span>
+        <span style="display:flex;align-items:center;gap:6px"><input id="faDias" type="number" min="1" max="60" value="${a.diasEsfriar}" style="width:72px"> dias</span></label>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center">
+      <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="faLigada"${a.ligada?' checked':''}> Ligado</label>
+      ${botao({t:'Salvar regras',ic:'salvar',v:'p',on:'salvarFunilAuto()'})}
+    </div></div>`;
+}
+async function salvarFunilAuto(){
+  const v=(id)=>document.getElementById(id);
+  try{
+    await api('funil/automacao',{ligada:v('faLigada').checked,contato:v('faContato').value||null,proposta:v('faProposta').value||null,diasEsfriar:Number(v('faDias').value)});
+    avisoOk('Regras do funil salvas');carregar();
+  }catch(e){avisoErro('Não salvei as regras',e.message);}
+}
 function cardLead(l){
   const tags=[l.faixa?`<span class="tag t-${esc(l.faixa)}">${esc(l.faixa)}${l.score!=null?' · '+l.score:''}</span>`:'',
    l.telefoneAviso?`<span class="tag t-morno">telefone suspeito</span>`:'',
-   l.origem&&l.origem!=='manual'?`<span class="tag">${esc(l.origem)}</span>`:''].join('');
+   l.origem&&l.origem!=='manual'?`<span class="tag">${esc(l.origem)}</span>`:'',seloParado(l)].join('');
   return `<div class="lead"><div class="nm">${esc(l.nome||'sem nome')}</div>
    <div class="meta">+${esc(l.telefone)}${l.interesse?' · '+esc(l.interesse):''} · ${brl(l.valor)}</div>
    ${tags?`<div class="tags">${tags}</div>`:''}
@@ -5838,7 +5882,7 @@ function telaAtendimento(canal){
       if(h.tipo==='_transferida') return out+`<div class="cv-evento ev-transf">${ico('alerta')}Transferido para humano${c.departamento&&c.departamento!=='humano'?' · '+esc(c.departamento):''} · ${hora(h.quando)}</div>`;
       if(h.tipo==='_assumida') return out+`<div class="cv-evento ev-assum">${ico('crm')}${esc(c.assumidaPor?.nome||'Vendedor')} assumiu a conversa · ${hora(h.quando)}</div>`;
       if(h.tipo==='roteamento'||h.tipo==='responsavel') return out+eventoComercial(h,hora);
-      if(h.tipo==='etapa') return out+`<div class="cv-evento">${ico('seta')}etapa: <b>${esc(h.de||'—')}</b> → <b>${esc(h.para||'—')}</b> · ${hora(h.quando)}</div>`;
+      if(h.tipo==='etapa') return out+`<div class="cv-evento">${ico('seta')}etapa: <b>${esc(h.de||'—')}</b> → <b>${esc(h.para||'—')}</b>${h.auto?' · automático':''} · ${hora(h.quando)}</div>`;
       if(h.tipo==='fechado') return out+`<div class="cv-evento">${ico('check')}atendimento fechado${h.motivo?' · '+esc(h.motivo):''} · ${hora(h.quando)}</div>`;
       return out;
     }).join('');

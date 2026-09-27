@@ -61,6 +61,11 @@ function garantirProtocolo(telefone, endereco, departamento) {
     return vivo;
   } catch (e) { console.error(`[protocolo] nao garanti o protocolo: ${e.message}`); return null; }
 }
+/* Saiu pedido na conversa: o lead anda pra etapa de proposta com o valor do
+   pedido (funil automático). Falha aqui nunca derruba o atendimento. */
+function funilCobranca(telefone, referencia, valorCentavos) {
+  try { crm.eventoDeVenda(telefone, 'cobranca', { referencia, valorCentavos }); } catch (e) { console.error(`[crm] funil nao andou na cobranca ${referencia}: ${e.message}`); }
+}
 const equipesComGente = () => [...new Set(operadores.ativos(operadores.listar()).map((o) => qualif.normEquipe(o.setor)))];
 const tiersComGente = () => qualif.tiersComGente(operadores.ativos(operadores.listar()));
 
@@ -394,6 +399,7 @@ async function receberNoCanal(msg, deps = {}) {
          ao canal com prova. */
       resultados.registrarPedido({ referencia: r.cobranca.referencia, pagamentoId: c.pagamento.id, telefone: t.telefone,
         endereco: msg.endereco || null, canal, valorCentavos: c.pagamento.valorCentavos, nome: msg.nome || lead?.nome || null, itens: r.cobranca.itens });
+      funilCobranca(t.telefone, r.cobranca.referencia, c.pagamento.valorCentavos);
       /* NUMERO DO PEDIDO na mensagem. Sem ele o cliente nao tem como cobrar
          nada depois — "meu pedido" nao identifica pedido nenhum, e quem atende
          fica perguntando telefone e horario pra achar. E o mesmo numero que vai
@@ -419,6 +425,7 @@ async function receberNoCanal(msg, deps = {}) {
       // Pedido sem cobranca: conta como pedido, nunca como receita (nao ha pagamento pra comprovar).
       resultados.registrarPedido({ referencia: r.cobranca.referencia, pagamentoId: null, telefone: t.telefone,
         endereco: msg.endereco || null, canal, valorCentavos: r.cobranca.valorCentavos, nome: msg.nome || lead?.nome || null, itens: r.cobranca.itens });
+      funilCobranca(t.telefone, r.cobranca.referencia, r.cobranca.valorCentavos);
       texto = [texto, `Pedido *${r.cobranca.referencia}*`, `Total: ${emReais(r.cobranca.valorCentavos)}`, '',
         'Não consegui gerar o link de pagamento agora — pode pagar na entrega, combinado?'].filter(Boolean).join('\n');
     }
