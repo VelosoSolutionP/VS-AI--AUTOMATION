@@ -22,7 +22,7 @@ const { podePublicarCom } = await import('../engine/canais/telegram/index.mjs');
 
 const mundo = { produto: () => null, imagem: () => null, linkBot: 'https://t.me/lojabot' };
 function campanhaAtiva(nome, codigo) {
-  const { campanha } = C.salvar({ objetivo: 'captar', nome, texto: `Entre na ${nome}`, codigo });
+  const { campanha } = C.salvar({ objetivo: 'captar', nome, texto: `${nome}: entre na nossa lista e receba as ofertas antes de todo mundo. Toque no botão abaixo.`, codigo, divulgacao: ['canal-telegram', 'instagram'], captar: { solucao: nome, publico: 'clientes', beneficio: 'ofertas antes de todo mundo', acao: 'lista' } });
   const a = C.aprovar(campanha.id, mundo);
   assert.equal(a.ok, true, a.erro);
   return a.campanha;

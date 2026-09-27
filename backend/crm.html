@@ -1326,6 +1326,21 @@ td.num,th.num{text-align:right;white-space:nowrap}
 .cp-pubs{display:grid;gap:6px;margin-top:6px}
 .cp-pub{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--line);border-radius:10px;padding:7px 10px;background:var(--panel-2);font-size:12.5px}
 .cp-pub small{color:var(--dim)} .cp-pub a{font-size:12px} .cp-pub .cp-pub-erro{flex:1 1 100%;color:var(--err)}
+.cp-auto-cab{display:flex;gap:12px;align-items:center;border:1px solid var(--ac-line);background:var(--ac-soft);border-radius:12px;padding:12px}
+.cp-auto-ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--ac);color:#fff;flex:0 0 40px} .cp-auto-ic svg{width:20px;height:20px}
+.cp-conserto{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0;font-size:12.5px;color:var(--muted)}
+.cp-lugares{display:flex;flex-wrap:wrap;gap:6px}
+.cp-lugar{display:inline-flex!important;align-items:center;gap:6px;border:1px solid var(--line);border-radius:99px;padding:5px 11px;font-size:12.5px!important;color:var(--muted)!important;cursor:pointer;margin:0!important;background:var(--panel-2)}
+.cp-lugar input{width:auto!important;margin:0} .cp-lugar.on{border-color:var(--ac);background:var(--ac-soft);color:var(--ac)!important}
+.cp-ajuda{border:1px solid var(--ac-line);background:var(--ac-soft);border-radius:12px;padding:12px;display:grid;gap:8px}
+.cp-ajuda-h{display:flex;gap:10px;align-items:flex-start} .cp-ajuda-h>svg{width:18px;height:18px;color:var(--ac);flex:0 0 18px;margin-top:2px}
+.cp-ajuda-h>div{flex:1} .cp-ajuda-h b{display:block;font-size:13.5px} .cp-ajuda-h small{font-size:12px;color:var(--muted)}
+.cp-ajuda-sei{display:flex;flex-wrap:wrap;gap:6px;align-items:center} .cp-ajuda-sei small{font-size:11px;color:var(--dim);width:100%}
+.cp-ajuda-sei span{display:inline-flex;align-items:center;gap:5px;font-size:12px;background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:3px 9px}
+.cp-ajuda-sei svg{width:12px;height:12px;color:var(--ok)}
+.cp-ajuda-q label{display:block;font-size:12.5px;font-weight:650;margin-bottom:4px;color:var(--fg)}
+.cp-sug{border:1px dashed var(--ac-line);background:var(--panel);color:var(--fg);border-radius:8px;padding:4px 9px;font:inherit;font-size:12px;margin:0 6px 6px 0;cursor:pointer}
+.cp-evid{display:block;font-size:11px;color:var(--dim);margin-top:2px}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
@@ -7455,11 +7470,11 @@ const CP_OBJ={
   produto:{t:'Divulgar produto',d:'Um item do catálogo, com foto e preço.',ic:'estoque'},
   promocao:{t:'Criar promoção',d:'Preço promocional com prazo.',ic:'vender'},
   evento:{t:'Divulgar evento',d:'Data e local — bazar, lançamento, live.',ic:'relogio'},
-  captar:{t:'Captar clientes',d:'Só mensagem e link, sem produto.',ic:'person'},
+  captar:{t:'Captar clientes',d:'Apresente uma solução e traga interessados.',ic:'person'},
 };
-const CP_NIVEL={ok:['Aprovado','b-ok'],sugerir:['Sugestão','b-ac'],alertar:['Atenção','b-warn'],revisar:['Revisar','b-warn'],corrigir:['Corrigir','b-err'],bloquear:['Bloqueado','b-err']};
+const CP_NIVEL={ok:['OK','b-ok'],sugerir:['Recomendação','b-ac'],alertar:['Recomendação','b-warn'],revisar:['Conferir','b-warn'],corrigir:['Reprova','b-err'],bloquear:['Reprova','b-err']};
 const CP_ORDEM=['ok','sugerir','alertar','revisar','corrigir','bloquear'];
-const CP_GRUPO={produto:'Produto e preço',imagem:'Imagem',mensagem:'Mensagem',destino:'Destino (link)'};
+const CP_GRUPO={requisitos:'Informações obrigatórias',produto:'Produto e preço',imagem:'Imagem',mensagem:'Mensagem',destino:'Destino e alcance'};
 const CP_ESTADO={rascunho:'',"em-revisao":'b-warn',"aguardando-aprovacao":'b-ac',ativa:'b-ok',encerrada:''};
 const cpLink=(codigo)=>{ const b=CP[RES_DIAS]?.linkBot; return b&&codigo?`${b}?start=${codigo}`:null; };
 const cpReaisTxt=(c)=>c==null?'':(c/100).toFixed(2).replace('.',',');
@@ -7506,12 +7521,12 @@ function telaCampanhas(){
 }
 
 /* ── assistente ── */
-function cpVazio(){ return {id:null,objetivo:'produto',nome:'',sku:'',texto:'',imagem:null,botao:'Falar com a loja',codigo:'',promo:{precoCentavos:null,ate:'',comoAproveitar:''},evento:{data:'',local:''}}; }
-function novaCampanha(){ CP_ED={passo:1,d:cpVazio(),c:null}; render(); }
+function cpVazio(){ return {id:null,objetivo:'produto',nome:'',sku:'',texto:'',imagem:null,botao:'Falar com a loja',codigo:'',divulgacao:[],promo:{precoCentavos:null,ate:'',comoAproveitar:''},evento:{data:'',hora:'',local:'',link:'',descricao:''},captar:{solucao:'',sku:'',publico:'',beneficio:'',acao:''}}; }
+function novaCampanha(){ CP_ED={passo:1,d:cpVazio(),c:null,variacao:0}; render(); }
 function editarCampanha(id){
   const c=(CP[RES_DIAS]?.campanhas||[]).find(x=>x.id===id); if(!c) return;
   fecharModal?.();
-  CP_ED={passo:c.auditoria&&c.estado!=='rascunho'?2:1,c,d:{...cpVazio(),...c,promo:{...cpVazio().promo,...(c.promo||{})},evento:{...cpVazio().evento,...(c.evento||{})},sku:c.sku||''}};
+  CP_ED={passo:c.auditoria&&c.estado!=='rascunho'?2:1,c,d:{...cpVazio(),...c,promo:{...cpVazio().promo,...(c.promo||{})},evento:{...cpVazio().evento,...(c.evento||{})},captar:{...cpVazio().captar,...(c.captar||{})},divulgacao:c.divulgacao||[],sku:c.sku||''}};
   render();
 }
 function fecharAssistente(){ CP_ED=null; carregarCampanhas(true); render(); }
@@ -7522,23 +7537,189 @@ function cpSet(k,v){ const d=CP_ED.d; const [a,b]=k.split('.'); if(b) d[a]={...d
 function cpSetRender(k,v){ cpSet(k,v); render(); }
 /* Mexeu no material: a auditoria que estava na tela era da versão anterior. */
 function cpSujo(){ if(CP_ED.c&&CP_ED.c.auditoria) CP_ED.sujo=true; }
-function cpObjetivo(o){ CP_ED.d.objetivo=o; if(!['produto','promocao'].includes(o)) CP_ED.d.sku=''; cpSujo(); render(); }
+const CP_BOTAO={produto:'Falar com a loja',promocao:'Quero a promoção',evento:'Quero participar',captar:'Quero saber mais'};
+function cpObjetivo(o){ const d=CP_ED.d; d.objetivo=o; if(!['produto','promocao'].includes(o)) d.sku='';
+  // O texto do botão acompanha o objetivo — a não ser que o dono já tenha escrito o dele.
+  if(!d.botao||[...Object.values(CP_BOTAO),...Object.values(CP_BOTAO_ACAO),'Quero entrar'].includes(d.botao)) d.botao=CP_BOTAO[o];
+  cpSujo(); render(); }
 function cpEscolherProduto(sku){
   const d=CP_ED.d; d.sku=sku; const p=cpProduto(); cpSujo();
   if(p){ if(!d.nome) d.nome=(d.objetivo==='promocao'?'Promo ':'')+p.nome;
-    if(!d.imagem&&p.imagem) d.imagem={url:p.imagem,doCatalogo:true};
+    if(!d.imagem&&p.imagem){ d.imagem={url:p.imagem,doCatalogo:true}; cpAnalisar(p.imagem).then(a=>{ if(a&&CP_ED?.d.imagem?.url===p.imagem){ CP_ED.d.imagem.analise=a; } }); }
     if(!d.texto) d.texto=cpTextoModelo(); }
   render();
 }
-function cpTextoModelo(){
-  const d=CP_ED.d, p=cpProduto(), R=(c)=>'R$ '+cpReaisTxt(c);
-  if(d.objetivo==='promocao'&&p){ const normal=p.precoDeCentavos??p.precoCentavos;
-    return `🔥 ${p.nome} em promoção!\n\nDe ${R(normal)} por ${d.promo.precoCentavos?R(d.promo.precoCentavos):'R$ —'}${d.promo.ate?`, só até ${d.promo.ate.split('-').reverse().join('/')}`:''}.\n${d.promo.comoAproveitar||'Toque no botão abaixo e fale com a gente.'}`; }
-  if(d.objetivo==='produto'&&p) return `${p.nome}${p.descricao?`\n\n${String(p.descricao).slice(0,400)}`:''}\n\nPor ${R(p.precoCentavos)}. Toque no botão abaixo e peça o seu!`;
-  if(d.objetivo==='evento') return `📅 ${d.nome||'Nosso evento'}${d.evento.data?` — ${d.evento.data.split('-').reverse().join('/')}`:''}${d.evento.local?`, ${d.evento.local}`:''}.\n\nToque no botão abaixo pra saber mais.`;
-  return `${d.nome||'Novidades da loja'}: entre na nossa lista e receba as ofertas primeiro.\n\nToque no botão abaixo.`;
+/* ── Qualidade da campanha: textos prontos, arte gerada e campanha automática ─
+   Tudo no navegador e sem IA (custo zero): o texto sai de modelos com os dados
+   da campanha; a arte é desenhada num canvas (foto do produto + título + preço
+   + chamada) e enviada como imagem da campanha. */
+const cpLoja=()=>CP[RES_DIAS]?.loja||'nossa loja';
+/* ONDE o link vai aparecer — regra de negócio: captar num lugar só não capta. */
+const CP_LUGARES={'canal-telegram':'Canal do Telegram','grupo-telegram':'Grupo do Telegram',instagram:'Instagram','whatsapp-status':'Status do WhatsApp','grupo-whatsapp':'Grupo do WhatsApp',site:'Site / loja virtual',panfleto:'Panfleto ou cartaz (QR)',email:'E-mail',balcao:'Balcão da loja',outro:'Outro lugar'};
+const CP_ALCANCE={captar:2,evento:1,produto:1,promocao:1};
+function cpLugaresHtml(){
+  const d=CP_ED.d, min=CP_ALCANCE[d.objetivo]||1, n=(d.divulgacao||[]).length;
+  const dica=d.objetivo==='captar'?`Captar clientes pede alcance: <b>pelo menos ${min} lugares</b> — num lugar só quase ninguém novo chega.`
+    :d.objetivo==='evento'?'Onde as pessoas vão ficar sabendo do evento.':'Ajuda a saber de onde vieram as vendas.';
+  return `<div class="field"><label style="display:flex;align-items:center">Onde vai divulgar <span class="cp-conta${n<min?' estourou':''}" style="margin-left:auto">${n} de ${min}+</span></label>
+    <div class="cp-lugares">${Object.entries(CP_LUGARES).map(([k,v])=>`<label class="cp-lugar${(d.divulgacao||[]).includes(k)?' on':''}"><input type="checkbox" ${(d.divulgacao||[]).includes(k)?'checked':''} onchange="cpLugar('${k}',this.checked)">${esc(v)}</label>`).join('')}</div>
+    <p class="hint" style="margin-top:5px">${dica}</p></div>`;
 }
-function cpMontarTexto(){ CP_ED.d.texto=cpTextoModelo(); cpSujo(); render(); }
+function cpLugar(k,on){ const d=CP_ED.d; d.divulgacao=on?[...new Set([...(d.divulgacao||[]),k])]:(d.divulgacao||[]).filter(x=>x!==k); cpSujo(); render(); }
+function cpTextos(){
+  const d=CP_ED.d, p=cpProduto(), R=(c)=>'R$ '+cpReaisTxt(c), loja=cpLoja();
+  const ate=d.promo.ate?d.promo.ate.split('-').reverse().join('/'):null;
+  const desc=p?.descricao?String(p.descricao).slice(0,300):(d.descricaoExtra||'');
+  if(d.objetivo==='promocao'&&p){ const normal=p.precoDeCentavos??p.precoCentavos, por=d.promo.precoCentavos?R(d.promo.precoCentavos):'R$ —', como=d.promo.comoAproveitar?`${d.promo.comoAproveitar.replace(/\.$/,'')}.`:'';
+    return [`🔥 ${p.nome} em promoção!\n\nDe ${R(normal)} por ${por}${ate?`, só até ${ate}`:''}.\n${como} Toque no botão abaixo e garanta o seu.`,
+      `Oferta da ${loja}: ${p.nome} de ${R(normal)} por ${por}${ate?` até ${ate}`:''}.\n\n${como} Chame no botão abaixo.`,
+      `Preço baixou! 👇\n\n${p.nome}\nAntes ${R(normal)} — agora ${por}${ate?` (até ${ate})`:''}.\n\n${como} Toque no botão e fale com a gente.`]; }
+  if(d.objetivo==='produto'&&p){
+    return [`${p.nome}${desc?`\n\n${desc}`:''}\n\nPor ${R(p.precoCentavos)}. Toque no botão abaixo e peça o seu!`,
+      `Chegou na ${loja}: ${p.nome}.${desc?` ${desc}`:''}\n\nSai por ${R(p.precoCentavos)}. Chame no botão abaixo que a gente separa o seu.`,
+      `${p.nome} por ${R(p.precoCentavos)}.\n\n${desc}\n\nToque no botão e garanta o seu.`.replace(/\n\n\n/g,'\n\n')]; }
+  if(d.objetivo==='evento'){ const e=d.evento, quando=[e.data?e.data.split('-').reverse().join('/'):null,e.hora?`às ${e.hora}`:null].filter(Boolean).join(' '), onde=e.local||(e.link?`on-line: ${e.link}`:''), sobre=e.descricao?`${e.descricao.replace(/\.$/,'')}.`:'';
+    return [`📅 ${d.nome} — ${quando}${onde?` · ${onde}`:''}.\n\n${sobre} Toque no botão abaixo para saber mais e confirmar presença.`,
+      `A ${loja} te convida: ${d.nome}!\n\n${sobre}\nQuando: ${quando}${onde?`\nOnde: ${onde}`:''}\n\nChame no botão abaixo e reserve o seu lugar.`,
+      `Marque na agenda: ${d.nome} 🎉\n\n${sobre}\n${quando}${onde?` · ${onde}`:''}\n\nToque no botão e fale com a gente para participar.`]; }
+  // Captar clientes: só solução, público, benefício e ação INFORMADOS — nada inventado.
+  const c=d.captar, sol=c.solucao||cpSolucaoCat()?.nome||'', ben=(c.beneficio||'').replace(/\.$/,''), pub=c.publico||'';
+  const acao={conhecer:'Toque no botão abaixo para conhecer.',demonstracao:'Toque no botão abaixo e peça uma demonstração.',vendedor:'Toque no botão abaixo e converse com nossa equipe.',lista:'Toque no botão abaixo para entrar na lista.'}[c.acao]||'Toque no botão abaixo.';
+  const Ben=ben.charAt(0).toUpperCase()+ben.slice(1);
+  return [`${Ben}.\n\nConheça ${sol}${pub?`, feito para ${pub}`:''}.\n\n${acao}`,
+    `${pub?`Para ${pub}: `:''}${sol} — ${ben}.\n\n${acao}`,
+    `Quer ${ben.charAt(0).toLowerCase()+ben.slice(1)}?\n\n${sol}${pub?` foi pensado para ${pub}`:''}.\n${acao}`];
+}
+function cpTextoModelo(){ const v=cpTextos(); return v[(CP_ED.variacao||0)%v.length]; }
+function cpRefazerTexto(){ if(cpFaltando().length) return cpAbrirAjuda(); if(CP_ED.d.texto) CP_ED.variacao=((CP_ED.variacao||0)+1)%cpTextos().length; CP_ED.d.texto=cpTextoModelo(); cpSujo(); render(); }
+const cpMontarTexto=cpRefazerTexto;
+
+/* Mede a imagem num canvas pequeno: variação de cor (lisa = sem conteúdo) e brilho. */
+async function cpAnalisar(url){
+  try{
+    const img=await new Promise((ok,no)=>{ const i=new Image(); i.crossOrigin='anonymous'; i.onload=()=>ok(i); i.onerror=no; i.src=url; });
+    const c=document.createElement('canvas'); c.width=48; c.height=48; const g=c.getContext('2d'); g.drawImage(img,0,0,48,48);
+    const px=g.getImageData(0,0,48,48).data; const lum=[];
+    for(let i=0;i<px.length;i+=4) lum.push(0.299*px[i]+0.587*px[i+1]+0.114*px[i+2]);
+    const m=lum.reduce((a,b)=>a+b,0)/lum.length, dp=Math.sqrt(lum.reduce((a,b)=>a+(b-m)**2,0)/lum.length);
+    return {variacao:Math.round(dp),brilho:Math.round(m)};
+  }catch{ return null; }
+}
+async function cpDefinirImagem(img){ CP_ED.d.imagem=img; cpSujo(); render(); if(img?.url&&!img.analise){ const a=await cpAnalisar(img.url); if(a&&CP_ED?.d.imagem===img){ img.analise=a; render(); } } }
+
+/* A ARTE: 1080×1080, cores do painel, foto do produto (se houver), título,
+   preço/data e a chamada. Texto grande: no celular é o que se lê. */
+function cpQuebrar(g,txt,larg,maxLin){ const pal=String(txt).split(/\s+/); const lin=[]; let l='';
+  for(const w of pal){ const t=l?l+' '+w:w; if(g.measureText(t).width>larg&&l){ lin.push(l); l=w; } else l=t; }
+  if(l) lin.push(l); if(lin.length>maxLin){ lin.length=maxLin; lin[maxLin-1]=lin[maxLin-1].replace(/\s*\S*$/,'')+'…'; } return lin; }
+async function cpDesenharArte(){
+  const d=CP_ED.d, p=cpProduto(), R=(c)=>'R$ '+cpReaisTxt(c);
+  const c=document.createElement('canvas'); c.width=1080; c.height=1080; const g=c.getContext('2d');
+  const fundo=g.createLinearGradient(0,0,1080,1080); fundo.addColorStop(0,'#1e1b4b'); fundo.addColorStop(1,'#4f46e5'); g.fillStyle=fundo; g.fillRect(0,0,1080,1080);
+  g.fillStyle='rgba(255,255,255,.06)'; for(let i=0;i<6;i++){ g.beginPath(); g.arc(980-i*40,120+i*30,160-i*18,0,7); g.fill(); }
+  let topoTexto=180;
+  const fotoUrl=(d.imagem?.doCatalogo||!d.imagem?.gerada)&&p?.imagem?p.imagem:null;
+  if(fotoUrl){ try{ const img=await new Promise((ok,no)=>{ const i=new Image(); i.crossOrigin='anonymous'; i.onload=()=>ok(i); i.onerror=no; i.src=fotoUrl; });
+      const x=90,y=90,w=900,h=560, r=Math.max(w/img.width,h/img.height), sw=w/r, sh=h/r;
+      g.save(); g.beginPath(); g.roundRect(x,y,w,h,36); g.clip(); g.drawImage(img,(img.width-sw)/2,(img.height-sh)/2,sw,sh,x,y,w,h); g.restore(); topoTexto=720;
+    }catch{ /* foto indisponível: arte só com texto */ } }
+  const titulo=d.objetivo==='produto'||d.objetivo==='promocao'?(p?.nome||d.nome):(d.nome||'Lista VIP');
+  const sub=d.objetivo==='promocao'&&p?`De ${R(p.precoDeCentavos??p.precoCentavos)} por ${d.promo.precoCentavos?R(d.promo.precoCentavos):'—'}`
+    :d.objetivo==='produto'&&p?`Por ${R(p.precoCentavos)}`
+    :d.objetivo==='evento'?[d.evento.data?d.evento.data.split('-').reverse().join('/'):null,d.evento.local].filter(Boolean).join(' · ')||'Em breve'
+    :'Ofertas antes de todo mundo';
+  g.fillStyle='#fff'; g.textBaseline='top';
+  const tamT=topoTexto>600?68:96; g.font=`800 ${tamT}px system-ui,-apple-system,Segoe UI,Roboto,sans-serif`;
+  const lin=cpQuebrar(g,titulo,900,topoTexto>600?2:3); lin.forEach((l,i)=>g.fillText(l,90,topoTexto+i*(tamT*1.1)));
+  let y=topoTexto+lin.length*(tamT*1.1)+18;
+  g.font=`700 ${topoTexto>600?48:60}px system-ui,-apple-system,Segoe UI,Roboto,sans-serif`; g.fillStyle=d.objetivo==='promocao'||d.objetivo==='produto'?'#4ade80':'#c7d2fe';
+  cpQuebrar(g,sub,900,1).forEach((l)=>g.fillText(l,90,y)); y+=80;
+  const cta='Toque no botão abaixo 👇'; g.font='700 40px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
+  const wc=g.measureText(cta).width+80, yc=Math.min(Math.max(y,860),960);
+  g.fillStyle='#fff'; g.beginPath(); g.roundRect(90,yc,wc,84,42); g.fill(); g.fillStyle='#1e1b4b'; g.fillText(cta,130,yc+20);
+  g.font='600 30px system-ui,-apple-system,Segoe UI,Roboto,sans-serif'; g.fillStyle='rgba(255,255,255,.75)'; g.textAlign='right'; g.fillText(cpLoja(),990,1015); g.textAlign='left';
+  const px=g.getImageData(0,0,1080,1080).data; let s=0,s2=0,n=0; for(let i=0;i<px.length;i+=4*97){ const l=0.299*px[i]+0.587*px[i+1]+0.114*px[i+2]; s+=l; s2+=l*l; n++; }
+  const m=s/n; return {canvas:c,analise:{variacao:Math.round(Math.sqrt(Math.max(0,s2/n-m*m))),brilho:Math.round(m)}};
+}
+async function cpGerarImagem(silencioso){
+  try{
+    const {canvas,analise}=await cpDesenharArte();
+    const blob=await new Promise((ok)=>canvas.toBlob(ok,'image/png'));
+    const r=await fetch('/crm/api/midia?tipo=imagem&nome=campanha.png',{method:'POST',headers:{'content-type':'image/png',...(TOKEN?{'x-crm-token':TOKEN}:{})},body:blob});
+    const j=await r.json().catch(()=>({erro:'resposta inválida do servidor'}));
+    if(!r.ok||j.erro) throw new Error(j.erro||('HTTP '+r.status));
+    CP_ED.d.imagem={arquivo:j.arquivo,url:j.url,gerada:true,analise}; cpSujo();
+    if(!silencioso){ render(); flash('Arte da campanha gerada — veja na prévia.','ok'); }
+    return true;
+  }catch(e){ avisoErro('Não consegui gerar a imagem',esc(e.message)); return false; }
+}
+
+/* ── Assistente de preparação (sem IA): consulta o que já existe, pergunta só o
+   que falta para o objetivo e monta a sugestão a partir de um modelo aprovado.
+   Não inventa oferta — o texto usa apenas o que veio do catálogo ou do cliente. */
+const CP_ACOES={conhecer:'Conhecer a solução',demonstracao:'Pedir uma demonstração',vendedor:'Conversar com um vendedor',lista:'Entrar na lista de novidades'};
+const CP_BOTAO_ACAO={conhecer:'Quero conhecer',demonstracao:'Quero uma demonstração',vendedor:'Falar com um vendedor',lista:'Quero entrar'};
+/* 10% abaixo do preço normal, terminando em ,90 (R$ 49,90 → R$ 44,90). */
+function cpPrecoSugerido(p){ const alvo=(p.precoDeCentavos??p.precoCentavos)*0.9; let v=Math.floor(alvo/100)*100+90; if(v>alvo) v-=100; return Math.max(90,v); }
+const cpSolucaoCat=()=>(CP[RES_DIAS]?.catalogo||[]).find(p=>p.sku===CP_ED?.d.captar?.sku)||null;
+const AJUDA_RE=[/\b(monta|montar|faz|fazer|faca|cria|criar|escreve|escrever|gera|gerar|prepara)\b.{0,15}\b(pra|para|por)\s*(mim|nos|a gente)\b/,/\bme ajud/,/\b(nao sei|sei la|qualquer coisa|tanto faz)\b/,/^\s*(teste|testando|test|xxx+|aaa+|\.+|-+)\s*$/];
+const cpEhAjuda=(t)=>AJUDA_RE.some(re=>re.test(String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()));
+/* O que o objetivo exige e ainda falta (espelho do auditor, sem o que depende do texto). */
+function cpFaltando(){
+  const d=CP_ED.d, p=cpProduto(), f=[];
+  if(d.objetivo==='produto'){ if(!d.sku) f.push('produto'); if(p&&!p.descricao) f.push('descricao'); }
+  if(d.objetivo==='promocao'){ if(!d.sku) f.push('produto'); if(!(d.promo.precoCentavos>0)) f.push('precoPromo'); if(!d.promo.ate) f.push('validade'); if(!d.promo.comoAproveitar) f.push('condicoes'); }
+  if(d.objetivo==='evento'){ if(!d.nome.trim()) f.push('nome'); if(!d.evento.descricao) f.push('evDescricao'); if(!d.evento.data) f.push('data'); if(!d.evento.hora) f.push('hora'); if(!d.evento.local&&!d.evento.link) f.push('local'); }
+  if(d.objetivo==='captar'){ const c=d.captar; if(!c.solucao&&!c.sku) f.push('solucao'); if(!c.publico) f.push('publico'); if(!c.beneficio) f.push('beneficio'); if(!c.acao) f.push('acao'); }
+  if((d.divulgacao||[]).length<(CP_ALCANCE[d.objetivo]||1)) f.push('divulgacao');
+  return f;
+}
+const CP_PERGUNTA={produto:'Qual produto do catálogo?',descricao:'Descreva o produto em uma frase (o catálogo não tem descrição).',precoPromo:'Qual o preço promocional?',validade:'Até quando vale a promoção?',
+  condicoes:'Quais as condições? (como aproveitar)',nome:'Qual o nome do evento?',evDescricao:'O que vai ter no evento? (uma frase)',data:'Qual a data?',hora:'Que horas?',local:'Onde? (endereço — ou o link, se for on-line)',
+  solucao:'Qual solução você quer anunciar?',publico:'Para quem é? (público-alvo)',beneficio:'Qual benefício real a pessoa ganha?',acao:'Depois de clicar, a pessoa vai…',divulgacao:'Onde o link vai aparecer?'};
+function cpBeneficiosDoCatalogo(){ const s=cpSolucaoCat(); return s?.descricao?String(s.descricao).split(/[.;\n]+/).map(x=>x.trim()).filter(x=>x.length>8).slice(0,5):[]; }
+function cpAjudaHtml(){
+  const d=CP_ED.d, p=cpProduto(), s=cpSolucaoCat(), falta=cpFaltando(), R=(c)=>reais(c);
+  const sei=[]; // o que já está cadastrado — não perguntar de novo
+  if(p){ sei.push(`Produto: <b>${esc(p.nome)}</b>`); sei.push(`Preço: <b>${R(p.precoCentavos)}</b>${p.precoDeCentavos?` (de ${R(p.precoDeCentavos)})`:''}`); if(p.descricao) sei.push(`Descrição: “${esc(String(p.descricao).slice(0,80))}”`); if(p.imagem) sei.push('Foto do produto'); }
+  if(s){ sei.push(`Solução: <b>${esc(s.nome)}</b> (catálogo)`); if(s.descricao) sei.push(`Benefícios cadastrados: “${esc(String(s.descricao).slice(0,80))}”`); }
+  const campo={produto:()=>'<p class="hint">Escolha o produto no campo acima.</p>',
+    descricao:()=>`<input id="ajDesc" maxlength="200" placeholder="Ex.: algodão 100%, do P ao GG" value="${esc(d.ajudaDescricao||'')}" oninput="CP_ED.d.ajudaDescricao=this.value">`,
+    precoPromo:()=>`<input inputmode="decimal" placeholder="${p?cpReaisTxt(cpPrecoSugerido(p)):'39,90'}" value="${esc(cpReaisTxt(d.promo.precoCentavos))}" oninput="cpSet('promo.precoCentavos',cpCentavos(this.value))">`,
+    validade:()=>`<input type="date" value="${esc(d.promo.ate||'')}" oninput="cpSet('promo.ate',this.value)">`,
+    condicoes:()=>`<input maxlength="160" placeholder="Ex.: diga PROMO no botão · 1 por cliente" value="${esc(d.promo.comoAproveitar||'')}" oninput="cpSet('promo.comoAproveitar',this.value)">`,
+    nome:()=>`<input maxlength="80" placeholder="Ex.: Bazar de primavera" value="${esc(d.nome)}" oninput="cpSet('nome',this.value)">`,
+    evDescricao:()=>`<input maxlength="200" placeholder="Ex.: peças a partir de R$ 10 e café para quem vier" value="${esc(d.evento.descricao||'')}" oninput="cpSet('evento.descricao',this.value)">`,
+    data:()=>`<input type="date" value="${esc(d.evento.data||'')}" oninput="cpSet('evento.data',this.value)">`,
+    hora:()=>`<input type="time" value="${esc(d.evento.hora||'')}" oninput="cpSet('evento.hora',this.value)">`,
+    local:()=>`<input maxlength="160" placeholder="Endereço, ou https://… se for on-line" value="${esc(d.evento.local||d.evento.link||'')}" oninput="/^https?:/.test(this.value)?(cpSet('evento.link',this.value),cpSet('evento.local','')):(cpSet('evento.local',this.value),cpSet('evento.link',''))">`,
+    solucao:()=>`${cpSolucaoSelect()}<input maxlength="120" placeholder="…ou descreva: ex.: CRM para pequenas empresas" value="${esc(d.captar.solucao||'')}" oninput="cpSet('captar.solucao',this.value)" style="margin-top:6px">`,
+    publico:()=>`<input maxlength="160" placeholder="Ex.: pequenas lojas que vendem pelo WhatsApp" value="${esc(d.captar.publico||'')}" oninput="cpSet('captar.publico',this.value)">`,
+    beneficio:()=>`${cpBeneficiosDoCatalogo().map(b=>`<button class="cp-sug" onclick="cpSetRender('captar.beneficio',${esc(JSON.stringify(b))})">${esc(b)}</button>`).join('')}
+      <input maxlength="300" placeholder="Ex.: reúne atendimento e pedidos num lugar só" value="${esc(d.captar.beneficio||'')}" oninput="cpSet('captar.beneficio',this.value)" style="margin-top:6px">`,
+    acao:()=>`<div class="cp-lugares">${Object.entries(CP_ACOES).map(([k,v])=>`<label class="cp-lugar${d.captar.acao===k?' on':''}"><input type="radio" name="ajAcao" ${d.captar.acao===k?'checked':''} onchange="cpAcao('${k}')">${esc(v)}</label>`).join('')}</div>`,
+    divulgacao:()=>'<p class="hint">Marque em <b>Onde vai divulgar</b>, mais abaixo.</p>'};
+  return `<div class="cp-ajuda"><div class="cp-ajuda-h">${ico('gerar')}<div><b>Assistente de campanha</b><small>Uso o que já está cadastrado e pergunto só o que falta para “${esc(CP_OBJ[d.objetivo].t)}”.</small></div>${bi('fechar','Fechar o assistente','CP_ED.ajuda=false;render()')}</div>
+    ${sei.length?`<div class="cp-ajuda-sei"><small>Já sei</small>${sei.map(x=>`<span>${ico('check')}${x}</span>`).join('')}</div>`:''}
+    ${falta.length?falta.map(k=>`<div class="cp-ajuda-q"><label>${esc(CP_PERGUNTA[k])}</label>${campo[k]()}</div>`).join(''):'<p class="hint" style="margin:6px 0">Tenho tudo o que preciso.</p>'}
+    <div style="margin-top:10px">${botao({t:'Montar a sugestão',ic:'gerar',v:'p',sz:'xs',on:'cpMontarComAjuda()',id:'btCpMontar'})}<small class="hint" style="margin-left:8px">Você revisa e edita antes de auditar.</small></div></div>`;
+}
+function cpSolucaoSelect(){ const cat=CP[RES_DIAS]?.catalogo||[], d=CP_ED.d; if(!cat.length) return '';
+  return `<select onchange="CP_ED.d.captar.sku=this.value;if(this.value){CP_ED.d.captar.solucao=(cpSolucaoCat()?.nome||'');}cpSujo();render()"><option value="">Escolha do catálogo…</option>${cat.map(x=>`<option value="${esc(x.sku)}" ${x.sku===d.captar.sku?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`; }
+function cpAcao(k){ const d=CP_ED.d; d.captar.acao=k; if(!d.botao||[...Object.values(CP_BOTAO),...Object.values(CP_BOTAO_ACAO)].includes(d.botao)) d.botao=CP_BOTAO_ACAO[k]; cpSujo(); render(); }
+function cpAbrirAjuda(){ CP_ED.ajuda=true; if(CP_ED.passo!==1) CP_ED.passo=1; render(); setTimeout(()=>document.querySelector('.cp-ajuda')?.scrollIntoView({behavior:'smooth',block:'center'}),50); }
+function cpMontarComAjuda(){
+  const d=CP_ED.d, p=cpProduto();
+  if(d.ajudaDescricao&&p&&!p.descricao) d.descricaoExtra=d.ajudaDescricao;
+  const falta=cpFaltando().filter(k=>!(k==='descricao'&&d.descricaoExtra));
+  if(falta.length) return avisoErro('Ainda falta',falta.map(k=>esc(CP_PERGUNTA[k])).join('<br>'));
+  if(!d.nome.trim()) d.nome=(d.objetivo==='promocao'?'Promo ':'')+(p?.nome||d.captar?.solucao||'Campanha');
+  CP_ED.variacao=0; d.texto=cpTextoModelo();
+  if(d.objetivo==='captar'&&d.captar.acao) d.botao=CP_BOTAO_ACAO[d.captar.acao]; else if(!d.botao||Object.values(CP_BOTAO).includes(d.botao)) d.botao=CP_BOTAO[d.objetivo];
+  if(!d.imagem&&p?.imagem) cpDefinirImagem({url:p.imagem,doCatalogo:true});
+  CP_ED.ajuda=false; cpSujo(); render(); flash('Sugestão pronta — revise, edite à vontade e audite.','ok');
+}
+
 async function cpSubirImagem(input){
   const f=input.files?.[0]; if(!f) return;
   try{
@@ -7546,7 +7727,7 @@ async function cpSubirImagem(input){
       {method:'POST',headers:{'content-type':f.type||'image/jpeg',...(TOKEN?{'x-crm-token':TOKEN}:{})},body:f});
     const j=await r.json().catch(()=>({erro:'resposta inválida do servidor'}));
     if(!r.ok||j.erro) throw new Error(j.erro||('HTTP '+r.status));
-    CP_ED.d.imagem={arquivo:j.arquivo,url:j.url}; cpSujo(); render();
+    await cpDefinirImagem({arquivo:j.arquivo,url:j.url});
   }catch(e){ avisoErro('A imagem não subiu',esc(e.message)); }
   input.value='';
 }
@@ -7556,7 +7737,7 @@ function cpPassos(){
   const pode=[true,!!c,!!a&&!CP_ED.sujo&&!['bloquear','corrigir'].includes(a.resultado),c?.estado==='ativa'];
   const nomes=['Conteúdo','Auditoria','Aprovação','Divulgação'];
   return `<div class="cp-passos">${nomes.map((n,i)=>{ const k=i+1;
-    const cls=k===p?'on':k<p||(k===4&&c?.estado==='ativa')?'feito':'';
+    const cls=k===Math.max(p,1)?'on':k<p||(k===4&&c?.estado==='ativa')?'feito':'';
     const clicavel=pode[i]&&c?.estado!=='ativa'&&k<4||k===p;
     return `<button class="cp-passo ${cls}" ${clicavel?`onclick="cpIr(${k})"`:'disabled'}><span class="n">${cls==='feito'&&k!==p?ico('check'):k}</span>${n}</button>`; }).join('<span class="cp-sep"></span>')}</div>`;
 }
@@ -7593,23 +7774,36 @@ function cpFormConteudo(r){
   const promo=d.objetivo==='promocao'?`<div class="form-grid">
       ${f('Preço promocional (R$)',`<input id="cpPromoPreco" inputmode="decimal" placeholder="39,90" value="${esc(cpReaisTxt(d.promo.precoCentavos))}" oninput="cpSet('promo.precoCentavos',cpCentavos(this.value))">`)}
       ${f('Válida até',`<input id="cpPromoAte" type="date" value="${esc(d.promo.ate||'')}" oninput="cpSet('promo.ate',this.value)">`)}</div>
-      ${f('Como aproveitar',`<input id="cpComo" maxlength="160" placeholder="Ex.: chame no botão e diga PROMO" value="${esc(d.promo.comoAproveitar||'')}" oninput="cpSet('promo.comoAproveitar',this.value)">`)}`:'';
-  const evento=d.objetivo==='evento'?`<div class="form-grid">
-      ${f('Data do evento',`<input id="cpEvData" type="date" value="${esc(d.evento.data||'')}" oninput="cpSet('evento.data',this.value)">`)}
-      ${f('Local',`<input id="cpEvLocal" maxlength="120" placeholder="Endereço ou “on-line”" value="${esc(d.evento.local||'')}" oninput="cpSet('evento.local',this.value)">`)}</div>`:'';
-  const img=d.imagem?`<div class="cp-img"><img src="${esc(d.imagem.url||'')}" alt=""><div><b>${d.imagem.doCatalogo?'Foto do catálogo':'Imagem enviada'}</b>
+      ${f('Condições (como aproveitar) *',`<input id="cpComo" maxlength="160" placeholder="Ex.: diga PROMO no botão · 1 por cliente" value="${esc(d.promo.comoAproveitar||'')}" oninput="cpSet('promo.comoAproveitar',this.value)">`)}`:'';
+  const captar=d.objetivo==='captar'?`<div class="form-grid">
+      ${f('Solução oferecida *',`${cpSolucaoSelect()}<input id="cpCapSol" maxlength="120" placeholder="${(r.catalogo||[]).length?'…ou descreva':'Ex.: CRM para pequenas empresas'}" value="${esc(d.captar.solucao||'')}" oninput="cpSet('captar.solucao',this.value)" style="margin-top:${(r.catalogo||[]).length?'6px':'0'}">`)}
+      ${f('Público-alvo *',`<input id="cpCapPub" maxlength="160" placeholder="Ex.: pequenas lojas que vendem pelo WhatsApp" value="${esc(d.captar.publico||'')}" oninput="cpSet('captar.publico',this.value)">`)}</div>
+      ${f('Benefício real *',`<input id="cpCapBen" maxlength="300" placeholder="Ex.: reúne atendimento e pedidos num lugar só" value="${esc(d.captar.beneficio||'')}" oninput="cpSet('captar.beneficio',this.value)">`,'O que a pessoa ganha de verdade — o auditor não aceita promessa que não foi dita.')}
+      ${f('Depois de clicar, a pessoa vai… *',`<div class="cp-lugares">${Object.entries(CP_ACOES).map(([k,v])=>`<label class="cp-lugar${d.captar.acao===k?' on':''}"><input type="radio" name="cpAcaoF" ${d.captar.acao===k?'checked':''} onchange="cpAcao('${k}')">${esc(v)}</label>`).join('')}</div>`)}`:'';
+  const evento=d.objetivo==='evento'?`${f('O que vai ter *',`<input id="cpEvDesc" maxlength="200" placeholder="Ex.: peças a partir de R$ 10 e café para quem vier" value="${esc(d.evento.descricao||'')}" oninput="cpSet('evento.descricao',this.value)">`)}
+    <div class="form-grid">
+      ${f('Data *',`<input id="cpEvData" type="date" value="${esc(d.evento.data||'')}" oninput="cpSet('evento.data',this.value)">`)}
+      ${f('Horário *',`<input id="cpEvHora" type="time" value="${esc(d.evento.hora||'')}" oninput="cpSet('evento.hora',this.value)">`)}
+      ${f('Local',`<input id="cpEvLocal" maxlength="120" placeholder="Endereço" value="${esc(d.evento.local||'')}" oninput="cpSet('evento.local',this.value)">`)}
+      ${f('…ou link de participação',`<input id="cpEvLink" maxlength="300" placeholder="https://" value="${esc(d.evento.link||'')}" oninput="cpSet('evento.link',this.value)">`)}</div>`:'';
+  const img=d.imagem?`<div class="cp-img"><img src="${esc(d.imagem.url||'')}" alt=""><div><b>${d.imagem.gerada?'Arte gerada':d.imagem.doCatalogo?'Foto do catálogo':'Imagem enviada'}</b>
       <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap"><label class="btn btn-s btn-xs">${ico('importar')}<span>Trocar</span><input type="file" accept="image/jpeg,image/png,image/webp" hidden onchange="cpSubirImagem(this)"></label>
+      ${botao({t:'Gerar imagem',ic:'gerar',v:'s',sz:'xs',on:'cpGerarImagem()',tit:'Monta a arte da campanha: foto do produto, título, preço e chamada'})}
       ${botao({t:'Tirar imagem',ic:'excluir',v:'g',sz:'xs',on:"cpSetRender('imagem',null)"})}</div></div></div>`
     :`<div style="display:flex;gap:8px;flex-wrap:wrap"><label class="btn btn-s">${ico('importar')}<span>Enviar imagem</span><input type="file" accept="image/jpeg,image/png,image/webp" hidden onchange="cpSubirImagem(this)"></label>
-      ${p?.imagem?botao({t:'Usar foto do catálogo',ic:'estoque',v:'g',on:`cpSetRender('imagem',{url:'${esc(p.imagem)}',doCatalogo:true})`}):''}</div>`;
+      ${p?.imagem?botao({t:'Usar foto do catálogo',ic:'estoque',v:'g',on:`cpDefinirImagem({url:'${esc(p.imagem)}',doCatalogo:true})`}):''}
+      ${botao({t:'Gerar imagem',ic:'gerar',v:'s',on:'cpGerarImagem()',tit:'Monta a arte da campanha: foto do produto, título, preço e chamada'})}</div>`;
   return `${ed?'':'<p class="hint">Esta campanha já foi aprovada — o conteúdo não muda mais.</p>'}
     <h4 class="cp-h">Objetivo</h4>${obj}
-    ${prod}${promo}${evento}
+    ${CP_ED.ajuda&&ed?cpAjudaHtml():''}
+    ${prod}${CP_ED.ajuda&&ed?'':promo+evento+captar}
     ${f('Nome da campanha',`<input id="cpNome" maxlength="80" placeholder="Ex.: Promo de sexta" value="${esc(d.nome)}" oninput="cpSet('nome',this.value)">`,'Só pra você achar ela depois — o cliente não vê.')}
     <div class="field"><label style="display:flex;align-items:center">Texto da publicação <span id="cpConta" class="cp-conta${d.texto.length>(d.imagem?1024:4096)?' estourou':''}" style="margin-left:auto">${d.texto.length} / ${d.imagem?1024:4096}</span></label>
       <textarea id="cpTexto" rows="7" oninput="cpSet('texto',this.value)">${esc(d.texto)}</textarea>
-      <div style="margin-top:6px">${botao({t:'Montar texto a partir dos dados',ic:'gerar',v:'g',sz:'xs',on:'cpMontarTexto()'})}</div></div>
+      <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${botao({t:'Me ajude a montar a campanha',ic:'gerar',v:'s',sz:'xs',on:'cpAbrirAjuda()',id:'btCpAjuda',tit:'Vejo o que já está cadastrado, pergunto só o que falta e monto uma sugestão'})}
+        ${d.texto&&!cpFaltando().length&&!cpEhAjuda(d.texto)?botao({t:'Outra versão',ic:'atualizar',v:'g',sz:'xs',on:'cpRefazerTexto()',id:'btCpTexto'}):''}</div></div>
     <div class="field"><label>Imagem</label>${img}<p class="hint" style="margin-top:5px">JPG, PNG ou WebP, até 10 MB. A partir de 600 px no menor lado sai nítida.</p></div>
+    ${cpLugaresHtml()}
     <div class="form-grid">
       ${f('Texto do botão',`<input id="cpBotao" maxlength="40" value="${esc(d.botao)}" oninput="cpSet('botao',this.value)">`)}
       ${f('Código do link',`<input id="cpCodigo" maxlength="64" placeholder="gerado do nome" value="${esc(d.codigo)}" oninput="cpSet('codigo',this.value.trim())">`,'Letras sem acento, números, “_” e “-”.')}</div>
@@ -7622,6 +7816,11 @@ async function cpSalvar(quieto){
     if(!quieto){ flash('Rascunho salvo.','ok'); render(); } return true; }
   catch(e){ avisoErro('Não consegui salvar',esc(e.message)); return false; }
 }
+async function cpConsertar(texto,imagem){
+  if(texto){ CP_ED.variacao=CP_ED.d.texto===cpTextoModelo()?(CP_ED.variacao||0)+1:(CP_ED.variacao||0); CP_ED.d.texto=cpTextoModelo(); }
+  if(imagem&&!(await cpGerarImagem(true))) return;
+  CP_ED.sujo=true; await cpAuditar();
+}
 async function cpAuditar(){
   if(!await cpSalvar(true)) return;
   try{ const r=await api('campanhas/auditar',{id:CP_ED.c.id}); CP_ED.c=r.campanha; CP_ED.sujo=false; CP_ED.passo=2; render(); }
@@ -7633,20 +7832,25 @@ function cpRelatorio(a){
   const grupos=Object.keys(CP_GRUPO).map(g=>{ const its=a.itens.filter(i=>i.grupo===g); if(!its.length) return '';
     const pior=its.reduce((m,i)=>CP_ORDEM.indexOf(i.nivel)>CP_ORDEM.indexOf(m)?i.nivel:m,'ok');
     return `<div class="cp-aud"><div class="cp-aud-h"><b>${CP_GRUPO[g]}</b><span class="badge ${CP_NIVEL[pior][1]}">${CP_NIVEL[pior][0]}</span></div>
-      <ul>${its.map(i=>`<li class="n-${i.nivel}">${its.length>1?`<span class="badge ${CP_NIVEL[i.nivel][1]}" style="margin:0">${CP_NIVEL[i.nivel][0]}</span>`:''}<span>${esc(i.texto)}</span></li>`).join('')}</ul></div>`; }).join('');
+      <ul>${its.map(i=>`<li class="n-${i.nivel}">${its.length>1?`<span class="badge ${CP_NIVEL[i.nivel][1]}" style="margin:0">${CP_NIVEL[i.nivel][0]}</span>`:''}<span>${esc(i.texto)}${i.evidencia?`<small class="cp-evid">evidência: ${esc(i.evidencia)}</small>`:''}</span></li>`).join('')}</ul></div>`; }).join('');
   return grupos+`<p class="hint" style="margin-top:8px">Auditado em ${cpData(a.em)} · versão ${esc(a.versao||'')}. Mexeu no texto, na imagem, no produto ou o catálogo mudou? O auditor roda de novo.</p>`;
 }
+/* Três resultados: Aprovado · Aprovado com recomendações · Reprovado. */
 function cpResumoAud(res){
-  return ({bloquear:['b-err','Há bloqueio: o Telegram recusaria ou a campanha venderia algo errado. Volte e ajuste.'],
-    corrigir:['b-err','Há algo a corrigir antes de aprovar.'],
-    revisar:['b-warn','Há item pra você conferir. Se estiver certo, dá pra aprovar com a ressalva registrada.'],
-    alertar:['b-warn','Pode seguir — mas veja os avisos.'],sugerir:['b-ac','Pode seguir. Há sugestões que podem melhorar o resultado.'],ok:['b-ok','Tudo certo. Pode seguir para a aprovação.']})[res]||['',''];
+  return ({bloquear:['b-err','Reprovado — há impedimento técnico ou informação obrigatória faltando. Veja o motivo de cada item e como resolver.'],
+    corrigir:['b-err','Reprovado — falta informação obrigatória ou há incoerência. Veja o motivo de cada item e como resolver.'],
+    revisar:['b-warn','Aprovado com recomendações — há item pra você conferir; a aprovação registra a sua confirmação.'],
+    alertar:['b-warn','Aprovado com recomendações — pode seguir, mas veja os avisos.'],sugerir:['b-ac','Aprovado com recomendações — pode seguir; há como melhorar.'],ok:['b-ok','Aprovado — tudo o que o objetivo exige está certo. Pode seguir para a aprovação do responsável.']})[res]||['',''];
 }
 function cpTelaAuditoria(){
   const a=CP_ED.c?.auditoria; const [cls,txt]=cpResumoAud(a?.resultado);
   const segue=a&&!['bloquear','corrigir'].includes(a.resultado);
+  const it=a?.itens||[], ruimConteudo=it.some(i=>['requisitos','mensagem','destino','produto'].includes(i.grupo)&&['corrigir','bloquear'].includes(i.nivel)), ruimImg=it.some(i=>i.grupo==='imagem'&&i.nivel!=='ok');
+  const conserto=(ruimConteudo||ruimImg)?`<div class="cp-conserto"><span>${ruimConteudo?'Eu ajudo a resolver:':'Recomendação:'}</span>
+      ${ruimConteudo?botao({t:'Me ajude a montar a campanha',ic:'gerar',v:'p',sz:'xs',on:'cpAbrirAjuda()'}):''}
+      ${ruimImg?botao({t:'Gerar a imagem e auditar',ic:'gerar',v:ruimConteudo?'s':'p',sz:'xs',on:'cpConsertar(false,true)'}):''}</div>`:'';
   return `<h4 class="cp-h">Relatório do auditor</h4>
-    <div class="cp-veredito ${cls}">${esc(txt)}</div>${cpRelatorio(a)}
+    <div class="cp-veredito ${cls}">${esc(txt)}</div>${conserto}${cpRelatorio(a)}
     <div class="cp-rodape">${botao({t:'Voltar e ajustar',ic:'ant',v:'s',on:'cpIr(1)'})}<span style="flex:1"></span>
       ${botao({t:'Continuar',ic:'prox',v:'p',on:'cpIr(3)',off:!segue})}</div>`;
 }
@@ -7777,9 +7981,15 @@ function abrirCampanha(k){
   </div></div>`;
   const rod=BT.cancelar()+
     (editavel?botao({t:'Continuar editando',ic:'editar',v:'p',on:`fecharModal();editarCampanha('${esc(c.id)}')`}):'')+
+    (c.estado==='ativa'&&!c.legado?botao({t:'Reabrir para revisão',ic:'editar',v:'s',on:`fecharModal();cpReabrir('${esc(c.id)}')`,tit:'Tira do ar, cancela agendamentos e volta a rascunho — nova aprovação reativa o mesmo link'}):'')+
     (c.estado==='ativa'?botao({t:'Encerrar campanha',ic:'power',v:'dan',on:c.legado?`fecharModal();arquivarCampanha('${esc(c.codigo)}',true)`:`fecharModal();encerrarCampanhaUI('${esc(c.id)}')`}):'')+
     (c.legado&&c.estado==='encerrada'?botao({t:'Reativar',ic:'atualizar',v:'s',on:`fecharModal();arquivarCampanha('${esc(c.codigo)}',false)`}):'');
   abrirModal(c.nome||'Campanha',corpo,rod);
+}
+function cpReabrir(id){
+  return confirmar({titulo:'Reabrir para revisão?',texto:'A campanha sai do ar (o link para de contar), as publicações agendadas são canceladas e ela volta a rascunho. Depois de revisar, audite e aprove de novo — o link é o mesmo.',
+    rotulo:'Reabrir',icone:'editar',perigo:false,
+    aoConfirmar:async()=>{ await api('campanhas/reabrir',{id}); await carregarCampanhas(true); editarCampanha(id); flash('Campanha reaberta — revise e audite de novo.','ok'); }});
 }
 function encerrarCampanhaUI(id){
   return confirmar({titulo:'Encerrar esta campanha?',texto:'Ela sai das ativas e não pode mais ser editada. O link continua abrindo o bot, e quem já entrou por ele ainda tem a venda atribuída por 30 dias.',

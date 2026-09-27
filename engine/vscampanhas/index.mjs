@@ -56,6 +56,13 @@ export const LIMITE = {
   fotoLadoBom: 600,
   nome: 80,
 };
+/** Onde o link da campanha pode ser divulgado. */
+export const LUGARES = {
+  'canal-telegram': 'Canal do Telegram', 'grupo-telegram': 'Grupo do Telegram', instagram: 'Instagram', 'whatsapp-status': 'Status do WhatsApp',
+  'grupo-whatsapp': 'Grupo do WhatsApp', site: 'Site / loja virtual', panfleto: 'Panfleto ou cartaz (QR code)', email: 'E-mail', 'balcao': 'Balcão da loja', outro: 'Outro lugar',
+};
+/** Quantos lugares cada objetivo precisa, no mínimo, para fazer sentido. */
+export const ALCANCE_MINIMO = { captar: 2, evento: 1, produto: 1, promocao: 1 };
 export const FORMATO_CODIGO = /^[A-Za-z0-9_-]{1,64}$/;
 
 /* Lista simples, de propósito: termo aqui NÃO bloqueia, só pede um olhar humano.
@@ -85,12 +92,90 @@ export function precosNoTexto(texto) {
   return out;
 }
 
+/* ── qualidade do texto (sem IA): o que um revisor humano recusaria ────────── */
+const CTA = ['chame', 'chama', 'toque', 'clique', 'fale', 'falar', 'peca', 'peça', 'garanta', 'aproveite', 'compre', 'entre', 'responda', 'acesse', 'venha', 'confira', 'reserve', 'agende', 'mande', 'envie', 'escreva', 'participe', 'inscreva', 'cadastre', 'saiba', 'descubra', 'botao', 'botão', 'link'];
+const TECLADO = ['asdf', 'qwer', 'zxcv', 'hjkl', 'sdfg', 'dfgh', 'fghj', 'jklç', 'uiop', 'yuio', 'poiu', 'lkjh', 'mnbv'];
+const palavraPlausivel = (w) => {
+  if (w.length <= 2 || /^\d+([.,]\d+)?$/.test(w) || /^r\$/.test(w)) { return true; }
+  if (/(.)\1{2,}/.test(w)) { return false; } // aaaa, kkkk
+  if (!/[aeiouy]/.test(w)) { return false; }
+  if (/[bcdfghjklmnpqrstvwxz]{4,}/.test(w)) { return false; }
+  if (TECLADO.some((t) => w.includes(t))) { return false; }
+  return true;
+};
+/**
+ * Texto de campanha que não convence: digitado aleatório, curto demais, gritando
+ * em maiúsculas, repetindo palavra, sem dizer o que fazer. Função pura.
+ */
+export function qualidadeDoTexto(texto) {
+  const out = [];
+  const t = String(texto || '').trim();
+  if (!t) { return out; }
+  const palavras = semAcento(t).replace(/[^a-z0-9$,.\s]/g, ' ').split(/\s+/).filter((w) => /[a-z]/.test(w)).map((w) => w.replace(/[.,]+$/, ''));
+  const ruins = palavras.filter((w) => !palavraPlausivel(w));
+  if (palavras.length && ruins.length / palavras.length > 0.3) {
+    out.push({ nivel: 'corrigir', texto: 'O texto não é compreensível — parece digitado sem sentido. Escreva a mensagem ou use “Me ajude a montar a campanha”.', evidencia: `palavras sem sentido: ${ruins.slice(0, 4).join(', ')}` });
+    return out;
+  }
+  if (palavras.length < 6 || t.length < 30) { out.push({ nivel: 'corrigir', texto: 'Texto curto demais para alguém entender a oferta — diga o que é, o benefício e o que fazer. Ou use “Me ajude a montar a campanha”.', evidencia: `${palavras.length} palavra(s)` }); }
+  const letras = t.replace(/[^A-Za-zÀ-ÿ]/g, '');
+  if (letras.length > 20 && letras.replace(/[^A-ZÀ-Þ]/g, '').length / letras.length > 0.6) { out.push({ nivel: 'alertar', texto: 'Texto quase todo em MAIÚSCULAS — no Telegram parece grito. Use maiúscula só no começo das frases.' }); }
+  const cont = {}; for (const w of palavras.filter((x) => x.length > 3)) { cont[w] = (cont[w] || 0) + 1; }
+  const repetida = Object.entries(cont).find(([, n]) => n >= 4);
+  if (repetida) { out.push({ nivel: 'alertar', texto: `A palavra “${repetida[0]}” se repete ${repetida[1]} vezes — reescreva para ficar natural.` }); }
+  if (!palavras.some((w) => CTA.includes(w))) { out.push({ nivel: 'corrigir', texto: 'Falta dizer o que a pessoa deve fazer (ex.: “Toque no botão abaixo e fale com a gente”).' }); }
+  if ((t.match(/[!?]{3,}/g) || []).length) { out.push({ nivel: 'sugerir', texto: 'Pontuação exagerada (“!!!”) — um ponto de exclamação basta.' }); }
+  const emojis = (t.match(/\p{Extended_Pictographic}/gu) || []).length;
+  if (emojis > 8) { out.push({ nivel: 'sugerir', texto: `${emojis} emojis — fica poluído; use 1 a 3.` }); }
+  return out;
+}
+
+/* ── regras de negócio por objetivo ─────────────────────────────────────── */
+const INCENTIVO = ['cupom', 'desconto', 'brinde', 'gratis', 'gratuito', 'gratuita', 'exclusivo', 'exclusiva', 'exclusivas', 'exclusivos', 'primeiro', 'primeira', 'antes', 'vip', 'sorteio', 'premio', 'oferta', 'ofertas', 'novidade', 'novidades', 'beneficio', 'beneficios', 'bonus', 'presente', 'frete gratis', '% off', 'off'];
+const CONVITE = ['entre', 'entrar', 'participe', 'participar', 'cadastre', 'cadastro', 'inscreva', 'inscricao', 'faca parte', 'junte-se', 'receba', 'receber', 'lista', 'grupo', 'canal', 'siga', 'assine'];
+const temAlgum = (t, lista) => lista.some((x) => new RegExp(`(^|[^a-z])${x.replace(/[.*+?^${}()|[\]\\%]/g, '\\$&')}([^a-z]|$)`).test(t));
+const DATA_NO_TEXTO = /\b\d{1,2}\/\d{1,2}\b|\b(segunda|terca|quarta|quinta|sexta|sabado|domingo|amanha|hoje)\b/;
+/**
+ * O texto faz o que o OBJETIVO promete? Captar sem motivo pra entrar não capta;
+ * divulgar produto sem dizer qual/quanto não vende; evento sem data não junta
+ * ninguém.
+ */
+export function regrasDoObjetivo(m, p) {
+  const out = []; const t = semAcento(m.texto || '');
+  if (!t.trim()) { return out; }
+  if (m.objetivo === 'captar') {
+    /* O texto tem de APRESENTAR a solução e o benefício que o cliente informou
+       (ou que vêm do catálogo) — nada além disso. É o que impede prometer o que
+       não foi dito. */
+    const chaves = (v) => semAcento(v || '').split(/[^a-z0-9]+/).filter((w) => w.length > 4 && !['sobre', 'nossa', 'nosso', 'voces', 'vocês', 'empresa', 'clientes'].includes(w));
+    const sol = chaves(m.captar?.solucao || p?.nome);
+    if (sol.length && !sol.some((w) => t.includes(w))) { out.push({ grupo: 'mensagem', nivel: 'corrigir', texto: `O texto não diz qual solução está sendo oferecida (“${m.captar?.solucao || p?.nome}”).`, evidencia: `procurei: ${sol.slice(0, 4).join(', ')}` }); }
+    const ben = chaves(m.captar?.beneficio);
+    if (ben.length && !ben.some((w) => t.includes(w))) { out.push({ grupo: 'mensagem', nivel: 'corrigir', texto: 'O texto não apresenta o benefício informado — é ele que faz a pessoa querer saber mais.', evidencia: `benefício: “${m.captar.beneficio.slice(0, 60)}”` }); }
+    if (precosNoTexto(m.texto).length >= 2) { out.push({ grupo: 'mensagem', nivel: 'sugerir', texto: 'O texto parece venda de produto (vários preços). Para vender, use “Divulgar produto” ou “Criar promoção”; captar é convite para entrar.' }); }
+  }
+  if (m.objetivo === 'produto' && p?.nome) {
+    const chave = semAcento(p.nome).split(/\s+/).filter((w) => w.length > 3);
+    if (chave.length && !chave.some((w) => t.includes(w))) { out.push({ grupo: 'mensagem', nivel: 'corrigir', texto: `O texto não diz qual é o produto (“${p.nome}”). Quem lê precisa saber o que está sendo vendido.` }); }
+  }
+  if (m.objetivo === 'evento' && m.evento?.data && !DATA_NO_TEXTO.test(t)) {
+    out.push({ grupo: 'mensagem', nivel: 'corrigir', texto: 'O texto não diz QUANDO é o evento — coloque a data (ex.: “sábado, 12/10”).' });
+  }
+  return out;
+}
+
 /** Só o que o dono preenche. Campos que o objetivo não usa não são guardados. */
+/* O que a pessoa deve fazer depois de clicar (captar clientes). */
+export const ACOES_CAPTAR = { conhecer: 'Conhecer a solução', demonstracao: 'Pedir uma demonstração', vendedor: 'Conversar com um vendedor', lista: 'Entrar na lista de novidades' };
+
 function material(e = {}) {
   const objetivo = OBJETIVOS[e.objetivo] ? e.objetivo : 'produto';
   const usaProduto = objetivo === 'produto' || objetivo === 'promocao';
+  const txt = (v, n = 300) => String(v || '').trim().slice(0, n) || null;
   const img = e.imagem && (e.imagem.url || e.imagem.arquivo)
-    ? { url: e.imagem.url ? String(e.imagem.url) : null, arquivo: e.imagem.arquivo ? String(e.imagem.arquivo) : null, doCatalogo: !!e.imagem.doCatalogo }
+    ? { url: e.imagem.url ? String(e.imagem.url) : null, arquivo: e.imagem.arquivo ? String(e.imagem.arquivo) : null, doCatalogo: !!e.imagem.doCatalogo, gerada: !!e.imagem.gerada,
+      /* Medido no navegador ao enviar (canvas): variacao de cor e brilho. */
+      analise: e.imagem.analise && typeof e.imagem.analise === 'object' ? { variacao: Number(e.imagem.analise.variacao) || 0, brilho: Number(e.imagem.analise.brilho) || 0 } : null }
     : null;
   return {
     objetivo,
@@ -99,12 +184,19 @@ function material(e = {}) {
     texto: String(e.texto || '').replace(/\r\n/g, '\n').trim(),
     imagem: img,
     botao: String(e.botao || '').trim().slice(0, 40) || 'Falar com a loja',
+    divulgacao: [...new Set((Array.isArray(e.divulgacao) ? e.divulgacao : []).map(String).filter((x) => LUGARES[x]))],
     codigo: String(e.codigo || '').trim(),
     promo: objetivo === 'promocao'
-      ? { precoCentavos: centavos(e.promo?.precoCentavos), ate: String(e.promo?.ate || '').trim() || null, comoAproveitar: String(e.promo?.comoAproveitar || '').trim() || null }
+      ? { precoCentavos: centavos(e.promo?.precoCentavos), ate: txt(e.promo?.ate, 10), comoAproveitar: txt(e.promo?.comoAproveitar, 200) }
       : null,
     evento: objetivo === 'evento'
-      ? { data: String(e.evento?.data || '').trim() || null, local: String(e.evento?.local || '').trim() || null }
+      ? { data: txt(e.evento?.data, 10), hora: txt(e.evento?.hora, 5), local: txt(e.evento?.local, 160), link: txt(e.evento?.link, 300), descricao: txt(e.evento?.descricao, 300) }
+      : null,
+    /* Captar clientes: sem preço obrigatório, mas o interessado precisa ENTENDER
+       o que está sendo oferecido — solução, para quem, benefício real e o que
+       fazer depois de clicar. A solução pode vir do catálogo (sku). */
+    captar: objetivo === 'captar'
+      ? { solucao: txt(e.captar?.solucao, 120), sku: txt(e.captar?.sku, 80), publico: txt(e.captar?.publico, 160), beneficio: txt(e.captar?.beneficio, 300), acao: ACOES_CAPTAR[e.captar?.acao] ? e.captar.acao : null }
       : null,
   };
 }
@@ -115,108 +207,174 @@ function material(e = {}) {
  */
 export function versaoDe(m, produto) {
   const cat = produto ? { p: produto.precoCentavos, d: produto.precoDeCentavos, e: !!produto.esgotado, a: produto.ativo !== false } : null;
-  const { nome, sku, texto, imagem, botao, codigo, promo, evento, objetivo } = m;
-  return createHash('sha256').update(JSON.stringify({ objetivo, nome, sku, texto, imagem: imagem && (imagem.arquivo || imagem.url), botao, codigo, promo, evento, cat })).digest('hex').slice(0, 16);
+  const { nome, sku, texto, imagem, botao, codigo, promo, evento, captar, objetivo, divulgacao } = m;
+  return createHash('sha256').update(JSON.stringify({ objetivo, nome, sku, texto, imagem: imagem && (imagem.arquivo || imagem.url), botao, codigo, promo, evento, captar, divulgacao, cat })).digest('hex').slice(0, 16);
+}
+
+/* Pedido de ajuda escrito no lugar do texto ("monta pra mim") não é publicidade:
+   abre o assistente, nunca vai ao ar. */
+const AJUDA = [/\b(monta|montar|faz|fazer|faca|cria|criar|escreve|escrever|gera|gerar|prepara)\b.{0,15}\b(pra|para|por)\s*(mim|nos|a gente)\b/, /\bme ajud/, /\b(nao sei|sei la|qualquer coisa|tanto faz)\b/, /^\s*(teste|testando|test|xxx+|aaa+|\.+|-+)\s*$/];
+export const ehPedidoDeAjuda = (texto) => AJUDA.some((re) => re.test(semAcento(texto || '')));
+
+/**
+ * O que CADA objetivo exige antes de ir ao ar (política de validação). Faltou,
+ * reprova — com o que falta e como resolver. Consulta o catálogo antes de
+ * cobrar do cliente o que o sistema já sabe.
+ */
+export function requisitosDoObjetivo(m, p) {
+  const falta = []; // { campo, texto }
+  if (m.objetivo === 'produto') {
+    if (!m.sku) { falta.push({ campo: 'produto', texto: 'Escolha o produto do catálogo.' }); }
+    if (p && !p.descricao && semAcento(m.texto).split(/\s+/).length < 12) { falta.push({ campo: 'descricao', texto: `“${p.nome}” não tem descrição no catálogo — descreva o produto no texto ou cadastre a descrição.` }); }
+    if (p && !precosNoTexto(m.texto).length) { falta.push({ campo: 'preco', texto: `Mostre o preço (${reais(p.precoCentavos)}) — é informação obrigatória para divulgar produto.` }); }
+  }
+  if (m.objetivo === 'promocao') {
+    if (!m.sku) { falta.push({ campo: 'produto', texto: 'Escolha o produto da promoção.' }); }
+    if (!(m.promo?.precoCentavos > 0)) { falta.push({ campo: 'precoPromo', texto: 'Informe o preço promocional.' }); }
+    if (!m.promo?.ate) { falta.push({ campo: 'validade', texto: 'Informe até quando vale — promoção sem validade não é promoção.' }); }
+    if (!m.promo?.comoAproveitar) { falta.push({ campo: 'condicoes', texto: 'Informe as condições (como aproveitar: “diga PROMO no botão”, limite por cliente…).' }); }
+  }
+  if (m.objetivo === 'evento') {
+    if (!m.nome) { falta.push({ campo: 'nome', texto: 'Dê o nome do evento.' }); }
+    if (!m.evento?.descricao) { falta.push({ campo: 'descricao', texto: 'Descreva o evento em uma frase (o que vai ter).' }); }
+    if (!m.evento?.data) { falta.push({ campo: 'data', texto: 'Informe a data do evento.' }); }
+    if (!m.evento?.hora) { falta.push({ campo: 'hora', texto: 'Informe o horário do evento.' }); }
+    if (!m.evento?.local && !m.evento?.link) { falta.push({ campo: 'local', texto: 'Informe o local — ou o link de participação, se for on-line.' }); }
+  }
+  if (m.objetivo === 'captar') {
+    if (!m.captar?.solucao && !m.captar?.sku) { falta.push({ campo: 'solucao', texto: 'Qual solução você quer anunciar? Escolha uma do catálogo ou descreva.' }); }
+    if (!m.captar?.publico) { falta.push({ campo: 'publico', texto: 'Para quem é (público-alvo)? Ex.: “pequenas lojas de roupa”.' }); }
+    if (!m.captar?.beneficio) { falta.push({ campo: 'beneficio', texto: 'Qual benefício REAL a pessoa ganha? Não consegui identificar o benefício da sua oferta.' }); }
+    if (!m.captar?.acao) { falta.push({ campo: 'acao', texto: 'O que a pessoa deve fazer depois de clicar: conhecer, pedir demonstração, conversar com um vendedor ou entrar na lista?' }); }
+  }
+  return falta;
 }
 
 /**
  * O auditor. Função pura: recebe o material e o que precisa do mundo (produto
- * do catálogo, dados da imagem, códigos em uso) e devolve o relatório.
+ * do catálogo, dados da imagem, códigos em uso) e devolve o relatório — com a
+ * EVIDÊNCIA de cada decisão.
  *
- * @param {object} m                material (ver `material`)
- * @param {object} ctx
- * @param {object|null} ctx.produto produto do catálogo ({ ativo:false } se inativo; null se não existe)
- * @param {object|null} ctx.imagem  { tipo, largura, altura, bytes } ou null se não deu pra ler
- * @param {string[]}   ctx.codigosEmUso códigos de OUTRAS campanhas
- * @param {string|null} ctx.linkBot https://t.me/<bot> ou null se o bot não está conectado
- * @param {string}     [ctx.agora]  ISO
+ * Três resultados (`veredito`): aprovado · aprovado com recomendações ·
+ * reprovado. Reprova só o que IMPEDE: falta de informação obrigatória,
+ * incoerência comprovada (preço ≠ catálogo) ou arquivo fora do exigido pelo
+ * Telegram. Estética é recomendação — não bloqueia material tecnicamente válido.
  */
 export function auditar(m0, ctx = {}) {
   const m = { ...m0, nome: String(m0.nome || '').trim(), texto: String(m0.texto || '').trim(), codigo: String(m0.codigo || '').trim() };
   const itens = [];
-  const add = (grupo, nivel, texto) => itens.push({ grupo, nivel, texto });
+  const add = (grupo, nivel, texto, evidencia = null) => itens.push({ grupo, nivel, texto, ...(evidencia ? { evidencia } : {}) });
   const agora = ctx.agora ? new Date(ctx.agora) : new Date();
   const hoje = agora.toISOString().slice(0, 10);
   const p = ctx.produto;
 
-  /* ── Produto e preço ── */
-  if (m.objetivo === 'produto' || m.objetivo === 'promocao') {
-    if (!m.sku) { add('produto', 'bloquear', 'Escolha o produto do catálogo que a campanha divulga.'); }
-    else if (!p) { add('produto', 'bloquear', 'O produto escolhido não existe mais no catálogo.'); }
-    else if (p.ativo === false) { add('produto', 'bloquear', `“${p.nome}” está inativo no catálogo — reative ou escolha outro.`); }
+  /* ── Informações obrigatórias do objetivo ── */
+  if (m.texto && ehPedidoDeAjuda(m.texto)) {
+    add('requisitos', 'corrigir', 'Isso é um pedido de ajuda, não um texto de campanha. Use “Me ajude a montar a campanha”: eu pergunto só o que falta e monto a sugestão.', `texto: “${m.texto.slice(0, 60)}”`);
+  }
+  const falta = requisitosDoObjetivo(m, p);
+  for (const f of falta) { add('requisitos', 'corrigir', f.texto, `campo obrigatório de “${OBJETIVOS[m.objetivo]}”: ${f.campo}`); }
+  if (!falta.length && !ehPedidoDeAjuda(m.texto)) { add('requisitos', 'ok', `Tudo o que “${OBJETIVOS[m.objetivo]}” exige está informado.`); }
+
+  /* ── Produto e preço: sempre a fonte oficial (catálogo) ── */
+  if (m.objetivo === 'produto' || m.objetivo === 'promocao' || (m.objetivo === 'captar' && m.captar?.sku)) {
+    const sku = m.sku || m.captar?.sku;
+    if (!sku) { /* já cobrado nos requisitos */ }
+    else if (!p) { add('produto', 'bloquear', 'O produto escolhido não existe no catálogo.', `sku ${sku} não encontrado`); }
+    else if (p.ativo === false) { add('produto', 'bloquear', `“${p.nome}” está inativo no catálogo — reative ou escolha outro.`, `sku ${sku} inativo`); }
     else {
       const normal = p.precoDeCentavos ?? p.precoCentavos;
       const aceitos = [p.precoCentavos, p.precoDeCentavos, m.promo?.precoCentavos].filter((x) => x != null);
       const citados = precosNoTexto(m.texto);
       const errados = citados.filter((c) => !aceitos.includes(c));
       if (errados.length) {
-        add('produto', 'corrigir', `O texto cita ${errados.map(reais).join(', ')}, mas o catálogo diz ${reais(p.precoCentavos)}${m.promo?.precoCentavos ? ` (promoção: ${reais(m.promo.precoCentavos)})` : ''}. Ajuste o texto.`);
+        add('produto', 'corrigir', `O texto cita ${errados.map(reais).join(', ')}, mas o catálogo diz ${reais(p.precoCentavos)}${m.promo?.precoCentavos ? ` (promoção: ${reais(m.promo.precoCentavos)})` : ''}. Ajuste o texto.`, `catálogo: ${reais(p.precoCentavos)}${p.precoDeCentavos ? ` (de ${reais(p.precoDeCentavos)})` : ''} · texto: ${citados.map(reais).join(', ')}`);
       }
-      if (m.objetivo === 'promocao') {
-        const pr = m.promo?.precoCentavos;
-        if (!(pr > 0)) { add('produto', 'corrigir', 'Informe o preço promocional.'); }
-        else if (normal != null && pr >= normal) { add('produto', 'corrigir', `O preço promocional (${reais(pr)}) não é menor que o normal (${reais(normal)}).`); }
-        else if (!citados.includes(pr)) { add('mensagem', 'sugerir', `O texto não mostra o preço promocional (${reais(pr)}) — é o que faz a pessoa clicar.`); }
+      if (m.objetivo === 'promocao' && m.promo?.precoCentavos > 0) {
+        const pr = m.promo.precoCentavos;
+        if (normal != null && pr >= normal) { add('produto', 'corrigir', `O preço promocional (${reais(pr)}) não é menor que o vigente (${reais(normal)}).`, `vigente ${reais(normal)} · promo ${reais(pr)}`); }
+        else if (!citados.includes(pr)) { add('mensagem', 'corrigir', `O texto não mostra o preço promocional (${reais(pr)}).`); }
       }
-      if (!errados.length && (m.objetivo === 'produto') && citados.length) { add('produto', 'ok', 'Preço do texto confere com o catálogo.'); }
-      if (!errados.length && m.objetivo === 'produto' && !citados.length) { add('mensagem', 'sugerir', `O texto não diz o preço (${reais(p.precoCentavos)}).`); }
-      if (p.esgotado) { add('produto', 'alertar', `“${p.nome}” está sem estoque — quem chegar pelo link não vai conseguir comprar.`); }
-      else if (!itens.some((i) => i.grupo === 'produto' && i.nivel !== 'ok')) { add('produto', 'ok', `“${p.nome}” ativo no catálogo, com estoque.`); }
+      if (p.esgotado) { add('produto', 'alertar', `“${p.nome}” está sem estoque — quem chegar pelo link não vai conseguir comprar.`, 'estoque disponível: 0'); }
+      if (!itens.some((i) => i.grupo === 'produto' && i.nivel !== 'ok')) { add('produto', 'ok', `“${p.nome}” ativo no catálogo${citados.length ? ', preço confere' : ''}.`, `catálogo: ${reais(p.precoCentavos)}`); }
     }
   }
-  if (m.objetivo === 'promocao') {
-    if (!m.promo?.ate) { add('mensagem', 'sugerir', 'A promoção não tem prazo — “só até sexta” dá motivo pra não deixar pra depois.'); }
-    else if (m.promo.ate < hoje) { add('mensagem', 'bloquear', `O prazo da promoção (${m.promo.ate.split('-').reverse().join('/')}) já passou.`); }
-    if (!m.promo?.comoAproveitar) { add('mensagem', 'sugerir', 'Diga como aproveitar (ex.: “chame no botão e diga PROMO”).'); }
-  }
-  if (m.objetivo === 'evento') {
-    if (!m.evento?.data) { add('mensagem', 'bloquear', 'Informe a data do evento.'); }
-    else if (m.evento.data.slice(0, 10) < hoje) { add('mensagem', 'bloquear', 'A data do evento já passou.'); }
-    if (!m.evento?.local) { add('mensagem', 'sugerir', 'Informe o local do evento (ou “on-line”).'); }
-  }
+  if (m.objetivo === 'promocao' && m.promo?.ate && m.promo.ate < hoje) { add('mensagem', 'bloquear', `A validade da promoção (${m.promo.ate.split('-').reverse().join('/')}) já passou.`); }
+  if (m.objetivo === 'evento' && m.evento?.data && m.evento.data.slice(0, 10) < hoje) { add('mensagem', 'bloquear', 'A data do evento já passou.', `data ${m.evento.data}`); }
+  if (m.objetivo === 'evento' && m.evento?.link && !/^https?:\/\//.test(m.evento.link)) { add('mensagem', 'corrigir', 'O link de participação precisa começar com https://.'); }
 
-  /* ── Imagem ── */
+  /* ── Imagem: técnico bloqueia; estético recomenda ── */
   const lim = m.imagem ? LIMITE.legendaFoto : LIMITE.textoSemFoto;
   if (!m.imagem) {
-    add('imagem', 'sugerir', 'Sem imagem. Publicação com foto costuma chamar mais atenção.');
+    add('imagem', 'sugerir', 'Sem imagem — o Telegram aceita campanha só com texto, mas foto costuma chamar mais atenção.');
   } else if (!ctx.imagem) {
-    add('imagem', 'alertar', 'Não consegui abrir a imagem pra conferir tamanho e dimensões — confira se ela aparece na prévia.');
+    add('imagem', 'bloquear', 'Não consegui ler o arquivo da imagem (corrompido ou fora do ar). Envie de novo ou gere a arte.');
   } else {
     const im = ctx.imagem;
-    if (!['jpeg', 'png', 'webp'].includes(im.tipo)) { add('imagem', 'bloquear', `Formato ${im.tipo ? im.tipo.toUpperCase() : 'desconhecido'} não vai como foto no Telegram — use JPG, PNG ou WebP.`); }
-    if (im.bytes > LIMITE.fotoBytes) { add('imagem', 'bloquear', `Imagem com ${(im.bytes / 1048576).toFixed(1)} MB — o Telegram aceita foto de até 10 MB.`); }
+    const ev = `${im.tipo || '?'} ${im.largura}×${im.altura} px, ${(im.bytes / 1024).toFixed(0)} KB`;
+    if (!['jpeg', 'png', 'webp'].includes(im.tipo)) { add('imagem', 'bloquear', `Formato ${im.tipo ? im.tipo.toUpperCase() : 'desconhecido'} não vai como foto no Telegram — use JPG, PNG ou WebP.`, ev); }
+    if (im.bytes > LIMITE.fotoBytes) { add('imagem', 'bloquear', `Imagem com ${(im.bytes / 1048576).toFixed(1)} MB — o Telegram aceita foto de até 10 MB.`, ev); }
     if (im.largura && im.altura) {
-      if (im.largura + im.altura > LIMITE.fotoSomaLados) { add('imagem', 'bloquear', `Imagem de ${im.largura}×${im.altura} px — largura + altura passa de 10.000, o limite do Telegram.`); }
+      if (im.largura + im.altura > LIMITE.fotoSomaLados) { add('imagem', 'bloquear', `Imagem de ${im.largura}×${im.altura} px — largura + altura passa de 10.000, o limite do Telegram.`, ev); }
       const prop = Math.max(im.largura, im.altura) / Math.min(im.largura, im.altura);
-      if (prop > LIMITE.fotoProporcao) { add('imagem', 'bloquear', 'Imagem estreita demais (proporção acima de 20:1) — o Telegram recusa.'); }
-      if (Math.min(im.largura, im.altura) < LIMITE.fotoLadoBom) { add('imagem', 'alertar', `Imagem pequena (${im.largura}×${im.altura} px). Dá pra usar, mas pode sair borrada — o ideal é a partir de ${LIMITE.fotoLadoBom} px no menor lado.`); }
-    }
-    if (!itens.some((i) => i.grupo === 'imagem')) { add('imagem', 'ok', `Imagem ${im.largura}×${im.altura} px, ${(im.bytes / 1024).toFixed(0)} KB — dentro dos limites do Telegram.`); }
+      if (prop > LIMITE.fotoProporcao) { add('imagem', 'bloquear', 'Imagem estreita demais (proporção acima de 20:1) — o Telegram recusa.', ev); }
+      if (Math.min(im.largura, im.altura) < LIMITE.fotoLadoBom) { add('imagem', 'alertar', `Imagem pequena (${im.largura}×${im.altura} px) — utilizável, mas pode sair pouco nítida.`, ev); }
+    } else { add('imagem', 'bloquear', 'Não consegui ler as dimensões da imagem — o arquivo pode estar corrompido.', ev); }
+    if (!itens.some((i) => i.grupo === 'imagem')) { add('imagem', 'ok', 'Arquivo válido e dentro dos limites do Telegram.', ev); }
+  }
+  if (m.imagem?.analise) {
+    const { variacao, brilho } = m.imagem.analise;
+    const ev = `variação ${variacao} · brilho ${brilho} (0–255)`;
+    if (variacao < 8) { add('imagem', 'alertar', 'A imagem é praticamente lisa (uma cor só) — recomendo a foto do produto ou gerar a arte da campanha.', ev); }
+    else if (brilho < 35) { add('imagem', 'alertar', 'Imagem muito escura — no celular quase não se vê.', ev); }
+    else if (brilho > 235) { add('imagem', 'alertar', 'Imagem muito clara/estourada — pode sumir no fundo do Telegram.', ev); }
+  }
+  /* Correspondência imagem × produto: só quando verificável (foto do catálogo
+     ou arte gerada). Imagem enviada não dá pra verificar — é recomendação. */
+  if (m.imagem && !m.imagem.gerada && !m.imagem.doCatalogo) {
+    add('imagem', 'sugerir', (m.objetivo === 'produto' || m.objetivo === 'promocao')
+      ? 'Não dá para verificar se a imagem enviada é do produto. A foto do catálogo ou “Gerar imagem” garantem.'
+      : 'Não dá para verificar se a imagem combina com a campanha. “Gerar imagem” monta uma arte com o título e a chamada.');
   }
 
-  /* ── Mensagem ── */
+  /* ── Mensagem: compreensível e com chamada para ação ── */
   if (!m.nome) { add('mensagem', 'bloquear', 'Dê um nome à campanha (é só pra você achar ela depois).'); }
   else if (m.nome.length > LIMITE.nome) { add('mensagem', 'bloquear', `Nome longo demais (até ${LIMITE.nome} caracteres).`); }
-  if (!m.texto) { add('mensagem', 'bloquear', 'Escreva o texto da publicação.'); }
-  else if (m.texto.length > lim) {
-    add('mensagem', 'bloquear', m.imagem
-      ? `Texto com ${m.texto.length} caracteres — legenda de foto no Telegram vai até ${LIMITE.legendaFoto}. Encurte ou tire a imagem.`
-      : `Texto com ${m.texto.length} caracteres — mensagem no Telegram vai até ${LIMITE.textoSemFoto}.`);
+  if (!m.texto) { add('mensagem', 'bloquear', 'Escreva o texto da publicação — ou use “Me ajude a montar a campanha”.'); }
+  else if (!ehPedidoDeAjuda(m.texto)) {
+    if (m.texto.length > lim) {
+      add('mensagem', 'bloquear', m.imagem
+        ? `Texto com ${m.texto.length} caracteres — legenda de foto no Telegram vai até ${LIMITE.legendaFoto}. Encurte ou tire a imagem.`
+        : `Texto com ${m.texto.length} caracteres — mensagem no Telegram vai até ${LIMITE.textoSemFoto}.`);
+    }
+    for (const q of qualidadeDoTexto(m.texto)) { add('mensagem', q.nivel, q.texto, q.evidencia); }
+    for (const q of regrasDoObjetivo(m, p)) { add(q.grupo, q.nivel, q.texto, q.evidencia); }
   }
   const t = ` ${semAcento(m.texto + ' ' + m.nome)} `;
   const achados = TERMOS_REVISAR.filter((x) => new RegExp(`[^a-z0-9]${semAcento(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^a-z0-9]`).test(t));
-  if (achados.length) { add('mensagem', 'revisar', `Termo que pede um olhar antes de divulgar: ${achados.map((x) => `“${x}”`).join(', ')}. Se estiver tudo certo, aprove com a ressalva.`); }
-  if (m.texto && !itens.some((i) => i.grupo === 'mensagem' && i.nivel !== 'ok')) { add('mensagem', 'ok', `Texto com ${m.texto.length} de ${lim} caracteres.`); }
+  if (achados.length) { add('mensagem', 'revisar', `Termo que pede um olhar antes de divulgar: ${achados.map((x) => `“${x}”`).join(', ')}. Se estiver tudo certo, aprove com a ressalva.`, `termos: ${achados.join(', ')}`); }
+  if (m.texto && !ehPedidoDeAjuda(m.texto) && !itens.some((i) => i.grupo === 'mensagem' && i.nivel !== 'ok')) { add('mensagem', 'ok', `Texto compreensível, com chamada para ação (${m.texto.length} de ${lim} caracteres).`); }
 
-  /* ── Destino (o link) ── */
+  /* ── Destino: alcance e link rastreável ── */
+  const lugares = (m.divulgacao || []).length;
+  const minimo = ALCANCE_MINIMO[m.objetivo] || 1;
+  if (lugares < minimo) {
+    add('destino', 'corrigir', m.objetivo === 'captar'
+      ? `Captar clientes pede alcance: escolha pelo menos ${minimo} lugares onde o link vai aparecer (ex.: canal do Telegram + Instagram).`
+      : 'Diga onde a campanha vai aparecer (destino obrigatório).', `lugares escolhidos: ${lugares}`);
+  } else { add('destino', 'ok', `Vai aparecer em ${lugares} lugar(es): ${m.divulgacao.map((x) => LUGARES[x]).join(', ')}.`); }
   if (!FORMATO_CODIGO.test(m.codigo)) { add('destino', 'bloquear', 'O código do link só pode ter letras sem acento, números, “_” e “-”, até 64 caracteres.'); }
   else if ((ctx.codigosEmUso || []).includes(m.codigo)) { add('destino', 'bloquear', `Já existe outra campanha com o código “${m.codigo}”. Troque pra não misturar os resultados.`); }
   else if (!ctx.linkBot) { add('destino', 'alertar', 'O bot do Telegram não está conectado — o link só funciona depois de conectar.'); }
   else { add('destino', 'ok', `Link rastreável: ${ctx.linkBot}?start=${m.codigo}`); }
 
   const resultado = pior(itens);
-  return { itens, resultado, em: agoraIso() };
+  return { itens, resultado, veredito: vereditoDe(resultado), em: agoraIso() };
 }
+
+/** Aprovado · Aprovado com recomendações · Reprovado. */
+export const VEREDITOS = { aprovado: 'Aprovado', recomendacoes: 'Aprovado com recomendações', reprovado: 'Reprovado' };
+export const vereditoDe = (resultado) => (['bloquear', 'corrigir'].includes(resultado) ? 'reprovado' : resultado === 'ok' ? 'aprovado' : 'recomendacoes');
 
 /* ── ciclo de vida ──────────────────────────────────────────────────────── */
 
@@ -231,7 +389,8 @@ function codigosEmUso(d, excetoId) {
   const aqui = d.campanhas.filter((c) => c.id !== excetoId).map((c) => c.codigo);
   // Só a própria campanha JÁ APROVADA tem o código dela no vsresultados — e aí não é conflito.
   const eu = d.campanhas.find((c) => c.id === excetoId);
-  const meu = eu && !EDITAVEL.includes(eu.estado) ? eu.codigo : null;
+  // Aprovada agora OU já aprovada antes (reaberta para revisão): o código é dela.
+  const meu = eu && (!EDITAVEL.includes(eu.estado) || (eu.aprovacoesAnteriores || []).length) ? eu.codigo : null;
   return [...new Set([...aqui, ...resultados.campanhas().map((c) => c.codigo).filter((c) => c !== meu)])];
 }
 
@@ -269,15 +428,17 @@ export function rodarAuditoria(id, ctx = {}) {
   const c = d.campanhas.find((x) => x.id === id);
   if (!c) { return { ok: false, erro: 'campanha não encontrada' }; }
   if (!EDITAVEL.includes(c.estado)) { return { ok: true, campanha: publico(c), reaproveitada: true }; }
-  const produto = c.sku && ctx.produto ? ctx.produto(c.sku) : null;
-  const versao = versaoDe(c, produto);
+  const { produto, versao } = versaoAtual(c, ctx);
   if (c.auditoria?.versao === versao && !ctx.forcar) {
     return { ok: true, campanha: publico(c), reaproveitada: true };
   }
   const rel = auditar(c, { produto, imagem: c.imagem && ctx.imagem ? ctx.imagem(c.imagem) : null, codigosEmUso: codigosEmUso(d, c.id), linkBot: ctx.linkBot || null, agora: ctx.agora });
   c.auditoria = { versao, ...rel };
+  /* Registro de evidências: cada auditoria (por versão) fica guardada com os
+     motivos — é o que responde "por que essa campanha foi (ou não) aprovada?". */
+  c.auditorias = [...(c.auditorias || []), { versao, em: rel.em, resultado: rel.resultado, veredito: rel.veredito, itens: rel.itens }].slice(-20);
   c.estado = ['revisar', 'corrigir', 'bloquear'].includes(rel.resultado) ? 'em-revisao' : 'aguardando-aprovacao';
-  c.historico.push({ em: rel.em, evento: `auditada: ${rel.resultado}` });
+  c.historico.push({ em: rel.em, evento: `auditada: ${VEREDITOS[rel.veredito].toLowerCase()}` });
   gravar(d);
   return { ok: true, campanha: publico(c), reaproveitada: false };
 }
@@ -298,12 +459,59 @@ export function aprovar(id, { por = null, aceitarRessalvas = false, ...ctx } = {
   if (a.resultado === 'corrigir') { return { ok: false, erro: 'a auditoria pediu correção — ajuste antes de aprovar', campanha: publico(c) }; }
   const ressalvas = a.itens.filter((i) => i.nivel === 'revisar').map((i) => i.texto);
   if (ressalvas.length && !aceitarRessalvas) { return { ok: false, erro: 'há itens para revisar — confirme que você conferiu pra aprovar mesmo assim', precisaConfirmar: true, campanha: publico(c) }; }
-  const reg = resultados.criarCampanha({ nome: c.nome, canal: c.canal, codigo: c.codigo });
+  // Reaprovação (campanha reaberta): o link já existe — só volta a contar.
+  const jaTem = resultados.campanhas().some((x) => x.codigo === c.codigo);
+  const reg = jaTem ? resultados.arquivarCampanha(c.codigo, false) : resultados.criarCampanha({ nome: c.nome, canal: c.canal, codigo: c.codigo });
   if (!reg.ok) { return { ok: false, erro: reg.erro }; }
   const quando = agoraIso();
   c.estado = 'ativa';
   c.aprovacao = { em: quando, por, versao: a.versao, ressalvas };
   c.historico.push({ em: quando, evento: ressalvas.length ? `aprovada com ${ressalvas.length} ressalva(s)` : 'aprovada' });
+  gravar(d);
+  return { ok: true, campanha: publico(c) };
+}
+
+/** Produto que a campanha usa (produto, promoção ou a solução de captar) e a versão atual. */
+function versaoAtual(c, ctx = {}) {
+  const sku = c.sku || c.captar?.sku || null;
+  const produto = sku && ctx.produto ? ctx.produto(sku) : null;
+  return { produto, versao: versaoDe(c, produto) };
+}
+
+/**
+ * O BACKEND confere de novo antes de publicar — não depende da tela: a versão
+ * aprovada tem de ser a de agora (texto, imagem, produto, preço/estoque no
+ * catálogo) e a auditoria de agora não pode reprovar.
+ */
+export function revalidar(c, ctx = {}) {
+  if (c.estado !== 'ativa' || !c.aprovacao) { return { ok: false, erro: 'a campanha não está aprovada' }; }
+  const { produto, versao } = versaoAtual(c, ctx);
+  if (versao !== c.aprovacao.versao) {
+    return { ok: false, erro: 'algo mudou desde a aprovação (texto, imagem, produto ou preço/estoque no catálogo) — reabra a campanha, revise e aprove de novo' };
+  }
+  const d = ler();
+  const rel = auditar(c, { produto, imagem: c.imagem && ctx.imagem ? ctx.imagem(c.imagem) : null, codigosEmUso: codigosEmUso(d, c.id).filter((x) => x !== c.codigo), linkBot: ctx.linkBot || null, agora: ctx.agora });
+  if (rel.veredito === 'reprovado') { return { ok: false, erro: `a auditoria de agora reprova: ${rel.itens.filter((i) => ['bloquear', 'corrigir'].includes(i.nivel)).map((i) => i.texto).join(' ')}` }; }
+  return { ok: true };
+}
+
+/**
+ * Reabrir para revisão: a campanha sai do ar (o link para de atribuir),
+ * publicações agendadas são canceladas e ela volta a rascunho. Nova aprovação
+ * reativa o MESMO link.
+ */
+export function reabrir(id, por = null) {
+  const d = ler();
+  const c = d.campanhas.find((x) => x.id === id);
+  if (!c) { return { ok: false, erro: 'campanha não encontrada' }; }
+  if (c.estado !== 'ativa') { return { ok: false, erro: 'só campanha ativa é reaberta' }; }
+  resultados.arquivarCampanha(c.codigo, true);
+  const quando = agoraIso();
+  for (const p of c.publicacoes || []) { if (p.estado === 'agendada') { p.estado = 'cancelada'; p.canceladaEm = quando; p.erro = 'campanha reaberta para revisão'; } }
+  c.aprovacoesAnteriores = [...(c.aprovacoesAnteriores || []), c.aprovacao].slice(-10);
+  c.aprovacao = null;
+  c.estado = 'rascunho';
+  c.historico.push({ em: quando, evento: `reaberta para revisão${por ? ` por ${por}` : ''}` });
   gravar(d);
   return { ok: true, campanha: publico(c) };
 }
@@ -436,11 +644,12 @@ export function podeAgendar(d, campanha, destinoId, quando, pol = politica()) {
  * Agenda (ou publica já, com `quando` = agora) a campanha ATIVA em destinos.
  * Devolve o resultado de cada destino: um pode passar e outro esbarrar na regra.
  */
-export function agendarPublicacao(id, { destinos = [], quando = null, por = null, agora = new Date() } = {}) {
+export function agendarPublicacao(id, { destinos = [], quando = null, por = null, agora = new Date(), ctx = null } = {}) {
   const d = ler();
   const c = (d.campanhas || []).find((x) => x.id === id);
   if (!c) { return { ok: false, erro: 'campanha não encontrada' }; }
   if (c.estado !== 'ativa') { return { ok: false, erro: 'só campanha aprovada (ativa) é publicada' }; }
+  if (ctx) { const v = revalidar(c, ctx); if (!v.ok) { return { ok: false, erro: v.erro }; } }
   if (!destinos.length) { return { ok: false, erro: 'escolha pelo menos um destino' }; }
   const t = quando ? new Date(quando) : new Date(agora);
   if (Number.isNaN(t.getTime())) { return { ok: false, erro: 'data/hora inválida' }; }
@@ -474,7 +683,7 @@ export function cancelarPublicacao(id, pubId) {
  * `publicar(pub, campanha, destino)` é quem fala com o Telegram (injetado pelo
  * backend). Falha fica registrada com o motivo; nada some calado.
  */
-export async function rodarAgendador({ publicar, agora = new Date(), espera = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
+export async function rodarAgendador({ publicar, revalidarCom = null, agora = new Date(), espera = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
   const d0 = ler();
   const vencidas = (d0.campanhas || []).flatMap((c) => (c.publicacoes || []).filter((p) => p.estado === 'agendada' && new Date(p.quando) <= agora).map((p) => ({ c: c.id, p: p.id })));
   const feitas = [];
@@ -487,6 +696,7 @@ export async function rodarAgendador({ publicar, agora = new Date(), espera = (m
     let r;
     if (!dest || dest.estado !== 'confirmado' || !dest.podePublicar) { r = { ok: false, erro: 'o destino não está mais confirmado ou o bot perdeu a permissão' }; }
     else if (c.estado !== 'ativa') { r = { ok: false, erro: 'a campanha foi encerrada antes da hora' }; }
+    else if (revalidarCom && !(r = revalidar(c, revalidarCom)).ok) { /* r já tem o motivo */ }
     else { try { r = await publicar(p, publico(c), dest); } catch (e) { r = { ok: false, erro: e.message }; } }
     d = ler(); c = d.campanhas.find((x) => x.id === v.c); p = c.publicacoes.find((x) => x.id === v.p);
     Object.assign(p, r.ok ? { estado: 'publicada', publicadaEm: agoraIso(), mensagemId: r.mensagemId || null, link: r.link || null, erro: null } : { estado: 'falha', falhouEm: agoraIso(), erro: r.erro || 'motivo não informado' });

@@ -251,7 +251,7 @@ function publicarCampanha(pub, c, dest) {
 let rodadaCampanhas = null;
 function agendadorCampanhas() {
   if (!rodadaCampanhas) {
-    rodadaCampanhas = campanhasTg.rodarAgendador({ publicar: publicarCampanha }).finally(() => { rodadaCampanhas = null; });
+    rodadaCampanhas = campanhasTg.rodarAgendador({ publicar: publicarCampanha, revalidarCom: contextoCampanha() }).finally(() => { rodadaCampanhas = null; });
   }
   return rodadaCampanhas;
 }
@@ -1425,6 +1425,7 @@ const server = createServer(async (req, res) => {
       return json(res, 200, {
         dias, campanhas: lista, linkBot: canais.telegramInfo().link || null, botArroba: canais.telegramInfo().numero || null,
         destinos: campanhasTg.listarDestinos(), politica: campanhasTg.politica(),
+        loja: process.env.VITRINE_NOME || 'nossa loja',
         catalogo: estoque.doAtendimento().map((p) => ({ sku: p.sku, nome: p.nome, descricao: p.descricao, precoCentavos: p.precoCentavos, precoDeCentavos: p.precoDeCentavos, imagem: p.imagem, esgotado: p.esgotado })),
         limites: campanhasTg.LIMITE,
       });
@@ -1906,6 +1907,7 @@ const server = createServer(async (req, res) => {
         case '/crm/api/campanhas/auditar': r = campanhasTg.rodarAuditoria(String(d.id || ''), contextoCampanha({ forcar: d.forcar === true })); break;
         case '/crm/api/campanhas/aprovar': r = campanhasTg.aprovar(String(d.id || ''), { ...contextoCampanha(), por: quem.email || null, aceitarRessalvas: d.aceitarRessalvas === true }); break;
         case '/crm/api/campanhas/encerrar': r = campanhasTg.encerrar(String(d.id || '')); break;
+        case '/crm/api/campanhas/reabrir': r = campanhasTg.reabrir(String(d.id || ''), quem.email || null); break;
         case '/crm/api/campanhas/excluir': r = campanhasTg.excluir(String(d.id || '')); break;
         /* Destinos de publicacao (canais/grupos onde o bot foi autorizado). */
         case '/crm/api/campanhas/destino/verificar': {
@@ -1920,7 +1922,7 @@ const server = createServer(async (req, res) => {
         /* Publicar agora ou agendar. "Agora" entra na fila e o agendador manda
            na mesma hora — e o mesmo caminho, com as mesmas regras. */
         case '/crm/api/campanhas/publicar': {
-          r = campanhasTg.agendarPublicacao(String(d.id || ''), { destinos: Array.isArray(d.destinos) ? d.destinos : [], quando: d.quando || null, por: quem.email || null });
+          r = campanhasTg.agendarPublicacao(String(d.id || ''), { destinos: Array.isArray(d.destinos) ? d.destinos : [], quando: d.quando || null, por: quem.email || null, ctx: contextoCampanha() });
           if (r.ok && !d.quando) {
             // Duas voltas: se o relogio ja estava rodando, a 1a e a dele (anterior a este pedido).
             await agendadorCampanhas(); await agendadorCampanhas();

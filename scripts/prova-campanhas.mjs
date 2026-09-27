@@ -111,7 +111,14 @@ async function main() {
     await page.fill('#cpPromoPreco', '39,90');
     await page.fill('#cpPromoAte', '2026-12-31');
     await page.fill('#cpComo', 'Toque no botão e diga PROMO.');
-    await page.click('button:has-text("Montar texto a partir dos dados")');
+    await page.click('.cp-lugar:has-text("Canal do Telegram")');
+    await page.click('.cp-lugar:has-text("Instagram")');
+    await page.fill('#cpTexto', '');
+    await page.dispatchEvent('#cpTexto', 'input');
+    await page.click('#btCpAjuda');
+    await page.waitForSelector('.cp-ajuda');
+    ok('assistente consulta o catálogo antes de perguntar (produto, preço, descrição)', (await page.textContent('.cp-ajuda')).includes('Já sei') && /R\$\s49,90/.test(await page.textContent('.cp-ajuda')) && (await page.textContent('.cp-ajuda')).includes('Tenho tudo'));
+    await page.click('#btCpMontar');
     const texto = await page.inputValue('#cpTexto');
     ok('texto montado com o preço de/por', /De R\$ 49,90 por R\$ 39,90/.test(texto), texto.split('\n')[2]);
     // Erro de propósito: preço que não é o do catálogo nem o promocional.
@@ -126,7 +133,7 @@ async function main() {
     await page.screenshot({ path: join(FOTOS, '03-auditoria-corrigir.png'), fullPage: true });
 
     await page.click('button:has-text("Voltar e ajustar")');
-    await page.click('button:has-text("Montar texto a partir dos dados")');
+    await page.click('#btCpTexto');
     await page.click('#btCpAuditar');
     await page.waitForSelector('.cp-veredito');
     ok('auditor liberou depois do ajuste', await page.isEnabled('button:has-text("Continuar")'), await page.textContent('.cp-veredito'));
@@ -209,6 +216,55 @@ async function main() {
     await page.click('.modal button:has-text("Publicar")');
     await page.waitForSelector('.modal .cp-pub .badge:has-text("Agendada")');
     ok('agendar para depois do intervalo: fica Agendada, com cancelar', await page.isVisible('.modal .cp-pub:has-text("Agendada") button'));
+    await page.keyboard.press('Escape');
+
+    // ── o caso do dono: Captar clientes · "CRM COMPLETO" · "MONTA PRA MIM" · imagem qualquer · 1 lugar ──
+    const pgQ = await navegador.newPage({ viewport: { width: 1080, height: 1080 } });
+    await pgQ.setContent('<body style="margin:0;display:grid;place-items:center;height:100vh;background:#1f2937;font:120px system-ui;color:#9ca3af">🤖</body>');
+    const robo = join(casa, 'robo.png'); writeFileSync(robo, await pgQ.screenshot({ type: 'png' })); await pgQ.close();
+    await page.goto(`${base}/crm?t=${token}#tg-campanhas`); await page.reload();
+    await page.waitForSelector('button:has-text("Nova campanha")');
+    await page.click('button:has-text("Nova campanha")');
+    await page.click('.cp-obj:has-text("Captar clientes")');
+    await page.fill('#cpNome', 'CRM COMPLETO');
+    await page.fill('#cpTexto', 'MONTA PRA MIM');
+    await page.click('.cp-lugar:has-text("Canal do Telegram")');
+    await page.setInputFiles('.cp-form input[type=file]', robo);
+    await page.waitForSelector('.cp-img img');
+    await espera(1000);
+    await page.click('#btCpAuditar');
+    await page.waitForSelector('.cp-veredito');
+    const relQ = await page.textContent('.cp-form');
+    ok('“MONTA PRA MIM” é REPROVADA', /Reprovado/.test(await page.textContent('.cp-veredito')));
+    ok('motivo: é pedido de ajuda, não texto de campanha', /pedido de ajuda/.test(relQ));
+    ok('motivo: não identificou o benefício (e pede solução, público e ação)', /benefício/.test(relQ) && /solução/.test(relQ) && /público-alvo/.test(relQ) && /depois de clicar/.test(relQ));
+    ok('motivo: captar num lugar só não tem alcance', /pelo menos 2 lugares/.test(relQ));
+    ok('reprovada não avança para aprovação', await page.isDisabled('button:has-text("Continuar")'));
+    ok('evidência registrada em cada motivo', (await page.$$('.cp-evid')).length >= 3);
+    await page.screenshot({ path: join(FOTOS, '09a-reprovado.png'), fullPage: true });
+    await page.click('.cp-conserto button:has-text("Me ajude a montar a campanha")');
+    await page.waitForSelector('.cp-ajuda');
+    const perguntas = await page.$$eval('.cp-ajuda-q > label', (l) => l.map((x) => x.innerText));
+    ok('assistente pergunta SÓ o que falta', perguntas.length === 5 && perguntas.some((p) => /solução/.test(p)) && perguntas.some((p) => /benefício/.test(p)), perguntas.join(' | '));
+    await page.screenshot({ path: join(FOTOS, '09b-assistente.png'), fullPage: true });
+    await page.fill('.cp-ajuda-q:has-text("solução") input', 'Bolso Cheio CRM');
+    await page.fill('.cp-ajuda-q:has-text("Para quem") input', 'pequenas empresas');
+    await page.fill('.cp-ajuda-q:has-text("benefício") input', 'reúne atendimento, oportunidades e pedidos num lugar só');
+    await page.click('.cp-ajuda-q .cp-lugar:has-text("Conversar com um vendedor")');
+    await page.click('.cp-lugar:has-text("Instagram")');
+    await page.click('#btCpMontar');
+    const sug = await page.inputValue('#cpTexto');
+    ok('sugestão usa SÓ o que foi informado (solução, público, benefício, ação)', /Bolso Cheio CRM/.test(sug) && /pequenas empresas/.test(sug) && /oportunidades e pedidos/.test(sug) && /converse com nossa equipe/.test(sug), sug.replace(/\n/g, ' ').slice(0, 140));
+    ok('botão acompanha a ação escolhida', (await page.inputValue('#cpBotao')) === 'Falar com um vendedor');
+    await page.click('#btCpAuditar');
+    await page.waitForSelector('.cp-veredito');
+    ok('depois do assistente: Aprovado com recomendações (a imagem enviada não é verificável) e avança', /Aprovado com recomendações/.test(await page.textContent('.cp-veredito')) && await page.isEnabled('button:has-text("Continuar")'), (await page.textContent('.cp-veredito')).trim());
+    await page.screenshot({ path: join(FOTOS, '09c-aprovado-recomendacoes.png'), fullPage: true });
+    await page.click('button:has-text("Voltar para a lista")');
+    await page.waitForSelector('tbody tr:has-text("Promo Camiseta preta")');
+    await page.click('tbody tr:has-text("Promo Camiseta preta")');
+    await page.waitForSelector('.modal .cp-det');
+    ok('campanha ativa tem “Reabrir para revisão”', await page.isVisible('.modal button:has-text("Reabrir para revisão")'));
     await page.keyboard.press('Escape');
 
     const cel2 = await navegador.newPage({ viewport: { width: 390, height: 844 } });
