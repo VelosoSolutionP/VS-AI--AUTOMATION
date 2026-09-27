@@ -115,14 +115,18 @@ test('trocar a senha logado exige a atual — dono e cliente', () => {
   assert.equal(U.entrar('dono@exemplo.com', 'dono-trocada-22').ok, true);
 });
 
-test('e-mail pessoal do dono que tambem e cliente: senha do console abre o dashboard, a de cliente abre a conta', () => {
+test('e-mail pessoal do dono que tambem e cliente: as duas senhas abrem o dashboard', () => {
   process.env.CONSOLE_ADMIN_EMAILS_EXTRA = 'pessoal@dono.com';
   const c = U.convidar({ email: 'pessoal@dono.com', clienteId: 'cli_dono', nome: 'Dono Testando' });
   assert.equal(U.aceitarConvite(c.token, 'senha-de-cliente-9').ok, true);
   const senhaConsole = 'console-do-dono-77';
   acesso.definir(senhaConsole);
   assert.equal(U.entrar('pessoal@dono.com', senhaConsole).papel, 'admin');
-  assert.equal(U.entrar('pessoal@dono.com', 'senha-de-cliente-9').papel, 'cliente');
+  const comCliente = U.entrar('pessoal@dono.com', 'senha-de-cliente-9');
+  assert.equal(comCliente.papel, 'admin');
+  assert.equal(U.autenticar(comCliente.token).papel, 'admin');
+  assert.equal(U.entrar('pessoal@dono.com', 'senha-errada-00').ok, false);
   assert.equal(U.entrar('outro@loja.com', senhaConsole).ok, false);
+  assert.equal(U.entrar('reenvio@loja.com', 'rita-trocada-1').papel, 'cliente');
   delete process.env.CONSOLE_ADMIN_EMAILS_EXTRA;
 });

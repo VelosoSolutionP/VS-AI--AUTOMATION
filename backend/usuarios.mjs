@@ -42,9 +42,11 @@ export const emailAdmin = () => normEmail(process.env.CONSOLE_ADMIN_EMAIL || 've
 /**
  * Outros e-mails do dono que também abrem o console com a senha dele.
  *
- * Existe porque o e-mail pessoal do dono também é usuário CLIENTE (a assinatura de teste): com a
- * senha do console ele caía na "Minha conta" do cliente em vez do dashboard. Com a senha de
- * cliente, continua entrando como cliente — quem decide o papel é a senha, não só o e-mail.
+ * Existe porque o e-mail pessoal do dono também é usuário CLIENTE (a assinatura de teste). A
+ * primeira regra deixava a SENHA decidir o papel: com a de cliente ele caía na "Minha conta",
+ * cuja única saída é "Trocar de plano" — o dono logava e ia parar na tela de compra, sem
+ * caminho pro dashboard. Agora e-mail do dono entra como dono com qualquer uma das duas senhas
+ * válidas dele; a conta de cliente continua visível em "Clientes e licenças".
  */
 const emailsDoDono = () => new Set([
   emailAdmin(),
@@ -76,7 +78,9 @@ export function autenticar(token) {
   const t = String(token || '');
   if (!t) { return null; }
   const s = ler('sessoes.json', {})[sha(t)];
-  if (s && s.expira > agora()) { return s; }
+  // Sessão de cliente aberta antes da regra acima também vira dono: sem isto, quem já estava
+  // logado continuaria preso na "Minha conta" até sair e entrar de novo.
+  if (s && s.expira > agora()) { return emailsDoDono().has(s.email) ? { ...s, papel: 'admin', clienteId: null } : s; }
   if (acesso.confere(t)) { return { email: emailAdmin(), papel: 'admin', legado: true }; }
   return null;
 }
@@ -101,6 +105,7 @@ export function entrar(email, senha) {
   if (!u || !u.hash) { return falha; }
   if (!igual(derivar(senha, u.sal).toString('hex'), u.hash)) { return falha; }
   gravar('usuarios.json', usuarios().map((x) => (x.email === e ? { ...x, ultimoLogin: agora() } : x)));
+  if (emailsDoDono().has(e)) { return { ok: true, ...abrirSessao({ email: e, papel: 'admin', nome: 'Administrador' }) }; }
   return { ok: true, ...abrirSessao(u) };
 }
 
