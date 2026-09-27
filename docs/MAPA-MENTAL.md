@@ -476,17 +476,16 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 
 ---
 
-## ⏸ ONDE PARAMOS — ler isto primeiro ao voltar (2026-09-27)
+## ⏸ ONDE PARAMOS — ler isto primeiro ao voltar (2026-09-27, fim do dia)
 
 > Ao voltar, o dono diz "lê o final do mapa e continua". Comece por aqui.
 
-**Estado:** branch `fix/fabiano.veloso/6458`. Governança (ganchos) e MCP `vs-ia-dev` **desligados** a pedido do dono (backups `~/.claude/settings.json.bak-qagate`, `~/.claude.json.bak-qagate`). Feitos e provados em navegador:
-1. **Telegram · Campanhas V1** — `824ea6a`.
-2. **Qualificação e roteamento de leads (WhatsApp + Telegram, sem IA)** — `dcfbb2b`.
-3. **Encerramento + avaliação + Histórico** nos dois atendimentos — este commit.
+**Estado:** branch `fix/fabiano.veloso/6458`, tudo commitado e enviado. Painel de produção reiniciado com o código atual (WhatsApp e Telegram reconectam sozinhos com `backend/reiniciar-painel.sh`). Governança e MCP `vs-ia-dev` desligados a pedido do dono.
 
-**Próximo:** o dono disse "antes de voltar para a tela de campanha" → **voltar à Campanha** (revisar a V1 com ele / 2ª entrega) e ele avaliar se a qualificação atende o objetivo.
+**Entregue hoje (ver Histórico):** Campanhas V1 + 2ª entrega (destinos, publicar/agendar, política) + auditor pela especificação do dono (campos por objetivo, 3 resultados, assistente sem inventar, texto e imagem juntos, revalidação no backend, reabrir) · Qualificação e roteamento (tiers do comercial) · Encerramento (Finalizar × Encerrar), avaliação e Histórico · Bot por canal (Telegram → Bot do Telegram) · Horário em calendário · Avisos que fecham sozinhos · Tela sem atendimento.
 
-**Provas (instâncias isoladas, nada toca produção):** `node scripts/prova-campanhas.mjs`, `node scripts/prova-qualificacao.mjs`, `node scripts/prova-encerramento.mjs` — todas aceitam `--fotos <pasta>`.
+**Próximo:** o dono vai "dar uma olhada mais a fundo" em Campanhas. Canal real de teste já conectado: **"Teste campanha Bolso Cheio"** (`-1003782351972`, privado, bot admin com permissão) — está **pendente**, falta o dono confirmar em Telegram → Campanhas → Destinos. Pendente dele também: o valor da política de frequência (hoje 4 h / 3 por dia).
 
-**Como trabalhar (regra do dono):** implementar direto a V1 da proposta; perguntar só o absurdo, em texto. Sem IA em recurso novo (custo).
+**Provas (instâncias isoladas):** `prova-campanhas` 40/40, `prova-qualificacao` 26/26, `prova-encerramento` 27/27, `prova-bot-telegram` 8/8, `prova-horario` 11/11.
+
+**Como trabalhar (regra do dono):** implementar direto a V1 da proposta; perguntar só o absurdo, em TEXTO (nunca AskUserQuestion). Sem IA em recurso novo (custo). Tela de um canal não mostra dado do outro.
