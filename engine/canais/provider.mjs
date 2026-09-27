@@ -66,7 +66,7 @@ export function validarProvider(p) {
  */
 
 /** Molde vazio — evita que cada provider invente um formato meio parecido. */
-export function mensagem({ id, de, endereco = null, nome = null, tipo = 'text', texto = '', quando, canal }) {
+export function mensagem({ id, de, endereco = null, nome = null, tipo = 'text', texto = '', quando, canal, ref = null }) {
   return {
     id: String(id || ''),
     /* `de` e QUEM (identidade, pro CRM) e `endereco` e ONDE RESPONDER. Eram a
@@ -82,5 +82,9 @@ export function mensagem({ id, de, endereco = null, nome = null, tipo = 'text', 
     texto: String(texto || ''),
     quando: quando || new Date().toISOString(),
     canal: canal || 'desconhecido',
+    /* Parametro de entrada do link que trouxe a pessoa (no Telegram, o
+       `?start=` de t.me/bot?start=codigo). Dado de CANAL: o que ele significa
+       (campanha) e o dominio que decide. */
+    ref: ref ? String(ref).slice(0, 64) : null,
   };
 }

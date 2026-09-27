@@ -2,6 +2,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bolso Cheio — Veloso Solution</title>
+<script>/* Noite e o padrao; o claro fica pra quem escolher. Roda antes do CSS pintar. */
+try{document.documentElement.setAttribute('data-theme',localStorage.getItem('vs-tema')||'dark');}catch{document.documentElement.setAttribute('data-theme','dark');}</script>
 <link rel="icon" type="image/png" href="/crm/favicon.png?v=1">
 <link rel="apple-touch-icon" href="/crm/simbolo.png?v=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234f46e5'/%3E%3Ctext x='16' y='22' font-family='system-ui,sans-serif' font-size='15' font-weight='700' fill='%23fff' text-anchor='middle'%3EVS%3C/text%3E%3C/svg%3E">
@@ -17,6 +19,7 @@
    Profundidade é em três degraus e só isso: repouso (sh-1), card (sh-2) e o que
    flutua por cima (sh-3). Sem borda grossa, sem sombra dura. */
 :root{
+  --serie-receita:#059669;
   --bg:#f7f7f9; --panel:#fff; --panel-2:#fcfcfd; --raised:#f4f4f6; --line:#e6e6eb; --line-2:#d3d3dc;
   --fg:#16161c; --muted:#56565f; --dim:#9a9aa6;
   --ink:#16161c; --ink-fg:#fff;
@@ -425,15 +428,67 @@ input.erro-campo,select.erro-campo,textarea.erro-campo{border-color:var(--err);b
 .campo-erro{font-size:12.5px;margin-top:6px;font-weight:550;display:none}
 .campo-erro.on{display:block;color:var(--err)}
 
-.toasts{position:fixed;right:18px;bottom:18px;z-index:60;display:grid;gap:9px;max-width:min(420px,calc(100vw - 36px))}
-.toast{display:flex;gap:11px;align-items:flex-start;padding:13px 15px;border-radius:var(--r-sm);
-  background:var(--panel);border:1px solid var(--line);box-shadow:var(--sh-3);font-size:13px;line-height:1.5;
-  cursor:pointer;transition:opacity .3s;animation:sobe .18s ease}
-.toast .ic{flex:none;width:18px;height:18px}
-.toast .ic svg{width:18px;height:18px}
-.toast.t-ok .ic{color:var(--ok)}
-.toast.t-err .ic{color:var(--err)}
-.toast.t-err{border-color:var(--err-line)}
+.toasts{position:fixed;right:20px;bottom:20px;z-index:80;display:grid;gap:10px;width:min(400px,calc(100vw - 32px))}
+.toast{--tc:var(--ok);position:relative;overflow:hidden;display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start;
+  padding:14px 12px 15px 16px;border-radius:14px;background:var(--panel);border:1px solid var(--line);
+  box-shadow:var(--sh-3),0 0 0 1px color-mix(in srgb,var(--tc) 10%,transparent);font-size:13px;line-height:1.5;
+  animation:t-entra .32s cubic-bezier(.2,.9,.3,1.15) both}
+.toast::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--tc);box-shadow:0 0 14px var(--tc)}
+.toast.t-err{--tc:var(--err);animation:t-entra .32s cubic-bezier(.2,.9,.3,1.15) both,t-treme .42s .3s both}
+.toast.t-warn{--tc:var(--warn)} .toast.t-info{--tc:var(--ac)}
+.t-ic{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:var(--tc);
+  background:color-mix(in srgb,var(--tc) 15%,transparent);box-shadow:0 0 0 4px color-mix(in srgb,var(--tc) 6%,transparent)}
+.t-ic svg{width:16px;height:16px}
+.t-txt{min-width:0;padding-top:4px}
+.t-txt b{display:block;font-size:13.5px;font-weight:680;letter-spacing:-.01em;margin-bottom:2px}
+.t-corpo{color:var(--muted)} .t-txt b+.t-corpo{font-size:12.5px}
+.t-txt b:only-child,.t-corpo:only-child{color:var(--fg)}
+.t-txt .notas{margin-top:8px;gap:5px} .t-txt .notas li{font-size:12.5px}
+.t-acao{margin-top:9px;font-size:12.5px;font-weight:650;color:var(--ac);padding:5px 11px;border-radius:8px;
+  background:var(--ac-soft);border:1px solid var(--ac-line)}
+.t-acao:hover{background:var(--ac);color:#fff}
+.t-x{width:26px;height:26px;border-radius:8px;color:var(--dim);font-size:18px;line-height:1;display:grid;place-items:center}
+.t-x:hover{background:var(--raised);color:var(--fg)}
+.t-barra{position:absolute;left:0;bottom:0;height:2px;width:100%;background:var(--tc);opacity:.55;transform-origin:left;
+  animation:t-tempo linear forwards}
+.toast:hover .t-barra{animation-play-state:paused}
+.toast.saindo{animation:t-sai .23s ease forwards}
+@keyframes t-entra{from{opacity:0;transform:translateY(14px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes t-sai{to{opacity:0;transform:translateX(24px)}}
+@keyframes t-tempo{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+@keyframes t-treme{0%,100%{transform:none}20%{transform:translateX(-5px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
+@media(max-width:640px){.toasts{left:12px;right:12px;bottom:12px;width:auto}}
+/* Com modal aberto o aviso sobe: embaixo ele tapava justo o botao Salvar do formulario. */
+body:has(#modalBg.show) .toasts{top:20px;bottom:auto}
+@media(max-width:640px){body:has(#modalBg.show) .toasts{top:12px}}
+@media (prefers-reduced-motion:reduce){.toast,.toast.t-err,.toast.saindo{animation:none}.t-barra{animation-duration:0s!important;display:none}}
+
+/* botao trabalhando: o texto some e um giro ocupa o lugar, no mesmo tamanho */
+/* color:transparent e nao visibility: botao montado a mao tem o texto solto, fora de <span>. */
+.btn.trabalhando,.bi.trabalhando{pointer-events:none;position:relative;color:transparent!important;--giro:var(--muted)}
+.btn-p.trabalhando,.btn-d.trabalhando{--giro:#fff}
+.btn.trabalhando > *,.bi.trabalhando > *{visibility:hidden}
+.btn.trabalhando::after,.bi.trabalhando::after{content:'';position:absolute;inset:0;margin:auto;width:16px;height:16px;border-radius:50%;
+  border:2px solid var(--giro);border-right-color:transparent;animation:gira .7s linear infinite}
+@keyframes gira{to{transform:rotate(360deg)}}
+
+/* perigo: nao existia — o "Excluir" da confirmacao saia sem estilo nenhum */
+.btn-d{background:var(--err);color:#fff;box-shadow:0 8px 20px -10px var(--err)}
+.btn-d:hover{filter:brightness(1.08);transform:translateY(-1px)}
+
+/* confirmacao: caixa pequena, o que acontece em destaque, perigo em vermelho */
+.modal.modal-sm{max-width:440px;margin-top:12vh}
+.modal-sm .modal-h{border-bottom:0;padding-bottom:4px}
+.modal-sm .modal-f{border-top:0;background:none;padding-top:6px}
+.modal-sm .modal-f .btn{flex:1}
+.cfm{display:flex;gap:14px;align-items:flex-start}
+.cfm-ic{width:40px;height:40px;flex:0 0 40px;border-radius:12px;display:grid;place-items:center;color:var(--ac);background:var(--ac-soft)}
+.cfm-ic svg{width:19px;height:19px}
+.modal-perigo .cfm-ic{color:var(--err);background:var(--err-bg);box-shadow:0 0 22px -6px var(--err)}
+.cfm p{color:var(--muted);font-size:13.5px;line-height:1.55}
+.cfm-aviso{margin-top:10px;padding:9px 12px;border-radius:10px;background:var(--err-bg);border:1px solid var(--err-line);
+  color:var(--err)!important;font-weight:600;font-size:12.5px!important}
+[data-theme="dark"] .toast{background:#131d33;border-color:var(--line-2)}
 
 .seg{display:inline-flex;background:var(--raised);border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px}
 .seg button{border:0;background:none;color:var(--muted,inherit);font:600 13px inherit;padding:7px 16px;border-radius:999px;cursor:pointer;font-family:inherit}
@@ -540,13 +595,51 @@ input.erro-campo,select.erro-campo,textarea.erro-campo{border-color:var(--err);b
    e que deixa o atendente pular de uma conversa pra outra sem perder o lugar. */
 /* Uma caixa so, altura fixa: lista rola de um lado, conversa do outro, e a
    pagina em si nao rola. E o que faz parecer chat em vez de relatorio. */
-.inbox{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:14px;
+.inbox{display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:14px;
   height:calc(100vh - 210px);min-height:440px}
-.inbox-lista{display:grid;gap:7px;overflow-y:auto;align-content:start;padding-right:4px}
+.inbox-lateral{display:flex;flex-direction:column;gap:10px;min-height:0}
+.inbox-lista{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;overflow-y:auto;overflow-x:hidden;align-content:start;padding-right:4px;flex:1;min-height:0}
+.inbox-lista > .conversa{min-width:0}
+/* com a faixa de "desconectado" em cima, a caixa encolhe o mesmo tanto — senao o campo de resposta cai pra fora da tela */
+@media(min-width:901px){.cv-offline + .inbox{height:calc(100vh - 276px)}}
+.cv-busca{display:flex;align-items:center;gap:8px;padding:0 12px;border:1px solid var(--line-2);border-radius:12px;background:var(--panel);flex:none}
+.cv-busca svg{width:15px;height:15px;color:var(--dim);flex:none}
+.cv-busca input{border:0!important;background:none!important;box-shadow:none!important;padding:10px 0;font-size:13px}
+.cv-busca:focus-within{border-color:var(--ac);box-shadow:0 0 0 3.5px var(--ac-soft)}
+.av{--h:260;width:38px;height:38px;flex:0 0 38px;border-radius:50%;display:grid;place-items:center;font-size:12.5px;font-weight:700;
+  letter-spacing:.02em;color:#fff;background:linear-gradient(135deg,hsl(var(--h) 70% 58%),hsl(calc(var(--h) + 40) 75% 48%));
+  box-shadow:0 0 0 2px var(--panel),0 6px 14px -6px hsl(var(--h) 80% 50%)}
+.av-lg{width:42px;height:42px;flex-basis:42px;font-size:14px}
+.cv-corpo{flex:1;min-width:0}
+.cv-tags{display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap}
+.cv-proto{font:600 10.5px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dim);letter-spacing:.02em}
+.badge.cv-proto{margin-left:0}
+.cv-dia{display:flex;align-items:center;gap:10px;margin:6px 0;color:var(--dim);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.cv-dia::before,.cv-dia::after{content:'';flex:1;height:1px;background:var(--line)}
+.cv-evento{justify-self:center;display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);
+  padding:4px 11px;border-radius:99px;background:var(--raised);border:1px solid var(--line)}
+.cv-evento svg{width:12px;height:12px;color:var(--ac)}
+.cv-offline{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;border-radius:12px;
+  background:var(--warn-bg);border:1px solid var(--warn-line);font-size:13px;color:var(--fg)}
+.cv-offline svg{width:17px;height:17px;color:var(--warn);flex:none}
+.cv-offline span{flex:1}
+.cv-offline .t-acao{margin:0}
+.cv-compor{display:flex;align-items:flex-end;gap:8px;padding:6px 6px 6px 14px;border:1px solid var(--line-2);border-radius:16px;background:var(--panel)}
+.cv-compor:focus-within{border-color:var(--ac);box-shadow:0 0 0 3.5px var(--ac-soft)}
+.cv-compor textarea{border:0!important;background:none!important;box-shadow:none!important;padding:8px 0;resize:none;min-height:22px;max-height:160px;line-height:1.45}
+.cv-enviar{width:40px;height:40px;flex:0 0 40px;border-radius:12px;display:grid;place-items:center;color:#fff;
+  background:linear-gradient(135deg,var(--ac-2),var(--ac));box-shadow:var(--sh-ac);transition:transform .12s,filter .15s}
+.cv-enviar svg{width:17px;height:17px}
+.cv-enviar:hover{transform:translateY(-1px);filter:brightness(1.1)}
+.cv-enviar:disabled{opacity:.4;pointer-events:none;box-shadow:none}
+.cv-dica{margin-right:auto;font-size:11.5px}
+kbd{font:600 10.5px ui-monospace,Menlo,monospace;padding:1px 5px;border-radius:5px;border:1px solid var(--line-2);background:var(--raised)}
+[data-theme="dark"] .cv-enviar{background:var(--neon)}
+[data-theme="dark"] .cv-busca,[data-theme="dark"] .cv-compor{background:#0b1222}
 .inbox-conversa{display:flex;flex-direction:column;min-height:0;
   background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--line);
   border-radius:var(--r);box-shadow:var(--sh-2);overflow:hidden}
-.conversa{display:block;width:100%;text-align:left;padding:11px 12px;border-radius:var(--r-sm);
+.conversa{display:flex;gap:11px;align-items:flex-start;width:100%;text-align:left;padding:11px 12px;border-radius:12px;
   background:var(--panel);border:1px solid var(--line);cursor:pointer;
   transition:border-color .16s,background .16s}
 .conversa:hover{border-color:var(--ac-line);background:var(--ac-soft)}
@@ -558,8 +651,11 @@ input.erro-campo,select.erro-campo,textarea.erro-campo{border-color:var(--err);b
 .cv-top small{font-size:11px;color:var(--dim);flex:none}
 .cv-msg{font-size:12.5px;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cv-eu{color:var(--dim)}
-.cv-espera{display:flex;align-items:center;gap:5px;margin-top:6px;font-size:11px;font-weight:650;color:var(--err)}
-.cv-espera svg{width:12px;height:12px}
+.cv-espera{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:650;color:var(--err)}
+/* bolinha pulsando: quem espera gente se ve de longe, sem ler */
+.cv-espera i{width:7px;height:7px;border-radius:50%;background:var(--err);box-shadow:0 0 0 0 var(--err);animation:pulsa 1.6s infinite}
+@keyframes pulsa{70%{box-shadow:0 0 0 6px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion:reduce){.cv-espera i{animation:none}}
 
 .cv-cab{display:flex;align-items:center;gap:11px;padding:13px 16px;border-bottom:1px solid var(--line);flex:none}
 .cv-cab-t{flex:1;min-width:0}
@@ -574,17 +670,19 @@ input.erro-campo,select.erro-campo,textarea.erro-campo{border-color:var(--err);b
 .ctx-micaela i{font-style:normal;color:var(--fg);font-weight:550}
 
 .conversa-fluxo{display:grid;gap:9px;flex:1;min-height:0;overflow-y:auto;padding:16px;background:var(--bg)}
-.bolha{max-width:78%;padding:9px 13px;border-radius:14px;font-size:13.5px;line-height:1.5;position:relative;box-shadow:var(--sh-1)}
+.bolha{max-width:74%;padding:9px 13px;border-radius:16px;font-size:13.5px;line-height:1.5;position:relative;box-shadow:var(--sh-1)}
 .bolha small{display:block;font-size:10.5px;opacity:.6;margin-top:4px}
 /* Cliente à esquerda, nós à direita: a mesma convenção do app que ele usa. */
 .b-cliente{background:var(--panel);border:1px solid var(--line);justify-self:start;border-bottom-left-radius:4px}
 .b-nossa{background:var(--ac-soft);border:1px solid var(--ac-line);color:var(--fg);justify-self:end;border-bottom-right-radius:4px}
+.b-nossa small{text-align:right}
 .responder{display:grid;gap:9px;padding:13px 16px;border-top:1px solid var(--line);flex:none;background:var(--panel)}
 .responder textarea{resize:vertical}
 .responder-acoes{display:flex;gap:8px;flex-wrap:wrap}
 @media(max-width:900px){
   .inbox{grid-template-columns:1fr;height:auto}
-  .inbox-lista{max-height:30vh}
+  .inbox-lista{max-height:34vh}
+  .cv-dica{display:none}
   .inbox-conversa{height:70vh}
 }
 
@@ -786,6 +884,221 @@ body.sem-nav main,body.sem-nav .main{margin-left:0!important}
 #segCard .seg-sos{margin-top:18px;padding:16px 18px;border:1px solid var(--line);border-left:3px solid var(--err);border-radius:12px;background:var(--panel-2);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
 #segCard .seg-sos .btn{background:#b91c1c;color:#fff;border-color:#b91c1c;font-weight:600;padding:10px 18px}
 #segCard .seg-frase{margin:0 0 4px;padding:10px 12px;border-radius:10px;background:var(--ac-soft);color:var(--fg);font-size:13px}
+
+/* ══ Noite Bolso Cheio ═══════════════════════════════════════════════════
+   O visual padrao do console. Referencia: os paineis de comando em fundo
+   roxo profundo (pasta Layouy) — mas com a cor DO PRODUTO, nao a do template:
+   o verde e o dourado vem do logo (o bolso e as moedas), o violeta neon e a
+   tinta de acao. Painel de CRM costuma ser planilha branca; este e o que a
+   pessoa abre de noite no balcao sem cansar a vista.
+
+   Tudo aqui e escopo do tema escuro: o claro continua como estava, pra quem
+   prefere. Cor de estado (ok/atencao/erro) continua significando estado.   */
+:root[data-theme="dark"]{
+  /* Navy neutro nas SUPERFICIES; violeta so na marca e na acao; esmeralda no
+     dinheiro. Antes o roxo estava no fundo, no menu, nos cartoes e nos avisos
+     ao mesmo tempo — consistente, mas tudo se misturava e nada se destacava. */
+  --bg:#0a0f1c; --panel:#111a2e; --panel-2:#0e1627; --raised:#18223a;
+  --line:rgba(148,163,196,.13); --line-2:rgba(148,163,196,.24);
+  --fg:#e8ecf5; --muted:#a3adc2; --dim:#6f7a93;
+  --ink:#e8ecf5; --ink-fg:#0e1627;
+  --ac:#8b5cf6; --ac-2:#a78bfa; --ac-3:#c4b5fd; --ac-fg:#fff;
+  --ac-soft:rgba(139,92,246,.14); --ac-line:rgba(167,139,250,.38); --ac-glow:rgba(124,92,246,.45);
+  --verde:#34d399; --ouro:#fbbf24; --serie-receita:#12a877;
+  --t1:#a78bfa; --t1-bg:rgba(167,139,250,.13); --t2:#34d399; --t2-bg:rgba(52,211,153,.12);
+  --t3:#38bdf8; --t3-bg:rgba(56,189,248,.12); --t4:#fbbf24; --t4-bg:rgba(251,191,36,.12);
+  --t5:#fb7185; --t5-bg:rgba(251,113,133,.12); --t6:#60a5fa; --t6-bg:rgba(96,165,250,.12);
+  --ok:#34d399; --ok-bg:rgba(52,211,153,.11); --ok-line:rgba(52,211,153,.32);
+  --warn:#fbbf24; --warn-bg:rgba(251,191,36,.11); --warn-line:rgba(251,191,36,.32);
+  --err:#fb7185; --err-bg:rgba(251,113,133,.11); --err-line:rgba(251,113,133,.34);
+  --sh-1:0 1px 2px rgba(0,0,0,.45);
+  --sh-2:0 1px 2px rgba(0,0,0,.45), 0 14px 30px -20px rgba(0,0,0,.85);
+  --sh-3:0 2px 8px -2px rgba(0,0,0,.55), 0 28px 60px -26px rgba(0,0,0,.9);
+  --sh-ac:0 10px 26px -12px rgba(124,92,246,.55);
+  --vidro:linear-gradient(180deg,#131d33,#101829);
+  --neon:linear-gradient(135deg,#8b5cf6 0%,#6d5df0 100%);
+  color-scheme:dark;
+}
+[data-theme="dark"] body{
+  background:
+    radial-gradient(1000px 600px at -10% -20%,rgba(139,92,246,.07),transparent 60%),
+    radial-gradient(900px 640px at 115% 120%,rgba(52,211,153,.05),transparent 60%),
+    var(--bg);
+  background-attachment:fixed;
+}
+[data-theme="dark"] ::selection{background:rgba(124,92,246,.35);color:#fff}
+
+/* barra lateral e topo em vidro fosco: o brilho do fundo passa por tras */
+[data-theme="dark"] aside{background:#0c1322;backdrop-filter:blur(14px);border-right-color:var(--line)}
+[data-theme="dark"] .side-foot{background:rgba(255,255,255,.015)}
+[data-theme="dark"] .topbar{background:rgba(10,15,28,.8);backdrop-filter:blur(14px);border-bottom-color:var(--line)}
+[data-theme="dark"] .pill{background:rgba(255,255,255,.035);border-color:var(--line)}
+[data-theme="dark"] .nav-item{color:var(--muted)}
+[data-theme="dark"] .nav-item:hover{background:rgba(255,255,255,.04);color:var(--fg)}
+[data-theme="dark"] .nav-item.active{background:rgba(139,92,246,.14);color:#fff}
+[data-theme="dark"] .nav-item.active svg{color:var(--ac-3)}
+[data-theme="dark"] .nav-item.active::before{background:var(--neon);box-shadow:0 0 12px rgba(124,92,246,.8)}
+[data-theme="dark"] .sub-item.active{color:#fff}
+[data-theme="dark"] .sub-item.active::before{background:var(--ac-3);box-shadow:0 0 8px rgba(167,139,250,.8)}
+[data-theme="dark"] .sec-label{color:#5d6781}
+
+/* cabecalho da pagina: titulo com leve degrade, sem virar arco-iris */
+[data-theme="dark"] .page-head{border-bottom-color:var(--line)}
+[data-theme="dark"] .page-head h1{background:linear-gradient(90deg,#fff 30%,#dfe4f0);-webkit-background-clip:text;background-clip:text;color:transparent}
+[data-theme="dark"] .page-head .eyebrow{color:var(--ac-3)}
+[data-theme="dark"] .page-head .eyebrow::before{background:var(--neon);box-shadow:0 0 8px rgba(124,92,246,.8)}
+
+/* cartoes: vidro, fio de luz no topo, brilho so no hover */
+[data-theme="dark"] .card,[data-theme="dark"] .kpi,[data-theme="dark"] .empty,[data-theme="dark"] .inbox-conversa{
+  background:var(--vidro);border-color:var(--line);backdrop-filter:blur(12px);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05),var(--sh-2)}
+[data-theme="dark"] .card{transition:border-color .2s,box-shadow .2s}
+[data-theme="dark"] .card:hover{border-color:rgba(148,163,196,.26)}
+[data-theme="dark"] .kpi::before{height:2px;background:linear-gradient(90deg,transparent,var(--kt),transparent);box-shadow:0 0 14px var(--kt)}
+[data-theme="dark"] .kpi:hover{border-color:color-mix(in srgb,var(--kt) 45%,transparent);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 0 0 1px color-mix(in srgb,var(--kt) 18%,transparent),0 24px 50px -26px color-mix(in srgb,var(--kt) 55%,transparent)}
+[data-theme="dark"] .kpi b{color:#fff;text-shadow:none}
+[data-theme="dark"] .chip{box-shadow:0 0 0 1px color-mix(in srgb,var(--ct,var(--kt)) 22%,transparent),0 0 18px -4px color-mix(in srgb,var(--ct,var(--kt)) 55%,transparent)}
+[data-theme="dark"] .stat-row:hover,[data-theme="dark"] tbody tr:hover{background:rgba(255,255,255,.03)}
+[data-theme="dark"] th{background:rgba(255,255,255,.035)}
+[data-theme="dark"] .tbl-wrap{background:#0e1627}
+[data-theme="dark"] .step{background:rgba(255,255,255,.025)}
+[data-theme="dark"] .empty .ico{background:var(--neon);box-shadow:0 12px 30px -8px rgba(124,92,246,.65)}
+[data-theme="dark"] .badge.b-ok{box-shadow:0 0 12px -4px var(--ok)}
+[data-theme="dark"] .badge.b-err{box-shadow:0 0 12px -4px var(--err)}
+[data-theme="dark"] code{background:rgba(255,255,255,.05)}
+
+/* campos: fundo mais fundo que o cartao, foco com halo neon */
+[data-theme="dark"] input,[data-theme="dark"] select,[data-theme="dark"] textarea{background:#0b1222;border-color:var(--line-2)}
+[data-theme="dark"] input:focus,[data-theme="dark"] select:focus,[data-theme="dark"] textarea:focus{border-color:var(--ac-2);box-shadow:0 0 0 3.5px rgba(139,92,246,.22),0 0 22px -6px rgba(124,92,246,.55)}
+
+/* botoes */
+[data-theme="dark"] .btn-p{background:var(--neon);box-shadow:var(--sh-ac),inset 0 1px 0 rgba(255,255,255,.25)}
+[data-theme="dark"] .btn-p:hover{box-shadow:0 14px 34px -10px rgba(124,92,246,.8),inset 0 1px 0 rgba(255,255,255,.3);filter:brightness(1.08)}
+[data-theme="dark"] .btn-s{background:rgba(255,255,255,.04);border-color:var(--line-2);box-shadow:none}
+[data-theme="dark"] .btn-s:hover{background:var(--ac-soft);border-color:var(--ac-line);color:#fff}
+[data-theme="dark"] .btn-g:hover{background:rgba(255,255,255,.05)}
+[data-theme="dark"] .btn-ok{background:var(--ok-bg)}
+[data-theme="dark"] .btn-ok:hover{background:var(--ok);color:#06140d;box-shadow:0 10px 26px -10px var(--ok)}
+[data-theme="dark"] .btn-d{box-shadow:0 10px 26px -12px var(--err)}
+[data-theme="dark"] .bi:hover{background:var(--ac-soft);color:#fff}
+
+/* modal: vidro escuro com borda de luz */
+[data-theme="dark"] .modal-bg{background:rgba(5,2,12,.66);backdrop-filter:blur(6px)}
+[data-theme="dark"] .modal{background:#121b30;border-color:var(--line-2);
+  box-shadow:0 0 0 1px rgba(124,92,246,.08),0 30px 80px -20px rgba(0,0,0,.95),0 0 60px -20px rgba(139,92,246,.45)}
+[data-theme="dark"] .modal-h,[data-theme="dark"] .modal-f{border-color:var(--line)}
+[data-theme="dark"] .modal-f{background:rgba(255,255,255,.02)}
+
+/* conversa do WhatsApp */
+[data-theme="dark"] .conversa{background:rgba(255,255,255,.025);border-color:var(--line)}
+[data-theme="dark"] .conversa:hover{background:rgba(139,92,246,.08)}
+[data-theme="dark"] .conversa.ativa{background:linear-gradient(90deg,rgba(139,92,246,.22),rgba(139,92,246,.05));border-color:var(--ac-line)}
+[data-theme="dark"] .conversa-fluxo{background:#0c1426}
+[data-theme="dark"] .b-cliente{background:rgba(255,255,255,.055);border-color:var(--line)}
+[data-theme="dark"] .b-nossa{background:rgba(139,92,246,.17);border-color:rgba(167,139,250,.28);color:var(--fg);box-shadow:none}
+[data-theme="dark"] .responder{background:rgba(255,255,255,.02)}
+[data-theme="dark"] ::-webkit-scrollbar-thumb{background:rgba(148,163,196,.22)}
+@media (prefers-reduced-motion:reduce){[data-theme="dark"] *{transition:none!important}}
+
+/* ── Entrada: refinamento ── */
+.entrar-selo{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;margin-bottom:14px;color:#fff;
+  background:linear-gradient(135deg,var(--ac-2),var(--ac));box-shadow:var(--sh-ac)}
+.entrar-selo svg{width:20px;height:20px}
+.entrar-box h2{font-size:22px!important;letter-spacing:-.03em!important}
+.entrar-box.treme{animation:t-treme .42s}
+.entrar #lgErro.on{display:flex;align-items:center;gap:7px;padding:8px 11px;border-radius:10px;background:var(--err-bg);border:1px solid var(--err-line)}
+.entrar #lgErro svg{width:15px;height:15px;flex:none}
+.entrar-ajuda{display:grid;gap:6px}
+.entrar-linha{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);
+  color:var(--fg);text-decoration:none;cursor:pointer;list-style:none;transition:background .15s,border-color .15s}
+.entrar-linha::-webkit-details-marker{display:none}
+.entrar-linha:hover{background:var(--ac-soft);border-color:var(--ac-line)}
+.entrar-linha > svg{width:16px;height:16px;flex:none;color:var(--ac)}
+.entrar-linha > svg:last-child{color:var(--dim);width:14px;height:14px;transition:transform .2s}
+.entrar-linha span{flex:1;min-width:0}
+.entrar-linha b{display:block;font-size:12.5px;margin:0}
+.entrar-linha small{display:block;font-size:11.5px;color:var(--dim)}
+.entrar-linha-d[open] > .entrar-linha > svg:last-child{transform:rotate(90deg)}
+[data-theme="dark"] .entrar-form{background:transparent}
+[data-theme="dark"] .entrar-box{background:var(--vidro);border-color:var(--line-2);backdrop-filter:blur(14px);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 30px 70px -30px rgba(0,0,0,.9),0 0 70px -30px rgba(139,92,246,.55)}
+[data-theme="dark"] .entrar-selo{background:var(--neon)}
+@media (prefers-reduced-motion:reduce){.entrar-box.treme{animation:none}}
+
+/* Celular: endereco longo (webhook, OAuth) e lista de tipos quebram linha em vez
+   de empurrar a pagina pro lado; tabela solta rola dentro do cartao. */
+@media(max-width:640px){
+  #view .badge{white-space:normal;overflow-wrap:anywhere;text-align:right;max-width:62%}
+  #view code{overflow-wrap:anywhere;word-break:break-all}
+  #view .card > table,#view .card > div > table:not(.tbl-wrap table){display:block;overflow-x:auto;max-width:100%}
+}
+
+/* Icone do cartao: SO o icone, sem caixinha. O quadrado com fundo e borda nao
+   era clicavel nem dizia nada — parecia botao e nao era. Agora e sinal, do
+   mesmo tamanho e peso em todo cartao. */
+.chip,.kpi .chip{width:auto!important;height:auto!important;flex:none!important;background:none!important;border:0!important;
+  box-shadow:none!important;border-radius:0!important;padding:0;color:var(--ct,var(--kt,var(--t1)));opacity:.9}
+.chip svg,.kpi .chip svg{width:19px!important;height:19px!important;stroke-width:1.7}
+.card-h .chip{margin-top:1px}
+[data-theme="dark"] .chip svg{filter:drop-shadow(0 0 6px color-mix(in srgb,var(--ct,var(--kt,var(--t1))) 45%,transparent))}
+
+/* ── Resultados ── */
+.kpi-dinheiro b{color:var(--serie-receita)!important}
+[data-theme="dark"] .kpi-dinheiro b{color:var(--verde)!important}
+.kpi-dinheiro em.sobe{color:var(--ok)} .kpi-dinheiro em.desce{color:var(--err)}
+.medidor{height:10px;border-radius:99px;background:var(--raised);overflow:hidden}
+.medidor i{display:block;height:100%;border-radius:99px;background:var(--serie-receita)}
+.grafico{position:relative}
+.grafico svg{width:100%;height:auto;display:block}
+.g-grade{stroke:var(--line);stroke-width:1}
+.g-eixo{fill:var(--dim);font-size:11px;font-variant-numeric:tabular-nums}
+.g-barra{fill:var(--serie-receita)}
+.g-alvo{fill:transparent;cursor:crosshair}
+.g-alvo:hover{fill:color-mix(in srgb,var(--fg) 5%,transparent)}
+.g-dica{position:absolute;top:0;width:120px;padding:7px 10px;border-radius:9px;background:var(--panel);border:1px solid var(--line-2);
+  box-shadow:var(--sh-3);font-size:12px;pointer-events:none;display:grid;gap:1px}
+/* display:grid acima anularia o [hidden]: a dica ficava como caixa vazia no canto */
+.g-dica[hidden]{display:none}
+.g-dica b{font-size:13.5px;font-variant-numeric:tabular-nums} .g-dica span{color:var(--dim)}
+.g-tabela{margin-top:10px} .g-tabela summary{cursor:pointer;font-size:12.5px;color:var(--muted)}
+.g-tabela .tbl-wrap{margin-top:8px}
+.regra{display:flex;gap:8px;align-items:flex-start;margin-top:4px}
+.regra svg{width:15px;height:15px;flex:none;margin-top:2px;color:var(--dim)}
+.page-head .ph-acts .badge{margin-left:0;align-self:center}
+
+/* Resultados: receita com o dobro da largura; no celular volta a uma coluna */
+.kpis-res{grid-template-columns:2fr 1fr 1fr 1fr;gap:14px}
+.kpis-res .kpi-dinheiro b{font-size:38px;letter-spacing:-.04em;margin-top:2px}
+.kpis-res .kpi-dinheiro{box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 0 0 1px color-mix(in srgb,var(--t2) 22%,transparent),var(--sh-2)}
+@media(max-width:1100px){.kpis-res{grid-template-columns:1fr 1fr}.kpis-res .kpi-dinheiro{grid-column:1/-1}}
+@media(max-width:560px){.kpis-res{grid-template-columns:1fr}}
+.passos{display:grid;gap:8px}
+.passo{display:flex;align-items:center;gap:12px;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel-2)}
+.passo .n{width:26px;height:26px;flex:0 0 26px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;
+  color:var(--ac);background:var(--ac-soft)}
+.passo.feito .n{color:var(--ok);background:var(--ok-bg)} .passo .n svg{width:14px;height:14px}
+.passo-t{flex:1;min-width:0} .passo-t b{display:block;font-size:13.5px} .passo-t small{display:block;font-size:12px;color:var(--dim)}
+/* celular: o botao desce pra linha de baixo em vez de espremer o texto */
+@media(max-width:560px){.passo{flex-wrap:wrap}.passo-t{flex:1 1 calc(100% - 38px)}.passo > .btn{margin-left:38px}}
+/* celular: acoes do cabecalho (filtro, botoes) descem pra baixo do titulo — do
+   lado dele, espremiam o titulo ate cortar a palavra */
+@media(max-width:640px){.page-head{flex-wrap:wrap}.page-head .ph-txt{flex:1 1 100%}.page-head .ph-acts{margin-left:0}}
+.vazio-curto b{display:block;font-size:13.5px} .vazio-curto small{display:block;font-size:12px;color:var(--dim);margin-top:2px}
+.vazio-acao{display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap}
+
+/* microajustes da tela de Resultados */
+.pill[hidden]{display:none!important}
+.pill-sep{width:1px;height:12px;background:var(--line-2);margin:0 2px}
+.seg.seg-sm{padding:2px}.seg.seg-sm button{padding:5px 12px;font-size:12px}
+.kpis-res .kpi-dinheiro b{font-size:42px}
+.kd-linha{display:flex;align-items:flex-end;justify-content:space-between;gap:14px}
+.kd-mini{width:132px;height:40px;flex:none;opacity:.9}
+.kd-mini rect{fill:color-mix(in srgb,var(--serie-receita) 45%,transparent)} .kd-mini rect.hoje{fill:var(--serie-receita)}
+@media(max-width:560px){.kd-mini{width:96px}}
+.camp-fantasma td{padding:16px 12px}
+.camp-fantasma thead th{opacity:.7}
+.camp-fantasma code{font-size:11.5px}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
@@ -843,7 +1156,7 @@ function marcarTema(t){
 (function(){
   let t=null; try{t=localStorage.getItem('vs-tema');}catch{}
   if(t){document.documentElement.setAttribute('data-theme',t);}
-  addEventListener('DOMContentLoaded',()=>marcarTema(t||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')));
+  addEventListener('DOMContentLoaded',()=>marcarTema(t||'dark'));
 })();
 
 /* ---------- icones ---------- */
@@ -857,6 +1170,7 @@ const I={
  quebragalho:'<path d="M14.5 4.5a3.5 3.5 0 0 0-4.6 4.4L4 14.8V20h5.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.4 2.4-2.2-2.2z"/>',
  relatorios:'<path d="M5 21V10M12 21V4M19 21v-7"/><path d="M3 21h18"/>',
  crm:'<path d="M16 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="3.5"/><path d="M17 11h5M19.5 8.5v5"/>',
+ telegram:'<path d="M21.5 4.5 2.8 11.7c-.9.4-.9 1.6.1 1.9l4.6 1.4 1.8 5.5c.3.8 1.3 1 1.9.4l2.6-2.5 4.8 3.5c.7.5 1.7.1 1.9-.8L22.9 5.8c.2-1-.5-1.7-1.4-1.3z"/><path d="m7.5 15 11-7.5-8.3 9"/>',
  whats:'<path d="M3.5 20.5 5 16a8.2 8.2 0 1 1 3 3z"/><path d="M8.8 9.2c0 3.3 2.7 6 6 6 .9 0 1.4-.4 1.4-1.2 0-.5-1.6-1.4-2-1.4-.5 0-.7.8-1.2.8-.8 0-2.4-1.6-2.4-2.4 0-.5.8-.7.8-1.2 0-.4-.9-2-1.4-2-.8 0-1.2.5-1.2 1.4z"/>',
  consumo:'<path d="M3 17l5-6 4 3.5L21 6"/><path d="M16 6h5v5"/>',
  integra:'<path d="M9 7H7a5 5 0 0 0 0 10h2M15 7h2a5 5 0 0 1 0 10h-2"/><path d="M8 12h8"/>',
@@ -888,6 +1202,7 @@ const I={
  importar:'<path d="M12 3v10"/><path d="M8.5 9.5 12 13l3.5-3.5"/><rect x="3" y="15" width="18" height="6" rx="2"/>',
  exportar:'<path d="M12 13V3"/><path d="M8.5 6.5 12 3l3.5 3.5"/><rect x="3" y="15" width="18" height="6" rx="2"/>',
  testar:'<circle cx="12" cy="12" r="9"/><path d="M10 8.5 16 12l-6 3.5z"/>',
+ busca:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/>',
  enviar:'<path d="M21.5 3 2.5 10.5l7.5 2.8 2.8 7.7z"/><path d="M21.5 3 10 13.3"/>',
  entrar:'<path d="M14 3h4.5A1.5 1.5 0 0 1 20 4.5v15a1.5 1.5 0 0 1-1.5 1.5H14"/><path d="M10 8l4 4-4 4"/><path d="M14 12H3"/>',
  sair:'<path d="M10 3H5.5A1.5 1.5 0 0 0 4 4.5v15A1.5 1.5 0 0 0 5.5 21H10"/><path d="M17 8l4 4-4 4"/><path d="M21 12H10"/>',
@@ -912,6 +1227,10 @@ const GRUPOS=[
  { secao:'Operação', itens:[
    {id:'visao',nome:'Visão geral',icone:'visao'},
    {id:'estoque',nome:'Estoque',icone:'estoque'},
+   /* A loja publica e o feed do Google so apareciam num aviso depois de "Vender":
+      quem queria o link pro Merchant Center tinha que saber o endereco de cor. */
+   {id:'loja',nome:'Loja e Google Shopping',icone:'publicar'},
+   {id:'seguranca',nome:'Segurança',icone:'alerta'},
    /* Financeiro fica INVISIVEL: controle de caixa e algo que cada empresa faz do
       seu jeito, e entregar um generico e pior que nao entregar. Quando um cliente
       pedir, a gente faz focado nele. A tela continua no codigo, sem porta no menu. */
@@ -941,6 +1260,18 @@ const GRUPOS=[
      {id:'wa-auditor',nome:'Auditor'},
      {id:'wa-consumo',nome:'Consumo'},
      {id:'wa-desconectar',nome:'Desconectar do telefone'}]},
+   /* Telegram e canal PROPRIO, com a mesma forma do WhatsApp: cada canal com a
+      sua conversa, a sua conexao, a sua trilha e o seu consumo. O bot, a fila e
+      o funil sao os mesmos — quem escreve por la cai no mesmo atendimento. */
+   {id:'tg',nome:'Telegram',icone:'telegram',filhos:[
+     {id:'tg-atendimento',nome:'Atendimento'},
+     /* Resultado e Consumo separados de proposito: consumo diz quanto se
+        conversou; resultado diz quanto isso virou dinheiro — e e o que vende. */
+     {id:'tg-resultados',nome:'Resultados'},
+     {id:'tg-campanhas',nome:'Campanhas'},
+     {id:'tg-canal',nome:'Canal e conexão'},
+     {id:'tg-auditor',nome:'Auditor'},
+     {id:'tg-consumo',nome:'Consumo'}]},
  ]},
  { secao:'Crescimento', itens:[
    {id:'clientes',nome:'Clientes e licenças',icone:'perfil'},
@@ -964,6 +1295,10 @@ const PAI={}; MENU.forEach(m=>(m.filhos||[]).forEach(f=>PAI[f.id]=m.id));
 TITULO['pl-checkout']=['Plano e acesso','Assinar']; PAI['pl-checkout']='plano';
 
 let CLIENTES=null,CLI_SEL=null,CLI_FORM=null;
+let TG=null,TG_TROCAR=false;
+/* Resultados por canal e periodo. Carrega sob demanda: e a tela que mais soma
+   dados, e nao faz sentido pesar a abertura do painel com ela. */
+let RES={},RES_DIAS=30;
 let CANAIS=null,ATEND=null,CONVERSA=null,PLANOS_CAT=null,CICLO='mensal',OPERADORES=null,OP_EDIT=null,TKLOJA=null,TKADS=null,TKSHOP=null;
 let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null,QG=null,TKAPP=null,PAG=null,LOTES=null,CAIXA=null,BOT=null,DOCS=null,PUB=null;
 const TESTE={}; // resultado do ultimo teste por rede (so em memoria)
@@ -978,20 +1313,74 @@ const brl=(v)=>v==null?'—':v.toLocaleString('pt-BR',{style:'currency',currency
    (importar fluxo, por exemplo) nao via resposta nenhuma e ficava sem saber se
    a operacao deu certo. Agora vai tambem num aviso flutuante. */
 function flash(t,tipo,segundos){ toast(t,tipo,segundos); }
-function toast(t,tipo,segundos){
+/* Aviso de canto. Sucesso some sozinho (a barrinha mostra quanto falta, e parar
+   o mouse em cima segura); erro FICA ate a pessoa fechar — some junto com ele a
+   chance de ler o motivo. Nunca tapa a tela: quem estava no meio de um
+   formulario continua com o formulario e o que digitou. */
+const AV_ICO={ok:'check',err:'alerta',warn:'alerta',info:'relogio'};
+function toast(t,tipo,segundos,op){
+  op=op||{};
+  tipo=AV_ICO[tipo]?tipo:'ok';
   let c=document.getElementById('toasts');
   if(!c){ c=document.createElement('div'); c.id='toasts'; c.className='toasts'; document.body.appendChild(c); }
+  const corpo=op.html!=null?op.html:esc(t).replace(/\n/g,'<br>');
+  const lista=(op.motivos||[]).filter(Boolean);
+  // O mesmo aviso de novo (clique duplo, tentar de novo) nao empilha: renova o que ja esta la.
+  const chave=tipo+'|'+(op.titulo||'')+'|'+corpo;
+  [...c.children].forEach(x=>{ if(x.dataset.chave===chave) x.remove(); });
+  const fica=op.fixo??(tipo==='err'&&!segundos);
+  const dur=(segundos||(op.titulo?6:4))*1000;
   const el=document.createElement('div');
-  el.className='toast '+(tipo==='err'?'t-err':'t-ok');
-  el.innerHTML=`<span class="ic">${ico(tipo==='err'?'alerta':'check')}</span><div>${esc(t).replace(/\n/g,'<br>')}</div>`;
-  el.onclick=()=>el.remove();
+  el.className='toast t-'+tipo; el.dataset.chave=chave;
+  el.setAttribute('role',tipo==='err'?'alert':'status');
+  el.innerHTML=`<span class="t-ic">${ico(AV_ICO[tipo])}</span>
+    <div class="t-txt">${op.titulo?`<b>${esc(op.titulo)}</b>`:''}<div class="t-corpo">${corpo}</div>
+      ${lista.length?`<ul class="notas">${lista.map(m=>`<li>${esc(m)}</li>`).join('')}</ul>`:''}
+      ${op.acao?`<button class="t-acao">${esc(op.acao.rotulo)}</button>`:''}</div>
+    <button class="t-x" aria-label="Fechar aviso">&times;</button>
+    ${fica?'':`<i class="t-barra" style="animation-duration:${dur}ms"></i>`}`;
+  const sair=()=>{ if(el.classList.contains('saindo')) return; el.classList.add('saindo'); setTimeout(()=>el.remove(),230); };
+  el.querySelector('.t-x').onclick=sair;
+  if(op.acao) el.querySelector('.t-acao').onclick=()=>{ sair(); op.acao.on(); };
+  if(!fica) el.querySelector('.t-barra').addEventListener('animationend',sair);
   c.appendChild(el);
-  setTimeout(()=>{ el.style.opacity='0'; setTimeout(()=>el.remove(),300); }, (segundos||(tipo==='err'?9:4))*1000);
+  while(c.children.length>4) c.firstElementChild.remove();
+  return el;
 }
 // O ?t= da URL continua funcionando (link direto), mas a sessao tem prioridade:
 // token em querystring acaba em log de acesso e em historico de navegador.
 let TOKEN=sessionStorage.getItem('crm_token')||new URLSearchParams(location.search).get('t')||'';
+/* O botao clicado mostra que esta trabalhando enquanto o servidor responde —
+   sem isto a pessoa clica de novo achando que nao pegou, e cobra/envia duas
+   vezes. Vale pra TODO botao sem mexer em tela nenhuma: o clique marca o botao
+   e o pedido que sair no mesmo instante e dele. So aparece se demorar (180ms),
+   pra nao piscar em resposta rapida. */
+/* Um clique costuma disparar uma SEQUENCIA de pedidos (salvar, depois
+   recarregar a tela): o botao gira ate o ultimo terminar. Pedido que sai
+   colado no anterior (menos de 250ms) e da mesma acao. */
+let BT_ATUAL=null;
+addEventListener('click',(e)=>{
+  const b=e.target.closest?.('button.btn,button.bi,a.btn,button.cv-enviar'); if(!b) return;
+  BT_ATUAL={bt:b,voo:0,t:Date.now(),fim:0,tmOn:null,tmOff:null};
+},true);
+function donoDoPedido(){
+  const a=BT_ATUAL; if(!a) return null;
+  const n=Date.now();
+  if(a.voo>0||n-a.t<250||(a.fim&&n-a.fim<250)) return a;
+  BT_ATUAL=null; return null;
+}
 async function api(r,body){
+  const a=donoDoPedido();
+  if(!a) return apiCru(r,body);
+  a.voo++; clearTimeout(a.tmOff);
+  if(!a.tmOn) a.tmOn=setTimeout(()=>{ if(a.bt.isConnected) a.bt.classList.add('trabalhando'); },180);
+  try{ return await apiCru(r,body); }
+  finally{
+    a.voo--; a.fim=Date.now();
+    if(!a.voo) a.tmOff=setTimeout(()=>{ if(a.voo) return; clearTimeout(a.tmOn); a.tmOn=null; a.bt.classList.remove('trabalhando'); },120);
+  }
+}
+async function apiCru(r,body){
   let res;
   try{
     res=await fetch('/crm/api/'+r,{method:body?'POST':'GET',
@@ -1414,9 +1803,7 @@ async function publicarProdutoTiktok(sku){
     }
     await carregarTiktokLoja();
   }catch(e){
-    abrirModal('Não consegui publicar',
-      `<p class="hint" style="margin-bottom:12px">${esc(e.message)}</p>`,
-      `<button class="btn btn-p" onclick="fecharModal()">${ico('check')}Entendi</button>`);
+    avisoErro('Não consegui publicar',esc(e.message));
   }
 }
 
@@ -1769,7 +2156,8 @@ async function salvarProduto(){
 /* Um modal só, reaproveitado. Vários modais no HTML viram vários lugares pra
    esquecer de fechar — e aí um fica por cima do outro sem ninguém perceber. */
 let FECHAR_MODAL=null;
-function abrirModal(titulo,corpo,rodape){
+function abrirModal(titulo,corpo,rodape,op){
+  document.querySelector('#modalBg .modal').className='modal'+(op?.classe?' '+op.classe:'');
   document.getElementById('modalT').textContent=titulo;
   document.getElementById('modalB').innerHTML=corpo;
   document.getElementById('modalF').innerHTML=rodape||'';
@@ -1800,21 +2188,18 @@ const BT = {
   cancelar: (rot = 'Cancelar') => `<button class="btn btn-g" onclick="fecharModal()">${ico('fechar')}<span>${esc(rot)}</span></button>`,
 };
 
-/** Deu certo. Curto, com o que foi feito escrito de forma conferivel. */
+/** Deu certo. Curto, com o que foi feito escrito de forma conferivel. Texto longo fica mais tempo. */
 function avisoOk(titulo, corpo) {
-  abrirModal(titulo, `<p class="hint">${corpo || 'Pronto, feito.'}</p>`, BT.fechar());
+  const html = corpo || 'Pronto, feito.';
+  toast(null, 'ok', html.length > 90 ? 10 : 6, { titulo, html });
 }
 
 /**
  * Nao deu. Erro NAO vira toast: some em quatro segundos e some junto a chance
  * de a pessoa ler o motivo. Fica na tela ate ela fechar.
  */
-function avisoErro(titulo, corpo, motivos) {
-  const lista = (motivos || []).filter(Boolean);
-  abrirModal(titulo || 'Não consegui fazer isso',
-    `<p class="hint"${lista.length ? ' style="margin-bottom:12px"' : ''}>${corpo || 'O servidor recusou a operação.'}</p>`
-    + (lista.length ? `<ul class="notas">${lista.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>` : ''),
-    BT.fechar());
+function avisoErro(titulo, corpo, motivos, acao) {
+  toast(null, 'err', 0, { titulo: titulo || 'Não consegui fazer isso', html: corpo || 'O servidor recusou a operação.', motivos, acao });
 }
 
 /**
@@ -1832,9 +2217,10 @@ function confirmar({ titulo, texto, consequencia, rotulo = 'Excluir', icone = 'e
     delete window[id];
   };
   abrirModal(titulo,
-    `<p class="hint" style="margin-bottom:${consequencia ? '10' : '0'}px">${texto}</p>`
-    + (consequencia ? `<p class="hint" style="color:var(--err);font-weight:600">${consequencia}</p>` : ''),
-    BT.cancelar() + `<button class="btn ${perigo ? 'btn-d' : 'btn-p'}" onclick="window['${id}']()">${ico(icone)}<span>${esc(rotulo)}</span></button>`);
+    `<div class="cfm"><span class="cfm-ic">${ico(perigo ? 'alerta' : icone)}</span><div>
+      <p>${texto}</p>${consequencia ? `<p class="cfm-aviso">${consequencia}</p>` : ''}</div></div>`,
+    BT.cancelar() + `<button class="btn ${perigo ? 'btn-d' : 'btn-p'}" onclick="window['${id}']()">${ico(icone)}<span>${esc(rotulo)}</span></button>`,
+    { classe: 'modal-sm' + (perigo ? ' modal-perigo' : '') });
 }
 
 function fecharModal(){
@@ -2987,6 +3373,10 @@ async function excluirLancamento(id,desc){
 function auditorDoCanal(canal,titulo,sub){
   const todos=trilhaDeLeads();
   const eventos=todos.filter(e=>{
+    /* Telegram se reconhece pela identidade (faixa 999…), inclusive nos eventos
+       que nao sao mensagem — lead criado, troca de etapa. */
+    if(canal==='telegram') return ehTg(e.telefone);
+    if(ehTg(e.telefone)) return false;
     if(e.tipo!=='interacao') return canal==='whatsapp';
     const c=e.canal||'whatsapp';
     return canal==='rede'?['instagram','facebook','linkedin','tiktok','youtube'].includes(c)
@@ -3040,6 +3430,8 @@ function telaVisao(){
     <div class="card">
       ${cardH('integra','Integrações','Estado real, lido do ambiente.',2,`<span class="badge ${ligadas===estados.length?'b-ok':'b-warn'}">${ligadas} de ${estados.length}</span>`)}
       ${linha('Canal de WhatsApp',wpp.via?('por '+wpp.via):'nenhum canal conectado',wpp.no_ar?'no ar':'desligado',wpp.no_ar?'b-ok':'')}
+      ${linha('Canal de Telegram',TG?.estado==='conectado'?'bot '+(TG.numero||''):TG?.estado==='caido'?'caiu — '+(TG.ultimoErro||''):'nenhum bot conectado',
+        TG?.estado==='conectado'?'no ar':TG?.estado==='caido'?'caiu':'desligado',TG?.estado==='conectado'?'b-ok':TG?.estado==='caido'?'b-err':'')}
       ${linha('Token da Meta','WA_TOKEN / WA_PHONE_ID',w.waToken&&w.waPhoneId?'presentes':'ausentes',w.waToken&&w.waPhoneId?'b-ok':'')}
       ${linha('Webhook de entrada','recebe mensagem do cliente','não existe','')}
       ${linha('Notificação do QA-Gate','CallMeBot',STATUS?.notify?.enabled?'ligada':'desligada',STATUS?.notify?.enabled?'b-ok':'')}
@@ -3823,6 +4215,40 @@ function despararCanal(){
 }
 
 const S={
+ loja:()=>{
+  const url=(LOTES&&LOTES.urlVitrine)||(PUB&&PUB.urlVitrine)||(location.origin+'/vitrine');
+  const base=url.replace(/\/vitrine$/,'');
+  const naLoja=((PUB&&PUB.publicados)||[]).filter(p=>p.naVitrine);
+  /* flex-wrap: no celular o endereco desce pra linha de baixo em vez de espremer o nome. */
+  const endereco=(rotulo,dica,link)=>`<div class="stat-row" style="flex-wrap:wrap"><div class="lbl" style="flex:1 1 160px">${esc(rotulo)}<small>${dica}</small></div>
+    <div style="display:flex;gap:6px;align-items:center;justify-content:flex-end;flex:0 1 auto;min-width:0;margin-left:auto">
+      <code style="word-break:break-all">${esc(link)}</code>
+      ${bi('copiar','Copiar endereço',`navigator.clipboard.writeText('${esc(link)}').then(()=>flash('Endereço copiado.','ok'))`)}
+      <a class="bi" href="${esc(link)}" target="_blank" rel="noopener" title="Abrir" aria-label="Abrir">${ico('ver')}</a></div></div>`;
+  return head('Loja e Google Shopping','Sua loja pública e os endereços que o Google precisa. Produto entra aqui pelo 🛒 <b>Vender</b> no Estoque.',
+     `<a class="btn btn-p" href="${esc(url)}" target="_blank" rel="noopener">${ico('ver')}Abrir minha loja</a>`)+
+   `<div class="card" style="margin-bottom:16px">
+    ${cardH('publicar','Endereços','Copie e cole onde cada um pede.',3)}
+    ${endereco('Sua loja','mande no WhatsApp, cole no Instagram',url)}
+    ${endereco('Feed do Google Shopping','Merchant Center → adicionar feed → busca programada diária',base+'/vitrine/google.xml')}
+    ${endereco('Sitemap','Search Console → Sitemaps',base+'/vitrine/sitemap.xml')}
+    ${LOTES&&LOTES.vitrineConfigurada?linha('Botão de compra','WhatsApp da loja','configurado','b-ok')
+      :linha('Botão de compra','sem VITRINE_WHATSAPP usa o número do bot conectado','número do bot','')}
+   </div>
+   <div class="card" style="margin-bottom:16px">
+    ${cardH('estoque',`Produtos na loja (${naLoja.length})`,naLoja.length?'Cada um tem página própria — é ela que o Google mostra.'
+      :'Nenhum produto na loja ainda. No <b>Estoque</b>, use o 🛒 <b>Vender</b> na linha do produto.',2,
+      `<button class="btn btn-s" onclick="ir('estoque')">${ico('estoque')}Ir pro Estoque</button>`)}
+    ${naLoja.map(p=>endereco(p.nome,esc(p.sku),url+'/p/'+encodeURIComponent(p.sku).replace(/'/g,'%27'))).join('')}
+   </div>`+publicacoesHtml();
+ },
+ seguranca:()=>head('Segurança','Alerta aos responsáveis, SOS e auditoria do atendimento.')+
+  /* O card carrega sozinho (/crm/api/seguranca) e tudo nele funciona: chaves,
+     telefones, responsaveis, teste, SOS e auditoria. Morava dentro do Bot, onde
+     ninguem acha — e protecao que ninguem acha e protecao desligada. */
+  `<div class="card" style="margin-bottom:16px" id="segCard">
+    ${cardH('alerta',`Segurança de quem atende e de quem é atendido`,`Carregando…`,5)}
+  </div>${(setTimeout(carregarSeguranca,0),'')}`,
  estoque:()=>{
   if(!EST) return head('Estoque','Produtos, saldo e exportação para os canais.')+
     vazio('estoque','Backend sem a rota de estoque','Este painel é mais novo que o servidor que está rodando. Atualize o backend.',
@@ -4013,15 +4439,6 @@ const S={
       </div>
     </div>`;
   })()}
-
-  <!-- SEGURANCA. Fica VISIVEL porque e o tipo de protecao que ninguem sabe que
-       tem ate precisar — e ai e tarde pra descobrir que estava desligada.
-       O card carrega sozinho (/crm/api/seguranca) e tudo nele funciona:
-       chaves, telefones, responsaveis, teste, SOS e auditoria. -->
-  <div class="card" style="margin-bottom:16px" id="segCard">
-    ${cardH('alerta',`Segurança de quem atende e de quem é atendido`,`Carregando…`,5)}
-  </div>
-  ${(setTimeout(carregarSeguranca,0),'')}
 
   <div class="card" style="margin-bottom:16px">
     ${cardH('versao',`Fluxo de atendimento`,
@@ -4462,8 +4879,11 @@ const S={
     ${cardH('alerta',`O que NÃO entrou neste relatório`,``,5)}${notas(r.naoEntrou)}</div>`;
  },
 
- 'wa-consumo':()=>{
-  const inter=trilhaDeLeads().filter(e=>e.tipo==='interacao');
+ 'wa-consumo':()=>consumoDoCanal('whatsapp'),
+};
+function consumoDoCanal(canal){
+  const tg=canal==='telegram';
+  const inter=trilhaDeLeads().filter(e=>e.tipo==='interacao'&&ehTg(e.telefone)===tg);
   const saida=inter.filter(e=>e.direcao==='saida').length;
   const w=STATUS?.whatsapp||{};
   const porMes={};
@@ -4475,6 +4895,28 @@ const S={
   const comConversa=new Set(inter.map(e=>e.lead));
   const ganhosComConversa=ST.leads.filter(l=>l.status==='ganho'&&comConversa.has(l.nome||l.telefone)).length;
   const fechados=ST.leads.filter(l=>l.status!=='aberto').length;
+  if(tg){
+    const peloBot=inter.filter(e=>e.direcao==='saida'&&e.autor!=='atendente').length;
+    const pelaEquipe=saida-peloBot;
+    const pct=saida?Math.round(peloBot/saida*100):null;
+    return head('Telegram · Consumo','Volume de conversa, quanto o bot resolveu sozinho e o que isso custa. O que virou dinheiro está em Resultados.',
+      botao({t:'Ver resultados',ic:'financeiro',v:'s',on:"ir('tg-resultados')"}))+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Mensagens',inter.length,`${inter.length-saida} recebida(s) · ${saida} enviada(s)`,1,'telegram')}
+    ${kpi('Respondidas pelo bot',peloBot,pct==null?'nenhuma resposta ainda':`${pct}% das respostas`,2,'bot')}
+    ${kpi('Respondidas pela equipe',pelaEquipe,'quando alguém assumiu a conversa',3,'crm')}
+    ${kpi('Custo','R$ 0','a API do Telegram não cobra por mensagem',6,'financeiro')}
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('bot','Uso do bot','Quanto do atendimento o bot fez sem precisar de alguém.',2)}
+    ${pct==null?'<p class="hint">Assim que o bot responder a primeira pessoa, a proporção aparece aqui.</p>'
+      :`<div class="medidor" role="img" aria-label="${pct}% das respostas feitas pelo bot"><i style="width:${pct}%"></i></div>
+        <p class="hint" style="margin-top:8px"><b>${pct}%</b> pelo bot · <b>${100-pct}%</b> pela equipe</p>`}
+  </div>
+  <div class="card">
+    ${cardH('relatorios',`Mensagens por mês`,``,3)}${meses.length?meses.map(([m,n])=>linha(m.split('-').reverse().join('/'),'mensagens',String(n),'b-ok')).join('')
+      :'<p class="hint">Nenhuma mensagem pelo Telegram ainda. O contador enche sozinho conforme as conversas acontecem.</p>'}</div>`;
+  }
   return head('WhatsApp · Consumo','Quanta conversa passou por aqui, o que ela virou no funil — e o que só a fatura da Meta responde.')+
   `<div class="grid g-kpi" style="margin-bottom:16px">
     ${kpi('Mensagens',inter.length,`${saida} enviada(s) · ${inter.length-saida} recebida(s)`)}
@@ -4492,7 +4934,8 @@ const S={
     ${cardH('politica',`Por que o custo aparece como “—”`,`A Meta cobra por <b>conversa</b>, não por mensagem, e o preço muda com a categoria (atendimento, marketing, utilidade) e com o país. Estimar isso aqui seria inventar número: o valor real está na fatura deles.`,3)}
     ${(()=>{const c=canalWhatsApp();return linha('Canal de saída',c.via||'nenhum',c.no_ar?'enviando':'não envia',c.no_ar?'b-ok':'b-warn')
       +linha('Canal de entrada',c.oficial?'webhook da Meta':'sessão de WhatsApp Web',c.no_ar?'recebendo':'não recebe',c.no_ar?'b-ok':'b-warn');})()}</div>`;
- },
+ }
+Object.assign(S,{
  /* Caixa de entrada. Aqui e chat: lista de quem esta esperando a esquerda,
     conversa a direita, e SO ISSO.
 
@@ -4500,71 +4943,118 @@ const S={
     da conversa e a trilha inteira do CRM no rodape. Virou um relatorio com um
     chat no meio — quem atende precisa ler a conversa e responder, nao estudar
     metricas. Indicador foi pro Consumo, trilha voltou pro Auditor. */
- 'wa-atendimento':()=>{
+ 'wa-atendimento':()=>telaAtendimento('whatsapp'),
+ 'tg-atendimento':()=>telaAtendimento('telegram'),
+ 'tg-canal':()=>telaTelegram(),
+ 'tg-auditor':()=>auditorDoCanal('telegram','Telegram · Auditor','Tudo que passou pelo Telegram: quem falou, quando e o que o bot respondeu.'),
+ 'tg-consumo':()=>consumoDoCanal('telegram'),
+ 'tg-resultados':()=>telaResultados('telegram'),
+ 'tg-campanhas':()=>telaCampanhas('telegram'),
+});
+/* Mesma caixa de entrada pros dois canais: cada um ve SO as suas conversas. */
+function telaAtendimento(canal){
+  const tg=canal==='telegram';
   const dados=ATEND||{conversas:[],esperando:0};
-  const lista=dados.conversas||[];
-  const sel=lista.find(c=>c.telefone===CONVERSA)||lista[0]||null;
-  const canal=(CANAIS?.canais||[])[0];
-  const online=canal?.estado==='conectado';
+  const todas=(dados.conversas||[]).filter(c=>(c.canal||(ehTg(c.telefone)?'telegram':'whatsapp'))===canal);
+  const esperandoAqui=todas.filter(c=>c.esperandoGente).length;
+  const irConexao=tg?"ir('tg-canal')":"ir('canais')";
+  const nomeCanal=tg?'Telegram':'WhatsApp';
+  /* Busca por nome, telefone ou protocolo: com trinta conversas abertas, rolar
+     a lista procurando alguem e o que mais cansa quem atende. */
+  const q=BUSCA_CONV.trim().toLowerCase();
+  const lista=q?todas.filter(c=>[c.nome,c.telefone,c.protocolo].some(x=>String(x||'').toLowerCase().includes(q))):todas;
+  const sel=todas.find(c=>c.telefone===CONVERSA)||lista[0]||null;
+  const online=tg?TG?.estado==='conectado':(CANAIS?.canais||[])[0]?.estado==='conectado';
+  const contato=(c)=>tg?'Telegram':'+'+c.telefone;
   const hora=(x)=>x?String(x).slice(11,16):'';
   const dia=(x)=>{ if(!x) return ''; const h=new Date(); const d=new Date(x);
-    return d.toDateString()===h.toDateString()?'hoje':String(x).slice(8,10)+'/'+String(x).slice(5,7); };
+    if(d.toDateString()===h.toDateString()) return 'hoje';
+    const ontem=new Date(h); ontem.setDate(h.getDate()-1);
+    return d.toDateString()===ontem.toDateString()?'ontem':String(x).slice(8,10)+'/'+String(x).slice(5,7); };
 
   const item=(c)=>`<button class="conversa${c.telefone===sel?.telefone?' ativa':''}${c.esperandoGente?' espera':''}" onclick="abrirConversa('${esc(c.telefone)}')">
-    <div class="cv-top"><b>${esc(c.nome||'+'+c.telefone)}</b><small>${dia(c.ultima?.quando)} ${hora(c.ultima?.quando)}</small></div>
-    <div class="cv-msg">${c.ultima?.direcao==='saida'?'<span class="cv-eu">você: </span>':''}${esc(String(c.ultima?.texto||'').replace(/\n/g,' ').slice(0,58))}</div>
-    ${c.esperandoGente?`<div class="cv-espera">${ico('relogio')}esperando${c.departamento?' · '+esc(c.departamento):''}</div>`:''}
-    ${c.protocolo?`<div class="cv-espera" style="font-family:ui-monospace,monospace;opacity:.7">${esc(c.protocolo)}</div>`:''}
+    ${avatar(c.nome,c.telefone)}
+    <div class="cv-corpo">
+      <div class="cv-top"><b>${esc(c.nome||contato(c))}</b><small>${dia(c.ultima?.quando)==='hoje'?hora(c.ultima?.quando):dia(c.ultima?.quando)}</small></div>
+      <div class="cv-msg">${c.ultima?.direcao==='saida'?'<span class="cv-eu">você: </span>':''}${esc(String(c.ultima?.texto||'').replace(/\n/g,' ').slice(0,80))}</div>
+      ${c.esperandoGente||c.protocolo?`<div class="cv-tags">
+        ${c.esperandoGente?`<span class="cv-espera"><i></i>esperando${c.departamento?' · '+esc(c.departamento):''}</span>`:''}
+        ${c.protocolo?`<span class="cv-proto">${esc(c.protocolo)}</span>`:''}</div>`:''}
+    </div>
   </button>`;
 
-  const bolha=(h)=>`<div class="bolha ${h.direcao==='saida'?'b-nossa':'b-cliente'}">
-    <div>${esc(h.texto||'').replace(/\n/g,'<br>')}</div><small>${hora(h.quando)}</small></div>`;
+  /* Mensagem e evento na mesma linha do tempo, com a virada de dia marcada: sem
+     o separador, "19:08" de ontem e de hoje parecem a mesma hora. A troca de
+     etapa aparece no meio da conversa, onde ela aconteceu. */
+  const linhaDoTempo=(hist)=>{
+    let ultimoDia='';
+    return (hist||[]).map(h=>{
+      const d=dia(h.quando); let out='';
+      if(d&&d!==ultimoDia){ ultimoDia=d; out+=`<div class="cv-dia"><span>${esc(d)}</span></div>`; }
+      if(h.tipo==='interacao') return out+`<div class="bolha ${h.direcao==='saida'?'b-nossa':'b-cliente'}">
+        <div>${esc(h.texto||'').replace(/\n/g,'<br>')}</div><small>${hora(h.quando)}</small></div>`;
+      if(h.tipo==='etapa') return out+`<div class="cv-evento">${ico('seta')}etapa: <b>${esc(h.de||'—')}</b> → <b>${esc(h.para||'—')}</b> · ${hora(h.quando)}</div>`;
+      if(h.tipo==='fechado') return out+`<div class="cv-evento">${ico('check')}atendimento fechado${h.motivo?' · '+esc(h.motivo):''} · ${hora(h.quando)}</div>`;
+      return out;
+    }).join('');
+  };
 
-  /* O contexto vai no TOPO da conversa, discreto: e a primeira coisa que quem
-     atende precisa ler, e nao cabe depois da caixa de resposta. */
   const ctx=sel&&Object.keys(sel.contexto||{}).length
     ? `<div class="ctx-micaela">${ico('registrar')}<div><b>${esc(nomeBot())} já apurou</b>
         ${Object.entries(sel.contexto).map(([k,v])=>`<span>${esc(k.replace(/_/g,' '))}: <i>${esc(String(v).slice(0,90))}</i></span>`).join('')}
        </div></div>`:'';
 
-  if(!lista.length){
-    return head('Atendimento','Quem escreve no WhatsApp aparece aqui.',
-      online?'':botao({t:'Conectar o WhatsApp',ic:'whats',v:'p',on:"ir('canais')"}))+
-      vazio('whats','Nenhuma conversa ainda',`Quando alguém escrever, a conversa abre aqui — com o que ${nomeBot()} já perguntou.`,
-        ['Conectar o WhatsApp em Canais','Mandar uma mensagem de outro número','Voltar aqui pra responder']);
+  if(!todas.length){
+    return head(`${nomeCanal} · Atendimento`,`Quem escreve no ${nomeCanal} aparece aqui.`,
+      online?'':botao({t:`Conectar o ${nomeCanal}`,ic:tg?'telegram':'whats',v:'p',on:irConexao}))+
+      vazio(tg?'telegram':'whats','Nenhuma conversa ainda',`Quando alguém escrever, a conversa abre aqui — com o que ${nomeBot()} já perguntou.`,
+        tg?[online?`Abrir <a href="${esc(TG.link)}" target="_blank" rel="noopener">${esc(TG.numero)}</a> no Telegram e apertar <b>Começar</b>`:'Conectar o bot em <b>Telegram → Canal e conexão</b>',
+            'Mandar uma mensagem pro bot','Voltar aqui pra responder']
+          :['Conectar o WhatsApp em Canais','Mandar uma mensagem de outro número','Voltar aqui pra responder']);
   }
 
-  return head('Atendimento',
-      dados.esperando?`<b>${dados.esperando}</b> pessoa(s) esperando você.`:`Ninguém esperando — ${nomeBot()} está dando conta.`,
+  return head(`${nomeCanal} · Atendimento`,
+      esperandoAqui?`<b>${esperandoAqui}</b> pessoa(s) esperando você.`:`Ninguém esperando — ${nomeBot()} está dando conta.`,
       online?botao({t:'Atualizar',ic:'atualizar',v:'s',on:'carregar()'})
-            :botao({t:'Conectar o WhatsApp',ic:'whats',v:'p',on:"ir('canais')"}))+
+            :botao({t:`Conectar o ${nomeCanal}`,ic:tg?'telegram':'whats',v:'p',on:irConexao}))+
+  (online?'':`<div class="cv-offline">${ico('alerta')}<span><b>${nomeCanal} desconectado.</b> Dá pra ler as conversas, mas nada sai até conectar de novo.</span>
+      <button class="t-acao" onclick="${irConexao}">Conectar agora</button></div>`)+
   `<div class="inbox">
-    <div class="inbox-lista">${lista.map(item).join('')}</div>
+    <div class="inbox-lateral">
+      <label class="cv-busca">${ico('busca')}<input id="cvBusca" placeholder="Buscar nome, telefone ou protocolo" value="${esc(BUSCA_CONV)}"
+        oninput="buscarConversa(this.value)" autocomplete="off"></label>
+      <div class="inbox-lista">${lista.length?lista.map(item).join(''):`<p class="hint" style="padding:14px 6px">Ninguém com “${esc(BUSCA_CONV)}”.</p>`}</div>
+    </div>
     <div class="inbox-conversa">${sel?`
       <div class="cv-cab">
-        <div class="chip" style="--ct:var(--t1);--ct-bg:var(--t1-bg)">${ico('crm')}</div>
-        <div class="cv-cab-t"><b>${esc(sel.nome||('+'+sel.telefone))}</b><small>+${esc(sel.telefone)} · ${esc(sel.etapa||'sem etapa')}</small></div>
-        ${sel.protocolo?`<span class="badge" title="Protocolo deste atendimento — é este número que o cliente tem"
-          style="font-family:ui-monospace,monospace">${esc(sel.protocolo)}</span>`:''}
+        ${avatar(sel.nome,sel.telefone,'lg')}
+        <div class="cv-cab-t"><b>${esc(sel.nome||contato(sel))}</b><small>${esc(contato(sel))} · ${esc(sel.etapa||'sem etapa')}</small></div>
+        ${sel.protocolo?`<span class="badge cv-proto" title="Protocolo deste atendimento — é este número que o cliente tem">${esc(sel.protocolo)}</span>`:''}
         ${sel.esperandoGente
           ? `<span class="badge b-err">esperando desde ${hora(sel.desde)}</span>`
           : `<span class="badge b-ok">com ${esc(nomeBot())}</span>`}
       </div>
       ${ctx}
-      <div class="conversa-fluxo">${(sel.historico||[]).filter(h=>h.tipo==='interacao').map(bolha).join('')}</div>
+      <div class="conversa-fluxo">${linhaDoTempo(sel.historico)}</div>
       <div class="responder">
-        <textarea id="respTexto" rows="2" placeholder="${online?'Escreva a resposta…':'Conecte o WhatsApp para responder'}" ${online?'':'disabled'}></textarea>
+        <div class="cv-compor">
+          <textarea id="respTexto" rows="1" placeholder="${online?'Escreva a resposta…':`Conecte o ${nomeCanal} para responder`}" ${online?'':'disabled'}
+            onkeydown="teclaResposta(event,'${esc(sel.telefone)}')" oninput="crescerResposta(this)"></textarea>
+          <button class="cv-enviar" id="btResponder" title="Enviar (Enter)" aria-label="Enviar" ${online?'':'disabled'}
+            onclick="responderCliente('${esc(sel.telefone)}')">${ico('enviar')}</button>
+        </div>
         <div class="responder-acoes">
-          ${botao({t:'Enviar',ic:'enviar',v:'p',on:`responderCliente('${esc(sel.telefone)}')`,off:!online,id:'btResponder'})}
-          ${sel.esperandoGente?botao({t:`Devolver pra ${nomeBot()}`,ic:'bot',v:'g',on:`devolverAoBot('${esc(sel.telefone)}')`}):''}
+          ${online?'<span class="hint cv-dica"><kbd>Enter</kbd> envia · <kbd>Shift</kbd>+<kbd>Enter</kbd> pula linha</span>':''}
+          ${sel.esperandoGente?botao({t:`Devolver pra ${nomeBot()}`,ic:'bot',v:'g',sz:'xs',on:`devolverAoBot('${esc(sel.telefone)}')`}):''}
           ${sel.protocoloEstado&&sel.protocoloEstado!=='encerrado'
-            ?botao({t:'Encerrar atendimento',ic:'check',v:'g',on:`encerrarAtendimento('${esc(sel.telefone)}','${esc(sel.protocolo||'')}')`,
+            ?botao({t:'Encerrar atendimento',ic:'check',v:'g',sz:'xs',on:`encerrarAtendimento('${esc(sel.telefone)}','${esc(sel.protocolo||'')}')`,
               tit:'Fecha o caso e manda o protocolo pro cliente'}):''}
         </div>
       </div>`:''}
     </div>
   </div>`;
- },
+}
+const S2={
  /* Auditor de canal. Mesma trilha, recortada pelo canal que gerou o evento —
     e por isso ele vive dentro de cada canal em vez de ser um item solto que
     mistura WhatsApp, rede social e marketplace na mesma tabela. */
@@ -4865,11 +5355,14 @@ const S={
     ${linha('Arquivo','fonte de tudo acima',p.caminho,'')}</div>`;
  },
 };
+/* As telas depois do atendimento vivem em S2 so porque o atendimento virou
+   funcao (serve aos dois canais); juntam-se aqui num objeto so. */
+Object.assign(S,S2);
 /* Aliases: o menu novo tem itens que sao a MESMA tela vista de outro lugar.
    Clicar no pai abre a primeira coisa util do grupo, nao uma tela em branco. */
 const TELAS={
   visao:telaVisao, crm:telaCrm, indicacao:telaIndicacao, clientes:telaClientes, 'wa-desconectar':telaDesconectar,
-  whats:S['wa-atendimento'],
+  whats:S['wa-atendimento'], tg:S['tg-atendimento'],
   bot:S.bot, 'bot-regras':S.bot,
   redes:S.redes, 'redes-canal':S.redes,
   quebragalho:S.quebragalho, 'qg-painel':S.quebragalho,
@@ -4903,18 +5396,36 @@ function render(){
      obrigaria a rolar ate embaixo toda vez so pra ver o que acabou de chegar. */
   const fluxo=document.querySelector('.conversa-fluxo');
   if(fluxo) fluxo.scrollTop=fluxo.scrollHeight;
-  document.getElementById('pillLeads').textContent=ST.resumo.abertos+' lead(s) aberto(s)';
+  /* Nas telas do Telegram a conta e so do Telegram — somar os leads do WhatsApp
+     ali faria o canal parecer mais movimentado do que esta. */
+  const noTg=rota==='tg'||rota.startsWith('tg-');
+  const abertos=noTg?(ST.leads||[]).filter(l=>l.status==='aberto'&&ehTg(l.telefone)).length:ST.resumo.abertos;
+  /* No Telegram as duas tarjas viram uma: status e leads do MESMO canal lado a
+     lado, e o topo respira. */
+  const pl=document.getElementById('pillLeads');
+  pl.textContent=abertos+' lead(s) aberto(s)'; pl.hidden=noTg;
   const w=STATUS?.whatsapp||{};
   /* O canal pode ser a API oficial da Meta OU a sessao de WhatsApp Web. Ler so
      `w.envia` (que e a Meta) fazia a tarja dizer "inativo" com o WhatsApp Web
      conectado e conversando — o pior tipo de mentira: a que desmente o que a
      pessoa esta vendo acontecer. */
   const wpp=canalWhatsApp();
-  document.getElementById('pillWa').innerHTML=`<span class="dot ${wpp.no_ar?'on':''}"></span> WhatsApp ${wpp.rotulo}`;
+  /* A tarja do topo fala do canal DA TELA: nas telas do Telegram, dizer
+     "WhatsApp no ar" responde uma pergunta que ninguem fez ali — e esconde se
+     o Telegram, que e o assunto, esta ligado ou nao. */
+  if(rota==='tg'||rota.startsWith('tg-')){
+    const e=TG?.estado, no_ar=e==='conectado';
+    const rot=no_ar?'no ar':e==='caido'?'caiu':e==='conectando'?'conectando…':'desligado';
+    const nTg=(ST.leads||[]).filter(l=>l.status==='aberto'&&ehTg(l.telefone)).length;
+    document.getElementById('pillWa').innerHTML=`<span class="dot ${no_ar?'on':''}"></span> Telegram ${rot}<span class="pill-sep"></span>${nTg} lead(s) aberto(s)`;
+    document.getElementById('pillWa').title=TG?.numero?'Bot '+TG.numero:'';
+  }else{
+    document.getElementById('pillWa').innerHTML=`<span class="dot ${wpp.no_ar?'on':''}"></span> WhatsApp ${wpp.rotulo}`;
+  }
 }
 function ir(id){if(id==='clientes'){CLI_SEL=null;CLI_FORM=null;}rota=id;if(PAI[id])abertos.add(PAI[id]);location.hash=id;toggleNav(false);render();scrollTo(0,0);}
 function toggleSub(id){abertos.has(id)?abertos.delete(id):abertos.add(id);renderNav();}
-addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h&&h!==rota){rota=h;render();}});
+addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(document.body.classList.contains('sem-nav'))return;if(h&&h!==rota){rota=h;render();}});
 
 /* ---------- ações ---------- */
 /**
@@ -5305,8 +5816,9 @@ function telaEntrar(){
 
     <div class="entrar-form">
       <div class="entrar-box">
-        <h2 id="lgTitulo">Entrar</h2>
-        <p class="entrar-sub" id="lgSub">Digite a sua senha. Cliente: informe também o e-mail.</p>
+        <span class="entrar-selo" aria-hidden="true">${ico('entrar')}</span>
+        <h2 id="lgTitulo">Bem-vindo de volta</h2>
+        <p class="entrar-sub" id="lgSub">Dono entra só com a senha. Cliente usa e-mail e senha.</p>
 
         <div class="field" style="margin-top:20px" id="lgCampoEmail">
           <label for="lgEmail">E-mail <span style="font-weight:400;opacity:.7">(opcional)</span></label>
@@ -5337,17 +5849,20 @@ function telaEntrar(){
         <p style="margin:12px 0 0;text-align:center"><a href="#" id="lgEsqueci" style="font-size:14px;font-weight:600">Esqueci minha senha</a></p>
         <p class="hint" id="lgEsqMsg" style="margin-top:6px;text-align:center"></p>
 
+        <!-- A ajuda era um bloco inteiro aberto embaixo do botao, maior que o
+             proprio login. Quem ja e cliente (quase todo mundo que chega aqui)
+             nao precisa ler — fica recolhida, a um clique. -->
         <div class="entrar-ajuda" id="lgAjuda">
-          <b>Ainda não é cliente?</b>
-          <p>Conheça os planos e assine em poucos minutos — o seu acesso chega no WhatsApp e no e-mail.</p>
-          <a class="btn btn-s" href="/assinar" style="margin-top:10px;display:inline-flex">${ico('comprar')}<span>Conhecer e assinar</span></a>
-          <p style="margin-top:14px"><b>Pagou e não recebeu o acesso?</b></p>
-          <p>Informe o e-mail da assinatura: mandamos agora o link para criar a senha no e-mail e no WhatsApp cadastrados.</p>
-          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-            <input id="lgReEmail" type="email" autocomplete="email" placeholder="seu@email.com" style="flex:1;min-width:180px;height:40px">
-            <button class="btn btn-s" id="lgReBtn" type="button">Enviar o link</button>
-          </div>
-          <p class="hint" id="lgReMsg" style="margin-top:8px"></p>
+          <a class="entrar-linha" href="/assinar">${ico('comprar')}<span><b>Ainda não é cliente?</b><small>Conheça os planos e assine em minutos</small></span>${ico('seta')}</a>
+          <details class="entrar-linha-d">
+            <summary class="entrar-linha">${ico('alerta')}<span><b>Pagou e não recebeu o acesso?</b><small>Mandamos o link de novo</small></span>${ico('seta')}</summary>
+            <p class="hint" style="margin:10px 0 8px">Informe o e-mail da assinatura: o link para criar a senha vai no e-mail e no WhatsApp cadastrados.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <input id="lgReEmail" type="email" autocomplete="email" placeholder="seu@email.com" style="flex:1;min-width:180px;height:40px">
+              <button class="btn btn-s" id="lgReBtn" type="button">Enviar o link</button>
+            </div>
+            <p class="hint" id="lgReMsg" style="margin-top:8px"></p>
+          </details>
         </div>
       </div>
 
@@ -5361,8 +5876,10 @@ function telaEntrar(){
   const caps=document.getElementById('lgCaps');
 
   const mostrarErro=(m)=>{
-    erro.textContent=m;
+    erro.innerHTML=ico('alerta')+'<span>'+esc(m)+'</span>';
     erro.classList.add('on');
+    // A caixa balanca uma vez: o "nao entrou" e sentido antes de ser lido.
+    const cx=document.querySelector('.entrar-box'); cx?.classList.remove('treme'); void cx?.offsetWidth; cx?.classList.add('treme');
     campo.classList.add('erro');
     campo.focus();
     campo.select();
@@ -5505,6 +6022,7 @@ async function carregar(){
     PUB=await api('estoque/publicados').catch(()=>null);
     BOT=await api('bot').catch(()=>null);
     CANAIS=await api('canais').catch(()=>null);
+    TG=await api('canais/telegram').catch(()=>null);
     OPERADORES=await api('operadores').catch(()=>null);
     ATEND=await api('atendimentos').catch(()=>null);
     PLANOS_CAT=await api('planos').catch(()=>null);
@@ -5848,6 +6366,302 @@ async function salvar({titulo,campos=[],rota,corpo,sucesso,depois,botao}){
 }
 
 function abrirConversa(tel){ CONVERSA=tel; render(); }
+/* Avatar com as iniciais e uma cor fixa por telefone: a mesma pessoa tem sempre
+   a mesma cor, e da pra achar alguem na lista sem ler nome por nome. */
+function avatar(nome,tel,tam){
+  const n=String(nome||'').trim();
+  const ini=(n?n.split(/\s+/).slice(0,2).map(p=>p[0]).join(''):String(tel||'').slice(-2)).toUpperCase();
+  let h=0; for(const ch of String(tel||n)) h=(h*31+ch.charCodeAt(0))>>>0;
+  return `<span class="av${tam?' av-'+tam:''}" style="--h:${h%360}" aria-hidden="true">${esc(ini)}</span>`;
+}
+let BUSCA_CONV='';
+/* Quem chegou pelo Telegram tem "telefone" na faixa 999 + 12 digitos (ver
+   engine/canais/telegram). Telefone de verdade nunca comeca assim. */
+const ehTg=(tel)=>/^999\d{12}$/.test(String(tel||''));
+
+/* Tela de conexao do Telegram. Sem QR: o bot e criado no @BotFather, que
+   entrega um token; colar o token aqui e o que liga o canal. */
+function telaTelegram(){
+  const t=TG||{estado:'desconectado'};
+  const on=t.estado==='conectado', caiu=t.estado==='caido';
+  const conversas=((ATEND?.conversas)||[]).filter(c=>ehTg(c.telefone)).length;
+  const quando=(x)=>x?String(x).slice(8,10)+'/'+String(x).slice(5,7)+' '+String(x).slice(11,16):'—';
+  const pedirToken=!on||TG_TROCAR;
+  return head('Telegram · Canal e conexão','O bot do Telegram atende com o mesmo robô, o mesmo funil e a mesma fila do WhatsApp.',
+      on?botao({t:'Desconectar',ic:'power',v:'s',on:'desconectarTelegram()'}):'')+
+  `<div class="grid g-kpi" style="margin-bottom:16px">
+    ${kpi('Estado',on?'conectado':caiu?'caiu':'desligado',on?'recebendo e respondendo':caiu?'tentando voltar sozinho':'cole o token pra ligar',on?2:caiu?4:5,'telegram')}
+    ${kpi('Bot',t.numero||'—',t.nomeBot||'nome aparece ao conectar',1,'bot')}
+    ${kpi('Conversas',conversas,'pessoas que escreveram por lá',3,'crm')}
+    ${kpi('Última atividade',quando(t.ultimaAtividade),t.desde?'no ar desde '+quando(t.desde):'—',6,'relogio')}
+  </div>
+  ${caiu&&t.ultimoErro?`<div class="cv-offline">${ico('alerta')}<span><b>O Telegram caiu.</b> ${esc(t.ultimoErro)}</span>
+    <button class="t-acao" onclick="conectarTelegram(true)">Tentar agora</button></div>`:''}
+  ${on?`<div class="card" style="margin-bottom:16px">
+    ${cardH('telegram','Seu bot está no ar','Mande este link pra quem quiser falar com você pelo Telegram — ou cole no Instagram e no site.',2,
+      `<span class="badge b-ok">conectado</span>`)}
+    <div class="linkbox" style="margin-top:4px"><span>${esc(t.link)}</span>
+      ${bi('copiar','Copiar link',`navigator.clipboard.writeText('${esc(t.link)}').then(()=>flash('Link copiado.','ok'))`)}
+      <a class="bi" href="${esc(t.link)}" target="_blank" rel="noopener" title="Abrir no Telegram" aria-label="Abrir no Telegram">${ico('ver')}</a></div>
+    ${linha('API','oficial do Telegram — sem risco de bloqueio de número','oficial','b-ok')}
+    ${linha('Custo por mensagem','o Telegram não cobra','R$ 0','b-ok')}
+    ${!TG_TROCAR?`<div style="margin-top:12px">${botao({t:'Trocar o token',ic:'editar',v:'g',sz:'xs',on:'TG_TROCAR=true;render()'})}</div>`:''}
+  </div>`:''}
+  ${pedirToken?`<div class="card">
+    ${cardH('telegram',on?'Trocar o token do bot':'Conectar o bot','Leva dois minutos e é de graça. O token fica guardado só nesta máquina.',1)}
+    <div class="steps" style="max-width:none;margin:4px 0 16px">
+      <div class="step"><div class="n">1</div><div>No Telegram, abra o <a href="https://t.me/BotFather" target="_blank" rel="noopener"><b>@BotFather</b></a> e mande <code>/newbot</code>.</div></div>
+      <div class="step"><div class="n">2</div><div>Escolha o nome que aparece pro cliente e um usuário terminado em <code>bot</code> (ex.: <code>minhalojabot</code>).</div></div>
+      <div class="step"><div class="n">3</div><div>Ele devolve um <b>token</b> parecido com <code>123456789:AAH…</code>. Copie e cole aqui embaixo.</div></div>
+    </div>
+    <div class="field"><label for="tgToken">Token do bot</label>
+      <div class="cv-compor" style="padding-left:12px">
+        <input id="tgToken" type="password" autocomplete="off" spellcheck="false" placeholder="${t.temToken&&!on?'token guardado — cole outro ou só clique em Conectar':'123456789:AAH…'}"
+          style="border:0;background:none;box-shadow:none;padding:9px 0" onkeydown="if(event.key==='Enter')conectarTelegram()">
+        ${botao({t:on?'Trocar':'Conectar',ic:'telegram',v:'p',on:'conectarTelegram()',id:'btTg'})}
+      </div>
+      <div id="tgErro" class="campo-erro" role="alert"></div></div>
+    ${on?`<div style="margin-top:10px">${botao({t:'Cancelar',ic:'fechar',v:'g',sz:'xs',on:'TG_TROCAR=false;render()'})}</div>`:''}
+  </div>`:''}`;
+}
+const pctTxt=(x)=>x==null?'—':(Math.round(x*1000)/10).toLocaleString('pt-BR')+'%';
+/* Busca o resultado do canal no periodo e redesenha. Guardado por canal+periodo:
+   trocar de 30 pra 7 e voltar nao busca de novo. */
+async function carregarResultados(canal,dias,forcar){
+  const k=canal+':'+dias;
+  if(RES[k]&&!forcar) return RES[k];
+  try{ RES[k]=await apiCru('resultados?canal='+canal+'&dias='+dias); }
+  catch(e){ RES[k]={erro:e.message}; }
+  if(rota==='tg-resultados'||rota==='tg-campanhas') render();
+  return RES[k];
+}
+function trocarPeriodo(d){ RES_DIAS=d; render(); }
+const idade=(iso)=>{ const m=Math.round((Date.now()-new Date(iso))/60000);
+  return m<60?`há ${m} min`:m<1440?`há ${Math.round(m/60)} h`:`há ${Math.round(m/1440)} dia(s)`; };
+
+/* Receita por dia, em colunas. Um so indicador, entao sem legenda — o titulo diz
+   o que e. Dia sem venda nao tem coluna, mas tem area de passar o mouse: o zero
+   tambem e informacao. */
+/* Tendencia de 14 dias dentro do cartao principal: so a forma, sem eixo. Sem
+   receita nenhuma, some — uma linha reta no zero nao conta nada. */
+function miniReceita(serie){
+  const u=(serie||[]).slice(-14); const max=Math.max(...u.map(x=>x.centavos),0);
+  if(!max) return '';
+  const W=132,H=40,f=W/u.length,l=Math.max(3,f*0.55);
+  return `<svg class="kd-mini" viewBox="0 0 ${W} ${H}" aria-hidden="true">${u.map((x,i)=>{ const h=x.centavos?Math.max(2,(H-2)*x.centavos/max):0;
+    return h?`<rect x="${i*f+(f-l)/2}" y="${H-h}" width="${l}" height="${h}" rx="1.5" class="${i===u.length-1?'hoje':''}"/>`:''; }).join('')}</svg>`;
+}
+function graficoReceita(serie){
+  const W=720,H=220,E=52,D=12,T=14,B=28;
+  const max=Math.max(...serie.map(x=>x.centavos),0);
+  const passo=(()=>{ const bruto=max/100/4||1; const p=10**Math.floor(Math.log10(bruto)); return [1,2,2.5,5,10].map(m=>m*p).find(v=>v>=bruto)*100; })();
+  const teto=passo*4||400;
+  const n=serie.length, faixa=(W-E-D)/n, larg=Math.min(24,Math.max(3,faixa*0.62));
+  const y=(c)=>T+(H-T-B)*(1-c/teto);
+  const ticks=[0,1,2,3,4].map(i=>i*passo);
+  const cadaX=Math.ceil(n/6);
+  return `<div class="grafico" onpointerleave="document.getElementById('gDica').hidden=true">
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Receita confirmada por dia">
+      ${ticks.map(t=>`<line x1="${E}" x2="${W-D}" y1="${y(t)}" y2="${y(t)}" class="g-grade"/>
+        <text x="${E-8}" y="${y(t)+4}" text-anchor="end" class="g-eixo">${t?reais(t).replace(',00',''):'R$ 0'}</text>`).join('')}
+      ${serie.map((p,i)=>{ const cx=E+faixa*i+faixa/2; const h=p.centavos?Math.max(2,y(0)-y(p.centavos)):0;
+        return `${h?`<path class="g-barra" d="M${cx-larg/2},${y(0)} v${-(h-4)} q0,-4 4,-4 h${larg-8} q4,0 4,4 v${h-4} z"/>`:''}
+          <rect class="g-alvo" x="${E+faixa*i}" y="${T}" width="${faixa}" height="${H-T-B}" data-i="${i}"
+            onpointerenter="dicaReceita(this,'${p.dia}',${p.centavos})"/>
+          ${i%cadaX===0?`<text x="${cx}" y="${H-8}" text-anchor="middle" class="g-eixo">${p.dia.slice(8,10)}/${p.dia.slice(5,7)}</text>`:''}`; }).join('')}
+    </svg>
+    <div class="g-dica" id="gDica" hidden></div>
+  </div>`;
+}
+function dicaReceita(el,dia,centavos){
+  const d=document.getElementById('gDica'); if(!d) return;
+  d.replaceChildren();
+  const v=document.createElement('b'); v.textContent=reais(centavos);
+  const l=document.createElement('span'); l.textContent=dia.split('-').reverse().join('/');
+  d.append(v,l); d.hidden=false;
+  const g=el.closest('.grafico').getBoundingClientRect(), r=el.getBoundingClientRect();
+  d.style.left=Math.min(g.width-120,Math.max(0,r.left-g.left+r.width/2-60))+'px';
+}
+
+function telaResultados(canal){
+  const tg=canal==='telegram';
+  const r=RES[canal+':'+RES_DIAS];
+  if(!r) setTimeout(()=>carregarResultados(canal,RES_DIAS),0);
+  const periodo=`<div class="seg seg-sm">${[7,30,90].map(d=>`<button class="${RES_DIAS===d?'on':''}" onclick="trocarPeriodo(${d})">${d} dias</button>`).join('')}</div>`;
+  const conectado=tg?TG?.estado==='conectado':(CANAIS?.canais||[])[0]?.estado==='conectado';
+  /* Status do canal ja esta na tarja do topo ("Telegram no ar"); repetir aqui
+     era dizer a mesma coisa duas vezes. O cabecalho fica com o filtro. */
+  const topo=head('Telegram · Resultados','Quanto o Telegram colocou no seu bolso. Só conta venda com pagamento confirmado.',periodo);
+  if(!r) return topo+`<div class="card"><p class="hint">Somando os resultados do período…</p></div>`;
+  if(r.erro) return topo+`<div class="card">${cardH('alerta','Não consegui carregar os resultados',esc(r.erro),5,
+    botao({t:'Tentar de novo',ic:'atualizar',v:'s',on:`carregarResultados('${canal}',${RES_DIAS},true)`}))}</div>`;
+  const semVenda=!r.pedidos;
+  const delta=r.variacao==null?(r.receitaAnteriorCentavos===0&&r.receitaCentavos>0?'primeiras vendas no período':`nos últimos ${r.dias} dias`)
+    :`${r.variacao>=0?'+':''}${pctTxt(r.variacao)} vs ${r.dias} dias anteriores`;
+  /* Receita e o numero que decide se o canal vale a pena: ganha o dobro da
+     largura e a maior tipografia da tela, pro olho pousar ali primeiro. */
+  const kpis=`<div class="grid kpis-res" style="margin-bottom:16px">
+    <div class="kpi kpi-dinheiro" style="--kt:var(--t2);--kt-bg:var(--t2-bg)"><div class="kpi-top"><span>Receita atribuída</span><div class="chip">${ico('financeiro')}</div></div>
+      <div class="kd-linha"><div><b>${reais(r.receitaCentavos)}</b><em class="${r.variacao>0?'sobe':r.variacao<0?'desce':''}">${esc(delta)}</em></div>
+        ${miniReceita(r.serie)}</div></div>
+    ${kpi('Pedidos concluídos',r.pedidosConcluidos,r.pedidos>r.pedidosConcluidos?`${r.pedidos-r.pedidosConcluidos} aguardando pagamento`:'pagos pelo '+(tg?'Telegram':'WhatsApp'),1,'check')}
+    ${kpi('Leads atendidos',r.leadsAtendidos,r.leadsAtendidos?`${r.leadsPeloBot} só pelo bot`:'ninguém escreveu ainda',3,'crm')}
+    ${kpi('Conversão',r.conversao==null?'0%':pctTxt(r.conversao),r.conversao==null?'aguardando os primeiros leads':'leads que viraram pedido pago',6,'relatorios')}
+  </div>`;
+  /* Cada passo e uma ACAO: o botao leva direto pra onde se resolve. Texto com
+     link no meio da frase nao parecia caminho, parecia rodape. */
+  const passo=(n,feito,titulo,sub,acao)=>`<div class="passo${feito?' feito':''}">
+      <div class="n">${feito?ico('check'):n}</div>
+      <div class="passo-t"><b>${titulo}</b><small>${sub}</small></div>${acao}</div>`;
+  const comecar=`<div class="card" style="margin-bottom:16px">
+    ${cardH('telegram','Sua primeira venda pelo Telegram em 3 passos','A receita aparece quando o bot fecha um pedido e o pagamento cai.',2)}
+    <div class="passos">
+      ${passo(1,conectado,conectado?`Bot no ar · ${esc(TG?.numero||'')}`:'Conectar o bot',conectado?'Pronto pra receber mensagens.':'Leva dois minutos, de graça.',
+        conectado?`<a class="btn btn-g btn-xs" href="${esc(r.linkBot||'#')}" target="_blank" rel="noopener">${ico('ver')}<span>Abrir bot</span></a>`
+                 :botao({t:'Conectar',ic:'telegram',v:'p',sz:'xs',on:"ir('tg-canal')"}))}
+      ${passo(2,false,'Fluxo que cobra','Produtos com preço e um passo de cobrança.',botao({t:'Abrir fluxo do bot',ic:'bot',v:'s',sz:'xs',on:"ir('bot-regras')"}))}
+      ${passo(3,false,'Link de campanha','Saiba qual divulgação trouxe cada venda.',botao({t:'Criar campanha',ic:'mais',v:'s',sz:'xs',on:"ir('tg-campanhas')"}))}
+    </div></div>`;
+  const grafico=semVenda?'':`<div class="card" style="margin-bottom:16px">
+    ${cardH('relatorios','Receita gerada','Pagamentos confirmados, por dia do pedido.',2)}
+    ${graficoReceita(r.serie)}
+    <details class="g-tabela"><summary>Ver como tabela</summary>
+      <div class="tbl-wrap"><table><thead><tr><th>Dia</th><th style="text-align:right">Receita</th></tr></thead><tbody>
+      ${r.serie.filter(x=>x.centavos).map(x=>`<tr><td>${x.dia.split('-').reverse().join('/')}</td><td style="text-align:right">${reais(x.centavos)}</td></tr>`).join('')||'<tr><td colspan="2" class="hint">Nenhum dia com receita.</td></tr>'}
+      </tbody></table></div></details></div>`;
+  const ops=r.oportunidades||[];
+  const oportunidades=`<div class="card" style="margin-bottom:16px">
+    ${cardH('atualizar','Oportunidades de retomada','Pedidos sem pagamento há mais de 30 min. Uma mensagem por pedido.',4,
+      r.recuperados?`<span class="badge b-ok">${r.recuperados} recuperado(s) · ${reais(r.receitaRecuperadaCentavos)}</span>`:'')}
+    ${ops.length?ops.map(o=>`<div class="stat-row" style="flex-wrap:wrap">
+        <div class="lbl" style="flex:1 1 200px">${esc(o.nome||'Cliente')} · <span class="cv-proto">${esc(o.referencia)}</span>
+          <small>${esc((o.itens||[]).map(i=>i.nome||i).join(', ').slice(0,90)||'pedido')} · ${idade(o.criadoEm)}</small></div>
+        <span class="badge b-warn">${reais(o.valorCentavos)}</span>
+        ${o.retomadaEm?`<span class="badge">retomado ${idade(o.retomadaEm)}</span>`
+          :botao({t:'Retomar',ic:'enviar',v:'s',sz:'xs',on:`abrirRetomada('${esc(o.referencia)}')`})}
+      </div>`).join('')
+      :'<p class="vazio-curto"><b>Nenhum pedido parado.</b><small>Pedido abandonado aparece aqui pra retomar com um clique.</small></p>'}
+  </div>`;
+  const cams=(r.porCampanha||[]).filter(c=>!c.arquivada);
+  const campanhas=`<div class="card" style="margin-bottom:16px">
+    ${cardH('publicar','Por campanha','O que cada link trouxe em até 30 dias.',3,
+      botao({t:'Ver campanhas',ic:'seta',v:'s',sz:'xs',on:"ir('tg-campanhas')"}))}
+    ${cams.length?`<div class="tbl-wrap"><table><thead><tr><th>Campanha</th><th>Conversas</th><th>Pedidos pagos</th><th style="text-align:right">Receita</th></tr></thead><tbody>
+      ${cams.map(c=>`<tr><td><b>${esc(c.nome)}</b><br><small class="hint">${esc(c.codigo)}</small></td><td>${c.conversas}</td><td>${c.concluidos}</td><td style="text-align:right">${reais(c.receitaCentavos)}</td></tr>`).join('')}
+      </tbody></table></div>`:`<div class="tbl-wrap camp-fantasma"><table><thead><tr><th>Campanha</th><th>Conversas</th><th>Pedidos pagos</th><th style="text-align:right">Receita</th></tr></thead>
+        <tbody><tr><td colspan="4"><div class="vazio-acao">
+          <p class="vazio-curto"><b>Sua primeira campanha aparece aqui.</b><small>Um link por divulgação — ex.: <code>t.me/${esc((TG?.numero||'@seubot').slice(1))}?start=promo-sexta</code></small></p>
+          ${botao({t:'Criar campanha',ic:'mais',v:'p',sz:'xs',on:"ir('tg-campanhas')"})}</div></td></tr></tbody></table></div>`}
+  </div>`;
+  const regra=`<p class="hint regra">${ico('politica')}<span>${esc(r.regra)} Pedido “pagar na entrega” conta como pedido, nunca como receita.</span></p>`;
+  return topo+kpis+(semVenda?comecar:grafico)+oportunidades+campanhas+regra;
+}
+
+function abrirRetomada(ref){
+  const r=RES['telegram:'+RES_DIAS]; const o=(r?.oportunidades||[]).find(x=>x.referencia===ref); if(!o) return;
+  const nome=String(o.nome||'').split(' ')[0];
+  const texto=`Oi${nome?' '+nome:''}! Vi que o seu pedido *${o.referencia}* (${reais(o.valorCentavos)}) ficou em aberto. Quer que eu gere o pagamento de novo ou prefere mudar alguma coisa? É só responder aqui. 🙂`;
+  abrirModal('Retomar o pedido '+o.referencia,
+    `<p class="hint" style="margin-bottom:10px">Vai <b>uma</b> mensagem, pelo Telegram, pra ${esc(o.nome||'o cliente')}. Pode ajustar o texto:</p>
+     <textarea id="rtTexto" rows="4" maxlength="1000">${esc(texto)}</textarea>`,
+    BT.cancelar()+`<button class="btn btn-p" onclick="enviarRetomada('${esc(ref)}')">${ico('enviar')}<span>Enviar</span></button>`,{classe:'modal-sm'});
+}
+async function enviarRetomada(ref){
+  const texto=(document.getElementById('rtTexto')?.value||'').trim();
+  if(!texto){ return avisoErro('Escreva a mensagem','A retomada precisa de um texto.'); }
+  try{
+    await api('resultados/retomar',{referencia:ref,texto});
+    fecharModal();
+    await carregarResultados('telegram',RES_DIAS,true);
+    avisoOk('Retomada enviada',`A mensagem saiu. Se a pessoa pagar a partir de agora, o pedido entra como <b>recuperado</b>.`);
+  }catch(e){ avisoErro('A mensagem não saiu',esc(e.message)); }
+}
+
+function telaCampanhas(canal){
+  const r=RES[canal+':'+RES_DIAS];
+  if(!r) setTimeout(()=>carregarResultados(canal,RES_DIAS),0);
+  const bot=TG?.numero?TG.numero.slice(1):null;
+  const link=(c)=>bot?`https://t.me/${bot}?start=${c}`:null;
+  const lista=(r?.porCampanha||[]);
+  const ativas=lista.filter(c=>!c.arquivada), arquivadas=lista.filter(c=>c.arquivada);
+  const linhaCamp=(c)=>`<div class="stat-row" style="flex-wrap:wrap">
+      <div class="lbl" style="flex:1 1 220px">${esc(c.nome)}<small>${link(c.codigo)?esc(link(c.codigo)):'conecte o bot pra gerar o link'}</small></div>
+      <span class="badge">${c.conversas} conversa(s) · ${c.concluidos} pago(s) · ${reais(c.receitaCentavos)}</span>
+      <div class="acoes">
+        ${link(c.codigo)?bi('copiar','Copiar link',`navigator.clipboard.writeText('${esc(link(c.codigo))}').then(()=>flash('Link copiado.','ok'))`):''}
+        ${bi(c.arquivada?'atualizar':'excluir',c.arquivada?'Reativar':'Arquivar',`arquivarCampanha('${esc(c.codigo)}',${!c.arquivada})`,c.arquivada?'':'dan')}
+      </div></div>`;
+  return head('Telegram · Campanhas','Um link por divulgação. Quem entra pelo link chega com a campanha marcada — e a venda que sair dali é creditada a ela.')+
+  `<div class="card" style="margin-bottom:16px">
+    ${cardH('publicar','Nova campanha','Ex.: “Promo de sexta”, “Stories do Instagram”, “Panfleto do bairro”.',1)}
+    <div class="cv-compor" style="padding-left:12px">
+      <input id="cpNome" maxlength="80" placeholder="Nome da campanha" style="border:0;background:none;box-shadow:none;padding:9px 0"
+        onkeydown="if(event.key==='Enter')criarCampanhaUI('${canal}')">
+      ${botao({t:'Criar link',ic:'mais',v:'p',on:`criarCampanhaUI('${canal}')`})}
+    </div>
+    ${bot?'':`<p class="hint" style="margin-top:8px">O link usa o endereço do seu bot — <a href="#tg-canal" onclick="ir('tg-canal');return false">conecte o bot</a> pra ele aparecer.</p>`}
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('relatorios',`Campanhas ativas (${ativas.length})`,`Números dos últimos ${RES_DIAS} dias.`,2)}
+    ${!r?'<p class="hint">Carregando…</p>':ativas.length?ativas.map(linhaCamp).join(''):'<p class="hint">Nenhuma campanha ainda. Crie a primeira acima.</p>'}
+  </div>
+  ${arquivadas.length?`<details class="card"><summary class="hint" style="cursor:pointer">Arquivadas (${arquivadas.length})</summary>${arquivadas.map(linhaCamp).join('')}</details>`:''}
+  <p class="hint regra">${ico('politica')}<span>O Telegram não deixa bot começar conversa com quem nunca falou com ele — a campanha trabalha com quem <b>escolheu</b> entrar pelo link. Nada de disparo em massa.</span></p>`;
+}
+async function criarCampanhaUI(canal){
+  const campo=document.getElementById('cpNome'); const nome=(campo?.value||'').trim();
+  if(!nome){ campo?.focus(); return avisoErro('Dê um nome pra campanha','Ex.: “Promo de sexta”.'); }
+  try{
+    const r=await api('resultados/campanha',{nome,canal});
+    await carregarResultados(canal,RES_DIAS,true);
+    const bot=TG?.numero?TG.numero.slice(1):null;
+    const link=bot?`https://t.me/${bot}?start=${r.campanha.codigo}`:null;
+    if(link){ navigator.clipboard?.writeText(link).catch(()=>{}); }
+    avisoOk('Campanha criada',link?`Link copiado: <b>${esc(link)}</b>. Cole onde for divulgar.`:'Conecte o bot pra gerar o link.');
+  }catch(e){ avisoErro('Não consegui criar a campanha',esc(e.message)); }
+}
+async function arquivarCampanha(codigo,arquivar){
+  try{ await api('resultados/campanha/arquivar',{codigo,arquivada:arquivar}); await carregarResultados('telegram',RES_DIAS,true);
+    flash(arquivar?'Campanha arquivada — o link continua funcionando, só sai da lista.':'Campanha reativada.','ok'); }
+  catch(e){ avisoErro('Não consegui concluir',esc(e.message)); }
+}
+async function conectarTelegram(soReconectar){
+  const campo=document.getElementById('tgToken');
+  const token=soReconectar?'':(campo?.value||'').trim();
+  const err=document.getElementById('tgErro');
+  if(err){ err.classList.remove('on'); err.textContent=''; }
+  if(!token&&!TG?.temToken){ if(err){err.textContent='Cole o token que o @BotFather entregou.';err.classList.add('on');} campo?.focus(); return; }
+  if(token&&!/^\d{5,}:[A-Za-z0-9_-]{30,}$/.test(token)){
+    if(err){err.textContent='Isso não parece um token do @BotFather — ele tem números, dois-pontos e um código longo.';err.classList.add('on');}
+    campo?.focus(); return;
+  }
+  try{
+    const r=await api('canais/conectar',{canal:'telegram',token});
+    if(!r.ok){ if(err){err.textContent=r.erro||'O Telegram não aceitou.';err.classList.add('on');} return avisoErro('O Telegram não aceitou',esc(r.erro||'motivo não informado')); }
+    TG_TROCAR=false;
+    TG=await api('canais/telegram').catch(()=>TG);
+    render();
+    avisoOk('Telegram conectado',`O bot <b>${esc(r.numero||'')}</b> já está atendendo. Mande um "oi" pra ele e veja a conversa chegar em <b>Telegram → Atendimento</b>.`);
+  }catch(e){ if(err){err.textContent=e.message;err.classList.add('on');} avisoErro('Não consegui conectar o Telegram',esc(e.message)); }
+}
+function desconectarTelegram(){
+  return confirmar({
+    titulo:'Desconectar o Telegram?',
+    texto:'O bot para de responder no Telegram até você conectar de novo. As conversas e o histórico continuam aqui.',
+    rotulo:'Desconectar', icone:'power', perigo:true,
+    aoConfirmar:async()=>{
+      await api('canais/desconectar',{canal:'telegram'});
+      TG=await api('canais/telegram').catch(()=>TG); render();
+      flash('Telegram desconectado.','ok');
+    },
+  });
+}
+function buscarConversa(v){
+  BUSCA_CONV=v; render();
+  const el=document.getElementById('cvBusca'); if(el){ el.focus(); el.setSelectionRange(v.length,v.length); }
+}
+function teclaResposta(e,tel){ if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){ e.preventDefault(); responderCliente(tel); } }
+function crescerResposta(el){ el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,160)+'px'; }
 
 /* Encerrar e uma porta de mao unica pro cliente: ele recebe a despedida com o
    protocolo. Por isso confirma antes, e por isso a confirmacao DIZ o que vai
@@ -5874,9 +6688,7 @@ async function confirmarEncerramento(tel){
     CONVERSA=null;
     await carregar();
   }catch(e){
-    abrirModal('Não consegui encerrar',
-      `<p class="hint" style="margin-bottom:12px">${esc(e.message)}</p>`,
-      `<button class="btn btn-p" onclick="fecharModal()">${ico('check')}Entendi</button>`);
+    avisoErro('Não consegui encerrar',esc(e.message));
   }
 }
 
@@ -5894,12 +6706,9 @@ async function responderCliente(tel){
     flash('Mensagem enviada.','ok');
     await carregar();
   }catch(e){
-    /* Falha de envio precisa de modal: a pessoa do outro lado esta esperando, e
-       um aviso que some em 4s deixaria o atendente achando que respondeu. */
-    abrirModal('Não consegui enviar',
-      `<p class="hint" style="margin-bottom:10px">A mensagem NÃO saiu. O texto continua no campo — pode tentar de novo.</p>
-       <ul class="notas"><li>${esc(e.message)}</li></ul>`,
-      `<button class="btn btn-p" onclick="fecharModal()">${ico('check')}Entendi</button>`);
+    /* Falha de envio FICA na tela ate fechar: a pessoa do outro lado esta
+       esperando, e um aviso que some sozinho deixaria o atendente achando que respondeu. */
+    avisoErro('A mensagem NÃO saiu','O texto continua no campo — pode tentar de novo.',[e.message]);
   }finally{ if(bt){ bt.disabled=false; bt.innerHTML=antes; } }
 }
 
@@ -5986,10 +6795,7 @@ async function alternarOperador(id){
     /* Reativar pode esbarrar no teto do contrato, e isso NAO pode passar como
        avisinho que some: a pessoa voltou pra equipe e continuaria sem receber
        cliente nenhum, sem ninguem entender por que. */
-    abrirModal('Não consegui reativar',
-      `<p class="hint" style="margin-bottom:12px">${esc(e.message)}</p>`,
-      `<button class="btn btn-g" onclick="fecharModal()">Fechar</button>
-       <button class="btn btn-p" onclick="fecharModal();ir('pl-comprar')">${ico('seta')}Ampliar contrato</button>`);
+    avisoErro('Não consegui reativar',esc(e.message),null,{rotulo:'Ampliar contrato',on:()=>ir('pl-comprar')});
   }
 }
 
@@ -6188,9 +6994,7 @@ async function personalizarCanal(){
   const arq=(document.getElementById('pfFoto')||{}).files?.[0];
   if(!nome&&!recado&&!arq){
     marcarCampo('pfNome','Preencha ao menos um destes: nome, recado ou foto.');
-    abrirModal('Nada para aplicar',
-      '<p class="hint">Preencha ao menos um campo — nome, recado ou foto — antes de aplicar no número.</p>',
-      `<button class="btn btn-p" onclick="fecharModal()">${ico('check')}Entendi</button>`);
+    avisoErro('Nada para aplicar','Preencha ao menos um campo — nome, recado ou foto — antes de aplicar no número.');
     return;
   }
   try{
@@ -6282,9 +7086,7 @@ async function reconectarCanal(){
     await carregar();
     flash('Pronto. Se pedir QR, ele aparece aqui nesta tela.','ok');
   }catch(e){
-    abrirModal('Não consegui reconectar',
-      `<p class="hint" style="margin-bottom:12px">${esc(e.message)}</p>`,
-      `<button class="btn btn-p" onclick="fecharModal()">${ico('check')}Entendi</button>`);
+    avisoErro('Não consegui reconectar',esc(e.message));
   }
 }
 
@@ -6302,7 +7104,7 @@ async function desconectarCanal(){
     },
   });
 }
-function copiar(t){navigator.clipboard?.writeText(t).then(()=>avisoErro('Não consegui concluir','Link copiado.','ok'),()=>flash('Copie manualmente: '+t));}
+function copiar(t){navigator.clipboard?.writeText(t).then(()=>flash('Link copiado.','ok'),()=>flash('Copie manualmente: '+t,'err'));}
 
 /* Leva a tela ate o bloco de configuracao daquele canal. A grade e um indice:
    clicar em "Configurar" tem de ir pro lugar, nao abrir outra pagina. */

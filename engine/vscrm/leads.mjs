@@ -90,11 +90,13 @@ export function aplicarQualificacao(lead, q, quando = agora()) {
 }
 
 /** Registra uma interação (mensagem do bot ou do vendedor). */
-export function registrarInteracao(lead, { canal, direcao, texto }, quando = agora()) {
+export function registrarInteracao(lead, { canal, direcao, texto, autor }, quando = agora()) {
   return {
     ...lead,
     atualizadoEm: quando,
-    historico: [...lead.historico, { tipo: 'interacao', canal: canal || 'whatsapp', direcao: direcao || 'saida', texto: String(texto || '').slice(0, 2000), quando }],
+    /* `autor` separa o que o bot respondeu do que a equipe respondeu — e o que
+       mostra quanto trabalho o bot tirou das costas de alguem. */
+    historico: [...lead.historico, { tipo: 'interacao', canal: canal || 'whatsapp', direcao: direcao || 'saida', texto: String(texto || '').slice(0, 2000), quando, ...(autor ? { autor } : {}) }],
   };
 }
 

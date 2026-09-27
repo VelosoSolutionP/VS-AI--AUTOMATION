@@ -29,6 +29,7 @@ import { reservarEvento } from './idempotencia.mjs';
 import { enviarTexto } from './whatsapp.mjs';
 import * as pagamentos from '../engine/vspagamentos/index.mjs';
 import { emReais } from '../engine/vsbot/fluxo.mjs';
+import * as resultados from '../engine/vsresultados/index.mjs';
 
 /**
  * Confere a assinatura da Meta (X-Hub-Signature-256 = HMAC-SHA256 do corpo CRU
@@ -98,6 +99,9 @@ export async function receberMensagem(msg, deps = {}) {
   const produtos = deps.produtos || (() => []);
   const empresa = deps.empresa || process.env.VITRINE_NOME || 'nossa loja';
 
+  /* De que canal veio. A trilha do lead grava isto em cada interacao — e e
+     por ela que o Auditor e o Consumo de cada canal separam o que e de quem. */
+  const canal = msg.canal === 'telegram' ? 'telegram' : 'whatsapp';
   const t = normalizarTelefone(msg.de);
   if (!t.telefone) { return { ok: false, motivo: 'telefone inválido: ' + msg.de }; }
 
@@ -106,12 +110,16 @@ export async function receberMensagem(msg, deps = {}) {
     return { ok: true, duplicado: true, telefone: t.telefone };
   }
 
+  /* Chegou por um link de campanha: grava a origem ANTES de tudo, pra que o
+     pedido que sair desta conversa ja nasca atribuido a ela. */
+  if (msg.ref) { resultados.registrarOrigem(t.telefone, { canal, campanha: msg.ref }); }
+
   const id = leadId(t.telefone);
   let lead = crm.listar().find((l) => l.id === id) || null;
   let leadNovo = false;
   let semCrm = null;
   if (!lead) {
-    const r = crm.criar({ nome: msg.nome, telefone: t.telefone, origem: 'whatsapp' });
+    const r = crm.criar({ nome: msg.nome, telefone: t.telefone, origem: canal });
     if (r.lead) { lead = r.lead; leadNovo = true; }
     // r.erro (tipicamente "sem funil cadastrado") não interrompe: o bot responde
     // mesmo assim e o motivo sobe pra quem chamou colocar no log.
@@ -119,7 +127,7 @@ export async function receberMensagem(msg, deps = {}) {
   }
 
   if (lead) {
-    crm.interagir(lead.id, { canal: 'whatsapp', direcao: 'entrada', texto: msg.texto || `[${msg.tipo}]` });
+    crm.interagir(lead.id, { canal, direcao: 'entrada', texto: msg.texto || `[${msg.tipo}]` });
   }
 
   const cfg = bot.painel().config;
@@ -139,7 +147,7 @@ export async function receberMensagem(msg, deps = {}) {
     const calado = bot.estaComGente(t.telefone);
     const aviso = cfg.mensagemSemTexto;
     const envio = cfg.ativo && aviso && !calado ? await enviar({ phone: t.telefone, texto: aviso }) : { ok: false };
-    if (lead && envio.ok) { crm.interagir(lead.id, { canal: 'whatsapp', direcao: 'saida', texto: aviso }); }
+    if (lead && envio.ok) { crm.interagir(lead.id, { canal, direcao: 'saida', texto: aviso, autor: 'bot' }); }
     return {
       ok: true, telefone: t.telefone, leadId: lead?.id || null, leadNovo, semCrm,
       semTexto: true, tipo: msg.tipo || 'midia', handoff: true, respondeu: envio.ok, envio,
@@ -211,6 +219,11 @@ export async function receberMensagem(msg, deps = {}) {
        link" com o QR na mao — o cliente pagaria na entrega sem precisar. */
     if (c?.ok && (c.pagamento?.linkPagamento || c.pagamento?.pix?.payload)) {
       cobranca = c.pagamento;
+      /* O ELO conversa -> pedido -> pagamento. E so aqui que se sabe as tres
+         coisas juntas; e sem este registro nenhuma venda poderia ser atribuida
+         ao canal com prova. */
+      resultados.registrarPedido({ referencia: r.cobranca.referencia, pagamentoId: c.pagamento.id, telefone: t.telefone,
+        endereco: msg.endereco || null, canal, valorCentavos: c.pagamento.valorCentavos, nome: msg.nome || lead?.nome || null, itens: r.cobranca.itens });
       /* NUMERO DO PEDIDO na mensagem. Sem ele o cliente nao tem como cobrar
          nada depois — "meu pedido" nao identifica pedido nenhum, e quem atende
          fica perguntando telefone e horario pra achar. E o mesmo numero que vai
@@ -233,6 +246,9 @@ export async function receberMensagem(msg, deps = {}) {
       /* O pedido NÃO vira fumaça porque o gateway falhou: entrega segue, o
          pagamento fica pra entrega. É o que o dono faria no balcão. */
       console.error(`[pagamento] nao consegui gerar o link de ${r.cobranca.referencia}: ${c?.motivo || 'motivo nao informado'}`);
+      // Pedido sem cobranca: conta como pedido, nunca como receita (nao ha pagamento pra comprovar).
+      resultados.registrarPedido({ referencia: r.cobranca.referencia, pagamentoId: null, telefone: t.telefone,
+        endereco: msg.endereco || null, canal, valorCentavos: r.cobranca.valorCentavos, nome: msg.nome || lead?.nome || null, itens: r.cobranca.itens });
       texto = [texto, `Pedido *${r.cobranca.referencia}*`, `Total: ${emReais(r.cobranca.valorCentavos)}`, '',
         'Não consegui gerar o link de pagamento agora — pode pagar na entrega, combinado?'].filter(Boolean).join('\n');
     }
@@ -270,7 +286,7 @@ export async function receberMensagem(msg, deps = {}) {
   if (!envio) { envio = await enviar({ phone: t.telefone, texto }); }
   // Só registra a saída se saiu mesmo (ver cabeçalho do arquivo).
   if (lead && envio.ok) {
-    crm.interagir(lead.id, { canal: 'whatsapp', direcao: 'saida', texto });
+    crm.interagir(lead.id, { canal, direcao: 'saida', texto, autor: 'bot' });
   }
 
   /* O QR do Pix vai como IMAGEM, depois do texto.

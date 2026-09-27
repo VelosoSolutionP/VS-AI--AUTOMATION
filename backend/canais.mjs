@@ -11,6 +11,7 @@
  */
 import { criarGateway } from '../engine/canais/gateway.mjs';
 import { criarWhatsAppWebProvider } from '../engine/canais/whatsapp-web/index.mjs';
+import { criarTelegramProvider, ehTelegram } from '../engine/canais/telegram/index.mjs';
 import { reservarEvento } from './idempotencia.mjs';
 import * as atendimento from './atendimento.mjs';
 import * as proto from '../engine/vsprotocolo/index.mjs';
@@ -71,6 +72,22 @@ function jaDisseAgora(para, texto) {
 
 let gateway = null;
 let whatsappWeb = null;
+let telegram = null;
+
+/**
+ * Por onde falar com ESTA pessoa. Quem chegou pelo Telegram tem identidade na
+ * faixa 999… (ver engine/canais/telegram): o aviso de Pix pago, o encerramento
+ * por silencio e o resgate da fila tem de voltar pelo Telegram — mandar pro
+ * WhatsApp seria mandar pra um numero que nao existe.
+ */
+function canalDoCliente(para) {
+  return ehTelegram(para) ? telegram : whatsappWeb;
+}
+async function enviarParaCliente({ para, texto }) {
+  const p = canalDoCliente(para);
+  if (!p) { return { ok: false, erro: 'canal do cliente nao esta montado' }; }
+  return p.enviarTexto({ para, texto });
+}
 
 /**
  * De onde sai o catálogo que a Micaela usa.
@@ -91,7 +108,7 @@ let obterProdutos = () => [];
  */
 async function avisarPixPago(reg, pagamento) {
   for (const id of reg.mensagens || []) {
-    const a = await whatsappWeb?.apagarMensagem({ para: reg.para, id });
+    const a = await canalDoCliente(reg.para)?.apagarMensagem?.({ para: reg.para, id });
     if (!a?.ok) { console.warn(`[pix] ${reg.referencia}: nao apaguei a mensagem ${id} — ${a?.erro || 'canal fora'}`); }
   }
   const cfg = bot.getConfig();
@@ -103,7 +120,7 @@ async function avisarPixPago(reg, pagamento) {
     '',
     cfg.mensagemPixPago || 'Seu pedido já foi pra cozinha. Obrigado! 🍔',
   ].join('\n');
-  const env = await whatsappWeb?.enviarTexto({ para: reg.para, texto });
+  const env = await enviarParaCliente({ para: reg.para, texto });
   console.log(`[pix] ${reg.referencia}: PAGO — ${env?.ok ? 'avisei o cliente' : 'NAO consegui avisar o cliente: ' + (env?.erro || 'canal fora')}`);
   bot.entregarParaEquipe(reg.de, { departamento: 'comercial', contexto: { itens: reg.itens, totalCentavos: reg.totalCentavos, pago: true, pagamentoId: reg.pagamentoId } });
   proto.anotar(reg.referencia, { estado: proto.ESTADOS.NA_FILA, departamento: 'comercial' });
@@ -155,7 +172,7 @@ function montar({ produtos } = {}) {
            o numero do protocolo. Visto em producao:
              "179340671226006" nao e um telefone valido (15 digitos)
            A montagem manual deste objeto foi o que engoliu o campo. */
-        { id: msg.id, de: msg.de, endereco: msg.endereco, nome: msg.nome, texto: msg.texto, tipo: msg.tipo },
+        { id: msg.id, de: msg.de, endereco: msg.endereco, nome: msg.nome, texto: msg.texto, tipo: msg.tipo, canal: ctx.canal, ref: msg.ref },
         {
           /* O ENVIO e o unico passo que some quando falha: a mensagem entrou, a
              trilha registrou, e o cliente nunca viu nada. Do lado de ca o log
@@ -183,7 +200,11 @@ function montar({ produtos } = {}) {
              aqui que o QR do Pix chega na tela de quem vai pagar. */
           enviarImagem: async ({ dataUri, legenda, nome }) => {
             const para = msg.endereco || msg.de;
-            const env = await whatsappWeb.enviarImagem({ para, dataUri, legenda, nome });
+            /* Pelo canal de onde a mensagem veio: cardapio e QR do Pix de quem
+               escreveu no Telegram saem no Telegram. */
+            const prov = gateway.obter(ctx.canal) || whatsappWeb;
+            if (typeof prov?.enviarImagem !== 'function') { return { ok: false, erro: `o canal ${ctx.canal} nao envia imagem` }; }
+            const env = await prov.enviarImagem({ para, dataUri, legenda, nome });
             /* Foto com legenda E a resposta: conta como respondida, senão o log
                diria "nada respondido" pra quem recebeu a mensagem. */
             if (env?.ok) { if (legenda) { respondidas += 1; } console.log(`[canais] mandei imagem${legenda ? ' com legenda' : ''} pra ${quem}: ${trecho(legenda || nome)}`); }
@@ -284,12 +305,23 @@ function montar({ produtos } = {}) {
   });
 
   gateway.registrar(whatsappWeb);
+
+  /* Telegram: mesmo gateway, mesmo bot, mesma fila. Nasce desligado — so liga
+     quando alguem colar o token do @BotFather na tela do canal. */
+  telegram = criarTelegramProvider();
+  telegram.aoMudarStatus((st) => {
+    const e = st?.estado || '?';
+    if (e === 'conectado') { console.log(`[canais] telegram CONECTADO${st.numero ? ' — ' + st.numero : ''}`); }
+    else if (e === 'caido') { console.error(`[canais] telegram CAIU${st.ultimoErro ? ' — ' + st.ultimoErro : ''}`); }
+    else { console.log(`[canais] telegram ${e}${st.ultimoErro ? ' — ' + st.ultimoErro : ''}`); }
+  });
+  gateway.registrar(telegram);
   return gateway;
 }
 
 /* Config do canal: numero previsto, apelido e setores. Fica em disco junto do
    resto — e o que o contrato promete, nao o que a sessao descobriu. */
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 
@@ -343,6 +375,16 @@ function marcarLigado(ligado) {
  * em que so um humano com o celular na mao resolve.
  */
 export async function retomar({ produtos } = {}) {
+  /* Telegram volta sozinho se estava ligado: o token esta guardado e nao existe
+     QR pra ler. Independe do WhatsApp — um canal fora nao segura o outro. */
+  const tg = lerTelegram();
+  if (tg.ligado && tg.token) {
+    const p = montar({ produtos }).obter('telegram');
+    p.conectar({ token: tg.token }).then((st) => {
+      if (st.ok) { console.log(`[canais] Telegram de volta no ar — ${st.numero}`); }
+      else { console.warn(`[canais] ATENCAO: o Telegram estava ligado e nao voltou — ${st.erro}`); }
+    });
+  }
   const cfg = lerConfig();
   if (!cfg.ligado) {
     return { ok: true, retomado: false, motivo: 'o canal estava desligado quando o painel parou' };
@@ -385,9 +427,9 @@ export async function encerrarParados({ agora } = {}) {
        meio da arvore antiga, com o protocolo dizendo outra coisa. */
     bot.devolverAoBot(p.de);
     const para = p.endereco || p.de;
-    if (!para || !whatsappWeb) { continue; }
+    if (!para || !canalDoCliente(para)) { continue; }
     try {
-      const r = await whatsappWeb.enviarTexto({ para, texto: proto.textoDeEncerramento(p) });
+      const r = await enviarParaCliente({ para, texto: proto.textoDeEncerramento(p) });
       if (r?.ok) { avisados += 1; } else {
         console.warn(`[protocolo] ${p.numero} encerrado, mas nao avisei: ${r?.erro || 'sem motivo'}`);
       }
@@ -433,9 +475,9 @@ export async function resgatarFila({ agora, minutos } = {}) {
     bot.marcarResgatada(p.de);
 
     const para = proto_?.endereco || p.de;
-    if (!whatsappWeb) { continue; }
+    if (!canalDoCliente(para)) { continue; }
     try {
-      const r = await whatsappWeb.enviarTexto({ para, texto });
+      const r = await enviarParaCliente({ para, texto });
       if (r?.ok) { avisados += 1; } else {
         console.warn(`[fila] ${p.de} espera ha ${p.minutos} min e nao consegui avisar: ${r?.erro || 'sem motivo'}`);
       }
@@ -478,10 +520,11 @@ function esperarQr(p, limiteMs = 20000) {
   });
 }
 
-export async function conectar({ canal = 'whatsapp-web', produtos } = {}) {
+export async function conectar({ canal = 'whatsapp-web', produtos, token } = {}) {
   const g = montar({ produtos });
   const p = g.obter(canal);
   if (!p) { return { ok: false, erro: `canal "${canal}" não existe` }; }
+  if (canal === 'telegram') { return conectarTelegram(p, token); }
   marcarLigado(true);
 
   // Dispara e NAO aguarda: a promessa so termina quando a sessao estiver pareada.
@@ -522,6 +565,12 @@ export async function trocarNumero({ canal = 'whatsapp-web', produtos } = {}) {
 }
 
 export async function desconectar({ canal = 'whatsapp-web' } = {}) {
+  if (canal === 'telegram') {
+    gravarTelegram({ ...lerTelegram(), ligado: false, desligadoEm: new Date().toISOString() });
+    if (!telegram) { return { ok: true, estado: 'desconectado' }; }
+    await telegram.desconectar();
+    return { ok: true, ...telegram.status() };
+  }
   marcarLigado(false);
   if (!gateway) { return { ok: true, estado: 'desconectado' }; }
   const p = gateway.obter(canal);
@@ -626,13 +675,45 @@ export async function restaurarPerfil({ canal = 'whatsapp-web' } = {}) {
 }
 
 /** Usado quando o atendente responde pelo painel, fora do fluxo do bot. */
-export async function enviar({ canal = 'whatsapp-web', para, texto }) {
+export async function enviar({ canal, para, texto }) {
   if (!gateway) { return { ok: false, erro: 'nenhum canal conectado' }; }
-  return gateway.enviarPor(canal, { para, texto });
+  // Sem canal dito, vai pelo canal de onde a pessoa veio.
+  return gateway.enviarPor(canal || (ehTelegram(para) ? 'telegram' : 'whatsapp-web'), { para, texto });
 }
 
 /** Documento (contrato em PDF) pelo canal conectado. */
-export async function enviarArquivo({ canal = 'whatsapp-web', para, dataUri, nome, legenda }) {
+export async function enviarArquivo({ canal, para, dataUri, nome, legenda }) {
   if (!gateway) { return { ok: false, erro: 'nenhum canal conectado' }; }
-  return gateway.enviarArquivoPor(canal, { para, dataUri, nome, legenda });
+  return gateway.enviarArquivoPor(canal || (ehTelegram(para) ? 'telegram' : 'whatsapp-web'), { para, dataUri, nome, legenda });
+}
+
+/* ── Telegram: token guardado ─────────────────────────────────────────────
+   Arquivo PROPRIO e com permissao 600: o token da acesso total ao bot, e o
+   config.json do canal e lido e mostrado na tela. O token nunca volta pro
+   painel — a tela so recebe se ele existe. */
+const arqTelegram = () => dentroDaCasa('canais', 'telegram.json');
+function lerTelegram() { try { return JSON.parse(readFileSync(arqTelegram(), 'utf8')); } catch { return {}; } }
+function gravarTelegram(d) {
+  mkdirSync(dirname(arqTelegram()), { recursive: true, mode: 0o700 });
+  writeFileSync(arqTelegram(), JSON.stringify(d, null, 2), { mode: 0o600 });
+  try { chmodSync(arqTelegram(), 0o600); } catch { /* sistema sem chmod */ }
+}
+
+async function conectarTelegram(p, token) {
+  const guardado = lerTelegram();
+  const usar = String(token || '').trim() || guardado.token;
+  if (!usar) { return { ok: false, erro: 'cole o token do bot (o @BotFather entrega quando você cria o bot)' }; }
+  if (p.status().estado === 'conectado') { await p.desconectar(); }
+  const st = await p.conectar({ token: usar });
+  if (!st.ok) { return { ok: false, erro: st.erro, ...semSegredo(st) }; }
+  // So grava depois que o Telegram aceitou: token errado nao fica guardado.
+  gravarTelegram({ token: usar, ligado: true, ligadoEm: new Date().toISOString(), bot: st.numero });
+  return { ok: true, ...semSegredo(st) };
+}
+const semSegredo = (st) => { const { token: _t, ...resto } = st || {}; return resto; };
+
+/** O que a tela do Telegram precisa: estado e se ha token — nunca o token. */
+export function telegramInfo() {
+  const g = lerTelegram();
+  return { temToken: Boolean(g.token), ligado: Boolean(g.ligado), bot: g.bot || null, ...(telegram ? telegram.status() : { estado: 'desconectado' }) };
 }

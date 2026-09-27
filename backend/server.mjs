@@ -32,6 +32,8 @@ import * as tk from '../engine/vstiktok/index.mjs';
 import { reservarEvento } from './idempotencia.mjs';
 import * as atendimento from './atendimento.mjs';
 import * as canais from './canais.mjs';
+import { ehTelegram } from '../engine/canais/telegram/index.mjs';
+import * as resultados from '../engine/vsresultados/index.mjs';
 import * as seguranca from '../engine/vsseguranca/index.mjs';
 import * as operadores from '../engine/vsoperadores/index.mjs';
 import * as proto from '../engine/vsprotocolo/index.mjs';
@@ -1255,6 +1257,32 @@ const server = createServer(async (req, res) => {
     }
     /* Rota PROPRIA porque ler o perfil baixa a FOTO do servidor da Meta: pendurar
        isso no status faria a tela inteira esperar por uma imagem. */
+    /* Resultado comercial de um canal: receita comprovada, pedidos, conversao,
+       oportunidades e campanhas. Leads atendidos saem do CRM (trilha do canal). */
+    if (req.method === 'GET' && rota === '/crm/api/resultados') {
+      const u = new URL(req.url, 'http://x');
+      const canal = u.searchParams.get('canal') === 'telegram' ? 'telegram' : 'whatsapp';
+      const dias = [7, 30, 90].includes(Number(u.searchParams.get('dias'))) ? Number(u.searchParams.get('dias')) : 30;
+      const desde = Date.now() - dias * 86400000;
+      let atendidos = 0; let peloBot = 0;
+      for (const l of crm.listar()) {
+        if (ehTelegram(l.telefone) !== (canal === 'telegram')) { continue; }
+        const inter = (l.historico || []).filter((h) => h.tipo === 'interacao' && new Date(h.quando).getTime() >= desde);
+        if (!inter.some((h) => h.direcao === 'entrada')) { continue; }
+        atendidos += 1;
+        // Pelo bot = ninguem da equipe precisou responder essa pessoa no periodo.
+        if (!inter.some((h) => h.direcao === 'saida' && h.autor === 'atendente')) { peloBot += 1; }
+      }
+      const tg = canais.telegramInfo();
+      return json(res, 200, {
+        ...resultados.resumo({ canal, dias, pagamentos: pagar.listar(), leads: { atendidos, peloBot } }),
+        linkBot: canal === 'telegram' ? tg.link || null : null,
+      });
+    }
+    /* Tela do Telegram: estado do bot e se ha token guardado. O token nao sai. */
+    if (req.method === 'GET' && rota === '/crm/api/canais/telegram') {
+      return json(res, 200, canais.telegramInfo());
+    }
     if (req.method === 'GET' && rota === '/crm/api/canais/perfil') {
       return json(res, 200, { ok: true, perfil: await canais.perfilAtual() });
     }
@@ -1272,6 +1300,7 @@ const server = createServer(async (req, res) => {
           return {
             id: l.id,
             telefone: l.telefone,
+            canal: ehTelegram(l.telefone) ? 'telegram' : 'whatsapp',
             nome: l.nome,
             etapa: l.etapa,
             status: l.status,
@@ -1544,7 +1573,7 @@ const server = createServer(async (req, res) => {
         case '/crm/api/documentos/aceite': r = docs.registrarAceite(d.tipo, d.quem || {}); break;
         case '/crm/api/documentos/conferir': r = docs.conferirAceite(d.id); break;
         case '/crm/api/canais/conectar':
-          r = await canais.conectar({ canal: d.canal, produtos: () => estoque.doAtendimento() });
+          r = await canais.conectar({ canal: d.canal, token: d.token, produtos: () => estoque.doAtendimento() });
           break;
         case '/crm/api/canais/desconectar': r = await canais.desconectar({ canal: d.canal }); break;
         case '/crm/api/canais/trocar-numero':
@@ -1619,8 +1648,27 @@ const server = createServer(async (req, res) => {
           const envio = await canais.enviar({ canal: d.canal, para: d.telefone, texto });
           if (!envio.ok) { r = { ok: false, motivo: envio.erro || 'não consegui enviar' }; break; }
           const lead = crm.listar().find((l) => l.telefone === String(d.telefone || '').replace(/\D/g, ''));
-          if (lead) { crm.interagir(lead.id, { canal: 'whatsapp', direcao: 'saida', texto }); }
+          if (lead) { crm.interagir(lead.id, { canal: ehTelegram(d.telefone) ? 'telegram' : 'whatsapp', direcao: 'saida', texto, autor: 'atendente' }); }
           r = { ok: true, enviado: true, id: envio.id || null };
+          break;
+        }
+        case '/crm/api/resultados/campanha': r = resultados.criarCampanha({ nome: d.nome, canal: d.canal === 'whatsapp' ? 'whatsapp' : 'telegram' }); break;
+        case '/crm/api/resultados/campanha/arquivar': r = resultados.arquivarCampanha(String(d.codigo || ''), d.arquivada !== false); break;
+        /* Retomar um pedido parado: UMA mensagem, pelo canal de onde a pessoa
+           veio, pra quem ja estava conversando com a loja. Nunca disparo em massa. */
+        case '/crm/api/resultados/retomar': {
+          const p = resultados.obterPedido(d.referencia);
+          if (!p) { r = { ok: false, motivo: 'pedido não encontrado' }; break; }
+          if (p.retomadaEm) { r = { ok: false, motivo: 'este pedido já foi retomado' }; break; }
+          const texto = String(d.texto || '').trim();
+          if (!texto) { r = { ok: false, motivo: 'escreva a mensagem da retomada' }; break; }
+          if (texto.length > 1000) { r = { ok: false, motivo: 'mensagem longa demais (até 1000 caracteres)' }; break; }
+          const envio = await canais.enviar({ para: p.endereco || p.telefone, texto });
+          if (!envio.ok) { r = { ok: false, motivo: envio.erro || 'não consegui enviar' }; break; }
+          resultados.marcarRetomada(p.referencia);
+          const lead = crm.listar().find((l) => l.telefone === p.telefone);
+          if (lead) { crm.interagir(lead.id, { canal: p.canal, direcao: 'saida', texto, autor: 'atendente' }); }
+          r = { ok: true, enviado: true };
           break;
         }
         case '/crm/api/atendimentos/devolver': r = bot.devolverAoBot(String(d.telefone || '').replace(/\D/g, '')); break;
