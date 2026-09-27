@@ -52,6 +52,7 @@ import * as midia from './midia.mjs';
 import { pagina as paginaVitrine, paginaProduto, paginaSumiu } from './vitrine.mjs';
 import { lerCorpoLimitado, criarRateLimit, ipDe, segredoIgual, CORPO_MAX_BYTES } from './limites.mjs';
 import * as consumo from '../engine/vsconsumo/index.mjs';
+import * as integ from '../engine/vsintegracoes/index.mjs';
 import { dentroDaCasa } from '../engine/casa.mjs';
 
 /* Medidor de banda: toda chamada que o servidor faz (Telegram, Meta,
@@ -449,6 +450,28 @@ function estadoConsumo(forcar = false) {
   fotoConsumo = { t: Date.now(), e };
   return e;
 }
+/* Central de integrações: cada módulo diz o próprio estado; a foto vale 60 s
+   (o Quebra-Galho é consultado pela rede). */
+let fotoInteg = null;
+async function estadoIntegracoes(forcar = false) {
+  if (!forcar && fotoInteg && Date.now() - fotoInteg.t < 60000) { return fotoInteg.e; }
+  const tenta = async (fn) => { try { return await fn(); } catch (e) { return { erro: e.message }; } };
+  const cs = canais.estado().canais || [];
+  const fontes = {
+    whatsapp: cs.find((c) => c.nome === 'whatsapp-web') || null,
+    telegram: await tenta(() => canais.telegramInfo()),
+    pagamento: await tenta(() => pagar.provedorAtual()),
+    tiktok: await tenta(() => tiktokDiagnostico()),
+    loja: await tenta(() => ({ publicados: (estoque.publicados() || []).length })),
+    quebragalho: await tenta(() => painelQuebraGalho()),
+    email: { configurado: email.configurado() },
+    alertas: await tenta(() => ({ responsaveis: seguranca.responsaveis().length })),
+  };
+  const e = integ.comHistorico(integ.montar(fontes));
+  fotoInteg = { t: Date.now(), e };
+  return e;
+}
+
 export const emModoConsulta = () => { try { return estadoConsumo().modoConsulta; } catch { return false; } };
 canais.definirTrava(emModoConsulta);
 const MSG_CONSULTA = 'modo consulta: a banda do mês acabou — dá para ver tudo, mas enviar, publicar e editar ficam parados até renovar ou entrar banda adicional';
@@ -1257,6 +1280,13 @@ const server = createServer(async (req, res) => {
     }
     /* Consumo: banda GERAL da instalação (todos os canais, painel, loja,
        integrações e mídia) + o recorte do canal pedido. */
+    if (req.method === 'GET' && rota === '/crm/api/integracoes') {
+      return json(res, 200, await estadoIntegracoes(new URL(req.url, 'http://x').searchParams.get('forcar') === '1'));
+    }
+    if (req.method === 'GET' && rota === '/crm/api/integracoes/alerta') {
+      const e = await estadoIntegracoes();
+      return json(res, 200, { caidas: e.caidas, resumo: e.resumo });
+    }
     if (req.method === 'GET' && rota === '/crm/api/consumo/estado') {
       const e = estadoConsumo();
       return json(res, 200, { mes: e.mes, faixa: e.faixa, modoConsulta: e.modoConsulta, pct: e.pct, usadoBytes: e.usadoBytes, limiteBytes: e.limiteBytes, renovaEm: e.renovaEm });
@@ -1978,6 +2008,35 @@ const server = createServer(async (req, res) => {
           if (r.ok) { console.log(`[precos] ${code}${r.versionado ? ` → ${r.plano.code} (versão nova)` : ''} por ${quem.email}`); }
           break;
         }
+        /* Teste de verdade de uma integração: pergunta ao próprio serviço. */
+        case '/crm/api/integracoes/testar': {
+          const id = String(d.id || '');
+          const t0 = Date.now();
+          let t = { ok: false, detalhe: 'esta integração não tem teste automático' };
+          if (id === 'whatsapp' || id === 'telegram') {
+            const sa = (await canais.saude()) || [];
+            const x = (Array.isArray(sa) ? sa : sa.canais || []).find((c) => c.nome === (id === 'whatsapp' ? 'whatsapp-web' : 'telegram'));
+            t = x ? { ok: !!x.ok, detalhe: x.detalhe || (x.ok ? 'respondeu' : 'não respondeu') } : { ok: false, detalhe: 'canal não montado' };
+          } else if (id === 'pagamento') {
+            const prov = pagar.provedorAtual();
+            if (prov.nome !== 'mercadopago') { t = { ok: prov.pronto, detalhe: prov.pronto ? 'credencial gravada (o Asaas não tem conferência automática aqui)' : 'sem credencial' }; } else {
+              const c = await pagar.conferirCredenciais();
+              const ativa = c.chaves.find((k) => k.campo === (c.ambienteAtivo === 'producao' ? 'producao' : 'teste'));
+              t = { ok: !!ativa?.ok && !c.trocadas.length, detalhe: ativa?.ok ? `o Mercado Pago aceitou a chave de ${ativa.ambiente}${c.avisos.length ? ' · ' + c.avisos.join('; ') : ''}` : (ativa?.erro || ativa?.motivo || 'chave recusada ou não preenchida') };
+            }
+          } else if (id === 'quebragalho') {
+            const q = await painelQuebraGalho();
+            t = { ok: !!q.disponivel, detalhe: q.disponivel ? 'marketplace respondeu' : `${q.motivo}${q.comoResolver ? ' — ' + q.comoResolver : ''}` };
+          } else if (id === 'email') {
+            const para = String(quem.email || '');
+            const e = /@/.test(para) ? await email.enviarEmail({ para, assunto: 'Teste do Bolso Cheio', texto: 'Este é um e-mail de teste da central de integrações do Bolso Cheio. Se chegou, o envio de e-mail está funcionando.' }) : await email.testarLogin();
+            t = { ok: !!e.ok, detalhe: e.ok ? (/@/.test(para) ? `e-mail de teste enviado para ${para}` : 'o servidor de e-mail aceitou o login') : (e.erro || 'falhou') };
+          }
+          await estadoIntegracoes(true);
+          r = { ok: true, id, teste: { ...t, ms: Date.now() - t0 } };
+          break;
+        }
+        case '/crm/api/integracoes/dispensar': r = integ.dispensar(String(d.id || '')); await estadoIntegracoes(true); break;
         case '/crm/api/precos/adicional': r = planos.salvarAdicional(String(d.code || ''), d); break;
         case '/crm/api/planos/versionar': r = planos.versionarPlano(d.code, d.mudancas || {}, d.sufixo || 'v2'); break;
         /* O atendente responde DAQUI. A resposta sai pelo canal e entra na trilha

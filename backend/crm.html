@@ -1350,6 +1350,18 @@ td.num,th.num{text-align:right;white-space:nowrap}
 @keyframes gira{to{transform:rotate(360deg)}}
 .cp-dests-ok{display:flex;flex-wrap:wrap;gap:6px} .cp-dest-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ok-line);background:var(--ok-bg);color:var(--ok);border-radius:99px;padding:4px 10px;font-size:12.5px;font-weight:600}
 .cp-dest-chip svg{width:13px;height:13px}
+/* Configurações: central de integrações */
+.int-resumo{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.int-r{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px 14px;display:flex;align-items:baseline;gap:8px}
+.int-r b{font-size:26px;letter-spacing:-.02em} .int-r span{color:var(--muted);font-size:13px}
+.int-r.ok b{color:var(--ok)} .int-r.inc b{color:var(--warn)} .int-r.off b{color:var(--dim)}
+.int-l{display:grid;grid-template-columns:14px 1fr auto;gap:12px;align-items:start;padding:12px 0;border-top:1px solid var(--line)}
+.int-l:first-of-type{border-top:0} .int-dot{width:12px;height:12px;border-radius:50%;margin-top:5px;background:var(--dim)}
+.int-l.ok .int-dot{background:var(--ok)} .int-l.incompleta .int-dot{background:var(--warn)} .int-l.caiu .int-dot{background:var(--err);box-shadow:0 0 0 4px var(--err-bg)}
+.int-txt p{margin:3px 0 0;font-size:13px;color:var(--muted)} .int-txt b{font-size:14.5px}
+.int-t{display:block;margin-top:5px;font-size:12.5px;color:var(--muted)} .int-t.ok{color:var(--ok)} .int-t.ruim{color:var(--err)}
+.int-acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:640px){.int-l{grid-template-columns:14px 1fr}.int-acts{grid-column:2;justify-content:flex-start}}
 /* Clientes e licenças */
 .cli-planos{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))} .cli-plano{cursor:pointer;display:flex!important;flex-direction:column;gap:6px}
 .cli-plano input{position:absolute;opacity:0;pointer-events:none} .cli-plano.on{border-color:var(--ac);box-shadow:0 0 0 2px var(--ac-soft)}
@@ -5540,6 +5552,60 @@ async function carregarConsumo(canal){
 async function checarConsumo(){
   try{ const e=await apiCru('consumo/estado'); const mudou=!CONS_EST||CONS_EST.faixa!==e.faixa; CONS_EST={...(CONS_EST||{}),...e}; if(mudou) render(); }catch{ /* sem sessão ainda */ }
 }
+/* ── Configurações: central de integrações do Bolso Cheio ──────────────────
+   Uma pergunta: o que do sistema funciona e o que falta pra funcionar. O
+   estado vem do módulo de cada integração (servidor); aqui só se mostra e se
+   testa. Os itens do QA-Gate saíram desta tela (o company.json segue no disco). */
+let INTEG=null, INTEG_TESTE={}, INTEG_CAIDAS=[];
+async function carregarIntegracoes(forcar){
+  try{ INTEG=await apiCru('integracoes'+(forcar?'?forcar=1':'')); INTEG_CAIDAS=INTEG.caidas||[]; }catch(e){ INTEG={erro:e.message}; }
+  if(rota==='config') render();
+}
+async function checarIntegracoes(){
+  try{ const a=await apiCru('integracoes/alerta'); const mudou=JSON.stringify(a.caidas.map(c=>c.id))!==JSON.stringify(INTEG_CAIDAS.map(c=>c.id)); INTEG_CAIDAS=a.caidas||[]; if(mudou) render(); }catch{ /* sem sessão */ }
+}
+function faixaIntegracoes(){
+  if(!INTEG_CAIDAS.length||rota==='config') return '';
+  return `<div class="cons-faixa consulta" role="alert"><b>${INTEG_CAIDAS.length===1?'Uma integração parou':'Integrações pararam'}</b> — ${INTEG_CAIDAS.map(c=>`${esc(c.nome)} (${esc(c.detalhe)})`).join(' · ')}. <button class="btn btn-s btn-xs" onclick="ir('config')">Ver integrações</button></div>`;
+}
+async function testarIntegracao(id){
+  INTEG_TESTE[id]={rodando:true}; render();
+  try{ const r=await api('integracoes/testar',{id}); INTEG_TESTE[id]=r.teste; }catch(e){ INTEG_TESTE[id]={ok:false,detalhe:e.message}; }
+  await carregarIntegracoes(); render();
+}
+async function testarTudo(){
+  const ids=(INTEG?.itens||[]).filter(i=>i.testavel).map(i=>i.id);
+  for(const id of ids){ INTEG_TESTE[id]={rodando:true}; } render();
+  await Promise.all(ids.map(async id=>{ try{ const r=await api('integracoes/testar',{id}); INTEG_TESTE[id]=r.teste; }catch(e){ INTEG_TESTE[id]={ok:false,detalhe:e.message}; } }));
+  await carregarIntegracoes(true);
+  const falhas=ids.filter(id=>!INTEG_TESTE[id]?.ok).length;
+  flash(falhas?`${falhas} de ${ids.length} teste(s) falharam — veja o motivo em cada linha.`:`Todos os ${ids.length} testes passaram.`,falhas?'warn':'ok');
+}
+async function dispensarIntegracao(id){ try{ await api('integracoes/dispensar',{id}); await carregarIntegracoes(true); checarIntegracoes(); }catch(e){ avisoErro(e); } }
+function telaIntegracoes(){
+  if(!INTEG){ setTimeout(()=>carregarIntegracoes(),0); }
+  const cab=head('Configurações','As integrações do Bolso Cheio — o que está funcionando e o que falta pra funcionar.',
+    INTEG&&!INTEG.erro?botao({t:'Testar tudo',ic:'testar',v:'p',on:'testarTudo()',tit:'Pergunta a cada serviço se ele responde agora'})+botao({t:'Atualizar',ic:'atualizar',v:'g',on:'carregarIntegracoes(true)'}):'');
+  if(!INTEG) return cab+'<div class="card"><p class="hint">Conferindo cada integração…</p></div>';
+  if(INTEG.erro) return cab+`<div class="card"><p class="hint">Não consegui carregar: ${esc(INTEG.erro)}</p></div>`;
+  const R=INTEG.resumo;
+  const resumo=`<div class="int-resumo">
+    <div class="int-r ok"><b>${R.ok}</b><span>funcionando</span></div>
+    <div class="int-r inc"><b>${R.incompletas}</b><span>incompleta(s)</span></div>
+    <div class="int-r off"><b>${R.desligadas}</b><span>desligada(s)</span></div></div>`;
+  const ROT={ok:'funcionando',incompleta:'incompleta',desligada:'desligada'};
+  const linhaI=(i)=>{ const t=INTEG_TESTE[i.id];
+    const teste=t?.rodando?'<small class="int-t">testando…</small>':t&&!(t.ok===false&&i.detalhe&&String(i.detalhe).startsWith(String(t.detalhe||'').slice(0,40)))?`<small class="int-t ${t.ok?'ok':'ruim'}">${t.ok?'✔':'✖'} ${esc(t.detalhe||'')}</small>`:'';
+    return `<div class="int-l ${i.estado}${i.caiu?' caiu':''}" data-int="${esc(i.id)}">
+      <i class="int-dot" aria-hidden="true"></i>
+      <div class="int-txt"><b>${esc(i.nome)}</b> <span class="badge ${i.estado==='ok'?'b-ok':i.estado==='incompleta'?'b-warn':''}">${ROT[i.estado]}</span>${i.caiu?' <span class="badge b-err">parou</span>':''}${i.emTeste?' <span class="badge b-warn">modo teste</span>':''}
+        <p>${esc(i.detalhe||'')}</p>${teste}</div>
+      <div class="int-acts">${i.testavel?botao({t:'Testar',ic:'testar',v:'g',sz:'xs',on:`testarIntegracao('${i.id}')`}):''}${i.caiu?botao({t:'Dispensar aviso',v:'g',sz:'xs',on:`dispensarIntegracao('${i.id}')`,tit:'Para de avisar até ela voltar a funcionar'}):''}${i.tela&&i.acao?botao({t:i.acao,ic:i.estado==='ok'?'config':'seta',v:i.estado==='ok'?'s':'p',sz:'xs',on:`ir('${i.tela}')`}):''}</div></div>`; };
+  const grupos=INTEG.grupos.map(([g,nome])=>{ const its=INTEG.itens.filter(i=>i.grupo===g); if(!its.length) return '';
+    return `<div class="card" style="margin-bottom:14px">${cardH(g==='canais'?'whats':g==='pagamentos'?'financeiro':g==='redes'?'redes':'enviar',nome,'',g==='canais'?2:g==='pagamentos'?1:g==='redes'?3:4)}${its.map(linhaI).join('')}</div>`; }).join('');
+  return cab+resumo+grupos+`<p class="hint">Jira, Redmine, Azure DevOps, Slack e a governança de commit eram do QA-Gate (ferramenta de desenvolvimento) e saíram desta tela — a configuração dele continua guardada.</p>`;
+}
+
 function faixaConsumo(){
   const e=CONS_EST; if(!e||e.faixa==='normal'||/-consumo$/.test(rota)) return '';
   const ir=`ir('${rota.startsWith('tg')?'tg':'wa'}-consumo')`;
@@ -6597,32 +6663,7 @@ const S2={
  },
  contrato:()=>telaDocumento('contrato','Contrato','O que está valendo, desde quando, e quem aceitou.'),
  politica:()=>telaDocumento('politica','Política de uso','Regras de uso, dados e privacidade — versionadas, com data de vigência.'),
- config:()=>{
-  if(!CTA) return head('Configurações','Como a suíte avisa e o que ela integra.')+
-    vazio('config','Backend sem a rota de conta','Atualize o backend.',['Subir o backend novo','Recarregar']);
-  const c=CTA.configuracao;
-  const alerta=c.incoerentes.length?`<div class="card" style="margin-bottom:16px;border-style:dashed">
-    ${cardH('alerta',`Ligado, mas não funciona`,`Estes canais estão marcados como ativos e não têm credencial completa. A suíte acha que avisa e não avisa — é o pior estado possível.`,5)}
-    ${c.incoerentes.map(n=>linha(n,'','sem credencial','b-err')).join('')}</div>`:'';
-  const canais=c.canais.map(x=>linha(x.nome,
-    `${esc(x.provider||'—')} · ${Object.entries(x.credenciais).map(([k,v])=>esc(k)+(v?' ✓':' ✖')).join(' · ')}`,
-    x.pronto?'funcionando':(x.ligado?'incompleto':'desligado'),
-    x.pronto?'b-ok':(x.ligado?'b-err':''))).join('');
-  const integ=c.integracoes.length
-    ? c.integracoes.map(i=>linha(i.id,esc(i.detalhe||''),i.ligado?'ligada':'desligada',i.ligado?'b-ok':'')).join('')
-    : '<p class="hint">Nenhuma integração declarada.</p>';
-  return head('Configurações','Canais de aviso e integrações — com o que falta pra cada um funcionar.')+
-  alerta+
-  `<div class="card" style="margin-bottom:16px">
-    ${cardH('enviar',`Canais de aviso`,``,2)}${canais}</div>
-  <div class="card" style="margin-bottom:16px">
-    ${cardH('integra',`Integrações`,``,2)}${integ}</div>
-  <div class="card">
-    ${cardH('politica',`Governança`,``,3)}${linha('Tipos aceitos','',String(c.padroes.tiposAceitos),'')}
-    ${linha('Documentação obrigatória','',c.padroes.docObrigatoria?'sim':'não',c.padroes.docObrigatoria?'b-ok':'')}
-    ${linha('Subagentes','',c.padroes.agentesPermitidos?'permitidos':'bloqueados','')}
-    <p class="hint">Tudo isso vem de <code>${esc(c.caminho)}</code>.</p></div>`;
- },
+ config:()=>telaIntegracoes(),
  perfil:()=>{
   if(!CTA) return head('Perfil','Quem assina o trabalho e como a suíte identifica você.')+
     vazio('perfil','Backend sem a rota de conta','Atualize o backend para a versão com o VSpainel.',['Subir o backend novo','Recarregar']);
@@ -6680,7 +6721,7 @@ function render(){
   document.getElementById('crumb').innerHTML=t.map((x,i)=>i===t.length-1?`<b>${esc(x)}</b>`:`<span class="pai">${esc(x)} <i>/</i></span>`).join(' ');
   /* Na caixa de conversas o aviso vai pro alto: embaixo ele tapava o botao de enviar. */
   document.body.classList.toggle('tela-chat',/^(wa|tg)-atendimento$|^(whats|tg)$/.test(rota));
-  document.getElementById('view').innerHTML=faixaConsumo()+(TELAS[rota]||telaVisao)();
+  document.getElementById('view').innerHTML=faixaConsumo()+faixaIntegracoes()+(TELAS[rota]||telaVisao)();
   if(rota==='indicacao') trocaModelo();
   /* O perfil do assistente e buscado DEPOIS de desenhar: ele baixa a foto do
      servidor da Meta, e segurar a tela por causa de uma imagem faria o console
@@ -7299,7 +7340,7 @@ async function carregar(){
     /* Vendedor: so o Atendimento (o servidor recusa o resto de qualquer jeito). */
     if(eu.papel==='vendedor'){ return carregarVendedor(eu); }
     EU=eu;
-    checarConsumo(); if(!window.__consTimer) window.__consTimer=setInterval(checarConsumo,60000);
+    checarConsumo(); checarIntegracoes(); if(!window.__consTimer) window.__consTimer=setInterval(()=>{checarConsumo();checarIntegracoes();},60000);
   }catch(e){ if(/sessão expirada|senha ausente|403/.test(e.message)){ TOKEN='';sessionStorage.removeItem('crm_token');return telaEntrar(); } }
   try{
     // O diagnostico do TikTok nao pode derrubar o painel inteiro se o backend for antigo.

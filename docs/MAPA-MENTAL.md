@@ -404,9 +404,12 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 - **Ações (funções JS):** `editarDocumento()`
 
 #### Configurações  ·  `#config`
-- **Pra que serve:** Canais de aviso e integrações — com o que falta pra cada um funcionar.
-- **O que tem:** cartões: Canais de aviso, Integrações, Governança
-- **Código da tela:** `backend/crm.html` → `S['config']  (" 'config':()=>" ou " config:()=>")`
+- **Pra que serve:** **central de integrações do Bolso Cheio** — o que está funcionando e o que falta pra funcionar (pedido do dono: "essa tela vai mostrar o que e fazer o que, tá morta").
+- **O que tem:** resumo (funcionando · incompletas · desligadas) · grupos Canais de atendimento (WhatsApp Web, Telegram), Pagamentos (o provedor escolhido), Redes e loja (TikTok, Instagram, Loja e Google Shopping, Quebra-Galho), Avisos e e-mail (SMTP, alertas de segurança) · cada item com estado, motivo em português, **Testar** (pergunta ao serviço de verdade; e-mail manda um teste para o dono) e o botão para a tela onde se configura.
+- **Parou:** o que já funcionou e deixou de funcionar vira faixa vermelha em todas as telas ("Uma integração parou"), até voltar ou o dono **dispensar**.
+- **Saíram da tela:** Jira, Redmine, Azure DevOps, promptAudit, dashboard, Slack/CallMeBot e a governança de commit — eram do QA-Gate; `~/.qa-gate/company.json` continua intacto. Asaas/Meta oficial: o item Pagamentos mostra o provedor escolhido; a API da Meta (só licença) ficou de fora.
+- **Código:** `backend/crm.html` → `telaIntegracoes()`, `faixaIntegracoes()`; `GET /crm/api/integracoes`, `GET /crm/api/integracoes/alerta`, `POST /crm/api/integracoes/testar|dispensar` → `engine/vsintegracoes` (`montar`, `comHistorico`, `dispensar`).
+- **Prova:** `scripts/prova-integracoes.mjs` (13/13) · `tests/vsintegracoes.test.mjs`.
 
 #### Perfil  ·  `#perfil`
 - **Pra que serve:** O que a entrevista preencheu e o que a suíte usa disso.
@@ -456,6 +459,7 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 | 2026-09-27 | Auditor gera histórico → tela com gráficos e valores para apresentar, "perto de como o mercado mostra auditoria" | Telegram · Auditor refeito: KPIs de mercado (TPR, TMA, SLA, CSAT, resolução pelo bot) com variação, 6 gráficos, log de auditoria com filtro/busca/CSV, Apresentar e Imprimir. Prova 36/36 | (este) |
 | 2026-09-27 | Log de auditoria poluía a tela → acordeão | Log fechado por padrão, abre ao clicar (contagem de eventos no título); Exportar log funciona fechado. Prova 38/38 | (este) |
 | 2026-09-27 | Auditor do WhatsApp na mesma pegada do Telegram, só com as informações do WhatsApp | `wa-auditor` passa a usar `telaAuditorCanal('whatsapp')`; texto do acordeão (Abrir/Fechar) acompanha o estado. Prova 40/40 | (este) |
+| 2026-09-27 | Configurações estava morta (só QA-Gate) → central de integrações | Integrações reais com estado, motivo, teste e atalho; faixa "parou" em todas as telas; itens do QA-Gate fora da tela. Prova 13/13 | (este) |
 | 2026-09-27 | Clientes e licenças: melhorar o layout + lugar para o dono pôr os preços + planos do Telegram | Aba Preços (planos por módulo + adendos, versão nova quando há cliente), Telegram Bronze/Prata/Gold, carteira com filtros/busca/valor/vencimento, cadastro com um plano por módulo e ciclo Mensal/Semestral, detalhe com etapas. Prova 20/20 | (este) |
 | 2026-09-27 | Consumo com dados e valores reais; banda por cliente; passou → modo consulta + adendo de banda | Medidor geral (`engine/vsconsumo`), limite do plano + banda adicional, modo consulta (servidor 402 + canais sem envio + agendador parado), faixa de aviso em todas as telas, telas Telegram/WhatsApp · Consumo, pedido e liberação de banda. Prova 17/17 | (este) |
 | 2026-09-27 | **Telas Telegram · Auditor e WhatsApp · Auditor FECHADAS** pelo dono | Padrão de mercado (KPIs, gráficos, log em acordeão, Apresentar/Imprimir/CSV), cada canal com os seus dados | (este) |
@@ -500,6 +504,6 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 
 **Próximo:** o dono vai "dar uma olhada mais a fundo" em Campanhas. Canal real de teste já conectado: **"Teste campanha Bolso Cheio"** (`-1003782351972`, privado, bot admin com permissão) — está **pendente** (entrou antes do botão novo), falta o dono clicar em Confirmar em **Telegram → Canal e conexão → Onde o bot trabalha**. Pendente dele também: o valor da política de frequência (hoje 4 h / 3 por dia). E o **preço do adendo de banda** (hoje sob consulta, +10 GB) — agora ele mesmo põe em Clientes e licenças → Preços, junto com os preços dos planos do Telegram (hoje iguais aos do WhatsApp).
 
-**Provas (instâncias isoladas):** `prova-clientes-precos` 20/20, `prova-consumo` 17/17, `prova-auditor` 40/40, `prova-campanhas` 40/40, `prova-qualificacao` 26/26, `prova-encerramento` 27/27, `prova-bot-telegram` 8/8, `prova-horario` 11/11.
+**Provas (instâncias isoladas):** `prova-integracoes` 13/13, `prova-clientes-precos` 20/20, `prova-consumo` 17/17, `prova-auditor` 40/40, `prova-campanhas` 40/40, `prova-qualificacao` 26/26, `prova-encerramento` 27/27, `prova-bot-telegram` 8/8, `prova-horario` 11/11.
 
 **Como trabalhar (regra do dono):** implementar direto a V1 da proposta; perguntar só o absurdo, em TEXTO (nunca AskUserQuestion). Sem IA em recurso novo (custo). Tela de um canal não mostra dado do outro.
