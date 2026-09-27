@@ -58,10 +58,16 @@ const PORTE = [
   ['funcionarios', /(funcionari[oa]s?|colaborador(?:es|as)?|pessoas na equipe|empregad[oa]s?)/],
 ];
 
-function numeroAntes(t, alvo) {
-  const re = new RegExp(`(\\d{1,5}|${Object.keys(NUM_EXTENSO).join('|')})\\s+(?:[a-z]+\\s+){0,2}?${alvo.source}`, 'g');
+/* "um/uma" só conta para loja ("tenho uma loja"): em "falar com um atendente"
+   é artigo, não tamanho de equipe. */
+function numeroAntes(t, alvo, campo) {
+  const re = new RegExp(`(^|[^a-z0-9])(\\d{1,5}|${Object.keys(NUM_EXTENSO).join('|')})\\s+(?:[a-z]+\\s+){0,2}?${alvo.source}`, 'g');
   let maior = null;
-  for (const m of t.matchAll(re)) { const n = /^\d+$/.test(m[1]) ? Number(m[1]) : NUM_EXTENSO[m[1]]; if (n != null) { maior = Math.max(maior ?? 0, n); } }
+  for (const m of t.matchAll(re)) {
+    if (campo !== 'unidades' && (m[2] === 'um' || m[2] === 'uma')) { continue; }
+    const n = /^\d+$/.test(m[2]) ? Number(m[2]) : NUM_EXTENSO[m[2]];
+    if (n != null) { maior = Math.max(maior ?? 0, n); }
+  }
   return maior;
 }
 
@@ -110,7 +116,7 @@ export function qualificar(fichaAtual, texto, { produtos = [], quando = agoraIso
   f.produtos = f.produtos.slice(0, 5);
 
   for (const [campo, re] of PORTE) {
-    const n = numeroAntes(t, re);
+    const n = numeroAntes(t, re, campo);
     if (n != null && n > (f.porte[campo] || 0)) { f.porte[campo] = n; }
   }
 

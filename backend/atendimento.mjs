@@ -47,6 +47,19 @@ function escolherResponsavel(decisao, lead, equipe) {
   }
   return equipe ? qualif.distribuir(equipe, ativos) : null;
 }
+/* TODA conversa tem protocolo. So o fluxo em planilha abria um: loja que usa so
+   regras (ou bot desligado) ficava sem numero, sem como encerrar e sem
+   historico. Com fluxo, o bot ja abriu antes — aqui vira no-op. */
+function garantirProtocolo(telefone, endereco, departamento) {
+  try {
+    if (!proto.aberto(telefone)) { proto.aoChegar(telefone, { endereco: endereco || null, voltarParaFila: false }); }
+    const vivo = proto.aberto(telefone);
+    if (vivo && bot.estaComGente(telefone) && vivo.estado === proto.ESTADOS.COM_BOT) {
+      return proto.anotar(vivo.numero, { estado: proto.ESTADOS.NA_FILA, departamento: departamento || 'humano' });
+    }
+    return vivo;
+  } catch (e) { console.error(`[protocolo] nao garanti o protocolo: ${e.message}`); return null; }
+}
 const equipesComGente = () => [...new Set(operadores.ativos(operadores.listar()).map((o) => qualif.norm(o.setor).trim()))];
 
 /**
@@ -184,7 +197,49 @@ export async function receberMensagem(msg, deps = {}) {
     };
   }
 
+  /* AVALIAÇÃO E ENCERRAMENTO PELO CLIENTE — antes do bot, porque:
+     - a nota ("5") logo depois do encerramento NÃO é conversa nova: se fosse
+       pro bot, reabria o protocolo e ele respondia "não entendi";
+     - "pode encerrar" fecha o atendimento com gente ou com o bot, e já pede
+       a avaliação. Vale com o bot ligado ou não: é a casa encerrando. */
+  if (msg.texto) {
+    const registrar = (texto) => { if (lead) { crm.interagir(lead.id, { canal, direcao: 'saida', texto, autor: 'bot' }); } };
+    const pend = proto.avaliacaoPendente(t.telefone);
+    if (pend?.avaliacao?.estado === 'aguardando') {
+      const nota = proto.lerNota(msg.texto);
+      if (nota) {
+        proto.registrarNota(pend.numero, nota);
+        const txt = proto.textoObrigadoNota(nota);
+        const envio = await enviar({ phone: t.telefone, texto: txt });
+        if (envio.ok) { registrar(txt); }
+        return { ok: true, telefone: t.telefone, leadId: lead?.id || null, leadNovo, semCrm, tipo: 'avaliacao:nota', nota, protocolo: pend.numero, respondeu: envio.ok, envio };
+      }
+      proto.semResposta(pend.numero);
+    } else if (pend?.avaliacao?.estado === 'comentario') {
+      const pular = /^\s*(0|pular|nao|não|n)\s*[.!]*$/i.test(msg.texto);
+      proto.registrarComentario(pend.numero, pular ? null : msg.texto);
+      const txt = pular ? 'Tudo bem! Obrigado. 🙏' : proto.textoObrigadoComentario();
+      const envio = await enviar({ phone: t.telefone, texto: txt });
+      if (envio.ok) { registrar(txt); }
+      return { ok: true, telefone: t.telefone, leadId: lead?.id || null, leadNovo, semCrm, tipo: 'avaliacao:comentario', protocolo: pend.numero, respondeu: envio.ok, envio };
+    }
+    const vivo = proto.aberto(t.telefone);
+    if (vivo && proto.clientePediuEncerrar(msg.texto)) {
+      const fila = bot.emAtendimento().find((e) => e.telefone === t.telefone);
+      const fechado = proto.encerrarPorNumero(vivo.numero, { motivo: 'pedido do cliente', por: { tipo: 'cliente', nome: msg.nome || lead?.nome || null },
+        atendidoPor: fila?.assumidaPor || lead?.comercial?.responsavel || null });
+      bot.devolverAoBot(t.telefone);
+      proto.pedirAvaliacao(fechado.numero);
+      const txt = `${proto.textoDeEncerramento(fechado)}\n\n${proto.textoAvaliacao()}`;
+      const envio = await enviar({ phone: t.telefone, texto: txt });
+      if (envio.ok) { registrar(txt); }
+      return { ok: true, telefone: t.telefone, leadId: lead?.id || null, leadNovo, semCrm, tipo: 'encerrado:cliente', protocolo: fechado.numero, respondeu: envio.ok, envio };
+    }
+  }
+
   if (!cfg.ativo) {
+    // Bot desligado = a equipe atende sozinha; encerrar e historico precisam do protocolo igual.
+    garantirProtocolo(t.telefone, msg.endereco);
     return { ok: true, telefone: t.telefone, leadId: lead?.id || null, leadNovo, semCrm, botDesligado: true };
   }
 
@@ -205,6 +260,11 @@ export async function receberMensagem(msg, deps = {}) {
     produtos: produtos(),
     falhasSeguidas: falhas.get(chave) || 0,
   });
+
+  /* TODA conversa tem protocolo. So o fluxo em planilha abria um: loja que usa
+     so regras ficava sem numero, sem como encerrar e sem historico. */
+  const vivoP = garantirProtocolo(t.telefone, msg.endereco, r.departamento);
+  if (vivoP && !r.protocolo) { r.protocolo = vivoP.numero; }
 
   /* Bot calado de proposito: o atendimento ja passou pra uma pessoa e ele nao
      vai falar por cima dela. A mensagem fica registrada na trilha do mesmo

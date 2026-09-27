@@ -129,3 +129,49 @@ export function varrerInativos({ quando = new Date().toISOString(), limite } = {
   gravar(nova);
   return saida;
 }
+
+/* ── avaliação ───────────────────────────────────────────────────────────── */
+
+/** Pede a nota: o próximo "1".."5" desta pessoa vira avaliação, não conversa nova. */
+export function pedirAvaliacao(numero, quando = new Date().toISOString()) {
+  const lista = ler();
+  const p = lista.find((x) => x.numero === numero);
+  if (!p) { return null; }
+  const n = { ...p, avaliacao: { estado: 'aguardando', pedidaEm: quando, nota: null, comentario: null } };
+  gravar(trocar(lista, n));
+  return n;
+}
+
+/**
+ * Avaliação esperando resposta desta pessoa (nota ou comentário), dentro da
+ * janela. Fora dela, some sozinha: ninguém é cobrado de nota no dia seguinte.
+ */
+export function avaliacaoPendente(de, quando = new Date().toISOString()) {
+  const p = ultimoEncerrado(de);
+  const a = p?.avaliacao;
+  if (!a || !['aguardando', 'comentario'].includes(a.estado)) { return null; }
+  if (aberto(de)) { return null; }
+  const desde = a.estado === 'comentario' ? a.notaEm : a.pedidaEm;
+  const lim = a.estado === 'comentario' ? R.MINUTOS_COMENTARIO : R.MINUTOS_AVALIACAO;
+  if ((new Date(quando) - new Date(desde)) / 60000 > lim) { return null; }
+  return p;
+}
+
+function mexerAvaliacao(numero, fn) {
+  const lista = ler();
+  const p = lista.find((x) => x.numero === numero);
+  if (!p?.avaliacao) { return null; }
+  const n = { ...p, avaliacao: fn({ ...p.avaliacao }) };
+  gravar(trocar(lista, n));
+  return n;
+}
+export const registrarNota = (numero, nota, quando = new Date().toISOString()) =>
+  mexerAvaliacao(numero, (a) => ({ ...a, nota, notaEm: quando, estado: nota <= 3 ? 'comentario' : 'respondida' }));
+export const registrarComentario = (numero, comentario, quando = new Date().toISOString()) =>
+  mexerAvaliacao(numero, (a) => ({ ...a, comentario: comentario ? String(comentario).slice(0, 1000) : null, comentarioEm: quando, estado: 'respondida' }));
+/** Mandou outra coisa em vez da nota: a avaliação fecha sem resposta e a conversa segue. */
+export const semResposta = (numero) => mexerAvaliacao(numero, (a) => ({ ...a, estado: a.nota ? 'respondida' : 'sem-resposta' }));
+
+/** Encerrados (o histórico), mais recentes primeiro. */
+export const encerrados = () => ler().filter((p) => p.estado === R.ESTADOS.ENCERRADO)
+  .sort((a, b) => String(b.encerradoEm).localeCompare(String(a.encerradoEm)));

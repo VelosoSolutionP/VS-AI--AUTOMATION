@@ -115,6 +115,11 @@ backend/usuarios.mjs .... login, sessões, convites (dono × cliente × vendedor
 | Campanha: o link **só atribui depois de aprovada** (código entra no `vsresultados` na aprovação); "Revisar" aprova só com ressalva registrada; "Corrigir"/"Bloquear" não aprovam; auditoria guardada **por versão** do material (inclui preço/estoque do catálogo) | `engine/vscampanhas` → `aprovar`, `versaoDe` | Proposta do dono (Campanhas V1). |
 | "Entradas pelo link" = cada `/start` com o código; "conversas" = pessoas diferentes. **Não** chamar de cliques | `engine/vsresultados` → `registrarOrigem` (`entradas` por dia) | O Telegram só avisa quem abriu o bot. |
 | Qualificação: matriz em ordem, 1ª regra ativa que bate decide; **porte sozinho não decide**; equipe sem ninguém ativo é pulada; a mesma regra não transfere duas vezes (senão "Devolver ao bot" não vale) | `engine/vsqualificacao` → `decidir`; `backend/atendimento.mjs` | Proposta do dono (Tier 1 bot × Tier 2 consultiva). |
+| **Toda conversa tem protocolo** (antes só quem usava fluxo em planilha): `garantirProtocolo()` abre quando o bot não abriu — inclusive com bot desligado | `backend/atendimento.mjs` | Sem protocolo não há como encerrar nem auditar. |
+| **Encerramento:** pelo atendente (botão "Encerrar") **ou** pelo cliente (frases curtas: "pode encerrar", "era só isso", "resolvido"… — "quero encerrar minha conta" **não** fecha) ou por silêncio (5 min, já existia). Guarda `encerradoPor` {tipo, nome} e `atendidoPor` | `engine/vsprotocolo` → `clientePediuEncerrar`, `encerrar`; rota `atendimentos/encerrar` | Pedido do dono (2026-09-27). |
+| **Avaliação** 1 a 5 só depois de encerrar pelo cliente ou pelo atendente (silêncio não pede). A nota é tratada **antes do bot** e não reabre o protocolo; nota ≤ 3 pede comentário (0 pula); resposta que não é nota fecha a avaliação como "sem resposta" e a conversa segue. Janela: 2 h (nota), 30 min (comentário) | `engine/vsprotocolo` → `pedirAvaliacao`, `avaliacaoPendente`, `lerNota`; `backend/atendimento.mjs` | idem |
+| **Encerrado sai da fila** e vai pro **Histórico** (fica na lista ativa só quem tem protocolo aberto ou está na fila; conversa antiga sem protocolo, 24 h) | `GET /crm/api/atendimentos` (filtro) · `GET /crm/api/atendimentos/historico[/detalhe]` | Auditar depois. Vendedor vê só os dele. |
+| Bot **desligado**: conversa sem dono aparece para todo vendedor (ninguém atende sozinho) | `vendedorVe()` | Senão ninguém via o cliente. |
 | **Carteira** escolhe QUEM atende quando vai pra gente, mas **não tira a conversa do bot** sozinha | `decidir(…, {gatilho})` | Cliente de sempre que só quer repetir o pedido segue com o bot. |
 | Distribuição: carteira → rodízio da equipe (ordem por id do operador). Nunca aleatório | `distribuir()` | Tem que dar pra explicar por que foi fulano. |
 | **Vendedor** (operador com login) vê só o Atendimento: os clientes dele + a fila sem dono da equipe dele/geral. Não mexe em cliente da carteira de outro. Vendedor que assume vira o responsável; o dono assumindo não tira o cliente de ninguém. Porta no **servidor** | `backend/server.mjs` → bloco `quem.papel === 'vendedor'`, `vendedorVe`, `vendedorPode`, `assumiuVira` | Controle de lead e de quem atende. |
@@ -285,6 +290,12 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 - **Rotas do servidor:** `GET /crm/api/campanhas`, `POST /crm/api/campanhas/{salvar,auditar,aprovar,encerrar,excluir}`, `/crm/api/resultados/campanha/arquivar` (links antigos) → `backend/server.mjs` (`contextoCampanha()` lê catálogo, imagem em `/midia` e link do bot)
 - **Prova em navegador:** `node scripts/prova-campanhas.mjs` (instância isolada + Telegram falso, 18 verificações)
 
+#### Histórico de atendimentos  ·  botão **Histórico** em `#wa-atendimento` e `#tg-atendimento`
+- **Pra que serve:** Atendimentos encerrados — pelo cliente, pelo atendente ou por silêncio — para auditar depois.
+- **O que tem:** indicadores Encerrados (com gente), Nota média (quantos avaliaram), Pelo cliente, Pelo atendente, Por silêncio · busca (nome, protocolo, atendente) · período hoje/7/30/90 · filtros Todos, Com gente, Cliente encerrou, Atendente encerrou, Por silêncio, Avaliados, Nota até 3 · tabela Cliente/protocolo, Encerrado/duração, Atendido por, Quem encerrou, Avaliação (estrelas, 💬 = comentário), Mensagens · clicar abre o detalhe: dados, comentário do cliente, resumo comercial e a **conversa inteira** daquele protocolo.
+- **Código:** `telaHistorico(canal)`, `abrirAtendimentoHist()` em `backend/crm.html`; encerrar com texto "Encerrar" nas duas telas (`encerrarAtendimento()` → modal avisa protocolo + avaliação).
+- **Prova em navegador:** `node scripts/prova-encerramento.mjs` (17 verificações: vendedora encerra, cliente encerra no Telegram e no WhatsApp, notas 2/5/4, comentário, saem da fila, histórico do dono e da vendedora, celular).
+
 #### Qualificação e equipes  ·  `#qualificacao`  (serve WhatsApp **e** Telegram)
 - **Pra que serve:** O bot lê a conversa, preenche a ficha do cliente e decide — por regras, sem IA — se ele mesmo vende (Tier 1) ou se passa para a equipe certa (Tier 2).
 - **O que tem:** cartões: **Como o bot decide** (matriz em ordem: ligar/desligar, condição, destino, equipe, subir/descer, nova regra, voltar ao padrão, mensagem ao transferir), **Testar com uma conversa** (não grava, não gira rodízio), **Equipes e acesso dos vendedores** (operador · equipe = setor · acesso: dar acesso, nova senha, tirar acesso)
@@ -415,6 +426,7 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 | 2026-09-27 | Desligar ganchos de governança e MCP `vs-ia-dev` | Feito pelo Claude a pedido explícito do dono (backups `.bak-qagate`) | `f615d56` |
 | 2026-09-27 | Telegram · Campanhas V1 (proposta do dono, MVP) | Assistente 4 passos + prévia Telegram + auditor por regras + aprovação → link + acompanhamento com entradas/conversas/pedidos/receita | `824ea6a` |
 | 2026-09-27 | Controle e qualificação de leads nos dois canais, **sem IA** | Ficha por regras, matriz Tier 1/Tier 2, equipes = setores, carteira + rodízio, acesso de vendedor, cartão Oportunidade comercial | (este) |
+| 2026-09-27 | Encerramento (cliente ou atendente) + avaliação + histórico para auditar, nos dois atendimentos, antes de voltar à Campanha | Protocolo em toda conversa, frases de despedida, nota 1–5 + comentário, encerrado sai da fila, tela Histórico com filtros e conversa; corrigido: "um atendente" virava "1 vendedor" na ficha | (este) |
 | 2026-09-27 | **Tela Telegram · Atendimento FECHADA** pelo dono | Aprovada com o resultado do teste ao vivo. Teste de recebimento real (mensagem de um celular de verdade) fica pra depois, por escolha do dono (tempo da tela esgotado) | (este) |
 
 ---
@@ -438,6 +450,7 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 - **Indicadores de valor do bot** sugeridos na proposta (resolvidos sem humano, transferidos, vendas após atendimento): pertencem a Consumo/Resultados, não ao Atendimento — ainda não feitos.
 - **"vendedor" não está nas palavras que chamam gente** (`PALAVRAS_HUMANO` em `engine/vsbot/regras.mjs`: atendente, humano, pessoa, falar com alguém, gerente, reclamação, cancelar). "Quero falar com um vendedor" só vai pra fila se a loja criar a regra. Decisão do dono se entra no padrão.
 - **Avatar de nome com número** ("Cliente 001") vira "C0" — cosmético.
+- **Avaliação — próximos passos possíveis:** média por vendedor/equipe em Resultados; alerta ao dono em nota ≤ 2; texto da pergunta configurável.
 - **Teste intermitente:** `tests/vsresultados.test.mjs` → "conversa pelo link da campanha…" falhou 1 vez em 4 rodadas da bateria completa (passa sozinho). Observar.
 - **Próxima tela do Telegram a trabalhar:** escolha do dono (Resultados e Atendimento fechados; restam Campanhas, Canal e conexão, Auditor, Consumo). Depois do Telegram: revisar o Atendimento do WhatsApp com o dono.
 
@@ -447,10 +460,13 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 
 > Ao voltar, o dono diz "lê o final do mapa e continua". Comece por aqui.
 
-**Estado:** branch `fix/fabiano.veloso/6458`. Governança (ganchos) e MCP `vs-ia-dev` **desligados** pelo Claude a pedido do dono (backups `~/.claude/settings.json.bak-qagate`, `~/.claude.json.bak-qagate`). Feitos e provados em navegador:
-1. **Telegram · Campanhas V1** — `824ea6a` (ver a seção da tela).
-2. **Qualificação e roteamento de leads (WhatsApp + Telegram, sem IA)** — este commit (ver "Qualificação e equipes").
+**Estado:** branch `fix/fabiano.veloso/6458`. Governança (ganchos) e MCP `vs-ia-dev` **desligados** a pedido do dono (backups `~/.claude/settings.json.bak-qagate`, `~/.claude.json.bak-qagate`). Feitos e provados em navegador:
+1. **Telegram · Campanhas V1** — `824ea6a`.
+2. **Qualificação e roteamento de leads (WhatsApp + Telegram, sem IA)** — `dcfbb2b`.
+3. **Encerramento + avaliação + Histórico** nos dois atendimentos — este commit.
 
-**Esperando o dono:** olhar as duas entregas e dizer se atendem o objetivo ("vamos ver se já atende"). Para ver com dados de exemplo: `node scripts/prova-qualificacao.mjs --fotos <pasta>` e `node scripts/prova-campanhas.mjs --fotos <pasta>` (instâncias isoladas, nada toca produção).
+**Próximo:** o dono disse "antes de voltar para a tela de campanha" → **voltar à Campanha** (revisar a V1 com ele / 2ª entrega) e ele avaliar se a qualificação atende o objetivo.
+
+**Provas (instâncias isoladas, nada toca produção):** `node scripts/prova-campanhas.mjs`, `node scripts/prova-qualificacao.mjs`, `node scripts/prova-encerramento.mjs` — todas aceitam `--fotos <pasta>`.
 
 **Como trabalhar (regra do dono):** implementar direto a V1 da proposta; perguntar só o absurdo, em texto. Sem IA em recurso novo (custo).

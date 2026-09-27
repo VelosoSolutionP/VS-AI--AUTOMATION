@@ -98,9 +98,13 @@ export function inativo(p, agora = new Date().toISOString(), limite = MINUTOS_IN
  * Encerra por silêncio. NÃO apaga nada: encerrado é um estado, não um sumiço —
  * é isso que permite continuar depois.
  */
-export function encerrar(p, { quando = new Date().toISOString(), motivo = 'inatividade' } = {}) {
+export function encerrar(p, { quando = new Date().toISOString(), motivo = 'inatividade', por = null, atendidoPor = null } = {}) {
   return {
     ...p,
+    /* QUEM encerrou (cliente, atendente, inatividade, moderacao) e quem
+       atendeu: e o que o historico precisa pra auditar depois. */
+    encerradoPor: por || { tipo: ['inatividade', 'moderacao'].includes(motivo) ? motivo : 'atendente', nome: null },
+    atendidoPor: atendidoPor || p.atendidoPor || null,
     /* De ONDE se encerrou muda tudo no retorno: quem estava na fila volta pra
        fila, quem estava com o bot volta pro passo. Sem guardar isto, todo mundo
        voltava como se estivesse com o bot — e quem ja tinha falado com gente
@@ -164,8 +168,9 @@ export function aoVoltar(p, agora = new Date().toISOString(), { voltarParaFila =
 }
 
 /** Marca atividade e, de quebra, guarda onde a conversa está. */
-export function tocar(p, { quando = new Date().toISOString(), passo, contexto, estado, departamento } = {}) {
+export function tocar(p, { quando = new Date().toISOString(), passo, contexto, estado, departamento, atendidoPor } = {}) {
   const novo = { ...p, ultimaAtividade: quando };
+  if (atendidoPor !== undefined) { novo.atendidoPor = atendidoPor; }
   if (passo !== undefined) { novo.passo = passo; }
   if (contexto !== undefined) { novo.contexto = { ...(p.contexto || {}), ...contexto }; }
   if (departamento !== undefined) { novo.departamento = departamento; }
@@ -197,3 +202,45 @@ export function textoDeRetomada(p, volta) {
   }
   return `Oi de novo! Achei seu atendimento *${p.numero}* e vamos continuar de onde paramos.`;
 }
+
+/* ── encerramento pelo cliente e avaliação ────────────────────────────────── */
+
+/**
+ * O cliente pediu pra encerrar? Frases curtas e explícitas de propósito: "pode
+ * encerrar" fecha; "quero encerrar minha conta" NÃO (é assunto, não despedida).
+ */
+const DESPEDIDAS = [
+  /^(pode )?(encerrar|finalizar|fechar)( o)?( (meu )?atendimento)?( por favor| pfv| pf)?[.!]*$/,
+  /^(pode|podem) (encerrar|finalizar|fechar)( aqui| por aqui| o atendimento)?[.!]*( obrigad[oa])?[.!]*$/,
+  /^(era|e) so isso( mesmo)?[,.!]*( obrigad[oa]| valeu)?[.!]*$/,
+  /^so isso( mesmo)?[,.!]*( obrigad[oa]| valeu)[.!]*$/,
+  /^(ja )?(resolvido|resolveu|resolvi)[,.!]*( obrigad[oa]| valeu)?[.!]*$/,
+  /^encerra( o atendimento| ai| aí)?[.!]*$/,
+  /^(quero|pode) encerrar o atendimento[.!]*$/,
+];
+const semAcento = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
+export const clientePediuEncerrar = (texto) => DESPEDIDAS.some((re) => re.test(semAcento(texto)));
+
+/** Minutos que a avaliação fica esperando resposta. Depois disso, mensagem nova é conversa nova. */
+export const MINUTOS_AVALIACAO = 120;
+export const MINUTOS_COMENTARIO = 30;
+
+/**
+ * Nota de 1 a 5 no que a pessoa escrever: "5", "nota 4", "⭐⭐⭐", "ótimo".
+ * Qualquer outra coisa não é nota — e aí a conversa segue normal.
+ */
+export function lerNota(texto) {
+  const t = semAcento(texto).replace(/[.!]+$/, '');
+  const estrelas = (String(texto).match(/⭐|★/g) || []).length;
+  if (estrelas >= 1 && estrelas <= 5 && !/[a-z0-9]/.test(t.replace(/⭐|★/g, ''))) { return estrelas; }
+  const m = t.match(/^(?:nota\s*)?([1-5])(?:\s*(?:de 5|\/5|estrelas?))?$/);
+  if (m) { return Number(m[1]); }
+  const palavras = { pessimo: 1, horrivel: 1, ruim: 2, regular: 3, 'mais ou menos': 3, razoavel: 3, bom: 4, boa: 4, 'muito bom': 5, otimo: 5, otima: 5, excelente: 5, perfeito: 5, 'nota 10': 5, '10': 5 };
+  return palavras[t] ?? null;
+}
+
+export const textoAvaliacao = () => 'Antes de ir: de *1 a 5*, que nota você dá para este atendimento? (1 = muito ruim, 5 = excelente)\n\nÉ só responder com o número.';
+export const textoObrigadoNota = (nota) => (nota <= 3
+  ? `Obrigado pela nota ${nota}. Quer contar o que faltou? É só escrever — ou mande *0* para pular.`
+  : `Obrigado pela nota ${nota}! 🙏 Se precisar, é só chamar.`);
+export const textoObrigadoComentario = () => 'Anotado — vai direto para quem cuida do atendimento. Obrigado! 🙏';
