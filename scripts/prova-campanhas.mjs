@@ -130,6 +130,7 @@ async function main() {
     await page.waitForSelector('text=Relatório do auditor');
     ok('auditor pediu correção do preço', await page.isVisible('.cp-aud li:has-text("R$ 29,90")'));
     ok('“Continuar” travado enquanto há correção', await page.isDisabled('button:has-text("Continuar")'));
+    ok('com os dados completos, o resultado oferece “Criar texto e imagem e auditar”', await page.isVisible('#btCpCriarTudo'));
     await page.screenshot({ path: join(FOTOS, '03-auditoria-corrigir.png'), fullPage: true });
 
     await page.click('button:has-text("Voltar e ajustar")');
@@ -253,12 +254,15 @@ async function main() {
     await page.click('.cp-ajuda-q .cp-lugar:has-text("Conversar com um vendedor")');
     await page.click('.cp-lugar:has-text("Instagram")');
     await page.click('#btCpMontar');
+    await page.waitForSelector('.cp-img img[src*="/midia/"]');
+    await page.waitForFunction(() => /Arte gerada/.test(document.querySelector('.cp-img')?.innerText || ''));
+    ok('“Criar texto e imagem” cria OS DOIS: texto e arte', /Arte gerada/.test(await page.textContent('.cp-img')));
     const sug = await page.inputValue('#cpTexto');
     ok('sugestão usa SÓ o que foi informado (solução, público, benefício, ação)', /Bolso Cheio CRM/.test(sug) && /pequenas empresas/.test(sug) && /oportunidades e pedidos/.test(sug) && /converse com nossa equipe/.test(sug), sug.replace(/\n/g, ' ').slice(0, 140));
     ok('botão acompanha a ação escolhida', (await page.inputValue('#cpBotao')) === 'Falar com um vendedor');
     await page.click('#btCpAuditar');
     await page.waitForSelector('.cp-veredito');
-    ok('depois do assistente: Aprovado com recomendações (a imagem enviada não é verificável) e avança', /Aprovado com recomendações/.test(await page.textContent('.cp-veredito')) && await page.isEnabled('button:has-text("Continuar")'), (await page.textContent('.cp-veredito')).trim());
+    ok('depois do assistente (texto + arte gerada): Aprovado e avança', /Aprovado/.test(await page.textContent('.cp-veredito')) && !/Reprovado/.test(await page.textContent('.cp-veredito')) && await page.isEnabled('button:has-text("Continuar")'), (await page.textContent('.cp-veredito')).trim());
     await page.screenshot({ path: join(FOTOS, '09c-aprovado-recomendacoes.png'), fullPage: true });
     await page.click('button:has-text("Voltar para a lista")');
     await page.waitForSelector('tbody tr:has-text("Promo Camiseta preta")');

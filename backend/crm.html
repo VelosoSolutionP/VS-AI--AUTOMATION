@@ -7623,18 +7623,20 @@ async function cpDesenharArte(){
       const x=90,y=90,w=900,h=560, r=Math.max(w/img.width,h/img.height), sw=w/r, sh=h/r;
       g.save(); g.beginPath(); g.roundRect(x,y,w,h,36); g.clip(); g.drawImage(img,(img.width-sw)/2,(img.height-sh)/2,sw,sh,x,y,w,h); g.restore(); topoTexto=720;
     }catch{ /* foto indisponível: arte só com texto */ } }
-  const titulo=d.objetivo==='produto'||d.objetivo==='promocao'?(p?.nome||d.nome):(d.nome||'Lista VIP');
+  /* A arte usa SÓ o que foi informado (catálogo ou campos) — nada inventado. */
+  const cap=d.captar||{}, sol=cap.solucao||cpSolucaoCat()?.nome||'';
+  const titulo=d.objetivo==='produto'||d.objetivo==='promocao'?(p?.nome||d.nome):d.objetivo==='captar'?(sol||d.nome):d.nome;
   const sub=d.objetivo==='promocao'&&p?`De ${R(p.precoDeCentavos??p.precoCentavos)} por ${d.promo.precoCentavos?R(d.promo.precoCentavos):'—'}`
     :d.objetivo==='produto'&&p?`Por ${R(p.precoCentavos)}`
-    :d.objetivo==='evento'?[d.evento.data?d.evento.data.split('-').reverse().join('/'):null,d.evento.local].filter(Boolean).join(' · ')||'Em breve'
-    :'Ofertas antes de todo mundo';
+    :d.objetivo==='evento'?[d.evento.data?d.evento.data.split('-').reverse().join('/'):null,d.evento.hora||null,d.evento.local||(d.evento.link?'on-line':null)].filter(Boolean).join(' · ')
+    :(cap.beneficio||'').replace(/\.$/,'');
   g.fillStyle='#fff'; g.textBaseline='top';
   const tamT=topoTexto>600?68:96; g.font=`800 ${tamT}px system-ui,-apple-system,Segoe UI,Roboto,sans-serif`;
   const lin=cpQuebrar(g,titulo,900,topoTexto>600?2:3); lin.forEach((l,i)=>g.fillText(l,90,topoTexto+i*(tamT*1.1)));
   let y=topoTexto+lin.length*(tamT*1.1)+18;
   g.font=`700 ${topoTexto>600?48:60}px system-ui,-apple-system,Segoe UI,Roboto,sans-serif`; g.fillStyle=d.objetivo==='promocao'||d.objetivo==='produto'?'#4ade80':'#c7d2fe';
-  cpQuebrar(g,sub,900,1).forEach((l)=>g.fillText(l,90,y)); y+=80;
-  const cta='Toque no botão abaixo 👇'; g.font='700 40px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
+  const linSub=cpQuebrar(g,sub,900,d.objetivo==='captar'?3:1); linSub.forEach((l,i)=>g.fillText(l,90,y+i*62)); y+=18+linSub.length*62;
+  const cta=({conhecer:'Toque e conheça 👇',demonstracao:'Peça uma demonstração 👇',vendedor:'Converse com nossa equipe 👇',lista:'Toque e entre na lista 👇'})[d.objetivo==='captar'?cap.acao:'']||'Toque no botão abaixo 👇'; g.font='700 40px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
   const wc=g.measureText(cta).width+80, yc=Math.min(Math.max(y,860),960);
   g.fillStyle='#fff'; g.beginPath(); g.roundRect(90,yc,wc,84,42); g.fill(); g.fillStyle='#1e1b4b'; g.fillText(cta,130,yc+20);
   g.font='600 30px system-ui,-apple-system,Segoe UI,Roboto,sans-serif'; g.fillStyle='rgba(255,255,255,.75)'; g.textAlign='right'; g.fillText(cpLoja(),990,1015); g.textAlign='left';
@@ -7702,13 +7704,13 @@ function cpAjudaHtml(){
   return `<div class="cp-ajuda"><div class="cp-ajuda-h">${ico('gerar')}<div><b>Assistente de campanha</b><small>Uso o que já está cadastrado e pergunto só o que falta para “${esc(CP_OBJ[d.objetivo].t)}”.</small></div>${bi('fechar','Fechar o assistente','CP_ED.ajuda=false;render()')}</div>
     ${sei.length?`<div class="cp-ajuda-sei"><small>Já sei</small>${sei.map(x=>`<span>${ico('check')}${x}</span>`).join('')}</div>`:''}
     ${falta.length?falta.map(k=>`<div class="cp-ajuda-q"><label>${esc(CP_PERGUNTA[k])}</label>${campo[k]()}</div>`).join(''):'<p class="hint" style="margin:6px 0">Tenho tudo o que preciso.</p>'}
-    <div style="margin-top:10px">${botao({t:'Montar a sugestão',ic:'gerar',v:'p',sz:'xs',on:'cpMontarComAjuda()',id:'btCpMontar'})}<small class="hint" style="margin-left:8px">Você revisa e edita antes de auditar.</small></div></div>`;
+    <div style="margin-top:10px">${botao({t:'Criar texto e imagem',ic:'gerar',v:'p',sz:'xs',on:'cpMontarComAjuda()',id:'btCpMontar'})}<small class="hint" style="margin-left:8px">Você revisa e edita antes de auditar.</small></div></div>`;
 }
 function cpSolucaoSelect(){ const cat=CP[RES_DIAS]?.catalogo||[], d=CP_ED.d; if(!cat.length) return '';
   return `<select onchange="CP_ED.d.captar.sku=this.value;if(this.value){CP_ED.d.captar.solucao=(cpSolucaoCat()?.nome||'');}cpSujo();render()"><option value="">Escolha do catálogo…</option>${cat.map(x=>`<option value="${esc(x.sku)}" ${x.sku===d.captar.sku?'selected':''}>${esc(x.nome)}</option>`).join('')}</select>`; }
 function cpAcao(k){ const d=CP_ED.d; d.captar.acao=k; if(!d.botao||[...Object.values(CP_BOTAO),...Object.values(CP_BOTAO_ACAO)].includes(d.botao)) d.botao=CP_BOTAO_ACAO[k]; cpSujo(); render(); }
 function cpAbrirAjuda(){ CP_ED.ajuda=true; if(CP_ED.passo!==1) CP_ED.passo=1; render(); setTimeout(()=>document.querySelector('.cp-ajuda')?.scrollIntoView({behavior:'smooth',block:'center'}),50); }
-function cpMontarComAjuda(){
+async function cpMontarComAjuda(){
   const d=CP_ED.d, p=cpProduto();
   if(d.ajudaDescricao&&p&&!p.descricao) d.descricaoExtra=d.ajudaDescricao;
   const falta=cpFaltando().filter(k=>!(k==='descricao'&&d.descricaoExtra));
@@ -7716,8 +7718,12 @@ function cpMontarComAjuda(){
   if(!d.nome.trim()) d.nome=(d.objetivo==='promocao'?'Promo ':'')+(p?.nome||d.captar?.solucao||'Campanha');
   CP_ED.variacao=0; d.texto=cpTextoModelo();
   if(d.objetivo==='captar'&&d.captar.acao) d.botao=CP_BOTAO_ACAO[d.captar.acao]; else if(!d.botao||Object.values(CP_BOTAO).includes(d.botao)) d.botao=CP_BOTAO[d.objetivo];
-  if(!d.imagem&&p?.imagem) cpDefinirImagem({url:p.imagem,doCatalogo:true});
-  CP_ED.ajuda=false; cpSujo(); render(); flash('Sugestão pronta — revise, edite à vontade e audite.','ok');
+  /* Montar é TEXTO E IMAGEM: a arte sai com os mesmos dados (e a foto do
+     produto, quando houver). Montar só o texto deixava a campanha pela metade. */
+  CP_ED.ajuda=false; cpSujo(); render();
+  const img=await cpGerarImagem(true);
+  render();
+  flash(img?'Texto e imagem prontos — revise, edite à vontade e audite.':'Texto pronto; a imagem não saiu — tente “Gerar imagem”.',img?'ok':'err');
 }
 
 async function cpSubirImagem(input){
@@ -7817,7 +7823,9 @@ async function cpSalvar(quieto){
   catch(e){ avisoErro('Não consegui salvar',esc(e.message)); return false; }
 }
 async function cpConsertar(texto,imagem){
-  if(texto){ CP_ED.variacao=CP_ED.d.texto===cpTextoModelo()?(CP_ED.variacao||0)+1:(CP_ED.variacao||0); CP_ED.d.texto=cpTextoModelo(); }
+  if(texto&&cpFaltando().length) return cpAbrirAjuda();
+  if(texto){ CP_ED.variacao=CP_ED.d.texto===cpTextoModelo()?(CP_ED.variacao||0)+1:(CP_ED.variacao||0); CP_ED.d.texto=cpTextoModelo();
+    const d=CP_ED.d; if(d.objetivo==='captar'&&d.captar.acao) d.botao=CP_BOTAO_ACAO[d.captar.acao]; }
   if(imagem&&!(await cpGerarImagem(true))) return;
   CP_ED.sujo=true; await cpAuditar();
 }
@@ -7846,9 +7854,13 @@ function cpTelaAuditoria(){
   const a=CP_ED.c?.auditoria; const [cls,txt]=cpResumoAud(a?.resultado);
   const segue=a&&!['bloquear','corrigir'].includes(a.resultado);
   const it=a?.itens||[], ruimConteudo=it.some(i=>['requisitos','mensagem','destino','produto'].includes(i.grupo)&&['corrigir','bloquear'].includes(i.nivel)), ruimImg=it.some(i=>i.grupo==='imagem'&&i.nivel!=='ok');
+  /* Criar é sempre TEXTO E IMAGEM. Faltou dado: o assistente pergunta (e depois
+     cria os dois). Tem tudo: refaz os dois e audita. */
+  const completo=!cpFaltando().length;
   const conserto=(ruimConteudo||ruimImg)?`<div class="cp-conserto"><span>${ruimConteudo?'Eu ajudo a resolver:':'Recomendação:'}</span>
-      ${ruimConteudo?botao({t:'Me ajude a montar a campanha',ic:'gerar',v:'p',sz:'xs',on:'cpAbrirAjuda()'}):''}
-      ${ruimImg?botao({t:'Gerar a imagem e auditar',ic:'gerar',v:ruimConteudo?'s':'p',sz:'xs',on:'cpConsertar(false,true)'}):''}</div>`:'';
+      ${completo?botao({t:'Criar texto e imagem e auditar',ic:'gerar',v:'p',sz:'xs',on:'cpConsertar(true,true)',id:'btCpCriarTudo'})
+        :botao({t:'Me ajude a montar a campanha',ic:'gerar',v:'p',sz:'xs',on:'cpAbrirAjuda()'})}
+      ${ruimImg&&!ruimConteudo?botao({t:'Só trocar a imagem',ic:'gerar',v:'s',sz:'xs',on:'cpConsertar(false,true)'}):''}</div>`:'';
   return `<h4 class="cp-h">Relatório do auditor</h4>
     <div class="cp-veredito ${cls}">${esc(txt)}</div>${conserto}${cpRelatorio(a)}
     <div class="cp-rodape">${botao({t:'Voltar e ajustar',ic:'ant',v:'s',on:'cpIr(1)'})}<span style="flex:1"></span>
