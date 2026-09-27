@@ -1913,6 +1913,9 @@ const server = createServer(async (req, res) => {
           const tel = String(d.telefone || '').replace(/\D/g, '');
           const pode = vendedorPode(quem, tel);
           if (!pode.ok) { r = pode; break; }
+          /* Conversa de antes de todo atendimento ter protocolo: abre um agora
+             pra poder encerrar e ir pro historico. */
+          if (!proto.aberto(tel) && crm.listar().some((l) => l.telefone === tel)) { proto.aoChegar(tel, { voltarParaFila: false }); }
           const p = proto.aberto(tel);
           if (!p) { r = { ok: false, motivo: 'não há atendimento aberto para este cliente' }; break; }
           const fila = bot.emAtendimento().find((e) => e.telefone === tel);

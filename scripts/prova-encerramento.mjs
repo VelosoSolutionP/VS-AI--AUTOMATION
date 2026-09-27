@@ -183,6 +183,11 @@ async function main() {
     ok('celular: histórico sem rolagem lateral da página', larg <= 390, `${larg}px`);
     await cel.screenshot({ path: join(FOTOS, '05-celular.png'), fullPage: true });
 
+    // Conversa antiga, de antes de todo atendimento ter protocolo: encerra do mesmo jeito.
+    const antigo = await api('leads', { nome: 'Cliente Antigo', telefone: '31977776666' });
+    const encA = await api('atendimentos/encerrar', { telefone: antigo.lead?.telefone || '5531977776666', avisar: false });
+    ok('conversa antiga sem protocolo também encerra (ganha protocolo na hora)', encA.ok && /^VS-/.test(encA.protocolo || ''), encA.erro || encA.protocolo);
+
     ok('sem erro de JavaScript na tela', !errosJs.length, errosJs.slice(0, 3).join(' / '));
   } finally {
     await navegador.close().catch(() => {});

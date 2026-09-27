@@ -5250,7 +5250,7 @@ function telaAtendimento(canal){
           ${sSel==='com-vendedor'
             ?botao({t:`Devolver pro bot`,ic:'bot',v:'s',sz:'xs',on:`devolverAoBot('${esc(sel.telefone)}')`,tit:`${nomeBot()} volta a responder esta pessoa`})
             :botao({t:'Assumir atendimento',ic:'crm',v:'p',sz:'xs',on:`assumirAtendimento('${esc(sel.telefone)}')`,tit:'O bot para de responder esta pessoa até você devolver'})}
-          ${sel.protocoloEstado&&sel.protocoloEstado!=='encerrado'
+          ${sel.protocoloEstado!=='encerrado'
             ?botao({t:'Encerrar',ic:'check',v:'s',sz:'xs',on:`encerrarAtendimento('${esc(sel.telefone)}','${esc(sel.protocolo||'')}')`,tit:'Encerra, manda o protocolo e pede a avaliação'}):''}
         </div>
       </div>
@@ -5372,7 +5372,7 @@ function telaFilaTelegram(){
       <div class="gv-acoes"><span class="cv-sit ${SITUACAO[sSel].cls}"><i></i>${SITUACAO[sSel].rot}</span>
         ${sSel==='com-vendedor'?botao({t:'Devolver pro bot',ic:'bot',v:'s',sz:'xs',on:`devolverAoBot('${esc(sel.telefone)}')`})
           :botao({t:'Assumir atendimento',ic:'crm',v:'p',sz:'xs',on:`assumirAtendimento('${esc(sel.telefone)}')`})}
-        ${sel.protocoloEstado&&sel.protocoloEstado!=='encerrado'?botao({t:'Encerrar',ic:'check',v:'s',sz:'xs',on:`encerrarAtendimento('${esc(sel.telefone)}','${esc(sel.protocolo||'')}')`,tit:'Encerra, manda o protocolo e pede a avaliação'}):''}</div>
+        ${sel.protocoloEstado!=='encerrado'?botao({t:'Encerrar',ic:'check',v:'s',sz:'xs',on:`encerrarAtendimento('${esc(sel.telefone)}','${esc(sel.protocolo||'')}')`,tit:'Encerra, manda o protocolo e pede a avaliação'}):''}</div>
       ${ped}${oportunidadeHtml(sel)}${ctx}
       <div class="conversa-fluxo">${linha}</div>
       <div class="responder"><div class="cv-compor">
@@ -7502,7 +7502,7 @@ function crescerResposta(el){ el.style.height='auto'; el.style.height=Math.min(e
 function encerrarAtendimento(tel,numero){
   abrirModal('Encerrar este atendimento?',
     `<p class="hint" style="margin-bottom:12px">O cliente vai receber a mensagem de encerramento com o
-      protocolo <b>${esc(numero||'')}</b> e o pedido de avaliação (nota de 1 a 5). O atendimento sai da fila e vai para o <b>Histórico</b>. Se ele voltar a escrever em até 24 horas, a conversa continua
+      ${numero?`protocolo <b>${esc(numero)}</b>`:'número de protocolo'} e o pedido de avaliação (nota de 1 a 5). O atendimento sai da fila e vai para o <b>Histórico</b>. Se ele voltar a escrever em até 24 horas, a conversa continua
       de onde parou — ele não precisa repetir nada.</p>
      <p class="hint">Se ainda houver algo pendente, responda antes de encerrar.</p>`,
     `<button class="btn btn-g" onclick="fecharModal()">Voltar</button>
