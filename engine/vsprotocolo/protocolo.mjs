@@ -91,6 +91,9 @@ export function abrir({ de, quando = new Date().toISOString(), numero, sorteio }
 /** Passou tempo demais em silêncio? */
 export function inativo(p, agora = new Date().toISOString(), limite = MINUTOS_INATIVIDADE) {
   if (!p || p.estado === ESTADOS.ENCERRADO) { return false; }
+  /* Esperando o cliente responder "posso ajudar em algo mais?": da mais tempo
+     — cortar em 5 min quem so demorou a responder "nao" tira a nota dele. */
+  if (p.finalizacao?.estado === 'aguardando') { return minutos(p.finalizacao.pedidaEm, agora) >= MINUTOS_FINALIZACAO; }
   return minutos(p.ultimaAtividade, agora) >= limite;
 }
 
@@ -98,9 +101,21 @@ export function inativo(p, agora = new Date().toISOString(), limite = MINUTOS_IN
  * Encerra por silêncio. NÃO apaga nada: encerrado é um estado, não um sumiço —
  * é isso que permite continuar depois.
  */
-export function encerrar(p, { quando = new Date().toISOString(), motivo = 'inatividade', por = null, atendidoPor = null } = {}) {
+/**
+ * DESFECHO — o que a auditoria quer saber:
+ *   finalizado  = concluído: o cliente disse que não precisa de mais nada
+ *                 (respondendo "posso ajudar em algo mais?" ou pedindo pra encerrar);
+ *   encerrado   = fechado À FORÇA pelo atendente, com motivo (conversa pesada, sumiu…);
+ *   inatividade = silêncio; moderacao = ofensa/assédio.
+ */
+export const DESFECHOS = { finalizado: 'Finalizado', encerrado: 'Encerrado pelo atendente', inatividade: 'Por silêncio', moderacao: 'Moderação' };
+
+export function encerrar(p, { quando = new Date().toISOString(), motivo = 'inatividade', por = null, atendidoPor = null, desfecho, motivoTexto = null } = {}) {
   return {
     ...p,
+    desfecho: desfecho || (['inatividade', 'moderacao'].includes(motivo) ? motivo : 'encerrado'),
+    motivoTexto: motivoTexto ? String(motivoTexto).slice(0, 300) : null,
+    finalizacao: p.finalizacao ? { ...p.finalizacao, estado: p.finalizacao.estado === 'aguardando' ? (desfecho === 'finalizado' ? 'respondida' : 'sem-resposta') : p.finalizacao.estado } : null,
     /* QUEM encerrou (cliente, atendente, inatividade, moderacao) e quem
        atendeu: e o que o historico precisa pra auditar depois. */
     encerradoPor: por || { tipo: ['inatividade', 'moderacao'].includes(motivo) ? motivo : 'atendente', nome: null },
@@ -244,3 +259,23 @@ export const textoObrigadoNota = (nota) => (nota <= 3
   ? `Obrigado pela nota ${nota}. Quer contar o que faltou? É só escrever — ou mande *0* para pular.`
   : `Obrigado pela nota ${nota}! 🙏 Se precisar, é só chamar.`);
 export const textoObrigadoComentario = () => 'Anotado — vai direto para quem cuida do atendimento. Obrigado! 🙏';
+
+/* ── finalização: "posso ajudar em algo mais?" ─────────────────────────────── */
+
+/** Quanto a pergunta final espera a resposta antes de fechar sozinha (como finalizado sem resposta). */
+export const MINUTOS_FINALIZACAO = 30;
+
+export const textoPerguntaFinal = () => 'Posso ajudar em algo mais? 🙂\n\nSe não, é só responder *não* que eu finalizo o seu atendimento.';
+export const textoFinalizado = (p) => `Que bom que deu certo! Atendimento finalizado.\n\n*Protocolo ${p.numero}*`;
+
+/* "Não" de verdade, curto. Qualquer outra coisa ("não, mas e o frete?") é
+   continuação: a conversa segue com o atendente. */
+const NAO_PRECISA = [
+  /^(nao|n|nop|nope)[,.!]*( obrigad[oa]| valeu| brigad[oa])?[.!]*$/,
+  /^(nao|nada)[,.!]*( (so|era so) isso| mais nada| e so| tudo certo| tudo bem| ta tudo certo| esta tudo certo| pode finalizar| pode encerrar)[.!]*( obrigad[oa]| valeu)?[.!]*$/,
+  /^(nao|nada) (preciso|precisa|precisamos)( de)?( mais)?( nada)?[.!]*( obrigad[oa]| valeu)?[.!]*$/,
+  /^(so|era so|e so) isso( mesmo)?[,.!]*( obrigad[oa]| valeu)?[.!]*$/,
+  /^(nada|mais nada|nada mais|tudo certo|tudo ok|ta otimo|esta otimo|ta bom|esta bom|resolvido|obrigad[oa]|valeu|brigad[oa])[,.!]*( obrigad[oa]| valeu)?[.!]*$/,
+  /^(pode )?(finalizar|encerrar)[.!]*$/,
+];
+export const clienteNaoPrecisaMais = (texto) => NAO_PRECISA.some((re) => re.test(semAcento(texto)));

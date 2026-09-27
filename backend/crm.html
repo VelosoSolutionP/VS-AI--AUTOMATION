@@ -1266,6 +1266,9 @@ td.num,th.num{text-align:right;white-space:nowrap}
 .h-coment{display:flex;gap:10px;border:1px solid var(--warn-line);background:var(--warn-bg);border-radius:10px;padding:10px 12px;margin-bottom:10px}
 .h-coment svg{width:16px;height:16px;color:var(--warn);flex:0 0 16px} .h-coment small{font-size:11px;color:var(--muted)} .h-coment p{margin:2px 0 0;font-size:13px}
 .h-conversa{max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel-2)}
+.cv-final{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn-line);padding:4px 9px;border-radius:99px}
+.cv-final svg{width:12px;height:12px}
+.h-motivo{display:block;color:var(--muted);font-size:11px;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
@@ -5266,7 +5269,7 @@ function telaAtendimento(canal){
             :botao({t:'Assumir atendimento',ic:'crm',v:'p',sz:'xs',on:`assumirAtendimento('${esc(sel.telefone)}')`,tit:'O bot para de responder esta pessoa até você devolver'})}
           ${/* Sempre: conversa na lista e atendimento vivo. Se o protocolo fechou
                sozinho por silencio (ou nunca existiu), o servidor abre na hora. */''}
-          ${botao({t:'Encerrar',ic:'check',v:'s',sz:'xs',on:`encerrarAtendimento('${esc(sel.telefone)}','${esc(sel.protocoloEstado==='encerrado'?'':sel.protocolo||'')}')`,tit:'Encerra, manda o protocolo e pede a avaliação'})}
+          ${botoesFechamento(sel,sSel)}
         </div>
       </div>
       ${pedido}${oportunidadeHtml(sel)}${ctx}
@@ -5387,7 +5390,7 @@ function telaFilaTelegram(){
       <div class="gv-acoes"><span class="cv-sit ${SITUACAO[sSel].cls}"><i></i>${SITUACAO[sSel].rot}</span>
         ${sSel==='com-vendedor'?botao({t:'Devolver pro bot',ic:'bot',v:'s',sz:'xs',on:`devolverAoBot('${esc(sel.telefone)}')`})
           :botao({t:'Assumir atendimento',ic:'crm',v:'p',sz:'xs',on:`assumirAtendimento('${esc(sel.telefone)}')`})}
-        ${botao({t:'Encerrar',ic:'check',v:'s',sz:'xs',on:`encerrarAtendimento('${esc(sel.telefone)}','${esc(sel.protocoloEstado==='encerrado'?'':sel.protocolo||'')}')`,tit:'Encerra, manda o protocolo e pede a avaliação'})}</div>
+        ${botoesFechamento(sel,sSel)}</div>
       ${ped}${oportunidadeHtml(sel)}${ctx}
       <div class="conversa-fluxo">${linha}</div>
       <div class="responder"><div class="cv-compor">
@@ -5580,6 +5583,7 @@ async function carregarVendedor(eu){
    auditar depois. O vendedor vê só os dele (o servidor filtra). */
 let HIST_ON={whatsapp:false,telegram:false},HIST={},HIST_DIAS=30,HIST_F='todos',HIST_Q='';
 const ENC_POR={cliente:'Cliente',atendente:'Atendente',inatividade:'Inatividade',moderacao:'Moderação'};
+const DESF={finalizado:['Finalizado','b-ok'],encerrado:['Encerrado','b-warn'],inatividade:['Por silêncio',''],moderacao:['Moderação','b-err']};
 function abrirHistorico(canal){ HIST_ON[canal]=true; TG_GAVETA=false; carregarHistorico(canal,true); render(); }
 function fecharHistorico(canal){ HIST_ON[canal]=false; render(); }
 async function carregarHistorico(canal,forcar){
@@ -5593,7 +5597,7 @@ function telaHistorico(canal){
   const k=canal+':'+HIST_DIAS, d=HIST[k]; if(!d) setTimeout(()=>carregarHistorico(canal),0);
   const nomeCanal=canal==='telegram'?'Telegram':'WhatsApp';
   const q=HIST_Q.trim().toLowerCase();
-  const passa=(a)=>(HIST_F==='todos'||(HIST_F==='gente'&&a.comGente)||(HIST_F==='avaliados'&&a.avaliacao?.nota!=null)||(HIST_F==='baixa'&&a.avaliacao?.nota!=null&&a.avaliacao.nota<=3)||(HIST_F===a.encerradoPor?.tipo))
+  const passa=(a)=>(HIST_F==='todos'||(HIST_F==='gente'&&a.comGente)||(HIST_F==='avaliados'&&a.avaliacao?.nota!=null)||(HIST_F==='baixa'&&a.avaliacao?.nota!=null&&a.avaliacao.nota<=3)||(HIST_F===a.desfecho)||(HIST_F==='cliente'&&a.encerradoPor?.tipo==='cliente'))
     &&(!q||[a.nome,a.numero,a.telefone,a.atendidoPor?.nome].some(x=>String(x||'').toLowerCase().includes(q)));
   const lista=(d?.atendimentos||[]).filter(passa);
   const s=d?.resumo||{};
@@ -5604,18 +5608,20 @@ function telaHistorico(canal){
       <td><b>${esc(a.nome||(canal==='telegram'?'Cliente do Telegram':'+'+a.telefone))}</b><small style="display:block;color:var(--dim)"><span class="cv-proto">${esc(a.numero)}</span></small></td>
       <td>${new Date(a.encerradoEm).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}<small style="display:block;color:var(--dim)">${duracaoTxt(a.duracaoMin)}</small></td>
       <td>${esc(a.atendidoPor?.nome||(a.comGente?'equipe':'só o bot'))}${a.equipe?`<small style="display:block;color:var(--dim)">${esc(a.equipe)}</small>`:''}</td>
-      <td><span class="badge" style="margin:0">${esc(ENC_POR[a.encerradoPor?.tipo]||a.motivo||'—')}</span>${a.encerradoPor?.tipo==='atendente'&&a.encerradoPor?.nome?`<small style="display:block;color:var(--dim)">${esc(a.encerradoPor.nome)}</small>`:''}</td>
+      <td><span class="badge ${(DESF[a.desfecho]||[])[1]||''}" style="margin:0">${esc((DESF[a.desfecho]||[a.desfecho||'—'])[0])}</span>
+        <small style="display:block;color:var(--dim)">${a.desfecho==='inatividade'?'sistema':esc((a.encerradoPor?.tipo==='cliente'?'pelo cliente':a.encerradoPor?.nome?'por '+a.encerradoPor.nome:'')||'')}</small>
+        ${a.motivoTexto?`<small class="h-motivo" title="${esc(a.motivoTexto)}">${esc(a.motivoTexto)}</small>`:''}</td>
       <td>${a.avaliacao?.nota!=null?estrelas(a.avaliacao.nota)+(a.avaliacao.comentario?` <span title="${esc(a.avaliacao.comentario)}">💬</span>`:''):`<span class="hint">${a.avaliacao?(a.avaliacao.estado==='aguardando'?'esperando nota':'não avaliou'):'—'}</span>`}</td>
       <td class="num">${a.mensagens}</td></tr>`;
   return head(`${nomeCanal} · Histórico de atendimentos`,'Atendimentos encerrados — pelo cliente, pelo atendente ou por silêncio. Clique para ver a conversa inteira.',
       botao({t:'Voltar para a fila',ic:'ant',v:'s',on:`fecharHistorico('${canal}')`}))+
   `${d&&!d.erro?`<div class="h-kpis">${kpi('Encerrados',d.total,`${s.comGente||0} com gente`)}${kpi('Nota média',s.media!=null?String(s.media).replace('.',',')+' / 5':'—',`${s.avaliados||0} de ${s.pedidas||0} avaliaram`)}
-      ${kpi('Pelo cliente',s.porCliente||0)}${kpi('Pelo atendente',s.porAtendente||0)}${kpi('Por silêncio',s.porInatividade||0)}</div>`:''}
+      ${kpi('Finalizados',s.finalizados||0,`${s.porCliente||0} pelo próprio cliente`)}${kpi('Encerrados à força',s.encerradosAForca||0,'com motivo')}${kpi('Por silêncio',s.porInatividade||0)}</div>`:''}
   <div class="card">
     <div class="tbl-bar"><label class="cv-busca" style="flex:1;min-width:200px">${ico('busca')}<input id="hBusca" placeholder="Buscar nome, protocolo ou atendente" value="${esc(HIST_Q)}" oninput="HIST_Q=this.value;render();const e=document.getElementById('hBusca');e.focus();e.setSelectionRange(e.value.length,e.value.length)" autocomplete="off"></label>${periodo}</div>
-    <div class="seg seg-sm h-filtros">${fBt('todos','Todos')}${fBt('gente','Com gente')}${fBt('cliente','Cliente encerrou')}${fBt('atendente','Atendente encerrou')}${fBt('inatividade','Por silêncio')}${fBt('avaliados','Avaliados')}${fBt('baixa','Nota até 3')}</div>
+    <div class="seg seg-sm h-filtros">${fBt('todos','Todos')}${fBt('gente','Com gente')}${fBt('finalizado','Finalizados')}${fBt('encerrado','Encerrados à força')}${fBt('cliente','Pelo cliente')}${fBt('inatividade','Por silêncio')}${fBt('avaliados','Avaliados')}${fBt('baixa','Nota até 3')}</div>
     ${!d?'<p class="hint">Carregando…</p>':d.erro?`<p class="hint">Não consegui carregar: ${esc(d.erro)}</p>`:lista.length?
-      `<div class="tbl-wrap"><table><thead><tr><th>Cliente</th><th>Encerrado</th><th>Atendido por</th><th>Quem encerrou</th><th>Avaliação</th><th class="num">Mensagens</th></tr></thead><tbody>${lista.map(linha).join('')}</tbody></table></div>`
+      `<div class="tbl-wrap"><table><thead><tr><th>Cliente</th><th>Encerrado</th><th>Atendido por</th><th>Desfecho · quem · motivo</th><th>Avaliação</th><th class="num">Mensagens</th></tr></thead><tbody>${lista.map(linha).join('')}</tbody></table></div>`
       :`<p class="hint" style="padding:12px 2px">${d.total?'Nenhum atendimento neste filtro.':'Nenhum atendimento encerrado neste período ainda.'}</p>`}
   </div>`;
 }
@@ -5628,8 +5634,9 @@ async function abrirAtendimentoHist(numero){
     abrirModal(`Atendimento ${a.numero}`,
       `<div class="q-ficha" style="margin-bottom:12px">${it('Cliente',esc(a.nome||a.telefone))}${it('Canal',a.canal==='telegram'?'Telegram':'WhatsApp')}
         ${it('Aberto',hora(a.abertoEm))}${it('Encerrado',`${hora(a.encerradoEm)} · ${duracaoTxt(a.duracaoMin)}`)}
-        ${it('Atendido por',esc(a.atendidoPor?.nome||(a.comGente?'equipe':'só o bot')))}${it('Quem encerrou',esc((ENC_POR[a.encerradoPor?.tipo]||a.motivo||'—')+(a.encerradoPor?.tipo==='atendente'&&a.encerradoPor?.nome?' · '+a.encerradoPor.nome:'')))}
+        ${it('Atendido por',esc(a.atendidoPor?.nome||(a.comGente?'equipe':'só o bot')))}${it('Desfecho',esc((DESF[a.desfecho]||[a.desfecho||'—'])[0]+(a.encerradoPor?.tipo==='cliente'?' · pelo cliente':a.encerradoPor?.nome?' · '+a.encerradoPor.nome:'')))}
         ${it('Avaliação',a.avaliacao?.nota!=null?estrelas(a.avaliacao.nota)+' '+a.avaliacao.nota+'/5':a.avaliacao?'não avaliou':'não foi pedida')}${it('Equipe',esc(a.equipe||(a.departamento&&a.departamento!=='humano'?a.departamento:(a.comGente?'fila geral':'—'))))}</div>
+       ${a.motivoTexto?`<p class="hint" style="margin:-4px 0 10px"><b>Motivo:</b> ${esc(a.motivoTexto)}</p>`:''}
        ${a.avaliacao?.comentario?`<div class="h-coment">${ico('registrar')}<div><small>Comentário do cliente</small><p>${esc(a.avaliacao.comentario)}</p></div></div>`:''}
        ${a.resumo?`<p class="q-resumo">${esc(a.resumo)}</p>`:''}
        <div class="conversa-fluxo h-conversa">${conversa||'<p class="hint">Sem mensagens registradas neste atendimento.</p>'}</div>`,
@@ -5651,7 +5658,7 @@ async function assumirAtendimento(tel,abrirPainel){
    nem o ponto em que ele parou de ler. */
 async function recarregarAtendimento(forcar){
   const novo=await apiCru('atendimentos').catch(()=>null); if(!novo) return;
-  const sig=(d)=>(d?.conversas||[]).map(c=>[c.telefone,c.situacao,c.mensagens,c.pedido?.estado,c.ultima?.quando,c.comercial?.responsavel?.operadorId,c.comercial?.decisao?.tier].join(':')).join('|');
+  const sig=(d)=>(d?.conversas||[]).map(c=>[c.telefone,c.situacao,c.mensagens,c.pedido?.estado,c.ultima?.quando,c.comercial?.responsavel?.operadorId,c.comercial?.decisao?.tier,c.aguardandoFinal].join(':')).join('|');
   if(!forcar&&sig(novo)===sig(ATEND)) return;
   const campo=document.getElementById('respTexto'), busca=document.getElementById('cvBusca');
   const texto=campo?.value||'', ini=campo?.selectionStart, fim=campo?.selectionEnd, foco=document.activeElement?.id;
@@ -7514,25 +7521,52 @@ function crescerResposta(el){ el.style.height='auto'; el.style.height=Math.min(e
 /* Encerrar e uma porta de mao unica pro cliente: ele recebe a despedida com o
    protocolo. Por isso confirma antes, e por isso a confirmacao DIZ o que vai
    acontecer em vez de perguntar "tem certeza?". */
-function encerrarAtendimento(tel,numero){
-  abrirModal('Encerrar este atendimento?',
-    `<p class="hint" style="margin-bottom:12px">O cliente vai receber a mensagem de encerramento com o
-      ${numero?`protocolo <b>${esc(numero)}</b>`:'número de protocolo'} e o pedido de avaliação (nota de 1 a 5). O atendimento sai da fila e vai para o <b>Histórico</b>. Se ele voltar a escrever em até 24 horas, a conversa continua
-      de onde parou — ele não precisa repetir nada.</p>
-     <p class="hint">Se ainda houver algo pendente, responda antes de encerrar.</p>`,
-    `<button class="btn btn-g" onclick="fecharModal()">Voltar</button>
-     <button class="btn btn-p" onclick="fecharModal();confirmarEncerramento('${esc(tel)}')">${ico('check')}Encerrar e avisar</button>`);
+/* FINALIZAR x ENCERRAR — os dois so para quem esta ATENDENDO (conversa
+   assumida). Finalizar = desfecho normal: pergunta "posso ajudar em algo
+   mais?" e, se o cliente disser que nao, finaliza e pede a nota. Encerrar = a
+   forca, com motivo, sem nota. E essa diferenca que a auditoria le depois. */
+function botoesFechamento(c,sit){
+  const assumida=sit==='com-vendedor';
+  const dica='Assuma o atendimento primeiro — só quem está atendendo pode finalizar ou encerrar';
+  const num=esc(c.protocoloEstado==='encerrado'?'':c.protocolo||'');
+  if(c.aguardandoFinal) return `<span class="cv-final" title="Esperando o cliente responder “Posso ajudar em algo mais?”">${ico('relogio')}Esperando o cliente responder</span>`+
+    botao({t:'Encerrar',ic:'fechar',v:'g',sz:'xs',on:`encerrarAtendimento('${esc(c.telefone)}','${num}')`,tit:'Encerrar à força, com motivo (sem nota)'});
+  return botao({t:'Finalizar',ic:'check',v:'s',sz:'xs',off:!assumida,on:`finalizarAtendimento('${esc(c.telefone)}')`,tit:assumida?'Pergunta “Posso ajudar em algo mais?” — se o cliente disser que não, finaliza e pede a nota':dica})+
+    botao({t:'Encerrar',ic:'fechar',v:'g',sz:'xs',off:!assumida,on:`encerrarAtendimento('${esc(c.telefone)}','${num}')`,tit:assumida?'Encerrar à força, com motivo (sem nota)':dica});
 }
-
+function finalizarAtendimento(tel){
+  abrirModal('Finalizar o atendimento?',
+    `<p class="hint" style="margin-bottom:10px">Vai para o cliente: <b>“Posso ajudar em algo mais?”</b></p>
+     <ul class="notas"><li>Se ele responder <b>não</b> (ou “era só isso”, “tudo certo”…), o atendimento é <b>finalizado</b> e ele recebe o protocolo e o pedido de nota de 1 a 5.</li>
+       <li>Se responder outra coisa, a conversa continua com você.</li>
+       <li>Sem resposta em 30 min, fecha sozinho como finalizado.</li></ul>`,
+    BT.cancelar('Voltar')+botao({t:'Perguntar e finalizar',ic:'check',v:'p',on:`fecharModal();confirmarFinalizacao('${esc(tel)}')`}),{classe:'modal-sm'});
+}
+async function confirmarFinalizacao(tel){
+  try{ await api('atendimentos/finalizar',{telefone:tel}); flash('Perguntei ao cliente se ele precisa de algo mais. Se responder não, finaliza sozinho.','ok'); await recarregarAtendimento(true); }
+  catch(e){ avisoErro('Não consegui finalizar',esc(e.message)); }
+}
+const MOTIVOS_ENCERRAR=['Conversa ofensiva ou pesada','Cliente parou de responder','Resolvido por outro canal (telefone, loja)','Engano / spam','Cliente atendido em outro protocolo'];
+function encerrarAtendimento(tel,numero){
+  abrirModal('Encerrar à força?',
+    `<p class="hint" style="margin-bottom:12px">Use quando o atendimento <b>não</b> pode terminar normalmente. Para concluir, prefira <b>Finalizar</b> (pergunta se precisa de algo mais e pede a nota).
+      O cliente recebe ${numero?`o protocolo <b>${esc(numero)}</b>`:'o número de protocolo'}, <b>sem</b> pedido de nota, e o atendimento vai para o <b>Histórico</b> com o motivo.</p>
+     <div class="field"><label>Motivo *</label><select id="encMotivo" onchange="document.getElementById('encOutro').style.display=this.value==='outro'?'':'none'">
+       <option value="">Escolha…</option>${MOTIVOS_ENCERRAR.map(m=>`<option>${esc(m)}</option>`).join('')}<option value="outro">Outro motivo…</option></select></div>
+     <div class="field" id="encOutro" style="display:none;margin-top:10px"><label>Qual?</label><input id="encTexto" maxlength="200" placeholder="Descreva o motivo"></div>`,
+    BT.cancelar('Voltar')+`<button class="btn btn-d" onclick="confirmarEncerramento('${esc(tel)}')">${ico('fechar')}<span>Encerrar</span></button>`,{classe:'modal-sm'});
+}
 async function confirmarEncerramento(tel){
+  const sel=document.getElementById('encMotivo')?.value||'';
+  const motivo=sel==='outro'?(document.getElementById('encTexto')?.value||'').trim():sel;
+  if(!motivo) return avisoErro('Diga o motivo','O motivo fica no histórico — é o que permite auditar o encerramento depois.');
+  fecharModal();
   try{
-    const r=await api('atendimentos/encerrar',{telefone:tel});
-    /* "Encerrei mas nao avisei" e diferente de "encerrei": no primeiro caso o
-       cliente ficou sem o numero, e o atendente precisa saber pra passar por
-       outro caminho. */
-    flash(r.avisado?`Atendimento ${r.protocolo} encerrado — o cliente recebeu o protocolo.`
-                   :`Atendimento ${r.protocolo} encerrado, mas NÃO consegui avisar o cliente.`,
-          r.avisado?'ok':'err');
+    const r=await api('atendimentos/encerrar',{telefone:tel,motivo});
+    /* "Encerrei mas nao avisei" e diferente de "encerrei": diz o PORQUE, pra
+       quem atende saber se passa por outro caminho. */
+    if(r.avisado) flash(`Atendimento ${r.protocolo} encerrado — o cliente recebeu o protocolo.`,'ok');
+    else avisoErro(`Atendimento ${r.protocolo} encerrado`,`Mas o aviso não chegou ao cliente: ${esc(r.erroAviso||'motivo não informado')}.`);
     CONVERSA=null; TG_GAVETA=false; HIST={};
     await carregar();
   }catch(e){

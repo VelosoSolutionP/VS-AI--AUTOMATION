@@ -223,11 +223,31 @@ export async function receberMensagem(msg, deps = {}) {
       if (envio.ok) { registrar(txt); }
       return { ok: true, telefone: t.telefone, leadId: lead?.id || null, leadNovo, semCrm, tipo: 'avaliacao:comentario', protocolo: pend.numero, respondeu: envio.ok, envio };
     }
+    /* O atendente perguntou "posso ajudar em algo mais?". "Não" = FINALIZA
+       (pelo atendente que perguntou) e pede a nota; qualquer outra coisa = a
+       conversa continua com ele, e a mensagem segue o caminho normal. */
+    const fin = proto.finalizacaoPendente(t.telefone);
+    if (fin) {
+      if (proto.clienteNaoPrecisaMais(msg.texto)) {
+        const fechado = proto.encerrarPorNumero(fin.numero, { motivo: 'finalizado', desfecho: 'finalizado',
+          por: { tipo: 'atendente', ...(fin.finalizacao.por || {}) }, atendidoPor: fin.atendidoPor || fin.finalizacao.por || null,
+          motivoTexto: `cliente respondeu “${String(msg.texto).slice(0, 80)}” à pergunta final` });
+        bot.devolverAoBot(t.telefone);
+        proto.pedirAvaliacao(fechado.numero);
+        const txt = `${proto.textoFinalizado(fechado)}\n\n${proto.textoAvaliacao()}`;
+        const envio = await enviar({ phone: t.telefone, texto: txt });
+        if (envio.ok) { registrar(txt); }
+        return { ok: true, telefone: t.telefone, leadId: lead?.id || null, leadNovo, semCrm, tipo: 'finalizado', protocolo: fechado.numero, respondeu: envio.ok, envio };
+      }
+      proto.continuarAtendimento(fin.numero);
+    }
     const vivo = proto.aberto(t.telefone);
     if (vivo && proto.clientePediuEncerrar(msg.texto)) {
       const fila = bot.emAtendimento().find((e) => e.telefone === t.telefone);
-      const fechado = proto.encerrarPorNumero(vivo.numero, { motivo: 'pedido do cliente', por: { tipo: 'cliente', nome: msg.nome || lead?.nome || null },
-        atendidoPor: fila?.assumidaPor || lead?.comercial?.responsavel || null });
+      /* O cliente FINALIZA — e a frase dele e o motivo que a auditoria le. */
+      const fechado = proto.encerrarPorNumero(vivo.numero, { motivo: 'pedido do cliente', desfecho: 'finalizado', motivoTexto: `cliente escreveu “${String(msg.texto).slice(0, 80)}”`,
+        por: { tipo: 'cliente', nome: msg.nome || lead?.nome || null },
+        atendidoPor: vivo.atendidoPor || fila?.assumidaPor || lead?.comercial?.responsavel || null });
       bot.devolverAoBot(t.telefone);
       proto.pedirAvaliacao(fechado.numero);
       const txt = `${proto.textoDeEncerramento(fechado)}\n\n${proto.textoAvaliacao()}`;

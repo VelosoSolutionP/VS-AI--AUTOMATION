@@ -116,13 +116,18 @@ async function main() {
     await v.fill('#respTexto', 'Oi Ana, aqui é a Marta. Já resolvi o seu pedido!');
     await v.click('#btResponder');
     await espera(1200);
-    await v.click('.gaveta button:has-text("Encerrar")');
-    await v.waitForSelector('.modal:has-text("pedido de avaliação")');
-    await v.screenshot({ path: join(FOTOS, '01-encerrar-confirmacao.png') });
-    await v.click('.modal button:has-text("Encerrar e avisar")');
+    await v.click('.gaveta button:has-text("Finalizar")');
+    await v.waitForSelector('.modal:has-text("Posso ajudar em algo mais?")');
+    await v.screenshot({ path: join(FOTOS, '01-finalizar-confirmacao.png') });
+    await v.click('.modal button:has-text("Perguntar e finalizar")');
+    await espera(1500);
+    ok('Ana recebeu “Posso ajudar em algo mais?”', /algo mais/.test((await saiuPara(910001)).at(-1) || ''));
+    await v.waitForSelector('.gaveta .cv-final');
+    ok('tela mostra “Esperando o cliente responder”', await v.isVisible('.gaveta .cv-final'));
+    await tg.escrever({ chat: 910001, nome: 'Ana Souza', texto: 'não, obrigada' });
     await espera(2000);
     const paraAna = await saiuPara(910001);
-    ok('Ana recebeu protocolo + pedido de nota', /Protocolo[\s\S]*1 a 5/.test(paraAna.at(-1) || ''), (paraAna.at(-1) || '').split('\n')[2]);
+    ok('“não” finalizou: Ana recebeu protocolo + pedido de nota', /finalizado[\s\S]*Protocolo[\s\S]*1 a 5/.test(paraAna.at(-1) || ''), (paraAna.at(-1) || '').split('\n')[0]);
     await tg.escrever({ chat: 910001, nome: 'Ana Souza', texto: '2' });
     await espera(1500);
     ok('nota baixa: Ana foi convidada a comentar', /o que faltou/.test((await saiuPara(910001)).at(-1) || ''));
@@ -143,10 +148,10 @@ async function main() {
     const ht = await api('atendimentos/historico?canal=telegram&dias=30');
     const por = (n) => ht.atendimentos.find((a) => a.nome === n);
     const ana = por('Ana Souza'), bruno = por('Bruno Lima');
-    ok('histórico: Ana — atendente Marta encerrou, atendida pela Marta, nota 2 com comentário',
-      ana?.encerradoPor?.tipo === 'atendente' && ana.encerradoPor.nome === 'Marta Vendas' && ana.atendidoPor?.nome === 'Marta Vendas' && ana.avaliacao?.nota === 2 && /Demorou/.test(ana.avaliacao?.comentario || ''),
+    ok('histórico: Ana — FINALIZADO pela Marta, com motivo, nota 2 com comentário',
+      ana?.desfecho === 'finalizado' && /pergunta final/.test(ana.motivoTexto || '') && ana?.encerradoPor?.tipo === 'atendente' && ana.encerradoPor.nome === 'Marta Vendas' && ana.atendidoPor?.nome === 'Marta Vendas' && ana.avaliacao?.nota === 2 && /Demorou/.test(ana.avaliacao?.comentario || ''),
       JSON.stringify({ por: ana?.encerradoPor, at: ana?.atendidoPor?.nome, av: ana?.avaliacao?.nota }));
-    ok('histórico: Bruno — cliente encerrou, nota 5, só com o bot', bruno?.encerradoPor?.tipo === 'cliente' && bruno.avaliacao?.nota === 5 && !bruno.atendidoPor);
+    ok('histórico: Bruno — finalizado pelo cliente (frase como motivo), nota 5', bruno?.desfecho === 'finalizado' && bruno?.encerradoPor?.tipo === 'cliente' && /pode encerrar/.test(bruno.motivoTexto || '') && bruno.avaliacao?.nota === 5);
     ok('histórico: nota média 3,5 no Telegram', ht.resumo.media === 3.5, String(ht.resumo.media));
     const hw = await api('atendimentos/historico?canal=whatsapp&dias=30');
     ok('histórico do WhatsApp: Clara encerrou e deu 4', hw.atendimentos[0]?.nome === 'Clara Dias' && hw.atendimentos[0].encerradoPor?.tipo === 'cliente' && hw.atendimentos[0].avaliacao?.nota === 4);
@@ -165,7 +170,7 @@ async function main() {
     await d.click('tbody tr:first-child');
     await d.waitForSelector('.modal .h-conversa');
     const modal = await d.textContent('.modal');
-    ok('detalhe: comentário, quem encerrou e a conversa inteira', modal.includes('Demorou para alguém me responder') && modal.includes('Marta Vendas') && modal.includes('Já resolvi o seu pedido'));
+    ok('detalhe: desfecho, motivo, comentário e a conversa inteira', modal.includes('Finalizado') && modal.includes('pergunta final') && modal.includes('Demorou para alguém me responder') && modal.includes('Marta Vendas') && modal.includes('Já resolvi o seu pedido'));
     await d.screenshot({ path: join(FOTOS, '03-historico-detalhe.png') });
     await d.keyboard.press('Escape');
     await d.goto(`${base}/crm?t=${token}#wa-atendimento`); await d.reload();
@@ -189,21 +194,33 @@ async function main() {
     await d.goto(`${base}/crm?t=${token}#wa-atendimento`); await d.reload();
     await d.waitForSelector('.conversa:has-text("Diego Reis")');
     await d.click('.conversa:has-text("Diego Reis")');
-    ok('WhatsApp: botão Encerrar no topo da conversa', await d.isVisible('.inbox-conversa .cv-cab button:has-text("Encerrar")'));
-    await d.screenshot({ path: join(FOTOS, '06-whatsapp-botao-encerrar.png') });
+    ok('sem assumir: Finalizar e Encerrar desabilitados', await d.isDisabled('.inbox-conversa .cv-cab button:has-text("Finalizar")') && await d.isDisabled('.inbox-conversa .cv-cab button:has-text("Encerrar")'));
+    const semAssumir = await api('atendimentos/encerrar', { telefone: '5531988880004', motivo: 'teste' });
+    ok('servidor também recusa encerrar sem assumir', semAssumir.status === 400 && /assuma/.test(semAssumir.erro || ''), semAssumir.erro);
+    await d.click('.inbox-conversa .cv-cab button:has-text("Assumir atendimento")');
+    await d.waitForSelector('.inbox-conversa .cv-cab button:has-text("Encerrar"):not([disabled])');
+    await d.screenshot({ path: join(FOTOS, '06-whatsapp-botoes.png') });
     await d.click('.inbox-conversa .cv-cab button:has-text("Encerrar")');
-    await d.click('.modal button:has-text("Encerrar e avisar")');
+    await d.waitForSelector('#encMotivo');
+    await d.click('.modal button.btn-d');
+    ok('encerrar sem motivo é recusado na tela', await d.isVisible('.toast.t-err:has-text("Diga o motivo")'));
+    await d.selectOption('#encMotivo', 'Conversa ofensiva ou pesada');
+    await d.screenshot({ path: join(FOTOS, '07-encerrar-motivo.png') });
+    await d.click('.modal button.btn-d');
     // O aviso ao cliente espera o WhatsApp responder (aqui ele nem está conectado): aguarda o resultado.
     let diego = null;
     for (let i = 0; i < 40 && !diego; i++) {
       await espera(500);
       diego = (await api('atendimentos/historico?canal=whatsapp&dias=30')).atendimentos.find((a) => a.nome === 'Diego Reis');
     }
-    ok('WhatsApp: encerrado pelo atendente foi pro histórico e saiu da fila', diego?.encerradoPor?.tipo === 'atendente' && !(await api('atendimentos')).conversas.some((c) => c.nome === 'Diego Reis'));
+    ok('WhatsApp: encerrado à força, com motivo, sem pedir nota, saiu da fila', diego?.desfecho === 'encerrado' && diego.motivoTexto === 'Conversa ofensiva ou pesada' && !diego.avaliacao && !(await api('atendimentos')).conversas.some((c) => c.nome === 'Diego Reis'), JSON.stringify({ d: diego?.desfecho, m: diego?.motivoTexto }));
+    ok('aviso que não chegou diz o porquê', await d.isVisible('.toast.t-err:has-text("o aviso não chegou ao cliente")'));
 
     // Conversa antiga, de antes de todo atendimento ter protocolo: encerra do mesmo jeito.
     const antigo = await api('leads', { nome: 'Cliente Antigo', telefone: '31977776666' });
-    const encA = await api('atendimentos/encerrar', { telefone: antigo.lead?.telefone || '5531977776666', avisar: false });
+    const telA = antigo.lead?.telefone || '5531977776666';
+    await api('atendimentos/assumir', { telefone: telA });
+    const encA = await api('atendimentos/encerrar', { telefone: telA, avisar: false, motivo: 'Engano / spam' });
     ok('conversa antiga sem protocolo também encerra (ganha protocolo na hora)', encA.ok && /^VS-/.test(encA.protocolo || ''), encA.erro || encA.protocolo);
 
     ok('sem erro de JavaScript na tela', !errosJs.length, errosJs.slice(0, 3).join(' / '));

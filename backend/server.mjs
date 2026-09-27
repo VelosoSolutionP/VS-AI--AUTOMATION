@@ -215,6 +215,23 @@ function assumiuVira(quem, telefone) {
   crm.comercial(lead.id, { responsavel: { ...quemAtende(quem), motivo: 'assumiu o atendimento' } });
 }
 
+/* Finalizar/encerrar so quem esta ATENDENDO: a conversa tem de estar assumida
+   por alguem. E o que da sentido a "quem encerrou" no historico. */
+function contextoFechamento(quem, tel) {
+  const pode = vendedorPode(quem, tel);
+  if (!pode.ok) { return pode; }
+  const fila = bot.emAtendimento().find((e) => e.telefone === tel) || null;
+  if (!fila?.assumida) { return { ok: false, motivo: 'assuma o atendimento antes — só quem está atendendo pode finalizar ou encerrar' }; }
+  if (quem?.papel === 'vendedor' && fila.assumidaPor?.operadorId && fila.assumidaPor.operadorId !== quem.operadorId) {
+    return { ok: false, motivo: `quem está atendendo é ${fila.assumidaPor.nome}` };
+  }
+  // Conversa de antes de todo atendimento ter protocolo: abre um agora.
+  if (!proto.aberto(tel)) { proto.aoChegar(tel, { voltarParaFila: false }); }
+  const p = proto.aberto(tel);
+  if (!p) { return { ok: false, motivo: 'não há atendimento aberto para este cliente' }; }
+  return { ok: true, p, fila, lead: crm.listar().find((l) => l.telefone === tel) || null };
+}
+
 function contextoCampanha(extra = {}) {
   return {
     produto: (sku) => {
@@ -1138,7 +1155,7 @@ const server = createServer(async (req, res) => {
     if (quem.papel === 'vendedor') {
       if (req.method === 'GET' && rota === '/crm/api/minha-conta') { return json(res, 200, { papel: 'vendedor', email: quem.email, ...quemAtende(quem) }); }
       const livre = (req.method === 'GET' && ['/crm/api/atendimentos', '/crm/api/atendimentos/historico', '/crm/api/atendimentos/historico/detalhe', '/crm/api/canais/telegram', '/crm/api/seguranca/pendentes'].includes(rota))
-        || (req.method === 'POST' && ['/crm/api/atendimentos/responder', '/crm/api/atendimentos/assumir', '/crm/api/atendimentos/devolver', '/crm/api/atendimentos/encerrar'].includes(rota));
+        || (req.method === 'POST' && ['/crm/api/atendimentos/responder', '/crm/api/atendimentos/assumir', '/crm/api/atendimentos/devolver', '/crm/api/atendimentos/encerrar', '/crm/api/atendimentos/finalizar'].includes(rota));
       if (!livre) { return json(res, 403, { erro: 'área restrita ao administrador', papel: 'vendedor' }); }
     }
     if (req.method === 'GET' && rota === '/crm/api/minha-conta') { return json(res, 200, { papel: 'admin', email: quem.email }); }
@@ -1417,6 +1434,7 @@ const server = createServer(async (req, res) => {
           numero: p.numero, telefone: p.de, nome: l?.nome || null, canal: ehTelegram(p.de) ? 'telegram' : 'whatsapp',
           abertoEm: p.abertoEm, encerradoEm: p.encerradoEm, duracaoMin: Math.max(0, Math.round((new Date(p.encerradoEm) - new Date(p.abertoEm)) / 60000)),
           motivo: p.motivoEncerramento || null, encerradoPor: p.encerradoPor || null, atendidoPor: p.atendidoPor || null,
+          desfecho: p.desfecho || (['inatividade', 'moderacao'].includes(p.motivoEncerramento) ? p.motivoEncerramento : 'encerrado'), motivoTexto: p.motivoTexto || null,
           comGente: [proto.ESTADOS.NA_FILA, proto.ESTADOS.COM_HUMANO].includes(p.estadoAntes) || !!p.atendidoPor,
           departamento: p.departamento || null, avaliacao: p.avaliacao || null, mensagens: inter.length,
           tier: l?.comercial?.decisao?.tier || null, equipe: l?.comercial?.decisao?.equipe || null,
@@ -1440,7 +1458,9 @@ const server = createServer(async (req, res) => {
           comGente: lista.filter((x) => x.comGente).length,
           porCliente: lista.filter((x) => x.encerradoPor?.tipo === 'cliente').length,
           porAtendente: lista.filter((x) => x.encerradoPor?.tipo === 'atendente').length,
-          porInatividade: lista.filter((x) => x.encerradoPor?.tipo === 'inatividade').length,
+          porInatividade: lista.filter((x) => x.desfecho === 'inatividade').length,
+          finalizados: lista.filter((x) => x.desfecho === 'finalizado').length,
+          encerradosAForca: lista.filter((x) => x.desfecho === 'encerrado').length,
           avaliados: notas.length, pedidas: lista.filter((x) => x.avaliacao).length,
           media: notas.length ? Math.round((notas.reduce((a, b) => a + b, 0) / notas.length) * 10) / 10 : null,
         },
@@ -1483,6 +1503,7 @@ const server = createServer(async (req, res) => {
             protocoloEstado: (proto.aberto(l.telefone) || proto.ultimoEncerrado(l.telefone) || {}).estado || null,
             historico: l.historico || [],
             assumidaPor: fila?.assumidaPor || null,
+            aguardandoFinal: proto.aberto(l.telefone)?.finalizacao?.estado === 'aguardando',
             comercial: l.comercial ? {
               ficha: l.comercial.ficha || null,
               decisao: l.comercial.decisao || null,
@@ -1917,36 +1938,41 @@ const server = createServer(async (req, res) => {
         /* O ATENDENTE encerra. Ate agora so o silencio encerrava, e quem
            resolveu o caso em dois minutos ficava preso na fila esperando o
            relogio — ocupando lugar que era de outra pessoa. */
+        /* FINALIZAR (desfecho normal): manda "posso ajudar em algo mais?". A
+           resposta "nao" do cliente e que finaliza e pede a nota (ver
+           backend/atendimento.mjs); outra resposta, a conversa segue. */
+        case '/crm/api/atendimentos/finalizar': {
+          const tel = String(d.telefone || '').replace(/\D/g, '');
+          const ctx = contextoFechamento(quem, tel);
+          if (!ctx.ok) { r = ctx; break; }
+          proto.pedirFinalizacao(ctx.p.numero, quemAtende(quem));
+          const texto = proto.textoPerguntaFinal();
+          const env = await canais.enviar({ para: ctx.p.endereco || proto.enderecoDe(tel), texto }).catch((e) => ({ ok: false, erro: e.message }));
+          if (env?.ok && ctx.lead) { crm.interagir(ctx.lead.id, { canal: ehTelegram(tel) ? 'telegram' : 'whatsapp', direcao: 'saida', texto, autor: 'atendente' }); }
+          if (!env?.ok) { proto.continuarAtendimento(ctx.p.numero); }
+          r = env?.ok ? { ok: true, protocolo: ctx.p.numero, perguntado: true }
+            : { ok: false, motivo: `a pergunta não chegou ao cliente: ${env?.erro || 'motivo não informado'}` };
+          break;
+        }
+        /* ENCERRAR (a forca): conversa pesada, cliente sumiu, engano… Exige
+           MOTIVO (e o que a auditoria le) e NAO pede nota: nao foi concluido. */
         case '/crm/api/atendimentos/encerrar': {
           const tel = String(d.telefone || '').replace(/\D/g, '');
-          const pode = vendedorPode(quem, tel);
-          if (!pode.ok) { r = pode; break; }
-          /* Conversa de antes de todo atendimento ter protocolo: abre um agora
-             pra poder encerrar e ir pro historico. */
-          if (!proto.aberto(tel) && crm.listar().some((l) => l.telefone === tel)) { proto.aoChegar(tel, { voltarParaFila: false }); }
-          const p = proto.aberto(tel);
-          if (!p) { r = { ok: false, motivo: 'não há atendimento aberto para este cliente' }; break; }
-          const fila = bot.emAtendimento().find((e) => e.telefone === tel);
-          const leadE = crm.listar().find((l) => l.telefone === tel);
-          const fechado = proto.encerrarPorNumero(p.numero, { motivo: d.motivo || 'encerrado pelo atendente', por: { tipo: 'atendente', ...quemAtende(quem) },
-            atendidoPor: p.atendidoPor || fila?.assumidaPor || leadE?.comercial?.responsavel || null });
+          const motivoTexto = String(d.motivo || '').trim();
+          if (motivoTexto.length < 3) { r = { ok: false, motivo: 'diga o motivo do encerramento — é o que fica no histórico para auditoria' }; break; }
+          const ctx = contextoFechamento(quem, tel);
+          if (!ctx.ok) { r = ctx; break; }
+          const fechado = proto.encerrarPorNumero(ctx.p.numero, { motivo: 'encerrado pelo atendente', desfecho: 'encerrado', motivoTexto,
+            por: { tipo: 'atendente', ...quemAtende(quem) }, atendidoPor: ctx.p.atendidoPor || ctx.fila?.assumidaPor || null });
           bot.devolverAoBot(tel);
-          /* Encerrou, pede a nota. A resposta ("5") e tratada no atendimento
-             antes do bot — nao reabre o protocolo. */
-          const avaliar = d.avaliar !== false && d.avisar !== false;
-          if (avaliar) { proto.pedirAvaliacao(fechado.numero); }
-          /* Avisar com o numero e o que permite a pessoa voltar pro mesmo
-             lugar. Encerrar calado deixaria ela achando que foi largada. */
-          let avisado = false;
+          let avisado = false; let erroAviso = null;
           if (d.avisar !== false) {
-            const env = await canais.enviar({
-              para: fechado.endereco || proto.enderecoDe(tel),
-              texto: proto.textoDeEncerramento(fechado) + (avaliar ? `\n\n${proto.textoAvaliacao()}` : ''),
-            }).catch((e) => ({ ok: false, erro: e.message }));
-            if (env?.ok && leadE) { crm.interagir(leadE.id, { canal: ehTelegram(tel) ? 'telegram' : 'whatsapp', direcao: 'saida', texto: proto.textoDeEncerramento(fechado) + (avaliar ? `\n\n${proto.textoAvaliacao()}` : ''), autor: 'atendente' }); }
-            avisado = env?.ok === true;
+            const texto = proto.textoDeEncerramento(fechado);
+            const env = await canais.enviar({ para: fechado.endereco || proto.enderecoDe(tel), texto }).catch((e) => ({ ok: false, erro: e.message }));
+            if (env?.ok && ctx.lead) { crm.interagir(ctx.lead.id, { canal: ehTelegram(tel) ? 'telegram' : 'whatsapp', direcao: 'saida', texto, autor: 'atendente' }); }
+            avisado = env?.ok === true; erroAviso = avisado ? null : (env?.erro || 'motivo não informado');
           }
-          r = { ok: true, protocolo: fechado.numero, avisado };
+          r = { ok: true, protocolo: fechado.numero, avisado, erroAviso };
           break;
         }
         case '/crm/api/bot/config': r = bot.salvarConfig(d); break;

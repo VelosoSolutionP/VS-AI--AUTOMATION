@@ -126,7 +126,11 @@ export function varrerInativos({ quando = new Date().toISOString(), limite } = {
   let nova = lista;
   const saida = [];
   for (const v of vencidos) {
-    const p = R.encerrar(v, { quando, motivo: 'inatividade' });
+    /* Perguntou "algo mais?" e o cliente nao voltou: o atendimento estava
+       concluido — fecha como FINALIZADO (sem resposta), nao como abandono. */
+    const p = v.finalizacao?.estado === 'aguardando'
+      ? R.encerrar(v, { quando, motivo: 'finalizado sem resposta', desfecho: 'finalizado', por: v.finalizacao.por ? { tipo: 'atendente', ...v.finalizacao.por } : null, motivoTexto: 'o cliente não respondeu à pergunta final' })
+      : R.encerrar(v, { quando, motivo: 'inatividade' });
     nova = trocar(nova, p);
     saida.push(p);
   }
@@ -182,3 +186,29 @@ export const encerrados = () => ler().filter((p) => p.estado === R.ESTADOS.ENCER
 
 /** Por onde falar com esta pessoa: o endereço guardado (LID etc.) ou o próprio id. */
 export const enderecoDe = (de) => ler().filter((x) => x.de === de && x.endereco).map((x) => x.endereco).pop() || de;
+
+/* ── finalização ─────────────────────────────────────────────────────────── */
+
+/** O atendente perguntou "algo mais?": a próxima resposta decide se finaliza. */
+export function pedirFinalizacao(numero, por = null, quando = new Date().toISOString()) {
+  const lista = ler();
+  const p = lista.find((x) => x.numero === numero && x.estado !== R.ESTADOS.ENCERRADO);
+  if (!p) { return null; }
+  const n = { ...p, ultimaAtividade: quando, finalizacao: { estado: 'aguardando', pedidaEm: quando, por } };
+  gravar(trocar(lista, n));
+  return n;
+}
+/** Atendimento aberto esperando a resposta da pergunta final. */
+export function finalizacaoPendente(de) {
+  const p = aberto(de);
+  return p?.finalizacao?.estado === 'aguardando' ? p : null;
+}
+/** Respondeu outra coisa: não era o fim, a conversa segue com o atendente. */
+export function continuarAtendimento(numero, quando = new Date().toISOString()) {
+  const lista = ler();
+  const p = lista.find((x) => x.numero === numero);
+  if (!p?.finalizacao) { return null; }
+  const n = { ...p, finalizacao: { ...p.finalizacao, estado: 'continuou', respondidaEm: quando } };
+  gravar(trocar(lista, n));
+  return n;
+}

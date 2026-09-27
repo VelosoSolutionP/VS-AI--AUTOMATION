@@ -106,3 +106,41 @@ test('contato por LID: protocolo novo herda o endereço do anterior (senão o av
   assert.equal(proto.enderecoDe(de), `${de}@lid`);
   assert.equal(proto.enderecoDe('5531999999999'), '5531999999999', 'sem nada guardado, usa o próprio id');
 });
+
+test('finalizar: "posso ajudar em algo mais?" → "não" finaliza e pede nota; outra resposta continua', async () => {
+  const de = '5531911110009';
+  await fala(de, 'oi, quero ver meu pedido');
+  const p = proto.aberto(de);
+  // Atendente perguntou (a rota do servidor faz isto):
+  proto.pedirFinalizacao(p.numero, { operadorId: 'op9', nome: 'Rita' });
+  const cont = await fala(de, 'não, mas e o frete?');
+  assert.notEqual(cont.tipo, 'finalizado', 'resposta que não é "não" continua a conversa');
+  assert.ok(proto.aberto(de));
+  assert.equal(proto.aberto(de).finalizacao.estado, 'continuou');
+  proto.pedirFinalizacao(p.numero, { operadorId: 'op9', nome: 'Rita' });
+  const fim = await fala(de, 'Não, obrigado!');
+  assert.equal(fim.tipo, 'finalizado');
+  const f = proto.ultimoEncerrado(de);
+  assert.equal(f.desfecho, 'finalizado');
+  assert.equal(f.encerradoPor.nome, 'Rita');
+  assert.match(f.motivoTexto, /pergunta final/);
+  assert.match(enviados.at(-1).texto, /finalizado[\s\S]*1 a 5/);
+  assert.equal((await fala(de, '4')).tipo, 'avaliacao:nota');
+});
+
+test('finalizar sem resposta: fecha sozinho como finalizado (não como abandono) depois de 30 min', () => {
+  const de = '5531911110010';
+  const { protocolo } = proto.aoChegar(de);
+  const t0 = new Date(Date.now() - 31 * 60000).toISOString();
+  proto.pedirFinalizacao(protocolo.numero, { nome: 'Rita' }, t0);
+  const fechados = proto.varrerInativos();
+  const f = fechados.find((x) => x.numero === protocolo.numero);
+  assert.equal(f.desfecho, 'finalizado');
+  assert.match(f.motivoTexto, /não respondeu/);
+});
+
+test('cliente finaliza: desfecho finalizado, a frase dele vira o motivo', () => {
+  const p = proto.encerrados().find((x) => x.encerradoPor?.tipo === 'cliente');
+  assert.equal(p.desfecho, 'finalizado');
+  assert.match(p.motivoTexto, /cliente escreveu/);
+});
