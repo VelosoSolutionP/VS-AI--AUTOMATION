@@ -414,3 +414,64 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 - **Avatar de nome com número** ("Cliente 001") vira "C0" — cosmético.
 - **Teste intermitente:** `tests/vsresultados.test.mjs` → "conversa pelo link da campanha…" falhou 1 vez em 4 rodadas da bateria completa (passa sozinho). Observar.
 - **Próxima tela do Telegram a trabalhar:** escolha do dono (Resultados e Atendimento fechados; restam Campanhas, Canal e conexão, Auditor, Consumo). Depois do Telegram: revisar o Atendimento do WhatsApp com o dono.
+
+---
+
+## ⏸ ONDE PARAMOS — ler isto primeiro ao voltar (2026-09-27)
+
+> Ao voltar, o dono diz "lê o final do mapa e continua". Comece por aqui.
+
+**Estado do repositório:** branch `fix/fabiano.veloso/6458`, commitado e enviado até `2275f9d`. **Esta seção NÃO foi commitada** — o gancho de governança barrou o commit (exigia o número "5038", que está errado). Commitar logo que os ganchos estiverem desligados. Nada de código da Campanha V1 foi escrito ainda.
+
+**Por que parou:** os ganchos de governança e o MCP `vs-ia-dev` continuavam ligados e bloqueando edição, comandos e commit. O dono vai desligar tudo (hooks + MCP de orquestração) — o Claude Code não deixa a IA mudar a própria configuração. Comandos que ele vai rodar:
+```
+! cp ~/.claude/settings.json ~/.claude/settings.json.bak-qagate && python3 -c "import json,os;p=os.path.expanduser('~/.claude/settings.json');d=json.load(open(p));d.pop('hooks',None);json.dump(d,open(p,'w'),indent=2)"
+! cp ~/.claude.json ~/.claude.json.bak-qagate && claude mcp remove vs-ia-dev -s user
+```
+Depois reabre o Claude Code. Ao voltar, conferir: `python3 -c "import json,os;print('hooks' in json.load(open(os.path.expanduser('~/.claude/settings.json'))))"` deve dar `False`.
+
+**Decisão de branch:** NÃO criar `fix/fabiano.veloso/5038` — "5038" é o id do texto colado, não número de tarefa; e sair de `origin/dev` perderia o módulo Telegram (ainda só no 6458). Seguir no `fix/fabiano.veloso/6458`.
+
+**Como trabalhar (regra do dono):** ler a proposta, **implementar direto** e só parar para questionar, **em texto**, o que for absurdo. Sem tela de perguntas (AskUserQuestion).
+
+### Próxima tarefa: Telegram · Campanhas — V1 (MVP)
+
+**Fonte:** arquivo `Campanha` na raiz (captura do terminal com a proposta do dono). A **1ª parte está completa**; a **2ª parte** (publicar em canais, limites de frequência) está **cortada** em "Intervalo sugerido / Entre campanhas promocionais no mesmo destino" — é assunto da 2ª entrega, não trava a V1. Se precisar dela, pedir o resto ao dono.
+
+**Escopo V1 (a "Primeira entrega / MVP" da proposta):** criar campanha, selecionar produto do catálogo, anexar imagem, validar conteúdo (auditor), visualizar prévia, aprovar e gerar link rastreável. **Só orgânico e só link** — publicar em canal, agendar, sugestão de texto por IA e lote por planilha ficam para a 2ª/3ª entrega.
+
+**Decisões já tomadas para a V1 (padrão razoável da proposta):**
+- **4 objetivos** em cartões: Divulgar produto · Criar promoção (preço promocional + prazo) · Divulgar evento (data/local) · Captar clientes (só nome + mensagem + link). Cada um pede só os campos que precisa; produto e promoção **puxam do catálogo** (nome, descrição, preço, imagem).
+- **Assistente em 4 etapas**: 1 Conteúdo → 2 Auditoria → 3 Aprovação → 4 Divulgação, com **prévia estilo Telegram** ao lado (imagem + legenda + botão).
+- **Auditor só com regras objetivas** (sem IA, custo zero) — a proposta diz para começar assim. Checagens e comportamento:
+  | Checagem | Resultado |
+  |---|---|
+  | Produto inexistente / inativo | **Bloquear** |
+  | Preço diferente do catálogo | **Corrigir** (bloqueia aprovação até ajustar) |
+  | Sem estoque | Alertar |
+  | Imagem: tamanho > 10 MB, largura+altura > 10000, proporção > 20 (limites da Bot API para foto) | **Bloquear** |
+  | Imagem pequena (< ~600 px) mas utilizável | Alertar |
+  | Legenda > 1.024 caracteres | **Bloquear** |
+  | Texto vazio | **Bloquear** |
+  | Promoção sem prazo / sem "como aproveitar" | Sugerir |
+  | Preço promocional ≥ preço normal | **Corrigir** |
+  | Evento com data no passado | **Bloquear** |
+  | Código do link fora do formato `?start=` (A-Z a-z 0-9 _ -, até 64) | **Bloquear** |
+  | Termo possivelmente proibido (lista simples) | Encaminhar para revisão |
+  Resultado da auditoria guardado **por versão do material** (hash): só roda de novo se texto/imagem/produto mudar. "Revisar" permite **aprovar mesmo assim** com ressalva registrada; "Bloquear" não.
+- **Estados V1:** Rascunho · Em revisão (auditoria com pendência) · Aguardando aprovação · Ativa · Encerrada. (Agendada e Falha são da **publicação**, 2ª entrega — estado da campanha ≠ estado de cada publicação, como a proposta pede.)
+- **O link só passa a atribuir quando a campanha é aprovada** (o código entra no registro de `engine/vsresultados` na aprovação; rascunho não conta venda).
+- **Tabela de acompanhamento** (substitui "Campanhas ativas"): Campanha · Situação · Entradas pelo link · Conversas iniciadas · Pedidos · Receita confirmada. "Entradas" = /start com o código (não chamar de "cliques" — a proposta alerta). Clicar abre: publicação (prévia), resultados e relatório do auditor.
+- **Campanhas antigas** (criadas antes, só nome+código) aparecem como **Ativa · Captar clientes**.
+
+**Onde mexer (já mapeado):**
+- Novo motor `engine/vscampanhas/` (conteúdo, estados, auditoria por versão) — o registro de códigos/atribuição continua em `engine/vsresultados` (`criarCampanha`, `registrarOrigem`, `resumo().porCampanha`).
+- Catálogo: `engine/vsestoque` → `doAtendimento()`/`paraCliente()` dão `sku, nome, descricao, precoCentavos, precoDeCentavos, imagem, imagens, disponivel, esgotado`.
+- Upload de imagem: `POST /crm/api/midia?tipo=imagem&nome=…` (já existe, admin) → `{arquivo, url}`; arquivos em `midia` da casa (`backend/midia.mjs`). Para a auditoria ler tamanho/dimensões, ler o arquivo local (cabeçalho PNG/JPEG/WebP, sem dependência nova).
+- Tela: `telaCampanhas('telegram')` em `backend/crm.html` (hoje: criar por nome, copiar link, arquivar) — virar o assistente + tabela. Rotas novas em `backend/server.mjs` sob `/crm/api/campanhas/…`.
+- Testes novos em `tests/` para o auditor e os estados; prova em navegador como nas outras telas (dados de exemplo só no navegador do teste, escrita interceptada).
+- Ao terminar: atualizar a seção da tela neste mapa, o Histórico e as Pendências; commit + push.
+
+**Decisões ainda com o dono (não bloqueiam a V1):**
+- "vendedor" entrar nas palavras padrão que chamam gente (`PALAVRAS_HUMANO`).
+- Revisar o Atendimento do WhatsApp (recebeu a v1 do Telegram junto) depois de fechar o Telegram.
