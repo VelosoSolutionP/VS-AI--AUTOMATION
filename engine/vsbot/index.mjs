@@ -289,6 +289,7 @@ export function emAtendimento() {
       /* "Aguardando vendedor" e "com vendedor" sao situacoes diferentes na tela
          de atendimento: uma pede acao, a outra ja tem dono. */
       assumida: Boolean(c.assumidaPeloDono),
+      assumidaPor: c.assumidaPor || null,
       assumidaEm: c.assumidaEm || (c.assumidaPeloDono ? c.handoffEm : null),
       // Quando o BOT passou pra gente. Conversa antiga (sem o campo) usa o handoffEm.
       transferidaEm: c.transferidaEm || (!c.assumidaPeloDono ? c.handoffEm : null),
@@ -308,7 +309,7 @@ export function emAtendimento() {
  * renovar o silêncio a cada uma é exatamente o comportamento certo — enquanto
  * ele estiver digitando, ela continua fora.
  */
-export function assumirConversa(de, { endereco } = {}) {
+export function assumirConversa(de, { endereco, por } = {}) {
   if (!de) { return { ok: false, erro: 'sem remetente' }; }
   const atual = conversas()[de] || null;
   const novo = !atual?.handoffEm;
@@ -320,6 +321,9 @@ export function assumirConversa(de, { endereco } = {}) {
     departamento: atual?.departamento || 'humano',
     contexto: atual?.contexto || {},
     assumidaPeloDono: true,
+    /* QUEM assumiu. Sem isto a fila so sabia "alguem da casa" — e com mais de
+       um vendedor, "quem esta com este cliente?" nao tinha resposta. */
+    assumidaPor: por || atual?.assumidaPor || null,
     /* Os dois marcos NAO se renovam: sao o que o historico mostra ("transferido
        as 14:02", "vendedor assumiu as 14:05"). Renovar o handoffEm apagava a
        hora da transferencia. */

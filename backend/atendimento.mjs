@@ -30,6 +30,24 @@ import { enviarTexto } from './whatsapp.mjs';
 import * as pagamentos from '../engine/vspagamentos/index.mjs';
 import { emReais } from '../engine/vsbot/fluxo.mjs';
 import * as resultados from '../engine/vsresultados/index.mjs';
+import * as qualif from '../engine/vsqualificacao/index.mjs';
+import * as operadores from '../engine/vsoperadores/index.mjs';
+import * as proto from '../engine/vsprotocolo/index.mjs';
+
+/**
+ * Quem fica com o cliente quando a conversa vai pra gente. Carteira primeiro
+ * (a regra "temResponsavel" decidiu), depois rodízio da equipe. Null = a fila
+ * geral: qualquer um que assumir vira o responsável.
+ */
+function escolherResponsavel(decisao, lead, equipe) {
+  const ativos = operadores.ativos(operadores.listar());
+  const cart = lead?.comercial?.responsavel;
+  if (decisao?.destino === 'responsavel' && cart && ativos.some((o) => o.id === cart.operadorId)) {
+    return { operadorId: cart.operadorId, nome: cart.nome, equipe: cart.equipe || null, motivo: 'carteira: já era o vendedor deste cliente' };
+  }
+  return equipe ? qualif.distribuir(equipe, ativos) : null;
+}
+const equipesComGente = () => [...new Set(operadores.ativos(operadores.listar()).map((o) => qualif.norm(o.setor).trim()))];
 
 /**
  * Confere a assinatura da Meta (X-Hub-Signature-256 = HMAC-SHA256 do corpo CRU
@@ -130,6 +148,17 @@ export async function receberMensagem(msg, deps = {}) {
     crm.interagir(lead.id, { canal, direcao: 'entrada', texto: msg.texto || `[${msg.tipo}]` });
   }
 
+  /* QUALIFICAÇÃO: toda mensagem com texto atualiza a ficha comercial do lead
+     (intenção, necessidade, produto, porte, complexidade, prazo) — por regras,
+     sem IA. É o que deixa o vendedor começar sabendo com quem está falando. */
+  let ficha = null;
+  if (lead && msg.texto) {
+    try {
+      ficha = qualif.qualificar(lead.comercial?.ficha, msg.texto, { produtos: produtos() });
+      lead = crm.comercial(lead.id, { ficha }).lead || lead;
+    } catch (e) { console.error(`[qualificacao] ficha nao atualizou: ${e.message}`); }
+  }
+
   const cfg = bot.painel().config;
 
   /* Áudio, foto e figurinha chegam sem texto: o bot não tem o que interpretar.
@@ -198,6 +227,50 @@ export async function receberMensagem(msg, deps = {}) {
   let texto = r.produtos?.length
     ? r.texto + '\n\n' + r.produtos.map((p) => `• ${p.nome} — ${p.vigenteFormatado || p.precoFormatado || ''}`.trim()).join('\n')
     : r.texto;
+
+  /* ROTEAMENTO. Duas situações:
+     - o bot JÁ passou pra gente (pediu pessoa, fluxo encaminhou): a matriz diz
+       PARA QUEM — carteira, equipe da regra, ou a fila que o fluxo escolheu;
+     - o bot ia seguir, mas a ficha diz que é Tier 2 (integração, operação
+       grande, reclamação): em vez da resposta do bot, sai a transferência.
+     Nunca interrompe cobrança em andamento, emergência ou moderação, e não
+     transfere de novo pela MESMA regra — senão "devolver ao bot" não teria efeito. */
+  let roteamento = null;
+  if (lead && ficha) {
+    try {
+      const resp = lead.comercial?.responsavel || null;
+      /* `handoff` vem tambem no "nao entendi, quer falar com alguem?" — que so
+         OFERECE. Rotular a fila so quando o bot de fato passou pra gente. */
+      if (r.handoff && bot.estaComGente(t.telefone) && !r.emergencia && r.departamento !== 'urgencia') {
+        const d = qualif.decidir(ficha, { responsavel: resp, texto: msg.texto, equipesComGente: equipesComGente(), gatilho: 'handoff' });
+        const generico = !r.departamento || r.departamento === 'humano';
+        const equipe = d.tier === 2 ? (d.equipe || (generico ? null : qualif.norm(r.departamento))) : (generico ? null : qualif.norm(r.departamento));
+        if (d.tier === 2 && generico && d.equipe) { bot.entregarParaEquipe(t.telefone, { departamento: d.equipe, contexto: r.contexto || {} }); }
+        const quem = escolherResponsavel(d, lead, equipe);
+        crm.comercial(lead.id, { decisao: d.tier === 2 ? d : { ...d, tier: 2, destino: equipe ? 'equipe' : 'humano', equipe, motivo: 'o bot passou para gente', proximaAcao: qualif.proximaAcao(ficha) }, ...(quem ? { responsavel: quem } : {}) });
+        roteamento = { quando: 'handoff', decisao: d, responsavel: quem };
+      } else if (!r.handoff && !r.cobranca && !r.emergencia && !String(r.tipo || '').startsWith('moderacao')) {
+        const d = qualif.decidir(ficha, { responsavel: resp, texto: msg.texto, equipesComGente: equipesComGente() });
+        const jaFoi = lead.comercial?.decisao?.tier === 2 && lead.comercial.decisao.regra === d.regra;
+        if (d.tier === 2 && !jaFoi) {
+          const quem = escolherResponsavel({ ...d, destino: resp && d.destino !== 'equipe' ? 'responsavel' : d.destino }, lead, d.equipe);
+          /* O resumo vai no cartao da oportunidade (lead.comercial), nao no contexto:
+             ali ele aparecia duas vezes na mesma conversa. */
+          bot.entregarParaEquipe(t.telefone, { departamento: d.equipe || 'humano', contexto: {} });
+          if (r.protocolo) { try { proto.anotar(r.protocolo, { estado: proto.ESTADOS.NA_FILA, departamento: d.equipe || 'humano' }); } catch { /* protocolo e complemento */ } }
+          crm.comercial(lead.id, { decisao: d, ...(quem ? { responsavel: quem } : {}) });
+          const cfgQ = qualif.config();
+          texto = String(cfgQ.mensagemTransferencia || qualif.MENSAGEM_PADRAO).replace(/\{equipe\}/g, d.equipe || 'de atendimento').replace(/\{vendedor\}/g, quem?.nome || 'um vendedor');
+          r.handoff = true; r.tipo = 'qualificacao:transferir'; r.produtos = null; r.imagem = null;
+          // O "nao entendi" que a transferencia substituiu nao conta como falha do bot.
+          falhas.set(chave, 0);
+          roteamento = { quando: 'mensagem', decisao: d, responsavel: quem };
+        } else if (d.tier === 1) {
+          crm.comercial(lead.id, { decisao: d });
+        }
+      }
+    } catch (e) { console.error(`[qualificacao] roteamento falhou, segue o bot: ${e.message}`); }
+  }
 
   /* PAGAMENTO. O bot pediu a cobrança; quem tem rede é este módulo. A cobrança
      acontece ANTES do envio de propósito: mandar "segue o link" e só depois

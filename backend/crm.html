@@ -1225,6 +1225,38 @@ td.num,th.num{text-align:right;white-space:nowrap}
 .tgp-txt{padding:8px 10px 6px;font-size:13.5px;line-height:1.42;color:#111;overflow-wrap:anywhere}
 .tgp-hora{float:right;font-size:10.5px;color:#9aa;margin:6px 0 0 10px}
 .tgp-bt{margin-top:5px;background:rgba(0,0,0,.18);color:#fff;border-radius:10px;padding:8px;text-align:center;font-size:13px;font-weight:600}
+/* Qualificacao: cartao da oportunidade, tags e tela de regras */
+.q-card{border:1px solid var(--line);border-radius:12px;background:var(--panel-2);padding:10px 12px;margin:10px 0}
+.gaveta .q-card,.inbox-conversa .q-card{max-height:42vh;overflow:auto;flex:0 0 auto;margin:10px 16px}
+.q-card summary{display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;flex-wrap:wrap}
+.q-card summary::-webkit-details-marker{display:none}
+.q-h{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:680} .q-h svg{width:15px;height:15px;color:var(--ac)}
+.q-tier{display:inline-flex;align-items:center;font-size:11px;font-weight:650;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--raised)}
+.q-tier.t2{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-line)} .q-tier.t1{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-line)}
+.q-resp{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--ac);background:var(--ac-soft);border:1px solid var(--ac-line);padding:2px 8px;border-radius:99px}
+.q-resp svg{width:11px;height:11px}
+.cv-tags .q-tier,.cv-tags .q-resp{margin-left:4px}
+.fc-q{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.q-resumo{font-size:12.5px;margin:8px 0;color:var(--fg);line-height:1.45}
+.q-ficha{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:6px}
+.q-item{border:1px solid var(--line);border-radius:9px;padding:6px 9px;background:var(--panel);min-width:0}
+.q-item small{display:block;font-size:10.5px;color:var(--dim)} .q-item b{font-size:12px;font-weight:600;overflow-wrap:anywhere} .q-item b.q-nao{color:var(--dim);font-weight:500}
+.q-rodape{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
+.q-rodape small{display:block;font-size:10.5px;color:var(--dim)} .q-rodape b{font-size:12.5px}
+.q-sel{margin-top:5px;width:100%;font-size:12px;padding:4px 6px}
+.q-falta{margin-top:8px;display:flex;gap:6px;align-items:center} .q-falta svg{width:13px;height:13px;color:var(--warn)}
+.q-regras{display:grid;gap:8px}
+.q-regra{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--panel-2)}
+.q-regra.off{opacity:.55}
+.q-n{width:22px;height:22px;flex:0 0 22px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;background:var(--ac-soft);color:var(--ac);margin-top:5px}
+.q-liga{margin-top:7px}
+.q-regra-c{flex:1;min-width:0;display:grid;gap:6px}
+.q-nome{font-weight:600;font-size:13px;border:0;background:none;box-shadow:none;padding:4px 0}
+.q-linha{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.q-linha select,.q-linha input{font-size:12.5px;padding:5px 8px;max-width:100%}
+.q-regra-c .hint svg,.q-card .hint svg{width:13px;height:13px;vertical-align:-2px;flex:0 0 13px}
+.q-sim{margin-top:12px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel-2)}
+@media(max-width:560px){.q-regra{flex-wrap:wrap}.q-regra .acoes{width:100%}}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
@@ -1372,6 +1404,8 @@ const GRUPOS=[
      {id:'qg-painel',nome:'Painel'},
      {id:'qg-auditor',nome:'Auditor'}]},
    {id:'crm',nome:'Integração CRM',icone:'crm'},
+   /* Qualificacao e roteamento servem os DOIS canais: ficam fora do submenu de cada um. */
+   {id:'qualificacao',nome:'Qualificação e equipes',icone:'usuario'},
    /* O submenu do WhatsApp tinha seis itens e QUATRO eram os mesmos de cima:
       Bot, Relatórios e Auditor já existem no topo, e "Integração" virou a tela
       Canais. Menu repetido faz a pessoa procurar duas vezes e desconfiar de qual
@@ -5077,6 +5111,7 @@ Object.assign(S,{
  'tg-consumo':()=>consumoDoCanal('telegram'),
  'tg-resultados':()=>telaResultados('telegram'),
  'tg-campanhas':()=>telaCampanhas('telegram'),
+ 'qualificacao':()=>telaQualificacao(),
 });
 /* Mesma caixa de entrada pros dois canais: cada um ve SO as suas conversas. */
 /* A central de conversas entre cliente, bot e vendedor. Responde UMA pergunta:
@@ -5128,7 +5163,7 @@ function telaAtendimento(canal){
       <div class="cv-top"><b>${esc(c.nome||contato(c))}</b><small>${dia(c.ultima?.quando)==='hoje'?hora(c.ultima?.quando):dia(c.ultima?.quando)}</small></div>
       <div class="cv-msg">${c.ultima?.direcao==='saida'?'<span class="cv-eu">você: </span>':''}${esc(String(c.ultima?.texto||'').replace(/\n/g,' ').slice(0,80))}</div>
       <div class="cv-tags"><span class="cv-sit ${S.cls}"><i></i>${S.rot}${s==='aguardando'&&c.departamento&&c.departamento!=='humano'?' · '+esc(c.departamento):''}</span>
-        ${c.pedido&&c.pedido.estado==='pendente'?`<span class="cv-mini-ped">${reais(c.pedido.valorCentavos)} em aberto</span>`:''}</div>
+        ${c.pedido&&c.pedido.estado==='pendente'?`<span class="cv-mini-ped">${reais(c.pedido.valorCentavos)} em aberto</span>`:''}${tierTag(c)}${respTag(c)}</div>
     </div>
   </button>`; };
 
@@ -5148,7 +5183,8 @@ function telaAtendimento(canal){
         ${h.direcao==='saida'&&h.autor==='atendente'?'<span class="b-autor">equipe</span>':''}
         <div>${esc(h.texto||'').replace(/\n/g,'<br>')}</div><small>${hora(h.quando)}</small></div>`;
       if(h.tipo==='_transferida') return out+`<div class="cv-evento ev-transf">${ico('alerta')}Transferido para humano${c.departamento&&c.departamento!=='humano'?' · '+esc(c.departamento):''} · ${hora(h.quando)}</div>`;
-      if(h.tipo==='_assumida') return out+`<div class="cv-evento ev-assum">${ico('crm')}Vendedor assumiu a conversa · ${hora(h.quando)}</div>`;
+      if(h.tipo==='_assumida') return out+`<div class="cv-evento ev-assum">${ico('crm')}${esc(c.assumidaPor?.nome||'Vendedor')} assumiu a conversa · ${hora(h.quando)}</div>`;
+      if(h.tipo==='roteamento'||h.tipo==='responsavel') return out+eventoComercial(h,hora);
       if(h.tipo==='etapa') return out+`<div class="cv-evento">${ico('seta')}etapa: <b>${esc(h.de||'—')}</b> → <b>${esc(h.para||'—')}</b> · ${hora(h.quando)}</div>`;
       if(h.tipo==='fechado') return out+`<div class="cv-evento">${ico('check')}atendimento fechado${h.motivo?' · '+esc(h.motivo):''} · ${hora(h.quando)}</div>`;
       return out;
@@ -5207,7 +5243,7 @@ function telaAtendimento(canal){
             ?bi('check','Encerrar atendimento (manda o protocolo pro cliente)',`encerrarAtendimento('${esc(sel.telefone)}','${esc(sel.protocolo||'')}')`):''}
         </div>
       </div>
-      ${pedido}${ctx}
+      ${pedido}${oportunidadeHtml(sel)}${ctx}
       <div class="conversa-fluxo">${linhaDoTempo(sel)}</div>
       <div class="responder">
         <div class="cv-compor">
@@ -5278,6 +5314,7 @@ function telaFilaTelegram(){
       <div class="fc-top">${avatar(c.nome,c.telefone)}<div class="fc-t"><b>${esc(c.nome||'Cliente do Telegram')}</b>
         <small>Última mensagem: ${esc(hora(c.ultima?.quando))}</small></div></div>
       <p class="fc-msg">${c.ultima?.direcao==='saida'?`<span class="cv-eu">${c.ultima?.autor==='atendente'?'você':'bot'}: </span>`:''}“${esc(String(c.ultima?.texto||'').replace(/\n/g,' ').slice(0,90))}”</p>
+      ${tierTag(c)||respTag(c)?`<div class="fc-q">${tierTag(c)}${respTag(c)}</div>`:''}
       <div class="fc-rodape"><span class="fc-espera ${e.cls}">${ico('relogio')}${esc(e.txt)}</span>${ped}
         ${s==='aguardando'?`<button class="btn btn-p btn-xs fc-assumir" onclick="event.stopPropagation();assumirAtendimento('${esc(c.telefone)}',true)">${ico('crm')}<span>Assumir</span></button>`:''}</div>
     </div>`; };
@@ -5307,7 +5344,8 @@ function telaFilaTelegram(){
       const d=dia(h.quando); let out=''; if(d&&d!==ultimoDia){ ultimoDia=d; out+=`<div class="cv-dia"><span>${esc(d)}</span></div>`; }
       if(h.tipo==='interacao') return out+`<div class="bolha ${h.direcao==='saida'?'b-nossa':'b-cliente'}">${h.direcao==='saida'&&h.autor==='atendente'?'<span class="b-autor">equipe</span>':''}<div>${esc(h.texto||'').replace(/\n/g,'<br>')}</div><small>${hora(h.quando)}</small></div>`;
       if(h.tipo==='_t') return out+`<div class="cv-evento ev-transf">${ico('alerta')}Transferido para humano · ${hora(h.quando)}</div>`;
-      if(h.tipo==='_a') return out+`<div class="cv-evento ev-assum">${ico('crm')}Vendedor assumiu a conversa · ${hora(h.quando)}</div>`;
+      if(h.tipo==='_a') return out+`<div class="cv-evento ev-assum">${ico('crm')}${esc(sel.assumidaPor?.nome||'Vendedor')} assumiu a conversa · ${hora(h.quando)}</div>`;
+      if(h.tipo==='roteamento'||h.tipo==='responsavel') return out+eventoComercial(h,hora);
       return out; }).join('');
     const P={pago:['Pedido concluído','Pago','ok'],pendente:['Pedido em aberto','Pagamento pendente','aberto'],'sem-pagamento':['Pedido','Pagar na entrega','aberto'],cancelado:['Pedido cancelado','Cancelado ou estornado','morto']};
     const ped=sel.pedido?(()=>{ const [r,e,c]=P[sel.pedido.estado]||P.pendente; return `<div class="cv-pedido cp-${c}"><div><span class="cp-rot">${r} · <span class="cv-proto">${esc(sel.pedido.referencia)}</span></span><b>${reais(sel.pedido.valorCentavos)}</b><small>${esc(itensTxt(sel.pedido.itens))} · ${e}</small></div></div>`; })():'';
@@ -5323,7 +5361,7 @@ function telaFilaTelegram(){
         ${sSel==='com-vendedor'?botao({t:'Devolver pro bot',ic:'bot',v:'s',sz:'xs',on:`devolverAoBot('${esc(sel.telefone)}')`})
           :botao({t:'Assumir atendimento',ic:'crm',v:'p',sz:'xs',on:`assumirAtendimento('${esc(sel.telefone)}')`})}
         ${sel.protocoloEstado&&sel.protocoloEstado!=='encerrado'?bi('check','Encerrar atendimento (manda o protocolo pro cliente)',`encerrarAtendimento('${esc(sel.telefone)}','${esc(sel.protocolo||'')}')`):''}</div>
-      ${ped}${ctx}
+      ${ped}${oportunidadeHtml(sel)}${ctx}
       <div class="conversa-fluxo">${linha}</div>
       <div class="responder"><div class="cv-compor">
         <textarea id="respTexto" rows="1" placeholder="${online?(sSel==='com-vendedor'?'Escreva a resposta…':'Escreva pra assumir e responder…'):'Conecte o Telegram para responder'}" ${online?'':'disabled'}
@@ -5346,6 +5384,168 @@ function telaFilaTelegram(){
     (todas.length?`<label class="cv-busca fila-busca">${ico('busca')}<input id="cvBusca" placeholder="Buscar nome ou protocolo" value="${esc(BUSCA_CONV)}" oninput="buscarConversa(this.value)" autocomplete="off"></label>`:'')+
     quadro+gaveta;
 }
+/* ── Qualificação e roteamento (WhatsApp e Telegram) ─────────────────────────
+   A conversa chega ao vendedor como OPORTUNIDADE: o que o cliente quer, o porte,
+   a complexidade, quem é o responsável e o próximo passo — sem ele perguntar de
+   novo o que o cliente já contou ao bot. Tudo por regras, sem IA. */
+let EU=null,QUALI=null,QUALI_ED=null,QUALI_SIM=null;
+const Q_INT={comprar:'Comprar',conhecer:'Conhecer',suporte:'Suporte',reclamacao:'Reclamação'};
+const Q_PRAZO={imediato:'Imediato','esta-semana':'Esta semana','este-mes':'Este mês','sem-pressa':'Sem pressa'};
+const ehVendedor=()=>EU?.papel==='vendedor';
+const respTag=(c)=>{ const r=c.comercial?.responsavel; return r?`<span class="q-resp" title="Vendedor responsável">${ico('usuario')}${esc(r.nome)}</span>`:''; };
+const tierTag=(c)=>{ const d=c.comercial?.decisao; if(!d) return '';
+  return d.tier===2?`<span class="q-tier t2" title="${esc(d.motivo||'')}">Tier 2${d.equipe?' · '+esc(d.equipe):''}</span>`:''; };
+function fichaPorte(p={}){ return [p.unidades&&`${p.unidades} unidade(s)`,p.vendedores&&`${p.vendedores} vendedor(es)`,p.funcionarios&&`${p.funcionarios} funcionário(s)`].filter(Boolean).join(', '); }
+function fichaHtml(f){
+  if(!f) return '<p class="hint">Ainda sem informação comercial.</p>';
+  const it=(rot,val)=>`<div class="q-item"><small>${rot}</small><b class="${val?'':'q-nao'}">${val?esc(val):'não informado'}</b></div>`;
+  return `<div class="q-ficha">
+    ${it('Intenção',Q_INT[f.intencao])}${it('Produto',(f.produtos||[]).join(', '))}
+    ${it('Porte',fichaPorte(f.porte))}${it('Complexidade',f.complexidade==='personalizada'?`Personalizada (${(f.sinaisComplexidade||[]).slice(0,3).join(', ')})`:f.complexidade==='padrao'?'Padrão':'')}
+    ${it('Prazo',Q_PRAZO[f.prazo])}${it('Necessidade',f.necessidade)}</div>`;
+}
+/* O cartão da conversa. Colapsável: quem já leu não precisa dele ocupando a tela. */
+function oportunidadeHtml(c){
+  const k=c.comercial; if(!k||(!k.ficha&&!k.responsavel)) return '';
+  const d=k.decisao, r=k.responsavel;
+  const ops=(OPERADORES?.operadores||[]).filter(o=>o.ativo!==false);
+  const trocar=!ehVendedor()&&ops.length?`<select class="q-sel" aria-label="Trocar o responsável" onchange="trocarResponsavel('${esc(c.telefone)}',this.value)">
+      <option value="">${r?'Tirar o responsável':'Definir responsável…'}</option>${ops.map(o=>`<option value="${esc(o.id)}" ${r?.operadorId===o.id?'selected':''}>${esc(o.nome)} · ${esc(o.setor)}</option>`).join('')}</select>`:'';
+  /* No celular nasce fechado: aberto, ocupava a tela e o chat sumia. */
+  return `<details class="q-card" ${(d?.tier===2||!ehVendedor())&&innerWidth>700?'open':''}>
+    <summary><span class="q-h">${ico('relatorios')}Oportunidade comercial</span>
+      ${d?`<span class="q-tier ${d.tier===2?'t2':'t1'}">${d.tier===2?'Tier 2 · venda consultiva':'Tier 1 · bot conduz'}</span>`:''}</summary>
+    ${k.resumo?`<p class="q-resumo">${esc(k.resumo)}</p>`:''}
+    ${fichaHtml(k.ficha)}
+    <div class="q-rodape">
+      <div><small>Equipe</small><b>${esc(d?.equipe||(d?.tier===2?'fila geral':'—'))}</b></div>
+      <div><small>Responsável</small><b>${r?esc(r.nome):'ninguém ainda'}</b>${trocar}</div>
+      <div><small>Próxima ação</small><b>${esc(d?.proximaAcao||'—')}</b></div>
+    </div>
+    ${k.faltando?.length?`<p class="hint q-falta">${ico('alerta')}Ainda não sabemos: ${esc(k.faltando.join(', '))}.</p>`:''}
+    ${d?.motivo?`<p class="hint">Por quê: ${esc(d.motivo)}.</p>`:''}
+  </details>`;
+}
+/* Eventos novos na linha do tempo: quem decidiu e pra quem foi. */
+function eventoComercial(h,hora){
+  // Texto num <span> so: o cv-evento e flex, e cada <b> solto virava uma coluna.
+  if(h.tipo==='roteamento') return `<div class="cv-evento ev-transf">${ico('seta')}<span>Encaminhado${h.equipe?' para <b>'+esc(h.equipe)+'</b>':''} · ${esc(h.motivo||'')} · ${hora(h.quando)}</span></div>`;
+  if(h.tipo==='responsavel') return `<div class="cv-evento ev-assum">${ico('usuario')}<span>Responsável: <b>${esc(h.para||'ninguém')}</b>${h.de?` (antes: ${esc(h.de)})`:''}${h.motivo?' · '+esc(h.motivo):''} · ${hora(h.quando)}</span></div>`;
+  return '';
+}
+async function trocarResponsavel(tel,operadorId){
+  try{ await api('atendimentos/responsavel',{telefone:tel,operadorId:operadorId||null}); await recarregarAtendimento(true); flash(operadorId?'Responsável definido.':'Responsável removido.','ok'); }
+  catch(e){ avisoErro('Não consegui trocar',esc(e.message)); }
+}
+
+/* ── tela: Qualificação e equipes ── */
+async function carregarQuali(forcar){
+  if(QUALI&&!forcar) return QUALI;
+  try{ QUALI=await apiCru('qualificacao'); QUALI_ED=QUALI.matriz.map(r=>({...r})); }catch(e){ QUALI={erro:e.message}; }
+  if(rota==='qualificacao') render();
+  return QUALI;
+}
+function telaQualificacao(){
+  const q=QUALI; if(!q){ setTimeout(()=>carregarQuali(),0); return head('Qualificação e equipes','Carregando…'); }
+  if(q.erro) return head('Qualificação e equipes','')+`<p class="hint">Não consegui carregar: ${esc(q.erro)}</p>`;
+  const equipes=Object.keys(q.equipes||{}).sort();
+  const eqOpts=(sel)=>[...new Set([...equipes,sel].filter(Boolean))].map(e=>`<option value="${esc(e)}" ${e===sel?'selected':''}>${esc(e)}${q.equipes[e]?` (${q.equipes[e].length})`:' — sem ninguém'}</option>`).join('');
+  const regra=(r,i)=>{ const sem=r.destino==='equipe'&&!q.equipes[r.equipe];
+    const valor=r.condicao==='intencao'?`<select onchange="qSet(${i},'valor',this.value)">${Object.entries(q.intencoes).map(([k,v])=>`<option value="${k}" ${r.valor===k?'selected':''}>${v}</option>`).join('')}</select>`
+      :/^porte/.test(r.condicao)?`<input type="number" min="1" value="${esc(r.valor??'')}" oninput="qSet(${i},'valor',Number(this.value))" style="width:80px">`
+      :['termo','produto'].includes(r.condicao)?`<input value="${esc(r.valor||'')}" placeholder="${r.condicao==='termo'?'ex.: atacado':'nome do produto'}" oninput="qSet(${i},'valor',this.value)">`:'';
+    return `<div class="q-regra${r.ativa===false?' off':''}">
+      <span class="q-n">${i+1}</span>
+      <label class="q-liga" title="${r.ativa===false?'Desligada':'Ligada'}"><input type="checkbox" ${r.ativa!==false?'checked':''} onchange="qSet(${i},'ativa',this.checked,true)"></label>
+      <div class="q-regra-c">
+        <input class="q-nome" value="${esc(r.nome||'')}" oninput="qSet(${i},'nome',this.value)" aria-label="Nome da regra">
+        <div class="q-linha"><span>Se</span><select onchange="qSet(${i},'condicao',this.value,true)">${Object.entries(q.condicoes).map(([k,v])=>`<option value="${k}" ${r.condicao===k?'selected':''}>${v}</option>`).join('')}</select>${valor}
+          <span>→</span><select onchange="qSet(${i},'destino',this.value,true)">${Object.entries(q.destinos).map(([k,v])=>`<option value="${k}" ${r.destino===k?'selected':''}>${v}</option>`).join('')}</select>
+          ${r.destino==='equipe'?`<input list="qEquipes" value="${esc(r.equipe||'')}" placeholder="equipe" oninput="qSet(${i},'equipe',this.value)" style="width:150px">`:''}</div>
+        ${sem?`<p class="hint" style="color:var(--warn);margin-top:4px">${ico('alerta')} Ninguém ativo na equipe “${esc(r.equipe)}” — a regra é pulada até alguém ser cadastrado nela.</p>`:''}
+      </div>
+      <div class="acoes">${bi('ant','Subir',`qMover(${i},-1)`)}${bi('prox','Descer',`qMover(${i},1)`)}${bi('excluir','Remover regra',`qRemover(${i})`,'dan')}</div></div>`; };
+  const ops=q.operadores||[];
+  const sim=QUALI_SIM;
+  return head('Qualificação e equipes','O bot lê a conversa, preenche a ficha do cliente e decide — por regras suas, sem IA — se ele mesmo vende ou se passa para a equipe certa.')+
+  `<div class="card" style="margin-bottom:16px">
+    ${cardH('seta','Como o bot decide',`As regras rodam <b>em ordem</b> a cada mensagem: a primeira que bater decide. Nenhuma bateu? O bot continua (Tier 1). Vale para <b>WhatsApp e Telegram</b>.`,1,
+      botao({t:'Salvar regras',ic:'salvar',v:'p',on:'qSalvar()',id:'btQSalvar'}))}
+    <datalist id="qEquipes">${equipes.map(e=>`<option value="${esc(e)}">`).join('')}</datalist>
+    <div class="q-regras">${QUALI_ED.map(regra).join('')||'<p class="hint">Sem regras: o bot atende tudo sozinho.</p>'}</div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">${botao({t:'Nova regra',ic:'mais',v:'s',sz:'xs',on:'qNova()'})}${botao({t:'Voltar ao padrão',ic:'atualizar',v:'g',sz:'xs',on:'qPadrao()'})}</div>
+    <p class="hint" style="margin-top:12px">Porte sozinho não decide: uma microempresa pode precisar de integração, e uma empresa grande pode querer o produto de prateleira. A regra de <b>carteira</b> não tira ninguém do bot — ela só escolhe <b>quem</b> atende quando a conversa vai para gente.</p>
+    <div class="field" style="margin-top:12px"><label>Mensagem ao transferir <small>({equipe} e {vendedor} viram o nome)</small></label>
+      <textarea id="qMsg" rows="2">${esc(q.mensagemTransferencia||'')}</textarea></div>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('testar','Testar com uma conversa','Escreva o que um cliente diria (uma mensagem por linha). Nada é gravado e o rodízio não gira.',2)}
+    <textarea id="qSimTxt" rows="3" placeholder="Tenho 35 vendedores, três lojas e preciso integrar o CRM ao meu ERP.">${esc(sim?.texto||'')}</textarea>
+    <div style="margin-top:8px">${botao({t:'Testar',ic:'testar',v:'s',on:'qSimular()'})}</div>
+    ${sim?.r?`<div class="q-sim"><div class="q-tier ${sim.r.decisao.tier===2?'t2':'t1'}">${sim.r.decisao.tier===2?`Tier 2 → ${esc(sim.r.decisao.equipe||sim.r.decisao.destino)}`:'Tier 1 → o bot conduz'}</div>
+      <p class="q-resumo">${esc(sim.r.resumo)}</p>${fichaHtml(sim.r.ficha)}
+      <p class="hint">Por quê: ${esc(sim.r.decisao.motivo)} · Próxima ação: ${esc(sim.r.decisao.proximaAcao)}${sim.r.faltando.length?` · Falta saber: ${esc(sim.r.faltando.join(', '))}`:''}</p></div>`:''}
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    ${cardH('usuario','Equipes e acesso dos vendedores','Cada operador é de uma equipe (o setor dele). Com acesso, ele entra no painel e vê <b>só o Atendimento</b>: os clientes dele e a fila da equipe.',3,
+      botao({t:'Cadastrar operador',ic:'mais',v:'s',sz:'xs',on:"ir('canais')"}))}
+    ${ops.length?`<div class="tbl-wrap"><table><thead><tr><th>Operador</th><th>Equipe</th><th>Acesso ao painel</th><th></th></tr></thead><tbody>
+      ${ops.map(o=>`<tr${o.ativo===false?' style="opacity:.55"':''}><td><b>${esc(o.nome)}</b>${o.ativo===false?' <small>(desativado)</small>':''}</td><td><code>${esc(o.setor)}</code></td>
+        <td>${o.acesso?`<span class="badge b-ok" style="margin:0">${esc(o.acesso.email)}</span><small style="display:block;color:var(--dim);margin-top:3px">${o.acesso.ultimoLogin?'último acesso '+new Date(o.acesso.ultimoLogin).toLocaleString('pt-BR'):'ainda não entrou'}</small>`:'<span class="hint">sem acesso</span>'}</td>
+        <td style="text-align:right;white-space:nowrap">${o.acesso?botao({t:'Nova senha',ic:'editar',v:'g',sz:'xs',on:`qAcesso('${esc(o.id)}')`})+botao({t:'Tirar acesso',ic:'excluir',v:'g',sz:'xs',on:`qTirarAcesso('${esc(o.id)}')`})
+          :o.ativo===false?'':botao({t:'Dar acesso',ic:'entrar',v:'s',sz:'xs',on:`qAcesso('${esc(o.id)}')`})}</td></tr>`).join('')}
+      </tbody></table></div>`:`<p class="hint">Nenhum operador ainda. Cadastre em <a href="#canais" onclick="ir('canais');return false">WhatsApp → Canal e conexão → Operadores</a> — o setor vira a equipe.</p>`}
+  </div>`;
+}
+function qSet(i,k,v,redesenhar){ QUALI_ED[i]={...QUALI_ED[i],[k]:v};
+  if(k==='condicao'){ const c=v; QUALI_ED[i].valor=c==='intencao'?'reclamacao':/^porte/.test(c)?3:c==='temResponsavel'||c==='complexidade'?undefined:''; if(c==='temResponsavel') QUALI_ED[i].destino='responsavel'; }
+  if(redesenhar) render(); }
+function qMover(i,d){ const j=i+d; if(j<0||j>=QUALI_ED.length) return; [QUALI_ED[i],QUALI_ED[j]]=[QUALI_ED[j],QUALI_ED[i]]; render(); }
+function qRemover(i){ QUALI_ED.splice(i,1); render(); }
+function qNova(){ QUALI_ED.push({ativa:true,nome:'Nova regra',condicao:'termo',valor:'',destino:'equipe',equipe:''}); render(); }
+function qPadrao(){ confirmar({titulo:'Voltar às regras padrão?',texto:'As regras que você mudou somem e voltam as do Bolso Cheio. Só vale depois de salvar.',rotulo:'Voltar ao padrão',icone:'atualizar',perigo:false,
+  aoConfirmar:async()=>{ const r=await api('qualificacao/salvar',{matriz:null}).catch(()=>null); await carregarQuali(true); }}); }
+async function qSalvar(){
+  try{ const r=await api('qualificacao/salvar',{matriz:QUALI_ED,mensagemTransferencia:document.getElementById('qMsg')?.value}); QUALI=null; await carregarQuali(true); flash('Regras salvas — já valem na próxima mensagem.','ok'); }
+  catch(e){ avisoErro('Não salvei as regras',esc(e.message)); }
+}
+async function qSimular(){
+  const texto=document.getElementById('qSimTxt')?.value||''; const mensagens=texto.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!mensagens.length) return avisoErro('Escreva uma mensagem','Ex.: “Tenho 3 lojas e preciso integrar com o meu ERP”.');
+  try{ const r=await api('qualificacao/simular',{mensagens,matriz:QUALI_ED}); QUALI_SIM={texto,r}; render(); }
+  catch(e){ avisoErro('O teste não rodou',esc(e.message)); }
+}
+function qAcesso(id){
+  const o=(QUALI?.operadores||[]).find(x=>x.id===id); if(!o) return;
+  abrirModal(`Acesso de ${o.nome}`,
+    `<p class="hint" style="margin-bottom:12px">${esc(o.nome)} entra com este e-mail e a senha inicial — e troca a senha depois, em <b>Trocar senha</b>. Vê só o Atendimento.</p>
+     <div class="form-grid"><div class="field"><label>E-mail</label><input id="qaMail" value="${esc(o.acesso?.email||o.email||'')}" placeholder="vendedor@empresa.com.br"></div>
+     <div class="field"><label>Senha inicial <small>(8+ caracteres)</small></label><input id="qaSenha" type="text" autocomplete="off" value=""></div></div>`,
+    BT.cancelar()+botao({t:'Salvar acesso',ic:'salvar',v:'p',on:`qSalvarAcesso('${esc(id)}')`}),{classe:'modal-sm'});
+}
+async function qSalvarAcesso(id){
+  try{ const r=await api('vendedores/acesso',{operadorId:id,email:document.getElementById('qaMail').value,senha:document.getElementById('qaSenha').value});
+    fecharModal(); await carregarQuali(true); avisoOk('Acesso pronto',`Entregue a ${esc(r.email)} a senha inicial. O acesso abre direto no Atendimento.`); }
+  catch(e){ avisoErro('Não criei o acesso',esc(e.message)); }
+}
+function qTirarAcesso(id){
+  confirmar({titulo:'Tirar o acesso ao painel?',texto:'A sessão aberta cai na hora. A carteira de clientes continua com o nome dele até você trocar o responsável.',rotulo:'Tirar acesso',
+    aoConfirmar:async()=>{ await api('vendedores/remover',{operadorId:id}); await carregarQuali(true); flash('Acesso removido.','ok'); }});
+}
+
+/* ── modo vendedor: só o Atendimento ── */
+const GRUPOS_VENDEDOR=[{secao:'Atendimento',itens:[{id:'wa-atendimento',nome:'WhatsApp',icone:'whats'},{id:'tg-atendimento',nome:'Telegram',icone:'telegram'}]}];
+async function carregarVendedor(eu){
+  EU=eu;
+  try{ ATEND=await api('atendimentos'); CANAIS=ATEND?.canal||null; TG=await api('canais/telegram').catch(()=>null); }
+  catch(e){ avisoErro('Não consegui carregar','Não consegui carregar: '+esc(e.message)); }
+  if(!['wa-atendimento','tg-atendimento'].includes(rota)) rota=(ATEND?.conversas||[]).some(c=>c.canal==='telegram')&&!(ATEND?.conversas||[]).some(c=>c.canal==='whatsapp')?'tg-atendimento':'wa-atendimento';
+  document.getElementById('envDot').className='dot on';
+  document.getElementById('envName').textContent=eu.nome||'Vendedor';
+  document.getElementById('envSub').textContent=eu.equipe?'equipe '+eu.equipe:eu.email;
+  render();
+}
+
 function filtrarConversas(f){ FILTRO_CONV=f; CONVERSA=null; render(); }
 async function assumirAtendimento(tel,abrirPainel){
   try{
@@ -5360,13 +5560,13 @@ async function assumirAtendimento(tel,abrirPainel){
    nem o ponto em que ele parou de ler. */
 async function recarregarAtendimento(forcar){
   const novo=await apiCru('atendimentos').catch(()=>null); if(!novo) return;
-  const sig=(d)=>(d?.conversas||[]).map(c=>[c.telefone,c.situacao,c.mensagens,c.pedido?.estado,c.ultima?.quando].join(':')).join('|');
+  const sig=(d)=>(d?.conversas||[]).map(c=>[c.telefone,c.situacao,c.mensagens,c.pedido?.estado,c.ultima?.quando,c.comercial?.responsavel?.operadorId,c.comercial?.decisao?.tier].join(':')).join('|');
   if(!forcar&&sig(novo)===sig(ATEND)) return;
   const campo=document.getElementById('respTexto'), busca=document.getElementById('cvBusca');
   const texto=campo?.value||'', ini=campo?.selectionStart, fim=campo?.selectionEnd, foco=document.activeElement?.id;
   const fl=document.querySelector('.conversa-fluxo');
   const noFim=!fl||fl.scrollHeight-fl.scrollTop-fl.clientHeight<80, topo=fl?.scrollTop;
-  ATEND=novo; render();
+  ATEND=novo; if(ehVendedor()) CANAIS=novo.canal||CANAIS; render();
   const c2=document.getElementById('respTexto');
   if(c2&&texto){ c2.value=texto; crescerResposta(c2); if(foco==='respTexto'){ c2.focus(); try{ c2.setSelectionRange(ini,fim); }catch{} } }
   if(foco==='cvBusca'){ const b=document.getElementById('cvBusca'); b?.focus(); b?.setSelectionRange(b.value.length,b.value.length); }
@@ -5701,7 +5901,7 @@ const TELAS={
 
 /* ---------- render ---------- */
 function renderNav(){
-  document.getElementById('nav').innerHTML=GRUPOS.map(g=>
+  document.getElementById('nav').innerHTML=(ehVendedor()?GRUPOS_VENDEDOR:GRUPOS).map(g=>
    `<div class="sec-label">${esc(g.secao)}</div>`+g.itens.map(m=>{
     if(!m.filhos) return `<button class="nav-item${rota===m.id?' active':''}" onclick="ir('${m.id}')">${ico(m.icone)}<span>${esc(m.nome)}</span></button>`;
     const ab=abertos.has(m.id);
@@ -6332,6 +6532,9 @@ async function carregar(){
   try{
     const eu=await api('minha-conta');
     if(eu.papel==='cliente'){ return telaMinhaConta(eu); }
+    /* Vendedor: so o Atendimento (o servidor recusa o resto de qualquer jeito). */
+    if(eu.papel==='vendedor'){ return carregarVendedor(eu); }
+    EU=eu;
   }catch(e){ if(/sessão expirada|senha ausente|403/.test(e.message)){ TOKEN='';sessionStorage.removeItem('crm_token');return telaEntrar(); } }
   try{
     // O diagnostico do TikTok nao pode derrubar o painel inteiro se o backend for antigo.

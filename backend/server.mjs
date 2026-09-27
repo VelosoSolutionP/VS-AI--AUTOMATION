@@ -35,6 +35,7 @@ import * as canais from './canais.mjs';
 import { ehTelegram } from '../engine/canais/telegram/index.mjs';
 import * as resultados from '../engine/vsresultados/index.mjs';
 import * as campanhasTg from '../engine/vscampanhas/index.mjs';
+import * as qualif from '../engine/vsqualificacao/index.mjs';
 import { lerImagem } from '../engine/vscampanhas/imagem.mjs';
 import * as seguranca from '../engine/vsseguranca/index.mjs';
 import * as operadores from '../engine/vsoperadores/index.mjs';
@@ -174,6 +175,42 @@ const CRM_ENABLED = process.env.CRM_ENABLED === '1';
 /* O que o auditor de campanhas precisa do mundo: o produto como o cliente o
    ve (preco vigente, estoque) — ou marcado inativo —, os dados da imagem lidos
    do disco quando ela e nossa (/midia/...) e o link do bot. */
+/* Quem esta logado, do jeito que a fila e a carteira gravam. */
+function quemAtende(quem) {
+  if (quem?.papel === 'vendedor') {
+    const op = operadores.listar().find((o) => o.id === quem.operadorId);
+    return { operadorId: quem.operadorId, nome: op?.nome || quem.nome || quem.email, equipe: op ? operadores.norm(op.setor) : null };
+  }
+  return { operadorId: null, nome: 'Administrador', equipe: null };
+}
+/* O vendedor ve o que e DELE (responsavel ou quem assumiu) e a fila sem dono da
+   equipe dele ou geral. Cliente da carteira de outro vendedor nao aparece. */
+function vendedorVe(c, eu) {
+  const resp = c.comercial?.responsavel?.operadorId || null;
+  if (resp === eu.operadorId || c.assumidaPor?.operadorId === eu.operadorId) { return true; }
+  if (resp || c.assumidaPor?.operadorId) { return false; }
+  if (c.situacao !== 'aguardando') { return false; }
+  const dep = operadores.norm(c.departamento || 'humano');
+  return dep === 'humano' || dep === eu.equipe;
+}
+/* Pode mexer nesta conversa? Dono sempre; vendedor so no que nao e de outro. */
+function vendedorPode(quem, telefone) {
+  if (quem?.papel !== 'vendedor') { return { ok: true }; }
+  const lead = crm.listar().find((l) => l.telefone === telefone);
+  const resp = lead?.comercial?.responsavel;
+  if (resp?.operadorId && resp.operadorId !== quem.operadorId) { return { ok: false, motivo: `este cliente é da carteira de ${resp.nome} — peça ao administrador para transferir` }; }
+  return { ok: true };
+}
+
+/* Vendedor que assume vira o responsavel do cliente (a carteira). O dono
+   assumindo nao tira o cliente de ninguem. */
+function assumiuVira(quem, telefone) {
+  if (quem?.papel !== 'vendedor') { return; }
+  const lead = crm.listar().find((l) => l.telefone === telefone);
+  if (!lead || lead.comercial?.responsavel?.operadorId === quem.operadorId) { return; }
+  crm.comercial(lead.id, { responsavel: { ...quemAtende(quem), motivo: 'assumiu o atendimento' } });
+}
+
 function contextoCampanha(extra = {}) {
   return {
     produto: (sku) => {
@@ -1092,7 +1129,27 @@ const server = createServer(async (req, res) => {
       }
       return json(res, 403, { erro: 'área restrita ao administrador', papel: 'cliente' });
     }
+    /* VENDEDOR: so o Atendimento. A porta e aqui, no servidor — esconder o menu
+       na tela nao protege nada. */
+    if (quem.papel === 'vendedor') {
+      if (req.method === 'GET' && rota === '/crm/api/minha-conta') { return json(res, 200, { papel: 'vendedor', email: quem.email, ...quemAtende(quem) }); }
+      const livre = (req.method === 'GET' && ['/crm/api/atendimentos', '/crm/api/canais/telegram', '/crm/api/seguranca/pendentes'].includes(rota))
+        || (req.method === 'POST' && ['/crm/api/atendimentos/responder', '/crm/api/atendimentos/assumir', '/crm/api/atendimentos/devolver', '/crm/api/atendimentos/encerrar'].includes(rota));
+      if (!livre) { return json(res, 403, { erro: 'área restrita ao administrador', papel: 'vendedor' }); }
+    }
     if (req.method === 'GET' && rota === '/crm/api/minha-conta') { return json(res, 200, { papel: 'admin', email: quem.email }); }
+    /* Qualificacao e roteamento: a matriz, as equipes (setores dos operadores) e
+       quem tem acesso de vendedor. */
+    if (req.method === 'GET' && rota === '/crm/api/qualificacao') {
+      const ops = operadores.listar();
+      const acessos = usuarios.acessosVendedores();
+      const equipes = {};
+      for (const o of operadores.ativos(ops)) { const e = operadores.norm(o.setor); (equipes[e] ||= []).push(o.nome); }
+      return json(res, 200, {
+        ...qualif.config(), condicoes: qualif.CONDICOES, destinos: qualif.DESTINOS, intencoes: qualif.INTENCOES, prazos: qualif.PRAZOS,
+        equipes, operadores: ops.map((o) => ({ ...o, acesso: acessos.find((a) => a.operadorId === o.id) || null })),
+      });
+    }
     if (req.method === 'GET' && rota === '/crm/api/painel') { return json(res, 200, crm.painel()); }
     if (req.method === 'GET' && rota === '/crm/api/status') { return json(res, 200, crm.statusIntegracoes(canais.estado())); }
     if (req.method === 'GET' && rota === '/crm/api/indicacao') { return json(res, 200, crm.painelIndicacao()); }
@@ -1370,9 +1427,18 @@ const server = createServer(async (req, res) => {
             protocolo: (proto.aberto(l.telefone) || proto.ultimoEncerrado(l.telefone) || {}).numero || null,
             protocoloEstado: (proto.aberto(l.telefone) || proto.ultimoEncerrado(l.telefone) || {}).estado || null,
             historico: l.historico || [],
+            assumidaPor: fila?.assumidaPor || null,
+            comercial: l.comercial ? {
+              ficha: l.comercial.ficha || null,
+              decisao: l.comercial.decisao || null,
+              responsavel: l.comercial.responsavel || null,
+              resumo: l.comercial.ficha ? qualif.resumo(l.comercial.ficha) : null,
+              faltando: qualif.faltando(l.comercial.ficha || {}),
+            } : null,
           };
         })
         .filter(Boolean)
+        .filter((c) => quem.papel !== 'vendedor' || vendedorVe(c, quemAtende(quem)))
         .sort((a, b) => {
           // Quem espera gente vem primeiro; depois, conversa mais recente.
           if (a.esperandoGente !== b.esperandoGente) { return a.esperandoGente ? -1 : 1; }
@@ -1702,7 +1768,10 @@ const server = createServer(async (req, res) => {
           /* Quem responde pelo painel ASSUME a conversa: o bot sai de cena antes
              da mensagem sair. Sem isto, numa conversa que estava com o bot, ele
              continuava respondendo por cima do vendedor. */
-          bot.assumirConversa(tel);
+          const pode = vendedorPode(quem, tel);
+          if (!pode.ok) { r = pode; break; }
+          bot.assumirConversa(tel, { por: quemAtende(quem) });
+          assumiuVira(quem, tel);
           const envio = await canais.enviar({ canal: d.canal, para: d.telefone, texto });
           if (!envio.ok) { r = { ok: false, motivo: envio.erro || 'não consegui enviar' }; break; }
           const lead = crm.listar().find((l) => l.telefone === String(d.telefone || '').replace(/\D/g, ''));
@@ -1739,15 +1808,57 @@ const server = createServer(async (req, res) => {
         case '/crm/api/atendimentos/assumir': {
           const tel = String(d.telefone || '').replace(/\D/g, '');
           if (!tel) { r = { ok: false, motivo: 'conversa sem identificador' }; break; }
-          r = bot.assumirConversa(tel);
+          const pode = vendedorPode(quem, tel);
+          if (!pode.ok) { r = pode; break; }
+          r = bot.assumirConversa(tel, { por: quemAtende(quem) });
+          assumiuVira(quem, tel);
           break;
         }
-        case '/crm/api/atendimentos/devolver': r = bot.devolverAoBot(String(d.telefone || '').replace(/\D/g, '')); break;
+        case '/crm/api/atendimentos/devolver': {
+          const tel = String(d.telefone || '').replace(/\D/g, '');
+          const pode = vendedorPode(quem, tel);
+          r = pode.ok ? bot.devolverAoBot(tel) : pode;
+          break;
+        }
+        /* O dono troca o responsavel (ou tira): ferias, desligamento, cliente
+           que pediu outro vendedor. Fica no historico do lead. */
+        case '/crm/api/atendimentos/responsavel': {
+          const lead = crm.listar().find((l) => l.telefone === String(d.telefone || '').replace(/\D/g, ''));
+          if (!lead) { r = { ok: false, motivo: 'cliente não encontrado' }; break; }
+          if (!d.operadorId) { r = crm.comercial(lead.id, { responsavel: null }); r = r.erro ? r : { ok: true }; break; }
+          const op = operadores.ativos(operadores.listar()).find((o) => o.id === d.operadorId);
+          if (!op) { r = { ok: false, motivo: 'operador não encontrado ou desativado' }; break; }
+          const x = crm.comercial(lead.id, { responsavel: { operadorId: op.id, nome: op.nome, equipe: operadores.norm(op.setor), motivo: 'definido pelo administrador' } });
+          r = x.erro ? x : { ok: true };
+          break;
+        }
+        case '/crm/api/qualificacao/salvar': r = qualif.salvarConfig(d); break;
+        /* Testar a matriz com uma conversa inventada: mostra a ficha e a decisao
+           SEM gravar nada e sem girar o rodizio. */
+        case '/crm/api/qualificacao/simular': {
+          const msgs = (Array.isArray(d.mensagens) ? d.mensagens : [d.texto]).map((x) => String(x || '')).filter(Boolean).slice(0, 20);
+          if (!msgs.length) { r = { ok: false, motivo: 'escreva ao menos uma mensagem do cliente' }; break; }
+          let ficha = null;
+          const cat = estoque.doAtendimento().map((p) => ({ sku: p.sku, nome: p.nome }));
+          for (const m of msgs) { ficha = qualif.qualificar(ficha, m, { produtos: cat }); }
+          const dec = qualif.decidir(ficha, { texto: msgs.join(' '), equipesComGente: [...new Set(operadores.ativos(operadores.listar()).map((o) => operadores.norm(o.setor)))], matriz: Array.isArray(d.matriz) ? d.matriz : undefined });
+          r = { ok: true, ficha, decisao: dec, resumo: qualif.resumo(ficha), faltando: qualif.faltando(ficha) };
+          break;
+        }
+        case '/crm/api/vendedores/acesso': {
+          const op = operadores.listar().find((o) => o.id === d.operadorId);
+          if (!op) { r = { ok: false, motivo: 'operador não encontrado' }; break; }
+          r = usuarios.criarAcessoVendedor({ email: d.email || op.email, nome: op.nome, senha: d.senha, operadorId: op.id });
+          break;
+        }
+        case '/crm/api/vendedores/remover': r = usuarios.removerAcessoVendedor(d.operadorId); break;
         /* O ATENDENTE encerra. Ate agora so o silencio encerrava, e quem
            resolveu o caso em dois minutos ficava preso na fila esperando o
            relogio — ocupando lugar que era de outra pessoa. */
         case '/crm/api/atendimentos/encerrar': {
           const tel = String(d.telefone || '').replace(/\D/g, '');
+          const pode = vendedorPode(quem, tel);
+          if (!pode.ok) { r = pode; break; }
           const p = proto.aberto(tel);
           if (!p) { r = { ok: false, motivo: 'não há atendimento aberto para este cliente' }; break; }
           const fechado = proto.encerrarPorNumero(p.numero, { motivo: d.motivo || 'encerrado pelo atendente' });

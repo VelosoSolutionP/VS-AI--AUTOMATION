@@ -83,6 +83,33 @@ export function qualificar(id, q) {
   return comLead(id, (lead) => ({ lead: aplicarQualificacao(lead, q) }));
 }
 
+/**
+ * O lado comercial do lead: ficha de qualificação, a última decisão da matriz
+ * e o vendedor responsável (a CARTEIRA — continua depois que o atendimento
+ * acaba, pra o cliente voltar pra mesma pessoa). Troca de responsável entra no
+ * histórico: "quem atende este cliente" tem que ter rastro.
+ */
+export function comercial(id, { ficha, decisao, responsavel } = {}) {
+  return comLead(id, (lead) => {
+    const atual = lead.comercial || {};
+    const prox = { ...atual };
+    const historico = [...(lead.historico || [])];
+    const quando = new Date().toISOString();
+    if (ficha !== undefined) { prox.ficha = ficha; }
+    if (decisao !== undefined) {
+      prox.decisao = decisao ? { ...decisao, em: quando } : null;
+      if (decisao && decisao.tier === 2 && (atual.decisao?.regra !== decisao.regra || atual.decisao?.equipe !== decisao.equipe)) {
+        historico.push({ tipo: 'roteamento', regra: decisao.regra, equipe: decisao.equipe || null, motivo: decisao.motivo, quando });
+      }
+    }
+    if (responsavel !== undefined && (responsavel?.operadorId || null) !== (atual.responsavel?.operadorId || null)) {
+      prox.responsavel = responsavel ? { ...responsavel, desde: quando } : null;
+      historico.push({ tipo: 'responsavel', de: atual.responsavel?.nome || null, para: responsavel?.nome || null, motivo: responsavel?.motivo || null, quando });
+    }
+    return { lead: { ...lead, comercial: prox, historico } };
+  });
+}
+
 export function interagir(id, interacao) {
   return comLead(id, (lead) => ({ lead: registrarInteracao(lead, interacao) }));
 }

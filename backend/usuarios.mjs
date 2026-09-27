@@ -3,6 +3,9 @@
  *
  *   admin    — o dono (Veloso Solution). Entra com o e-mail dele e a MESMA senha
  *              que o console já tinha (acesso.mjs): nada muda pra quem já usava.
+ *   vendedor — atendente da própria empresa (um operador com login). Entra só
+ *              no Atendimento: vê a fila e as conversas dele e da equipe dele,
+ *              e fica registrado como quem assumiu cada cliente.
  *   cliente  — quem assinou. Cria a senha pelo link do convite que chega depois
  *              do pagamento, e entra só na área "Minha conta" — NUNCA no console
  *              do dono, que tem cliente, funil e caixa da Veloso.
@@ -63,10 +66,10 @@ function abrirSessao(u) {
   const token = randomBytes(24).toString('base64url');
   const todas = ler('sessoes.json', {});
   const limpas = Object.fromEntries(Object.entries(todas).filter(([, s]) => s.expira > agora()));
-  limpas[sha(token)] = { email: u.email, papel: u.papel, clienteId: u.clienteId || null, nome: u.nome || null, criada: agora(),
+  limpas[sha(token)] = { email: u.email, papel: u.papel, clienteId: u.clienteId || null, operadorId: u.operadorId || null, nome: u.nome || null, criada: agora(),
     expira: new Date(Date.now() + SESSAO_HORAS * 3600000).toISOString() };
   gravar('sessoes.json', limpas);
-  return { token, papel: u.papel, nome: u.nome || null, email: u.email, clienteId: u.clienteId || null };
+  return { token, papel: u.papel, nome: u.nome || null, email: u.email, clienteId: u.clienteId || null, operadorId: u.operadorId || null };
 }
 
 /**
@@ -108,6 +111,43 @@ export function entrar(email, senha) {
   if (emailsDoDono().has(e)) { return { ok: true, ...abrirSessao({ email: e, papel: 'admin', nome: 'Administrador' }) }; }
   return { ok: true, ...abrirSessao(u) };
 }
+
+/* ---------------- acesso de vendedor ---------------- */
+
+/**
+ * O dono dá acesso a um operador: e-mail + senha inicial, que ele troca depois
+ * em "Trocar senha". Um operador, um acesso. Sem convite por e-mail de
+ * propósito: é gente da casa, o dono entrega a senha em mãos.
+ */
+export function criarAcessoVendedor({ email, nome, senha, operadorId } = {}) {
+  const e = normEmail(email);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) { return { ok: false, motivo: 'informe um e-mail válido para o vendedor entrar' }; }
+  if (emailsDoDono().has(e)) { return { ok: false, motivo: 'este e-mail é o do administrador' }; }
+  if (!String(operadorId || '').trim()) { return { ok: false, motivo: 'acesso de vendedor precisa de um operador cadastrado' }; }
+  const s = String(senha || '');
+  if (s.length < MIN_SENHA) { return { ok: false, motivo: `a senha inicial precisa de pelo menos ${MIN_SENHA} caracteres` }; }
+  const outro = buscarPorEmail(e);
+  if (outro && !(outro.papel === 'vendedor' && outro.operadorId === operadorId)) { return { ok: false, motivo: 'este e-mail já tem outro acesso no painel' }; }
+  const sal = randomBytes(16).toString('hex');
+  const resto = usuarios().filter((u) => u.email !== e && !(u.papel === 'vendedor' && u.operadorId === operadorId));
+  const u = { email: e, nome: String(nome || '').trim() || null, papel: 'vendedor', operadorId: String(operadorId), sal, hash: derivar(s, sal).toString('hex'),
+    criadoEm: outro?.criadoEm || agora(), senhaDefinidaEm: agora() };
+  gravar('usuarios.json', [...resto, u]);
+  derrubarSessoes(e);
+  return { ok: true, email: e, operadorId: u.operadorId };
+}
+
+/** Tira o acesso e derruba a sessão aberta: quem saiu da empresa sai do painel na hora. */
+export function removerAcessoVendedor(operadorId) {
+  const u = usuarios().find((x) => x.papel === 'vendedor' && x.operadorId === String(operadorId || ''));
+  if (!u) { return { ok: false, motivo: 'este operador não tem acesso' }; }
+  gravar('usuarios.json', usuarios().filter((x) => x !== u && x.email !== u.email));
+  derrubarSessoes(u.email);
+  return { ok: true };
+}
+
+export const acessosVendedores = () => usuarios().filter((u) => u.papel === 'vendedor')
+  .map((u) => ({ email: u.email, nome: u.nome, operadorId: u.operadorId, ultimoLogin: u.ultimoLogin || null }));
 
 /* ---------------- convite (criar o próprio acesso) ---------------- */
 
