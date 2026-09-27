@@ -1867,7 +1867,10 @@ const server = createServer(async (req, res) => {
   json(res, 404, { error: 'not found' });
 });
 
-server.listen(PORT, () => {
+/* HOST so e definido pela instancia isolada do teste de volume (127.0.0.1):
+   ela aceita mensagem simulada e nao pode ficar visivel na rede. Sem HOST,
+   escuta como sempre escutou. */
+server.listen(...(process.env.HOST ? [PORT, process.env.HOST] : [PORT]), () => {
   console.log(`[qa-gate-backend] ouvindo em :${PORT} (webhook /webhook, health /health)`);
   /* O canal volta sozinho se estava ligado. Nao trava o boot: se o navegador
      demorar ou falhar, o painel ja esta de pe e a tela mostra o estado. */

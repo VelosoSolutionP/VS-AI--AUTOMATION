@@ -171,6 +171,9 @@ test('quem pede atendente dispara handoff', async () => {
 
 test('dois "nao entendi" seguidos chamam gente', async () => {
   at._zerarFalhas();
+  /* O teste anterior (pede atendente) poe este numero na fila e o bot se cala —
+     que e o certo. Aqui a conversa tem de comecar do zero, de volta com o bot. */
+  bot.devolverAoBot('5531975127978');
   const p1 = await at.processarEvento(evento('wamid.105', 'xyzabc'), { enviar: async () => ({ ok: true }) });
   assert.equal(p1.resultados[0].handoff, false, 'na primeira falha ainda tenta');
   const p2 = await at.processarEvento(evento('wamid.106', 'wkqjhe'), { enviar: async () => ({ ok: true }) });
@@ -199,6 +202,8 @@ test('telefone fora do padrao nao entra', async () => {
 
 test('audio recebe resposta cordial, em vez de silencio', async () => {
   at._zerarFalhas();
+  bot.devolverAoBot('5531975127978'); // conversa nova: o teste anterior deixou o numero na fila
+
   bot.salvarConfig({ ativo: true, mensagemSemTexto: 'Ainda não consigo ouvir áudio — me escreve em texto?' });
   const enviadas = [];
   const r = await at.receberMensagem(

@@ -827,7 +827,23 @@ export function atender(texto, ctx = {}) {
     return saida;
   }
 
-  return responder(texto, cfg, ctx);
+  /* SEM FLUXO (so regras por palavra): as mesmas duas garantias do caminho com
+     fluxo. Faltavam as duas — achado no teste de volume: a regra que chama gente
+     respondia "vou chamar um vendedor" mas a conversa nunca entrava na fila (o
+     vendedor nao via), e o bot seguia falando por cima de quem pediu uma pessoa
+     ou ja estava com um vendedor. */
+  if (de) {
+    const convR = conversas()[de] || null;
+    if (convR?.handoffEm && aindaEmSilencio(convR)) {
+      return { tipo: 'silencio', texto: '', calado: true, motivo: 'conversa com uma pessoa' };
+    }
+  }
+  const r = responder(texto, cfg, ctx);
+  if (r.handoff && de) {
+    const agora = new Date().toISOString();
+    salvarConversa(de, { handoffEm: agora, transferidaEm: agora, contexto: {}, departamento: 'humano' });
+  }
+  return r;
 }
 
 /** Pedido pago (ou resolvido fora do fluxo): a conversa passa pra equipe, com o contexto. */

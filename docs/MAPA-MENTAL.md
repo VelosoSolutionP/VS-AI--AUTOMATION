@@ -21,12 +21,26 @@
 **Erros que já apareceram e o que eram:**
 | Sintoma | Causa real |
 |---|---|
+| Bot diz "vou chamar um vendedor" mas a conversa não aparece na fila e o bot segue respondendo | Loja **só com regras** (sem fluxo): o caminho das regras não gravava a transferência nem respeitava o silêncio. Corrigido no fim de `atender()` (`engine/vsbot`). Achado pelo teste de volume. |
+| Bot "não respondeu" a segunda pergunta igual | Proposital: o canal não repete a MESMA frase pra mesma pessoa em 5 min (`jaDisseAgora` em `backend/canais.mjs`). |
 | Painel lateral não aparece no celular (só o fundo escurece) | Era `<aside>`: o CSS do menu lateral vale pra todo `aside` e no celular desliza pra fora da tela. Painel é `<div class="gaveta">`. |
 | Tela abre sem o menu lateral | Página ficou com a classe `sem-nav` do login. Trocar o `#` com o login aberto não desenha mais tela (guarda no `hashchange`). |
 | Elemento que devia sumir fica aparecendo (caixa vazia) | CSS com `display:` anula o atributo `hidden`. Precisa de `.x[hidden]{display:none}` (já corrigido em `.pill` e `.g-dica`). |
 | Volta pro login no meio do teste automatizado | Limite de 300 pedidos/minuto (`LIM_CRM`) estourado pelo robô. Uso normal não chega nisso. |
 | Painel fora do ar depois de reiniciar a máquina | O painel **não é serviço do sistema** (o site e o túnel são). Subir com `bash backend/reiniciar-painel.sh` — se nada estiver rodando, subir do zero carregando `~/.qa-gate/console/painel.env`. |
 | Login do dono cai em "Minha conta" / tela de compra | Corrigido: e-mail do dono entra como dono com qualquer uma das duas senhas (ver Decisões). |
+
+---
+
+## Teste de volume do atendimento (Telegram)
+
+`node scripts/teste-volume-telegram.mjs [funcional|concorrencia|carga] [--tela foto.png] [--json saida.json] [--manter]`
+
+- Sobe uma **instância isolada** do painel (pasta de dados temporária, `HOME`/`VS_HOME` nela, ambiente limpo sem credencial nenhuma, escuta só em `127.0.0.1`) e um **Telegram falso** local. As mensagens simuladas passam pelo **caminho real**: provider Telegram → gateway → atendimento → bot → CRM → fila. Nada toca produção; nenhuma rota pública aceita mensagem falsa.
+- Cenários: **funcional** 5 clientes (3 aguardando · 1 com vendedor · 1 com o bot) · **concorrência** 30 (20 · 5 · 5) · **carga** 200 (120 · 40 · 40).
+- Confere: todo cliente respondido, reentrega do mesmo update sem resposta dupla, resposta certa por tipo, bot quieto com quem pediu gente ou foi assumido, bot respondendo quem está com ele, contagem da fila no CRM, uma conversa por cliente, **históricos sem mistura**, marcos de transferência/assunção, zero erro no servidor. Mede latência (p50/p95/máx), tempo até a fila ficar certa e memória.
+- Só para o teste existem as variáveis `TELEGRAM_API_URL` (`backend/canais.mjs`) e `HOST` (`backend/server.mjs`); em produção nenhuma é definida.
+- Resultado em 2026-09-27: **3 cenários passando**. 30 clientes → resposta p50 ~150 ms / p95 ~260 ms, fila certa em ~70 ms, pico ~90 MB. 200 clientes → p50 ~1,4 s / p95 ~3 s, fila certa em ~210 ms, pico ~116 MB.
 
 ---
 
@@ -376,6 +390,7 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 | 2026-09-27 | Tela Atendimento v1 (modelo do dono: central cliente ↔ bot ↔ vendedor) | Situações e filtros, Assumir/Devolver, responder assume sozinho, cartão do pedido, marcos no histórico, atualização a cada 8 s sem perder o texto, selo Bot ativo; corrigidos: hora em UTC, filtros cortados, avatares iguais, aviso tapando o Enviar | (este) |
 | 2026-09-27 | "Não carrega nada" no Atendimento do Telegram; Telegram ≠ WhatsApp; layout diferente, perguntar antes | Não era cache: bot ainda sem nenhuma mensagem (tela vazia). Dono escolheu **quadro de fila** → `telaFilaTelegram()` com painel lateral; WhatsApp intocado | (este) |
 | 2026-09-27 | Fila mais completa sem perder a simplicidade (fase 2 do dono) | Resumo no topo, horário da última mensagem, tempo de espera com cor, Assumir no cartão; corrigido: painel fora da tela no celular, "agora" → "há menos de 1 min" | (este) |
+| 2026-09-27 | Teste de volume (5 / 30 / 200 clientes simulados) | `scripts/teste-volume-telegram.mjs` com instância isolada + Telegram falso; achou e corrigiu: loja só com regras não punha a conversa na fila nem calava o bot | (este) |
 
 ---
 
@@ -392,4 +407,7 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 - **Fila do Telegram — fases 3 e 4 do dono (não feitas):** marcadores (novo, pedido em andamento, pagamento pendente, cliente recorrente, urgente), filtro por status/atendente, atendente responsável, SLA; depois pedido/cliente/tags/histórico resumido/origem da campanha no cartão.
 - **Atendimento v2 (fora da v1, por escolha do dono):** 3ª coluna com catálogo, pedidos anteriores, etiquetas e dados do cliente.
 - **Indicadores de valor do bot** sugeridos na proposta (resolvidos sem humano, transferidos, vendas após atendimento): pertencem a Consumo/Resultados, não ao Atendimento — ainda não feitos.
+- **"vendedor" não está nas palavras que chamam gente** (`PALAVRAS_HUMANO` em `engine/vsbot/regras.mjs`: atendente, humano, pessoa, falar com alguém, gerente, reclamação, cancelar). "Quero falar com um vendedor" só vai pra fila se a loja criar a regra. Decisão do dono se entra no padrão.
+- **Avatar de nome com número** ("Cliente 001") vira "C0" — cosmético.
+- **Teste intermitente:** `tests/vsresultados.test.mjs` → "conversa pelo link da campanha…" falhou 1 vez em 4 rodadas da bateria completa (passa sozinho). Observar.
 - **Próxima tela do Telegram a trabalhar:** escolha do dono (Atendimento v1 entregue; sugestão: Campanhas).

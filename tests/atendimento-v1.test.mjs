@@ -74,3 +74,36 @@ test('pedido da conversa: estado do pagamento vem do gateway', () => {
   assert.equal(R.ultimoPedido(tel, []).estado, 'sem-pagamento');
   assert.equal(R.ultimoPedido('999000000000999', []), null);
 });
+
+/* ---- achado do teste de volume: bot SO com regras (sem fluxo) ---- */
+
+test('bot so com regras: regra que chama gente poe a conversa na fila e o bot se cala', async () => {
+  const at = await import('../backend/atendimento.mjs');
+  const crm = await import('../engine/vscrm/index.mjs');
+  crm.setFunil(['Novo lead', 'Fechado']);
+  bot.salvarFluxo([]);
+  bot.salvarConfig({ ativo: true });
+  bot.salvarRegra({ id: 'gente', termos: ['vendedor'], resposta: 'Vou chamar um vendedor.', handoff: true });
+  const tel = '999000000000077'; const saiu = [];
+  const enviar = async ({ texto }) => { saiu.push(texto); return { ok: true }; };
+  await at.receberMensagem({ id: 'r1', de: tel, endereco: tel, texto: 'quero um vendedor', tipo: 'text', canal: 'telegram' }, { enviar, reservar: () => true });
+  assert.equal(saiu.length, 1);
+  assert.ok(fila(tel), 'a conversa entrou na fila');
+  assert.ok(fila(tel).transferidaEm);
+  const r = await at.receberMensagem({ id: 'r2', de: tel, endereco: tel, texto: 'oi? alguem?', tipo: 'text', canal: 'telegram' }, { enviar, reservar: () => true });
+  assert.equal(saiu.length, 1, 'o bot nao responde por cima de quem pediu gente');
+  assert.equal(r.tipo, 'silencio');
+});
+
+test('bot so com regras: conversa assumida pelo vendedor deixa o bot quieto', async () => {
+  const at = await import('../backend/atendimento.mjs');
+  bot.salvarRegra({ id: 'horario', termos: ['horario'], resposta: 'Das 9h as 18h.' });
+  const tel = '999000000000078'; const saiu = [];
+  const enviar = async ({ texto }) => { saiu.push(texto); return { ok: true }; };
+  bot.assumirConversa(tel);
+  await at.receberMensagem({ id: 'r3', de: tel, endereco: tel, texto: 'qual o horario?', tipo: 'text', canal: 'telegram' }, { enviar, reservar: () => true });
+  assert.equal(saiu.length, 0);
+  bot.devolverAoBot(tel);
+  await at.receberMensagem({ id: 'r4', de: tel, endereco: tel, texto: 'qual o horario?', tipo: 'text', canal: 'telegram' }, { enviar, reservar: () => true });
+  assert.equal(saiu.length, 1, 'devolvido pro bot, ele volta a responder');
+});

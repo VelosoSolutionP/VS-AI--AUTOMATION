@@ -308,7 +308,10 @@ function montar({ produtos } = {}) {
 
   /* Telegram: mesmo gateway, mesmo bot, mesma fila. Nasce desligado — so liga
      quando alguem colar o token do @BotFather na tela do canal. */
-  telegram = criarTelegramProvider();
+  /* TELEGRAM_API_URL existe SO pro teste de volume (scripts/teste-volume-telegram.mjs),
+     que aponta uma instancia isolada pra um Telegram falso local. Sem a
+     variavel, e a API oficial — em producao ela nunca e definida. */
+  telegram = criarTelegramProvider(process.env.TELEGRAM_API_URL ? { api: process.env.TELEGRAM_API_URL } : {});
   telegram.aoMudarStatus((st) => {
     const e = st?.estado || '?';
     if (e === 'conectado') { console.log(`[canais] telegram CONECTADO${st.numero ? ' — ' + st.numero : ''}`); }
