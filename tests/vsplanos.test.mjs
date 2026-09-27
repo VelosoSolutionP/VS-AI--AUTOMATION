@@ -166,3 +166,42 @@ test('limitesDe sem plano devolve tudo nulo, nao tudo zero', () => {
   assert.equal(l.produtos, null);
   assert.equal(l.atendentes, null);
 });
+
+test('tela de Preços: sem assinante edita no lugar; com assinante vira versão nova e quem assinou fica no preço antigo', () => {
+  planos._resemear();
+  const a = planos.atualizarPlano('telegram-bronze', { monthly_price: 8900, storage_limit_mb: 2048 });
+  assert.equal(a.ok, true);
+  assert.equal(a.versionado, undefined);
+  assert.equal(planos.buscar('telegram-bronze').monthly_price, 8900);
+  planos.assinar({ plano: 'telegram-prata' });
+  const b = planos.atualizarPlano('telegram-prata', { monthly_price: 14900 });
+  assert.equal(b.versionado, true);
+  assert.equal(b.plano.code, 'telegram-prata-v2');
+  assert.equal(planos.assinatura().preco.mensal, 12900, 'quem assinou fica no preço do contrato');
+  assert.ok(planos.listar().some((p) => p.code === 'telegram-prata-v2' && p.destaque), 'a versão nova herda o destaque');
+  planos.assinar({ plano: 'telegram-prata-v2' });
+  assert.equal(planos.atualizarPlano('telegram-prata-v2', { monthly_price: 15900 }).plano.code, 'telegram-prata-v3', 'numera a próxima versão');
+  assert.equal(planos.atualizarPlano('telegram-ouro', { destaque: true }).ok, true);
+  assert.equal(planos.listar().filter((p) => p.module === 'telegram' && p.destaque).length, 1, 'um "mais escolhido" por módulo');
+});
+
+test('catálogo antigo ganha os planos do Telegram sem perder o que foi editado', () => {
+  planos._resemear();
+  planos.atualizarPlano('whats-bronze', { monthly_price: 9900 });
+  // simula catálogo gravado antes do Telegram existir
+  const lista = planos.listar({ incluirInativos: true }).filter((p) => p.module !== 'telegram');
+  planos._gravar(lista);
+  assert.equal(planos.listar().filter((p) => p.module === 'telegram').length, 3);
+  assert.equal(planos.buscar('whats-bronze').monthly_price, 9900);
+});
+
+test('preço dos adendos: vazio = sob consulta; banda com GB', () => {
+  planos._resemear();
+  assert.equal(planos.salvarAdicional('banda-extra', { monthly_price: 2990, gb: 20 }).ok, true);
+  const b = planos.adicionais().find((x) => x.code === 'banda-extra');
+  assert.equal(b.monthly_price, 2990); assert.equal(b.sob_consulta, false); assert.equal(b.gb, 20);
+  assert.match(b.name, /\+20 GB/);
+  planos.salvarAdicional('banda-extra', { monthly_price: '' });
+  assert.equal(planos.adicionais().find((x) => x.code === 'banda-extra').sob_consulta, true);
+  assert.equal(planos.salvarAdicional('banda-extra', { monthly_price: -1 }).ok, false);
+});

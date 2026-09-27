@@ -1350,6 +1350,20 @@ td.num,th.num{text-align:right;white-space:nowrap}
 @keyframes gira{to{transform:rotate(360deg)}}
 .cp-dests-ok{display:flex;flex-wrap:wrap;gap:6px} .cp-dest-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ok-line);background:var(--ok-bg);color:var(--ok);border-radius:99px;padding:4px 10px;font-size:12.5px;font-weight:600}
 .cp-dest-chip svg{width:13px;height:13px}
+/* Clientes e licenças */
+.cli-planos{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))} .cli-plano{cursor:pointer;display:flex!important;flex-direction:column;gap:6px}
+.cli-plano input{position:absolute;opacity:0;pointer-events:none} .cli-plano.on{border-color:var(--ac);box-shadow:0 0 0 2px var(--ac-soft)}
+.cli-plano .badge{align-self:flex-start} .cli-plano>b{font-size:15px}
+.cli-preco{font-size:22px;font-weight:750;letter-spacing:-.02em} .cli-preco small{font-size:12px;color:var(--muted);font-weight:500}
+.cli-etapas{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap} .cli-etapas>b{flex:1;min-width:16px;height:2px;background:var(--line)}
+.cli-etapa{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)} .cli-etapa i{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:700;font-size:12px;border:1px solid var(--line);background:var(--raised)}
+.cli-etapa.ok i{background:var(--ok-bg);border-color:var(--ok-line);color:var(--ok)} .cli-etapa.ok i svg{width:14px;height:14px} .cli-etapa.agora{color:var(--fg);font-weight:650} .cli-etapa.agora i{border-color:var(--ac);color:var(--ac)}
+.cli-lib{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:14px} @media(max-width:900px){.cli-lib{grid-template-columns:repeat(3,1fr)}}
+.cli-lib>div{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:10px 12px} .cli-lib small{display:block;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.03em;font-weight:650} .cli-lib b{font-size:15px}
+.pr-mod,.pr-regra{min-width:0;max-width:100%} .pr-mod .tbl-wrap{overflow-x:auto;max-width:100%;position:relative} .cli-bar .seg{flex-wrap:wrap;max-width:100%}
+.pr-tab input.pr-in{width:100%;min-width:80px;padding:6px 8px} .pr-tab td{vertical-align:middle}
+.pr-regra{border-color:var(--ac-line);background:var(--ac-soft);font-size:13px}
+.seg button em{font-style:normal;opacity:.65;margin-left:3px;font-size:11px}
 /* Consumo (banda) */
 .cons-faixa{border:1px solid var(--warn-line);background:var(--warn-bg);color:var(--fg);border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .cons-faixa.consulta{border-color:var(--err-line);background:var(--err-bg)} .cons-faixa .btn{margin-left:auto}
@@ -4127,28 +4141,130 @@ const reais=(c)=>c==null?'—':(c/100).toLocaleString('pt-BR',{style:'currency',
 const dataBr=(iso)=>iso?new Date(iso).toLocaleDateString('pt-BR'):'—';
 const TOM_SIT={ativo:'b-ok',vencendo:'b-warn',vencido:'b-err',aguardando_pagamento:'b-warn',assinado:'b-ok',contrato_gerado:'b-warn',cadastrado:''};
 
+/* ── Clientes e licenças: abas Carteira | Preços ─────────────────────────── */
+let CLI_ABA='carteira', CLI_FILTRO='todos', CLI_Q='', PRECOS=null;
+const MODS_CLI=[['whatsapp','WhatsApp'],['telegram','Telegram'],['redes','Redes sociais'],['combo','WhatsApp + Redes'],['sob','Sob consulta']];
+const FILTROS_CLI=[['todos','Todos',()=>true],['cadastro','Em cadastro',c=>['cadastrado','contrato_gerado','assinado'].includes(c.situacao.codigo)],
+  ['aguardando','Aguardando pagamento',c=>c.situacao.codigo==='aguardando_pagamento'],['ativos','Ativos',c=>c.situacao.codigo==='ativo'],
+  ['vencendo','Vencendo',c=>c.situacao.codigo==='vencendo'],['vencidos','Vencidos',c=>c.situacao.codigo==='vencido']];
+const MESES_CICLO={mensal:1,semestral:6,anual:12};
+/* Valor/mês: o do CONTRATO (é o que se cobra); sem contrato, o da tabela. */
+function valorMesCliente(c){
+  const k=(c.contratos||[]).at(-1);
+  if(k?.valorCiclo) return {v:Math.round(k.valorCiclo/(MESES_CICLO[k.ciclo]||1)),fonte:'contrato'};
+  let m=0; for(const code of c.produtos||[]){ const o=(CLIENTES?.ofertas||[]).find(x=>x.code===code); if(!o) continue;
+    m+=o.sobConsulta?(c.valorCombinadoMensal||0):(c.ciclo==='semestral'?o.semestralMensal:c.ciclo==='anual'?o.anualMensal:o.mensal)||0; }
+  return {v:m||null,fonte:'tabela'};
+}
+function abasClientes(){
+  return `<div class="seg seg-mod" role="tablist">${[['carteira','Carteira'],['precos','Preços']].map(([k,n])=>`<button role="tab" class="${CLI_ABA===k?'on':''}" onclick="CLI_ABA='${k}';${k==='precos'?'carregarPrecos();':''}render()">${n}</button>`).join('')}</div>`;
+}
+async function carregarPrecos(){ try{ PRECOS=await api('precos'); }catch(e){ PRECOS={erro:e.message}; } if(rota==='clientes'&&CLI_ABA==='precos') render(); }
+function telaPrecos(){
+  if(!PRECOS){ setTimeout(carregarPrecos,0); return '<div class="card"><p class="hint">Carregando…</p></div>'; }
+  if(PRECOS.erro) return `<div class="card"><p class="hint">Não consegui carregar: ${esc(PRECOS.erro)}</p></div>`;
+  const desc=Math.round((PRECOS.ciclos?.semestral?.desconto||0)*100);
+  const n=(x)=>x==null?'':String(x);
+  const secao=([mod,nome])=>{
+    const ps=PRECOS.planos.filter(p=>p.module===mod).sort((a,b)=>a.monthly_price-b.monthly_price);
+    if(!ps.length) return '';
+    const redes=['redes','combo'].includes(mod);
+    return `<div class="card pr-mod" data-mod="${mod}" style="margin-bottom:14px">
+      ${cardH('plano',nome,`Vazio = ilimitado · semestral sai com ${desc}% de desconto sobre o mensal.`,mod==='telegram'?2:mod==='whatsapp'?1:3)}
+      <div class="tbl-wrap"><table class="pr-tab"><thead><tr><th>Plano</th><th>Preço/mês (R$)</th><th>Atendentes</th><th>Produtos</th><th>Campanhas/mês</th><th>Banda (GB/mês)</th>${redes?'<th>Contas de rede</th>':''}<th>Auditor</th><th>Mais escolhido</th></tr></thead><tbody>
+      ${ps.map(p=>`<tr data-code="${esc(p.code)}">
+        <td><b>${esc(p.nome)}</b>${p.clientes?`<br><small class="hint">${p.clientes} cliente(s) com contrato</small>`:''}${p.substitui?`<br><small class="hint">preço novo — quem assinou antes fica no antigo</small>`:''}</td>
+        <td><input class="pr-in" data-k="monthly_price" inputmode="decimal" value="${(p.monthly_price/100).toFixed(2).replace('.',',')}"></td>
+        <td><input class="pr-in" data-k="attendants" type="number" min="0" value="${esc(n(p.attendants))}"></td>
+        <td><input class="pr-in" data-k="products_limit" type="number" min="0" value="${esc(n(p.products_limit))}"></td>
+        <td><input class="pr-in" data-k="campaigns_limit" type="number" min="0" value="${esc(n(p.campaigns_limit))}"></td>
+        <td><input class="pr-in" data-k="storage_limit_mb" type="number" min="0" step="0.5" value="${p.storage_limit_mb==null?'':Math.round(p.storage_limit_mb/1024*10)/10}"></td>
+        ${redes?`<td><input class="pr-in" data-k="social_accounts" type="number" min="0" value="${esc(n(p.social_accounts))}"></td>`:''}
+        <td><label class="sw"><input type="checkbox" data-k="auditor_enabled"${p.auditor_enabled?' checked':''}><span class="trilho"></span></label></td>
+        <td><input type="radio" name="dest-${mod}" data-k="destaque"${p.destaque?' checked':''} style="width:auto"></td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="cons-acts">${botao({t:`Salvar ${nome}`,ic:'salvar',v:'p',on:`salvarPrecos('${mod}')`})}</div></div>`;
+  };
+  const ad=(code)=>PRECOS.adicionais.find(a=>a.code===code)||{};
+  const at=ad('atendente-extra'), bd=ad('banda-extra');
+  const r=(c)=>c==null?'':(c/100).toFixed(2).replace('.',',');
+  return `<div class="card pr-regra" style="margin-bottom:14px"><p style="margin:0"><b>Quem já assina mantém o preço do contrato.</b> Mudar o preço de um plano que tem cliente cria uma <b>versão nova</b> para as vendas novas — o plano antigo sai da vitrine e continua valendo para quem já assinou. Sem cliente no plano, o preço muda no lugar.</p></div>
+    ${MODULOS_PL.map(secao).join('')}
+    <div class="card" style="margin-bottom:14px">${cardH('mais','Adendos','O que se contrata à parte. Preço vazio = sob consulta (o pedido vai para você).',4)}
+      <div class="form-grid">
+        <div class="field"><label>Atendente adicional — R$/mês</label><input id="prAt" inputmode="decimal" value="${r(at.monthly_price)}" placeholder="sob consulta"></div>
+        <div class="field"><label>Banda adicional — GB</label><input id="prBdGb" type="number" min="1" value="${esc(n(bd.gb||10))}"></div>
+        <div class="field"><label>Banda adicional — R$/mês</label><input id="prBd" inputmode="decimal" value="${r(bd.monthly_price)}" placeholder="sob consulta"></div>
+      </div>
+      <p class="hint" style="margin:8px 0 0">Canais adicionais (iFood, 99, Zé Delivery, Mercado Livre, Shopee, X): sempre sob consulta.</p>
+      <div class="cons-acts">${botao({t:'Salvar adendos',ic:'salvar',v:'p',on:'salvarAdendosPreco()'})}</div></div>`;
+}
+const centavos=(t)=>{ const x=String(t||'').trim().replace(/\./g,'').replace(',','.'); return x===''?null:Math.round(Number(x)*100); };
+async function salvarPrecos(mod){
+  const linhas=[...document.querySelectorAll(`.pr-mod[data-mod="${mod}"] tr[data-code]`)];
+  const msgs=[];
+  try{
+    for(const tr of linhas){
+      const code=tr.dataset.code, p=PRECOS.planos.find(x=>x.code===code), v=(k)=>tr.querySelector(`[data-k="${k}"]`);
+      const num=(k)=>{ const e=v(k); if(!e) return p[k]; return e.value===''?null:Number(e.value); };
+      const preco=centavos(v('monthly_price').value);
+      if(preco==null||!Number.isFinite(preco)||preco<0) throw new Error(`preço do ${p.nome} inválido`);
+      const gb=v('storage_limit_mb').value;
+      const m={monthly_price:preco,attendants:num('attendants'),products_limit:num('products_limit'),campaigns_limit:num('campaigns_limit'),
+        storage_limit_mb:gb===''?null:Math.round(Number(gb)*1024),social_accounts:num('social_accounts'),
+        auditor_enabled:v('auditor_enabled').checked,destaque:v('destaque').checked};
+      const antes={monthly_price:p.monthly_price,attendants:p.attendants??null,products_limit:p.products_limit??null,campaigns_limit:p.campaigns_limit??null,
+        storage_limit_mb:p.storage_limit_mb??null,social_accounts:p.social_accounts??null,auditor_enabled:!!p.auditor_enabled,destaque:!!p.destaque};
+      if(JSON.stringify(antes)===JSON.stringify({...m,social_accounts:m.social_accounts??null})) continue;
+      const r=await api('precos/plano',{code,mudancas:m});
+      msgs.push(r.versionado?`${p.nome}: versão nova para vendas novas (quem assinou fica em ${reais(p.monthly_price)})`:`${p.nome} salvo`);
+    }
+    flash(msgs.length?msgs.join(' · '):'Nada mudou.','ok');
+    await Promise.all([carregarPrecos(),(async()=>{CKCFG=await api('checkout/config').catch(()=>CKCFG);CLIENTES=await api('clientes').catch(()=>CLIENTES);})()]);
+    render();
+  }catch(e){ avisoErro('Não consegui salvar os preços',esc(e.message)); }
+}
+async function salvarAdendosPreco(){
+  try{
+    await api('precos/adicional',{code:'atendente-extra',monthly_price:centavos(document.getElementById('prAt').value)});
+    await api('precos/adicional',{code:'banda-extra',monthly_price:centavos(document.getElementById('prBd').value),gb:document.getElementById('prBdGb').value});
+    flash('Adendos salvos.','ok'); await carregarPrecos();
+  }catch(e){ avisoErro('Não consegui salvar os adendos',esc(e.message)); }
+}
+
 function telaClientes(){
   if(!CLIENTES) return head('Clientes e licenças','Cadastro, contrato, cobrança e chave.')+
     vazio('perfil','Backend sem a rota de clientes','Reinicie o painel para carregar o módulo novo.',['Reiniciar o painel','Recarregar']);
   if(CLI_FORM) return telaClienteForm();
   if(CLI_SEL){ const c=CLIENTES.clientes.find(x=>x.id===CLI_SEL); if(c) return telaClienteDetalhe(c); }
-  const r=CLIENTES.resumo;
-  return head('Clientes e licenças','Quem comprou, o que foi liberado, e em que pé está cada um.',
-      botao({t:'Novo cliente',ic:'mais',v:'p',on:'novoCliente()'}))+avisoModoTeste()+
-  `<div class="grid g-kpi" style="margin-bottom:16px">
+  const cab=head('Clientes e licenças','Quem comprou, o que foi liberado, em que pé está cada um — e a tabela de preços.',
+      CLI_ABA==='carteira'?botao({t:'Novo cliente',ic:'mais',v:'p',on:'novoCliente()'}):'')+avisoModoTeste()+abasClientes();
+  if(CLI_ABA==='precos') return cab+telaPrecos();
+  const r=CLIENTES.resumo, todos=CLIENTES.clientes;
+  const conta=(f)=>todos.filter(FILTROS_CLI.find(x=>x[0]===f)[2]).length;
+  const q=CLI_Q.trim().toLowerCase(), qd=q.replace(/\D/g,'');
+  const lista=todos.filter(FILTROS_CLI.find(x=>x[0]===CLI_FILTRO)[2]).filter(c=>!q||String(c.nome||'').toLowerCase().includes(q)||(qd.length>=3&&(String(c.documento).includes(qd)||String(c.whatsapp).includes(qd))));
+  return cab+`<div class="grid g-kpi" style="margin-bottom:16px">
     ${kpi('Clientes',r.total,'cadastrados')}
     ${kpi('Ativos',r.ativos,'com chave válida')}
+    ${kpi('Vencendo',conta('vencendo'),'em até 5 dias')}
     ${kpi('Aguardando pagamento',r.aguardando,'cobrança enviada')}
     ${kpi('Receita mensal',reais(r.receitaMensal),'dos ativos')}
   </div>
   <div class="card">
     ${cardH('perfil','Carteira',`Clique no cliente para seguir o próximo passo.`,1)}
+    <div class="tbl-bar cli-bar" style="flex-wrap:wrap;gap:8px">
+      <div class="seg seg-sm">${FILTROS_CLI.map(([k,nm])=>`<button class="${CLI_FILTRO===k?'on':''}" onclick="CLI_FILTRO='${k}';render()">${nm} <em>${conta(k)}</em></button>`).join('')}</div>
+      <input id="cliBusca" placeholder="Buscar nome, CPF/CNPJ ou WhatsApp" value="${esc(CLI_Q)}" style="flex:1;min-width:220px" oninput="CLI_Q=this.value;render();const e=document.getElementById('cliBusca');e.focus();e.setSelectionRange(e.value.length,e.value.length)">
+    </div>
     ${tabela({
-      itens:CLIENTES.clientes,
-      vazio:'Nenhum cliente ainda. Comece em <b>Novo cliente</b>.',
+      itens:lista,
+      vazio:todos.length?'Nenhum cliente neste filtro.':'Nenhum cliente ainda. Comece em <b>Novo cliente</b>.',
       colunas:[
         {t:'Cliente',cel:(c)=>`<b>${esc(c.nome)}</b><br><small class="hint">${esc(fmtWa(c.whatsapp))}</small>`},
-        {t:'Produto',cel:(c)=>esc(c.produtos.map(p=>nomeOferta(p)).join(' + '))+`<br><small class="hint">${c.ciclo==='anual'?'anual':'mensal'}</small>`},
+        {t:'Plano',cel:(c)=>esc(c.produtos.map(p=>nomeOferta(p)).join(' + '))+`<br><small class="hint">${({mensal:'mensal',semestral:'semestral',anual:'anual'})[c.ciclo]||c.ciclo}</small>`},
+        {t:'Valor/mês',cel:(c)=>{const v=valorMesCliente(c);return v.v==null?'—':`${reais(v.v)}<br><small class="hint">${v.fonte==='contrato'?'do contrato':'da tabela'}</small>`;}},
+        {t:'Vence em',cel:(c)=>c.licencaVigente?`${dataBr(c.licencaVigente.validaAte)}${c.situacao.diasRestantes!=null?`<br><small class="hint">${c.situacao.diasRestantes} dia(s)</small>`:''}`:'—'},
         {t:'Situação',cel:(c)=>`<span class="badge ${TOM_SIT[c.situacao.codigo]||''}">${esc(c.situacao.texto)}</span>`+
           (c.situacao.proximo?`<br><small class="hint">${esc(c.situacao.proximo)}</small>`:'')},
       ],
@@ -4161,7 +4277,9 @@ const nomeOferta=(code)=>(CLIENTES?.ofertas||[]).find(o=>o.code===code)?.nome||c
 const fmtDoc=(d)=>{const x=String(d||'');return x.length===11?x.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4'):x.length===14?x.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,'$1.$2.$3/$4-$5'):x;};
 const fmtWa=(d)=>{const m=String(d||'').match(/^55(\d{2})(\d{4,5})(\d{4})$/);return m?`(${m[1]}) ${m[2]}-${m[3]}`:d;};
 
-function novoCliente(){ CLI_FORM={produtos:['whats-bot'],ciclo:'mensal',liberacoes:padraoLib(['whats-bot'])}; CLI_SEL=null; render(); scrollTo(0,0); }
+function planoPadrao(mod){ const os=(CLIENTES?.ofertas||[]).filter(o=>o.catalogo&&o.ativo!==false&&o.modulo===mod).sort((a,b)=>a.mensal-b.mensal); return (os.find(o=>o.destaque)||os[0])?.code||null; }
+function novoCliente(){ const code=planoPadrao('whatsapp'); CLI_FORM={_modulo:'whatsapp',produtos:code?[code]:[],ciclo:'mensal',liberacoes:padraoLib(code?[code]:[])}; CLI_SEL=null; render(); scrollTo(0,0); }
+function escolherModuloCli(mod){ const f=lerFormCliente(); f._modulo=mod; const code=mod==='sob'?'sob-consulta':planoPadrao(mod); f.produtos=code?[code]:[]; if(mod!=='sob'&&f.ciclo==='anual') f.ciclo='mensal'; f.liberacoes=padraoLib(f.produtos); render(); }
 function editarCliente(id){ const c=CLIENTES.clientes.find(x=>x.id===id); CLI_FORM=JSON.parse(JSON.stringify(c)); render(); scrollTo(0,0); }
 function abrirCliente(id){ CLI_SEL=id; CLI_FORM=null; render(); scrollTo(0,0); }
 function voltarClientes(){ CLI_SEL=null; CLI_FORM=null; render(); }
@@ -4199,8 +4317,11 @@ function resumoPreco(f){
   for(const code of f.produtos||[]){ const o=CLIENTES.ofertas.find(x=>x.code===code); if(!o) continue;
     if(o.sobConsulta){ if(!f.valorCombinadoMensal) return '<span class="hint">informe o valor combinado do produto sob consulta</span>';
       mensal+=f.valorCombinadoMensal; cheio+=f.valorCombinadoMensal; continue; }
-    mensal+=anual?o.anualMensal:o.mensal; cheio+=o.mensal; }
+    const m=anual?o.anualMensal:f.ciclo==='semestral'?o.semestralMensal:o.mensal;
+    if(m==null) return `<span class="hint">${esc(o.nome)} não tem ciclo ${f.ciclo}</span>`;
+    mensal+=m; cheio+=o.mensal; }
   if(!(f.produtos||[]).length) return '<span class="hint">escolha ao menos um produto</span>';
+  if(f.ciclo==='semestral') return `<b>${reais(mensal)}/mês</b> · cobrança semestral de <b>${reais(mensal*6)}</b> <small class="hint">(economiza ${reais((cheio-mensal)*6)} no semestre)</small>`;
   return anual
     ?`<b>${reais(mensal)}/mês</b> · cobrança anual de <b>${reais(mensal*12)}</b> <small class="hint">(economiza ${reais((cheio-mensal)*12)} no ano)</small>`
     :`<b>${reais(mensal)}/mês</b> · cobrado todo mês`;
@@ -4209,12 +4330,22 @@ function resumoPreco(f){
 function telaClienteForm(){
   const f=CLI_FORM, l=f.liberacoes||{};
   const n=(x)=>x==null?'':String(x);
-  const ofertas=CLIENTES.ofertas.map(o=>`<label class="plano-card" style="cursor:pointer;display:block">
-      <input type="checkbox" data-oferta value="${esc(o.code)}" style="width:auto;margin:0 6px 0 0"${(f.produtos||[]).includes(o.code)?' checked':''} onchange="trocarProdutos()">
-      <b>${esc(o.nome)}</b><br><small class="hint">${esc(o.descricao)}</small><br>
-      ${o.sobConsulta?'<span class="badge b-warn">consultar valores</span>'
-        :`<span class="badge b-ok">${reais(o.mensal)}/mês</span> <span class="badge">anual ${reais(o.anualMensal)}/mês</span>`}
-    </label>`).join('');
+  /* Um plano por cliente: módulo → Bronze/Prata/Gold. Plano da tabela antiga
+     (ou versão antiga) só aparece para quem já o tem. */
+  const atual=(f.produtos||[])[0], ofAtual=CLIENTES.ofertas.find(o=>o.code===atual);
+  const mod=f._modulo||(atual==='sob-consulta'?'sob':ofAtual?.modulo)||'whatsapp';
+  const doMod=CLIENTES.ofertas.filter(o=>o.catalogo&&o.ativo!==false&&o.modulo===mod).sort((a,b)=>a.mensal-b.mensal);
+  const extra=ofAtual&&!doMod.includes(ofAtual)&&!ofAtual.sobConsulta&&(ofAtual.legado||ofAtual.ativo===false||ofAtual.modulo===mod)?[ofAtual]:[];
+  const cartao=(o)=>`<label class="plano-card cli-plano${(f.produtos||[]).includes(o.code)?' on':''}">
+      <input type="radio" name="clPlano" data-oferta value="${esc(o.code)}"${(f.produtos||[]).includes(o.code)?' checked':''} onchange="trocarProdutos()">
+      <b>${esc(o.tier||o.nome)}</b>${o.destaque?' <span class="badge b-ok">mais escolhido</span>':''}${o.legado||o.ativo===false?' <span class="badge b-warn">plano antigo</span>':''}
+      <span class="cli-preco">${reais(o.mensal)}<small>/mês</small></span>
+      <small class="hint">${esc(inclusosPlano(o).slice(0,4).join(' · '))}</small></label>`;
+  const ofertas=mod==='sob'
+    ?`<input type="radio" data-oferta value="sob-consulta" checked hidden><p class="hint" style="margin:0">Empresas maiores e produtos fora da tabela: o valor mensal é combinado caso a caso.</p>`
+    :([...extra,...doMod].map(cartao).join('')||'<p class="hint">Nenhum plano ativo neste módulo — cadastre em Preços.</p>');
+  const legadoAnual=ofAtual&&ofAtual.anualMensal!=null&&!ofAtual.catalogo;
+  const ciclos=mod==='sob'?[['mensal','Mensal'],['anual','Anual']]:legadoAnual?[['mensal','Mensal'],['anual','Anual']]:[['mensal','Mensal'],['semestral','Semestral']];
   const temConsulta=(f.produtos||[]).includes('sob-consulta');
   return head(f.id?'Editar cliente':'Novo cliente','Os dados aqui vão para o contrato. Documento e WhatsApp são conferidos antes de salvar.',
       botao({t:'Voltar',ic:'ant',v:'g',on:'voltarClientes()'}))+
@@ -4231,13 +4362,13 @@ function telaClienteForm(){
     </div>
   </div>
   <div class="card" style="margin-bottom:16px">
-    ${cardH('plano','Produto e ciclo',`Anual cobra os 12 meses de uma vez, com o valor mensal menor.`,3)}
-    <div class="planos-grade">${ofertas}</div>
+    ${cardH('plano','Plano e ciclo',`Um plano por cliente. Semestral cobra os 6 meses de uma vez, com desconto.`,3)}
+    <div class="seg seg-sm" style="margin-bottom:12px">${MODS_CLI.map(([k,nm])=>`<button type="button" class="${mod===k?'on':''}" onclick="escolherModuloCli('${k}')">${nm}</button>`).join('')}</div>
+    <div class="planos-grade cli-planos">${ofertas}</div>
     ${temConsulta?`<div class="form-grid" style="margin-top:12px"><div class="field"><label>Valor mensal combinado (R$) <small>— sob consulta</small></label>
       <input id="clValor" inputmode="decimal" placeholder="250,00" value="${f.valorCombinadoMensal?(f.valorCombinadoMensal/100).toFixed(2).replace('.',','):''}" oninput="recalcCliente()"></div></div>`:''}
     <div style="display:flex;gap:16px;margin-top:14px;flex-wrap:wrap">
-      <label style="display:flex;gap:6px;align-items:center"><input type="radio" name="clCiclo" value="mensal" style="width:auto;margin:0"${f.ciclo!=='anual'?' checked':''} onchange="recalcCliente()"> Mensal</label>
-      <label style="display:flex;gap:6px;align-items:center"><input type="radio" name="clCiclo" value="anual" style="width:auto;margin:0"${f.ciclo==='anual'?' checked':''} onchange="recalcCliente()"> Anual</label>
+      ${ciclos.map(([k,nm])=>`<label style="display:flex;gap:6px;align-items:center"><input type="radio" name="clCiclo" value="${k}" style="width:auto;margin:0"${(f.ciclo||'mensal')===k?' checked':''} onchange="recalcCliente()"> ${nm}</label>`).join('')}
     </div>
     <p id="clPreco" style="margin:10px 0 0">${resumoPreco(f)}</p>
   </div>
@@ -4295,7 +4426,12 @@ function telaClienteDetalhe(c){
     ${kpi('Valor do ciclo',k?reais(k.valorCiclo):'—',k?'conforme contrato '+k.numero:'gere o contrato')}
     ${kpi('Chave',lic?lic.codigo:'—',lic?'válida até '+dataBr(lic.validaAte):'ainda não emitida')}
   </div>
-  <div class="card" style="margin-bottom:14px"><p class="hint" style="margin:0"><b>Liberado:</b> ${esc(liberado)}</p></div>`+
+  ${(()=>{ const passos=[['Contrato',!!k&&!c.contratoDesatualizado],['Assinatura gov.br',!!k?.assinadoEm],['Pagamento',pagas.length>0||!!lic],['Chave',!!lic]];
+    const atualI=passos.findIndex(x=>!x[1]);
+    return `<div class="cli-etapas">${passos.map(([nm,ok],i)=>`<div class="cli-etapa ${ok?'ok':i===atualI?'agora':''}"><i>${ok?ico('check'):i+1}</i><span>${nm}</span></div>`).join('<b></b>')}</div>`; })()}
+  <div class="cli-lib">${[['Operadores',l.operadores??'∞'],['Campanhas/mês',l.campanhasMes??'∞'],['Banda/mês',l.bandaGbMes==null?'ilimitada':l.bandaGbMes+' GB'],
+    ['Auditor',l.auditor?'sim':'não'],['Bot de funil',l.botFunil?'sim':'não'],['Redes',(l.redes||[]).map(x=>({tiktok:'TikTok',instagram:'Instagram'})[x]||x).join(', ')||'—']]
+    .map(([t,v])=>`<div><small>${t}</small><b>${esc(String(v))}</b></div>`).join('')}</div>`+
 
   passo(1,'Contrato',!!k&&!c.contratoDesatualizado,
     (c.contratoDesatualizado?`<p class="hint" style="color:var(--err)">O cadastro mudou depois do contrato ${esc(k.numero)}. Gere o contrato novo — o antigo fica guardado.</p>`:'')+
@@ -4430,10 +4566,10 @@ let CK={passo:'dados',form:{},metodo:'pix'};
 let CK_TIMER=null, CK_BRICK=null;
 
 /* Bronze / Prata / Gold vêm do catálogo (engine/vsplanos) — é dado, não tela. */
-const planoOfertas=()=>(CKCFG?.ofertas||[]).filter(o=>o.catalogo);
+const planoOfertas=()=>(CKCFG?.ofertas||[]).filter(o=>o.catalogo&&o.ativo!==false);
 const precoCiclo=(o,ciclo)=>ciclo==='semestral'?o.semestralMensal:(ciclo==='anual'?o.anualMensal:o.mensal);
 const MESES={mensal:1,semestral:6,anual:12};
-const MODULOS_PL=[['whatsapp','WhatsApp'],['redes','Redes sociais'],['combo','WhatsApp + Redes']];
+const MODULOS_PL=[['whatsapp','WhatsApp'],['telegram','Telegram'],['redes','Redes sociais'],['combo','WhatsApp + Redes']];
 function totalPlano(){
   let mensal=0,cheio=0;
   for(const c of PL.sel){ const o=planoOfertas().find(x=>x.code===c); if(!o) continue; mensal+=precoCiclo(o,PL.ciclo); cheio+=o.mensal; }
@@ -4443,9 +4579,9 @@ function totalPlano(){
 function inclusosPlano(o){
   const l=o.liberacoes, lim=(v,s)=>v==null?`${s} ilimitados`:`${v} ${s}`;
   return [
-    o.modulo!=='redes'?`${l.operadores} atendente${l.operadores>1?'s':''} no WhatsApp`:null,
+    o.modulo!=='redes'?`${l.operadores} atendente${l.operadores>1?'s':''} no ${o.modulo==='telegram'?'Telegram':'WhatsApp'}`:null,
     o.modulo!=='redes'?'Bot 24h com funil de vendas':null,
-    o.modulo!=='whatsapp'?`${l.contasRedes||2} contas de rede social (TikTok e Instagram)`:null,
+    ['redes','combo'].includes(o.modulo)?`${l.contasRedes||2} contas de rede social (TikTok e Instagram)`:null,
     o.produtosLimite!=null?`${o.produtosLimite} produtos no catálogo`:'Produtos ilimitados',
     lim(l.campanhasMes,'campanhas por mês').replace(/^(\d+) campanhas/,'$1 campanhas'),
     l.bandaGbMes==null?'Banda ilimitada':`${l.bandaGbMes} GB de banda por mês`,

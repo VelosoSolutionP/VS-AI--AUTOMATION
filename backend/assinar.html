@@ -98,7 +98,7 @@ const esc=(s)=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt
 const reais=(c)=>c==null?'—':(c/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const dataBr=(iso)=>iso?new Date(iso).toLocaleDateString('pt-BR'):'—';
 const MESES={mensal:1,semestral:6};
-const MODULOS=[['whatsapp','WhatsApp'],['redes','Redes sociais'],['combo','WhatsApp + Redes']];
+const MODULOS=[['whatsapp','WhatsApp'],['telegram','Telegram'],['redes','Redes sociais'],['combo','WhatsApp + Redes']];
 let CFG=null;
 const S={tela:'planos',modulo:'whatsapp',ciclo:'mensal',plano:null,form:{},metodo:'pix',erro:null};
 let TIMER=null,BRICK=null;
@@ -117,9 +117,9 @@ const precoCiclo=(o)=>S.ciclo==='semestral'?o.semestralMensal:o.mensal;
 function inclusos(o){
   const l=o.liberacoes;
   return [
-    o.modulo!=='redes'?`${l.operadores} atendente${l.operadores>1?'s':''} no WhatsApp`:null,
+    o.modulo!=='redes'?`${l.operadores} atendente${l.operadores>1?'s':''} no ${o.modulo==='telegram'?'Telegram':'WhatsApp'}`:null,
     o.modulo!=='redes'?'Bot 24h com funil de vendas':null,
-    o.modulo!=='whatsapp'?`${l.contasRedes||2} contas de rede social (TikTok e Instagram)`:null,
+    ['redes','combo'].includes(o.modulo)?`${l.contasRedes||2} contas de rede social (TikTok e Instagram)`:null,
     o.produtosLimite!=null?`${o.produtosLimite} produtos no catálogo`:'Produtos ilimitados',
     l.campanhasMes==null?'Campanhas ilimitadas':`${l.campanhasMes} campanhas por mês`,
     l.bandaGbMes==null?'Banda ilimitada':`${l.bandaGbMes} GB de banda por mês`,

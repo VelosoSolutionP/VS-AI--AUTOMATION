@@ -93,6 +93,7 @@ backend/usuarios.mjs .... login, sessões, convites (dono × cliente × vendedor
 
 | Decisão | Onde no código | Por quê |
 |---|---|---|
+| **Preços e planos (2026-09-27):** planos do **Telegram** (Bronze/Prata/Gold, números de partida = WhatsApp) no catálogo; preço editável pelo dono em Clientes e licenças → Preços. **Quem já assina mantém o preço do contrato**: mudar preço de plano com cliente (assinatura local ou cliente da carteira com contrato) vira versão nova; venda nova só pelo que está à venda. Tabela antiga (`whats-bot`, `redes-micro`) fora de venda nova | `engine/vsplanos` → `atualizarPlano`, `carregar` (migração), `salvarAdicional`; `engine/vsclientes` → `iniciarCheckout` (fora de venda), ofertas `legado` | "ta faltando telegram bronze prata e gold" · "preciso de um local pra colocar os preços". |
 | **Banda por instalação (2026-09-27):** a banda é GERAL do sistema, medida em bytes no ponto onde passa — HTTP do servidor (painel, loja, webhooks), chamadas que o servidor faz (Telegram, Meta, integrações; `fetch` global medido), WhatsApp Web pelo protocolo do Chrome (websocket + downloads da sessão) e mídia guardada no mês. Limite = plano (`storage_limit_mb`, que o contrato chama de "banda total de consumo mensal") + banda adicional. **Passou → MODO CONSULTA:** lê tudo; nada sai pelos canais (nem o bot), nada publica, nada edita (servidor responde 402); o que chega dos clientes continua gravado. Sai do modo ao virar o mês ou ao liberar banda. Oferta: adendo "Banda adicional (+10 GB/mês)" — **sob consulta até o dono dar o preço**; o cliente pede pelo painel, o dono libera com motivo | `engine/vsconsumo` (medidor, `estado`, pedidos), `engine/vsplanos` → `bandaDoMes`/`adicionarBanda`/`removerBanda`, `backend/server.mjs` → `estadoConsumo`, `LIVRE_EM_CONSULTA`, `backend/canais.mjs` → `comTrava` | Pedido do dono: "consumo geral no sistema… uma banda para cada cliente, passou disso deixa em modo consulta e oferece o adendo de banda". |
 | E-mail do dono (`CONSOLE_ADMIN_EMAIL` + `velosobil@gmail.com`) entra como **dono** com a senha de dono **ou** com a senha da conta de cliente | `backend/usuarios.mjs` → `entrar()`, `autenticar()` | O e-mail pessoal dele também é cliente (compra de teste); caía na tela de compra sem caminho pro dashboard. |
 | Receita de um canal **só com vínculo rastreável**: pedido gerado pelo bot na conversa do canal **+** pagamento confirmado (`CONFIRMADO`/`DISPONIVEL`) | `engine/vsresultados` → `registrarPedido`, `resumo` | Não mostrar faturamento que o comerciante não consegue comprovar. |
@@ -342,11 +343,14 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 ### Crescimento
 
 #### Clientes e licenças  ·  `#clientes`
-- **Pra que serve:** Quem comprou, o que foi liberado, e em que pé está cada um.
-- **O que tem:** indicadores: Clientes, Ativos, Aguardando pagamento, Receita mensal · cartões: Carteira
-- **Botões:** Novo cliente, Abrir
-- **Código da tela:** `backend/crm.html` → `telaClientes()`
-- **Ações (funções JS):** `novoCliente()`, `abrirCliente()`
+- **Pra que serve:** quem comprou, o que foi liberado, em que pé está cada um — e a **tabela de preços** (o dono edita aqui).
+- **Abas:** **Carteira** · **Preços**.
+- **Carteira:** indicadores Clientes, Ativos, Vencendo (≤ 5 dias), Aguardando pagamento, Receita mensal · filtros por situação com contagem (Todos, Em cadastro, Aguardando pagamento, Ativos, Vencendo, Vencidos) · busca (nome, CPF/CNPJ, WhatsApp) · colunas Cliente, Plano, **Valor/mês** (do contrato; sem contrato, da tabela), **Vence em**, Situação.
+- **Cadastro:** módulo (WhatsApp, Telegram, Redes sociais, WhatsApp + Redes, Sob consulta) → **um** plano (Bronze/Prata/Gold) → ciclo Mensal ou Semestral (do catálogo). Tabela antiga (Bot WhatsApp R$ 39,90, Redes Micro) e versões antigas só aparecem para quem já as tem.
+- **Detalhe:** etapas no topo (Contrato → Assinatura gov.br → Pagamento → Chave) + o liberado em cartões; os passos com ação continuam embaixo.
+- **Preços:** um bloco por módulo (preço, atendentes, produtos, campanhas/mês, banda GB, contas de rede, auditor, mais escolhido) + adendos (atendente adicional R$, banda adicional GB + R$; vazio = sob consulta). **Regra do dono:** quem já assina mantém o preço do contrato — mudar preço de plano com cliente cria **versão nova** (`-v2`, `-v3`…) para as vendas novas; sem cliente, muda no lugar.
+- **Código:** `backend/crm.html` → `telaClientes()`, `telaPrecos()`, `salvarPrecos()`; `GET /crm/api/precos`, `POST /crm/api/precos/plano|adicional` → `engine/vsplanos` (`atualizarPlano`, `salvarAdicional`).
+- **Prova:** `scripts/prova-clientes-precos.mjs` (20/20).
 
 #### Indicações e parceiros  ·  `#indicacao`
 - **Pra que serve:** Você define a regra aqui. Enquanto ela não existir, a suíte não calcula comissão nenhuma — não chuta percentual.
@@ -452,6 +456,7 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 | 2026-09-27 | Auditor gera histórico → tela com gráficos e valores para apresentar, "perto de como o mercado mostra auditoria" | Telegram · Auditor refeito: KPIs de mercado (TPR, TMA, SLA, CSAT, resolução pelo bot) com variação, 6 gráficos, log de auditoria com filtro/busca/CSV, Apresentar e Imprimir. Prova 36/36 | (este) |
 | 2026-09-27 | Log de auditoria poluía a tela → acordeão | Log fechado por padrão, abre ao clicar (contagem de eventos no título); Exportar log funciona fechado. Prova 38/38 | (este) |
 | 2026-09-27 | Auditor do WhatsApp na mesma pegada do Telegram, só com as informações do WhatsApp | `wa-auditor` passa a usar `telaAuditorCanal('whatsapp')`; texto do acordeão (Abrir/Fechar) acompanha o estado. Prova 40/40 | (este) |
+| 2026-09-27 | Clientes e licenças: melhorar o layout + lugar para o dono pôr os preços + planos do Telegram | Aba Preços (planos por módulo + adendos, versão nova quando há cliente), Telegram Bronze/Prata/Gold, carteira com filtros/busca/valor/vencimento, cadastro com um plano por módulo e ciclo Mensal/Semestral, detalhe com etapas. Prova 20/20 | (este) |
 | 2026-09-27 | Consumo com dados e valores reais; banda por cliente; passou → modo consulta + adendo de banda | Medidor geral (`engine/vsconsumo`), limite do plano + banda adicional, modo consulta (servidor 402 + canais sem envio + agendador parado), faixa de aviso em todas as telas, telas Telegram/WhatsApp · Consumo, pedido e liberação de banda. Prova 17/17 | (este) |
 | 2026-09-27 | **Telas Telegram · Auditor e WhatsApp · Auditor FECHADAS** pelo dono | Padrão de mercado (KPIs, gráficos, log em acordeão, Apresentar/Imprimir/CSV), cada canal com os seus dados | (este) |
 | 2026-09-27 | **Tela Telegram · Canal e conexão FECHADA** pelo dono | Conexão do bot + "Onde o bot trabalha" (adicionar canal, grupo ou pelo ID). Campanhas: o dono vai revisar mais a fundo depois | (este) |
@@ -493,8 +498,8 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 
 **Entregue hoje (ver Histórico):** Campanhas V1 + 2ª entrega (destinos, publicar/agendar, política) + auditor pela especificação do dono (campos por objetivo, 3 resultados, assistente sem inventar, texto e imagem juntos, revalidação no backend, reabrir) · Qualificação e roteamento (tiers do comercial) · Encerramento (Finalizar × Encerrar), avaliação e Histórico · Bot por canal (Telegram → Bot do Telegram) · Horário em calendário · Avisos que fecham sozinhos · Tela sem atendimento.
 
-**Próximo:** o dono vai "dar uma olhada mais a fundo" em Campanhas. Canal real de teste já conectado: **"Teste campanha Bolso Cheio"** (`-1003782351972`, privado, bot admin com permissão) — está **pendente** (entrou antes do botão novo), falta o dono clicar em Confirmar em **Telegram → Canal e conexão → Onde o bot trabalha**. Pendente dele também: o valor da política de frequência (hoje 4 h / 3 por dia). E o **preço do adendo de banda** (hoje sob consulta, +10 GB).
+**Próximo:** o dono vai "dar uma olhada mais a fundo" em Campanhas. Canal real de teste já conectado: **"Teste campanha Bolso Cheio"** (`-1003782351972`, privado, bot admin com permissão) — está **pendente** (entrou antes do botão novo), falta o dono clicar em Confirmar em **Telegram → Canal e conexão → Onde o bot trabalha**. Pendente dele também: o valor da política de frequência (hoje 4 h / 3 por dia). E o **preço do adendo de banda** (hoje sob consulta, +10 GB) — agora ele mesmo põe em Clientes e licenças → Preços, junto com os preços dos planos do Telegram (hoje iguais aos do WhatsApp).
 
-**Provas (instâncias isoladas):** `prova-consumo` 17/17, `prova-auditor` 40/40, `prova-campanhas` 40/40, `prova-qualificacao` 26/26, `prova-encerramento` 27/27, `prova-bot-telegram` 8/8, `prova-horario` 11/11.
+**Provas (instâncias isoladas):** `prova-clientes-precos` 20/20, `prova-consumo` 17/17, `prova-auditor` 40/40, `prova-campanhas` 40/40, `prova-qualificacao` 26/26, `prova-encerramento` 27/27, `prova-bot-telegram` 8/8, `prova-horario` 11/11.
 
 **Como trabalhar (regra do dono):** implementar direto a V1 da proposta; perguntar só o absurdo, em TEXTO (nunca AskUserQuestion). Sem IA em recurso novo (custo). Tela de um canal não mostra dado do outro.

@@ -13,7 +13,7 @@
  */
 
 /** Um plano vale para um módulo. Combo é o par vendido junto. */
-export const MODULOS = Object.freeze({ REDES: 'redes', WHATSAPP: 'whatsapp', COMBO: 'combo' });
+export const MODULOS = Object.freeze({ REDES: 'redes', WHATSAPP: 'whatsapp', TELEGRAM: 'telegram', COMBO: 'combo' });
 
 /** Ciclos de cobrança e o que cada um faz com o preço. */
 export const CICLOS = Object.freeze({

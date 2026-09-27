@@ -48,6 +48,17 @@ export const SEMENTE = [
     attendants: 6, products_limit: 2000, campaigns_limit: 25, storage_limit_mb: 15360,
     social_accounts: null, ai_enabled: true, auditor_enabled: true },
 
+  // ---- Módulo C: Telegram (pedido do dono, 2026-09-27; números de partida = WhatsApp) ----
+  { code: 'telegram-bronze', nome: 'Bronze', module: 'telegram', monthly_price: R$(79),
+    attendants: 1, products_limit: 100, campaigns_limit: 3, storage_limit_mb: 1024,
+    social_accounts: null, ai_enabled: true, auditor_enabled: false },
+  { code: 'telegram-prata', nome: 'Prata', module: 'telegram', monthly_price: R$(129), destaque: true,
+    attendants: 3, products_limit: 500, campaigns_limit: 10, storage_limit_mb: 5120,
+    social_accounts: null, ai_enabled: true, auditor_enabled: true },
+  { code: 'telegram-ouro', nome: 'Gold', module: 'telegram', monthly_price: R$(199),
+    attendants: 6, products_limit: 2000, campaigns_limit: 25, storage_limit_mb: 15360,
+    social_accounts: null, ai_enabled: true, auditor_enabled: true },
+
   // ---- Combo A+B ----
   { code: 'combo-bronze', nome: 'Bronze', module: 'combo', monthly_price: R$(119),
     social_accounts: 2, attendants: 1, products_limit: 100, campaigns_limit: 8, storage_limit_mb: 1024,
@@ -84,8 +95,20 @@ function semear() {
   return validos;
 }
 
-export function listar({ incluirInativos = false } = {}) {
+/* Catálogo gravado antes de um módulo novo existir (Telegram): o que falta da
+   semente entra, sem mexer em preço nem versão do que já está lá. */
+function carregar() {
   const todos = load('planos') || semear();
+  const faltam = SEMENTE.filter((sm) => !todos.some((p) => p.code === sm.code || String(p.code).startsWith(`${sm.code}-v`)));
+  if (faltam.length) {
+    for (const sm of faltam) { const v = validarPlano(sm); if (!v.erros.length) { todos.push(v.plano); } }
+    save('planos', todos);
+  }
+  return todos;
+}
+
+export function listar({ incluirInativos = false } = {}) {
+  const todos = carregar();
   return incluirInativos ? todos : todos.filter((p) => p.active !== false);
 }
 
@@ -99,7 +122,7 @@ export function adicionais() {
   return lista;
 }
 
-export const buscar = (code) => (load('planos') || semear()).find((p) => p.code === String(code || '').toLowerCase()) || null;
+export const buscar = (code) => carregar().find((p) => p.code === String(code || '').toLowerCase()) || null;
 
 /** Tabela pronta pra tela: por módulo, na ordem de preço. */
 export function tabela() {
@@ -114,7 +137,7 @@ export function tabela() {
 export function salvarPlano(entrada) {
   const v = validarPlano(entrada);
   if (v.erros.length) { return { ok: false, erros: v.erros }; }
-  const todos = load('planos') || semear();
+  const todos = carregar();
   const i = todos.findIndex((p) => p.code === v.plano.code);
 
   /* Plano JÁ CONTRATADO não muda de preço por edição: cria-se outra versão.
@@ -126,9 +149,54 @@ export function salvarPlano(entrada) {
       sugestao: 'novaVersao',
     };
   }
-  if (i >= 0) { todos[i] = { ...todos[i], ...v.plano }; } else { todos.push(v.plano); }
+  if (i >= 0) { todos[i] = { ...todos[i], ...v.plano, criadoEm: todos[i].criadoEm || v.plano.criadoEm }; } else { todos.push(v.plano); }
+  // Um "mais escolhido" por módulo.
+  if (v.plano.destaque) { for (const p of todos) { if (p.module === v.plano.module && p.code !== v.plano.code && p.active !== false) { p.destaque = false; } } }
   save('planos', todos);
   return { ok: true, plano: v.plano };
+}
+
+/**
+ * O que a tela de Preços chama. Preço de plano que ALGUÉM JÁ ASSINA não muda
+ * por baixo do contrato: vira versão nova (quem assinou fica no preço antigo,
+ * a venda nova sai pelo novo). Sem assinante, edita no lugar.
+ */
+export function atualizarPlano(code, mudancas = {}, { por, outrosAssinantes = 0 } = {}) {
+  const atual = buscar(code);
+  if (!atual) { return { ok: false, erros: [`plano "${code}" não existe`] }; }
+  const novo = { ...atual, ...mudancas, code: atual.code, module: atual.module };
+  const mudouPreco = Number(novo.monthly_price) !== atual.monthly_price;
+  // `outrosAssinantes`: clientes da carteira (engine/vsclientes) com contrato neste plano.
+  if (mudouPreco && assinaturasDoPlano(atual.code) + (Number(outrosAssinantes) || 0) > 0) {
+    const base = atual.code.replace(/-v\d+$/, '');
+    const usados = carregar().map((p) => p.code);
+    let n = 2; while (usados.includes(`${base}-v${n}`)) { n++; }
+    const todos = carregar();
+    const r = novaVersao({ ...atual, code: base }, { ...mudancas, destaque: novo.destaque }, `v${n}`);
+    if (r.erros.length) { return { ok: false, erros: r.erros }; }
+    r.novo.substitui = atual.code;
+    const lista = todos.map((p) => (p.code === atual.code ? { ...p, active: false, destaque: false } : p));
+    lista.push({ ...r.novo, alteradoPor: por || null });
+    save('planos', lista);
+    return { ok: true, versionado: true, plano: r.novo, anterior: atual.code };
+  }
+  return salvarPlano({ ...novo, alteradoPor: por || null });
+}
+
+/** Preço de adendo (atendente extra, banda extra). Vazio = sob consulta. */
+export function salvarAdicional(code, { monthly_price, gb, active } = {}) {
+  const lista = adicionais();
+  const a = lista.find((x) => x.code === code);
+  if (!a) { return { ok: false, erros: [`adendo "${code}" não existe`] }; }
+  const preco = monthly_price === '' || monthly_price == null ? null : Number(monthly_price);
+  if (preco != null && (!Number.isInteger(preco) || preco < 0)) { return { ok: false, erros: ['preço em centavos, número inteiro ≥ 0 (ou vazio para sob consulta)'] }; }
+  if (gb != null && gb !== '' && (!Number.isFinite(Number(gb)) || Number(gb) <= 0)) { return { ok: false, erros: ['GB do adendo precisa ser maior que zero'] }; }
+  a.monthly_price = preco;
+  a.sob_consulta = preco == null;
+  if (gb != null && gb !== '') { a.gb = Number(gb); a.name = `Banda adicional (+${Number(gb)} GB/mês)`; }
+  if (active != null) { a.active = active !== false; }
+  save('adicionais', lista);
+  return { ok: true, adicional: a };
 }
 
 /** Cria a versão nova e tira a antiga de venda, numa operação só. */
@@ -221,6 +289,9 @@ export function removerBanda(id, { por } = {}) {
   save('assinaturas', todas);
   return { ok: true, banda: bandaDoMes() };
 }
+
+/** Só pra teste: grava a lista de planos como está. */
+export function _gravar(lista) { save('planos', lista); }
 
 /** Só pra teste: devolve o catálogo ao estado de fábrica. */
 export function _resemear() { return semear(); }

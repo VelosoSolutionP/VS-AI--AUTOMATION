@@ -13,6 +13,9 @@
 export const OFERTAS = Object.freeze([
   {
     code: 'whats-bot',
+    /* LEGADO: tabela antiga, fora de venda. Fica só para quem já assinou achar
+       nome e preço — venda nova sai pelo catálogo (Bronze/Prata/Gold). */
+    legado: true,
     nome: 'Bot WhatsApp',
     descricao: 'Atendimento 24h no WhatsApp, com 2 operadores',
     mensal: 3990,
@@ -21,6 +24,7 @@ export const OFERTAS = Object.freeze([
   },
   {
     code: 'redes-micro',
+    legado: true,
     nome: 'Redes sociais — Microempresa',
     descricao: 'TikTok e Instagram: catálogo, campanhas e publicação',
     mensal: 12000,

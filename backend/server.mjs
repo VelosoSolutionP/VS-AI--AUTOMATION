@@ -888,7 +888,7 @@ const server = createServer(async (req, res) => {
     if (barrado(res, rotaA === '/api/assinar/iniciar' ? LIM_ASSINAR_INICIO : LIM_ASSINAR, req, 'assinatura')) { return; }
     if (req.method === 'GET' && rotaA === '/api/assinar/config') {
       return json(res, 200, {
-        ofertas: clientes.todasOfertas().filter((o) => o.catalogo),
+        ofertas: clientes.todasOfertas().filter((o) => o.catalogo && o.ativo !== false),
         cartao: pagar.chavePublicaCartao(),
         contato: process.env.VITRINE_WHATSAPP || '553175536010',
       });
@@ -1438,6 +1438,13 @@ const server = createServer(async (req, res) => {
       const r = clientes.receberAssinado(q.get('id'), corpo.buffer, { versao: q.get('v') });
       return json(res, r.ok ? 200 : 400, r.ok ? r : { ...r, erro: r.motivo });
     }
+    /* Preços (aba de Clientes e licenças): o dono edita planos e adendos.
+       Quem já tem contrato num plano mantém o preço — mudar vira versão nova. */
+    if (req.method === 'GET' && rota === '/crm/api/precos') {
+      const comContrato = (code) => clientes.listar().filter((c) => (c.produtos || []).includes(code) && (c.contratos || []).length).length;
+      const lista = planos.listar().map((p) => ({ ...p, clientes: comContrato(p.code) }));
+      return json(res, 200, { planos: lista, adicionais: planos.adicionais(), ciclos: planos.CICLOS, assinaturaLocal: planos.assinatura().plano || null });
+    }
     if (req.method === 'GET' && rota === '/crm/api/planos') {
       return json(res, 200, { ...planos.tabela(), assinatura: planos.assinatura(), limiteAtendentes: planos.limiteDeAtendentes() });
     }
@@ -1964,6 +1971,14 @@ const server = createServer(async (req, res) => {
         case '/crm/api/clientes/revogar': r = clientes.revogar(d.id, { motivo: d.motivo }); break;
         case '/crm/api/planos/assinar': r = planos.assinar(d); break;
         case '/crm/api/planos/salvar': r = planos.salvarPlano(d); break;
+        case '/crm/api/precos/plano': {
+          const code = String(d.code || '');
+          const outros = clientes.listar().filter((c) => (c.produtos || []).includes(code) && (c.contratos || []).length).length;
+          r = planos.atualizarPlano(code, d.mudancas || {}, { por: quem.email || null, outrosAssinantes: outros });
+          if (r.ok) { console.log(`[precos] ${code}${r.versionado ? ` → ${r.plano.code} (versão nova)` : ''} por ${quem.email}`); }
+          break;
+        }
+        case '/crm/api/precos/adicional': r = planos.salvarAdicional(String(d.code || ''), d); break;
         case '/crm/api/planos/versionar': r = planos.versionarPlano(d.code, d.mudancas || {}, d.sufixo || 'v2'); break;
         /* O atendente responde DAQUI. A resposta sai pelo canal e entra na trilha
            do lead — mesma trilha do bot, pra conversa nao virar duas metades. */

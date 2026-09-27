@@ -28,7 +28,7 @@ import { listar as planosDoCatalogo, CICLOS as CICLOS_CATALOGO, adicionais as ad
 
 export { OFERTAS, CICLOS, liberacoesPadrao, precoDe, normalizarCodigo, todasOfertas };
 
-const NOME_MODULO = { redes: 'Redes sociais', whatsapp: 'WhatsApp', combo: 'Combo WhatsApp + Redes' };
+const NOME_MODULO = { redes: 'Redes sociais', whatsapp: 'WhatsApp', telegram: 'Telegram', combo: 'Combo WhatsApp + Redes' };
 /**
  * Plano do catálogo (Bronze/Prata/Gold) no formato de oferta da carteira. O
  * desconto do semestral vem do PRÓPRIO catálogo — se lá mudar, muda aqui.
@@ -43,6 +43,8 @@ export function ofertaDoPlano(p) {
     modulo: p.module,
     descricao: NOME_MODULO[p.module] || p.module,
     catalogo: true,
+    ativo: p.active !== false,
+    substitui: p.substitui || null,
     destaque: p.destaque === true,
     mensal: p.monthly_price,
     semestralMensal: Math.round(p.monthly_price * (1 - desc)),
@@ -59,7 +61,9 @@ export function ofertaDoPlano(p) {
     },
   };
 }
-usarCatalogo(() => { try { return planosDoCatalogo().map(ofertaDoPlano); } catch { return []; } });
+/* Com os INATIVOS: cliente num plano que virou versão antiga continua achando o
+   nome e o preço dele. A tela de venda filtra por `ativo`. */
+usarCatalogo(() => { try { return planosDoCatalogo({ incluirInativos: true }).map(ofertaDoPlano); } catch { return []; } });
 
 const dir = () => process.env.VSCLIENTES_DIR || dentroDaCasa('vsclientes');
 const arq = (n) => join(dir(), n);
@@ -453,6 +457,10 @@ export async function iniciarCheckout(d = {}, { imprimir, publico = false } = {}
     }
   }
 
+  /* Venda nova só pelo que está À VENDA: plano versionado (antigo) ou da tabela
+     legada fica só para quem já o tem. */
+  const foraDeVenda = produtos.find((code) => { const o = oferta(code); return (!o || o.ativo === false || (publico && o.legado)) && !(existente?.produtos || []).includes(code); });
+  if (foraDeVenda) { return { ok: false, motivo: `o plano "${oferta(foraDeVenda)?.nome || foraDeVenda}" não está mais à venda — escolha um dos planos da tabela` }; }
   /* JÁ É ASSINANTE: assinar de novo trocaria o plano dele por cima e somaria
      validade como se fosse renovação. Aqui só existe trocar de plano ou adendo. */
   const sit = existente ? situacaoDoAssinante(existente, { produtos, ciclo }) : null;

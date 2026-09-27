@@ -489,7 +489,8 @@ test('os planos do catalogo viram ofertas com o preco de la; semestral com o des
   assert.equal(prata.semestralMensal, Math.round(12900 * 0.9));
   assert.equal(prata.liberacoes.operadores, 3);
   assert.equal(prata.liberacoes.auditor, true);
-  assert.equal(todas.filter((o) => o.catalogo).length, 9, '3 modulos x Bronze/Prata/Gold');
+  assert.equal(todas.filter((o) => o.catalogo).length, 12, '4 modulos (WhatsApp, Telegram, Redes, Combo) x Bronze/Prata/Gold');
+  assert.equal(todas.find((o) => o.code === 'telegram-prata')?.nome, 'Telegram Prata');
   assert.equal(O.precoDe({ produtos: ['combo-bronze'], ciclo: 'semestral' }).total, Math.round(11900 * 0.9) * 6);
   assert.equal(O.precoDe({ produtos: ['combo-bronze'], ciclo: 'anual' }).ok, false, 'catalogo nao tem anual: recusa em vez de inventar preco');
 });
