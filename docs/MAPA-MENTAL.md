@@ -393,12 +393,13 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 | 2026-09-27 | Fila mais completa sem perder a simplicidade (fase 2 do dono) | Resumo no topo, horário da última mensagem, tempo de espera com cor, Assumir no cartão; corrigido: painel fora da tela no celular, "agora" → "há menos de 1 min" | (este) |
 | 2026-09-27 | Teste de volume (5 / 30 / 200 clientes simulados) | `scripts/teste-volume-telegram.mjs` com instância isolada + Telegram falso; achou e corrigiu: loja só com regras não punha a conversa na fila nem calava o bot | (este) |
 | 2026-09-27 | Ver o teste acontecendo e ficar na tela | Modo `--ao-vivo` (clientes um a um no navegador, tudo fica no ar) + `--parar` | (este) |
+| 2026-09-27 | **Tela Telegram · Atendimento FECHADA** pelo dono | Aprovada com o resultado do teste ao vivo. Teste de recebimento real (mensagem de um celular de verdade) fica pra depois, por escolha do dono (tempo da tela esgotado) | (este) |
 
 ---
 
 ## Pendências conhecidas
 
-- **Telegram sem mensagem real de cliente ainda** — provado com Telegram simulado; falta alguém escrever pro `@BolsoCheioVelosoBot`.
+- **Telegram sem mensagem real de cliente ainda** (Atendimento fechado sem esse teste, por decisão do dono em 2026-09-27; volume provado com o simulador) — provado com Telegram simulado; falta alguém escrever pro `@BolsoCheioVelosoBot`.
 - **Receita atribuída depende de fluxo do bot com passo de cobrança** e gateway de pagamento no ar; sem isso a tela fica (corretamente) em R$ 0,00.
 - **WhatsApp ainda sem tela de Resultados** — o motor (`engine/vsresultados`) já calcula por canal; falta só a tela.
 - **Cartão "Integrações" da Visão geral** conta "3 de 6" sem incluir o Telegram.
@@ -412,4 +413,4 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 - **"vendedor" não está nas palavras que chamam gente** (`PALAVRAS_HUMANO` em `engine/vsbot/regras.mjs`: atendente, humano, pessoa, falar com alguém, gerente, reclamação, cancelar). "Quero falar com um vendedor" só vai pra fila se a loja criar a regra. Decisão do dono se entra no padrão.
 - **Avatar de nome com número** ("Cliente 001") vira "C0" — cosmético.
 - **Teste intermitente:** `tests/vsresultados.test.mjs` → "conversa pelo link da campanha…" falhou 1 vez em 4 rodadas da bateria completa (passa sozinho). Observar.
-- **Próxima tela do Telegram a trabalhar:** escolha do dono (Atendimento v1 entregue; sugestão: Campanhas).
+- **Próxima tela do Telegram a trabalhar:** escolha do dono (Resultados e Atendimento fechados; restam Campanhas, Canal e conexão, Auditor, Consumo). Depois do Telegram: revisar o Atendimento do WhatsApp com o dono.
