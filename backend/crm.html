@@ -3026,6 +3026,7 @@ function tabelaProdutos(produtos){
       ${bi('ver','Visualizar',`verProduto('${esc(x.sku)}')`)}
       ${bi('editar','Editar',`editarProduto('${esc(x.sku)}')`)}
       ${bi('comprar','Comprar (dar entrada)',`comprarProduto('${esc(x.sku)}','${esc(x.nome).replace(/'/g,"\\'")}')`)}
+      ${x.naVitrine?bi('publicar','Tirar da vitrine',`tirarDaVitrine('${esc(x.sku)}')`):bi('publicar','Pôr na vitrine (loja e Google)',`porNaVitrine('${esc(x.sku)}')`)}
       ${bi('vender','Vender no canal',`venderProduto('${esc(x.sku)}','${esc(x.nome).replace(/'/g,"\\'")}')`,'pri')}
       ${bi('excluir','Excluir',`excluirProduto('${esc(x.sku)}','${esc(x.nome).replace(/'/g,"\\'")}')`,'dan')}
     </div></td></tr>`).join('');
@@ -3083,6 +3084,14 @@ function publicacoesHtml(){
     })}</div>`;
 }
 
+/* Vitrine direto, sem passar pelo 🛒 (que reserva saldo e é do TikTok). */
+async function porNaVitrine(sku){
+  try{
+    const r=await api('estoque/vitrine',{sku,expor:true});
+    if(r.erros?.length||r.ok===false) return avisoErro('Não consegui concluir',r.erros?.join(' · ')||r.motivo);
+    await carregar(); flash('Na vitrine: já aparece na sua loja e no feed do Google.','ok');
+  }catch(e){avisoErro('Não consegui concluir',e.message);}
+}
 async function tirarDaVitrine(sku){
   try{
     const r=await api('estoque/vitrine',{sku,expor:false});

@@ -160,8 +160,9 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 - **O que tem:** indicadores: Produtos, Unidades, Valor parado, Sem saldo · cartões: Exportar para os canais, Lote de exportação por período, Publicações, Catálogo
 - **Botões:** Baixar, Gerar lote, Tirar da vitrine, Atualizar, Importar, Exportar, Novo produto, PRODUTO ↑, PREÇO, ESTOQUE, STATUS, ATUALIZAÇÃO
 - **Código da tela:** `backend/crm.html` → `S['estoque']  (" 'estoque':()=>" ou " estoque:()=>")`
-- **Ações (funções JS):** `baixarFeed()`, `gerarLote()`, `tirarDaVitrine()`, `buscarNaTabela()`, `abrirImportar()`, `abrirExportar()`, `novoProduto()`, `ordenar()`, `verProduto()`, `editarProduto()`, `comprarProduto()`, `venderProduto()`, `excluirProduto()`
+- **Ações (funções JS):** `baixarFeed()`, `gerarLote()`, `porNaVitrine()`, `tirarDaVitrine()`, `buscarNaTabela()`, `abrirImportar()`, `abrirExportar()`, `novoProduto()`, `ordenar()`, `verProduto()`, `editarProduto()`, `comprarProduto()`, `venderProduto()`, `excluirProduto()`
 - **Rotas do servidor:** `/crm/api/estoque/excluir`, `/crm/api/estoque/lote`, `/crm/api/estoque/produto`, `/crm/api/estoque/vender`, `/crm/api/estoque/vitrine` → `backend/server.mjs`
+- **Vitrine (2026-09-27):** botão na linha "Pôr na vitrine (loja e Google)" ⇄ "Tirar da vitrine" — não reserva saldo, não passa pelo TikTok. Prova: `node scripts/prova-vitrine.mjs` (8/8; produto sem foto chega ao feed do Google como recusado, com motivo).
 
 #### Loja e Google Shopping  ·  `#loja`
 - **Pra que serve:** Sua loja pública e os endereços que o Google precisa. Produto entra aqui pelo 🛒 Vender no Estoque.
@@ -479,12 +480,13 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 | 2026-09-27 | Kwai é complicado igual TikTok? → "vou no básico, falta Insta, o resto é bônus" | Pesquisa: Kwai Shop só por ERP parceiro homologado, sem portal aberto. Decisão registrada: próxima rede = Instagram | — |
 | 2026-09-27 | Como o catálogo entra na vitrine e nas integrações; como marcar vitrine | Explicado (Estoque → vitrine/Google automático; Meta/TikTok/ML por arquivo). Achado: vitrine só pelo 🛒 "Vender no canal" (reserva 1 unidade e, com TikTok ligado, deixa de marcar vitrine). Correção proposta, **não feita** | — |
 | 2026-09-27 | "TikTok e rede social por último; Telegram ficou bom, QA vai dizer se os dados estão certos" | Prioridade registrada | — |
+| 2026-09-27 | Vitrine: "ajuste mínimo tá suave" | Botão Pôr/Tirar da vitrine na linha do Estoque, sem reserva e sem TikTok. Prova 8/8 | (este) |
 
 ---
 
 ## Pendências conhecidas
 
-- **Vitrine sem chave própria:** hoje só entra pelo 🛒 "Vender no canal" (`venderProduto()` → `/crm/api/estoque/vender`), que reserva 1 unidade do saldo e, com o TikTok Shop conectado, publica lá e NÃO marca a vitrine. Proposta (esperando o dono): chave "Mostrar na vitrine" no cadastro/edição, botão "Pôr na vitrine" sem reserva, coluna vitrine na importação.
+- **Vitrine:** ajuste mínimo feito — botão "Pôr na vitrine / Tirar da vitrine" na linha do Estoque (`porNaVitrine()`, sem reserva, sem TikTok). Ainda sem chave no formulário e sem coluna na importação; o 🛒 continua reservando 1 unidade (é do TikTok, fica pra quando as redes voltarem).
 - **Instagram (depois de firmar a base — dono deixou redes por último):** existe só a autorização (`engine/vsinstagram/auth.mjs`: Login do Facebook → página → IG Business, escopos de publicar) sem rota, sem tela e sem app Meta aprovado. Falta: conectar pela tela, publicar/agendar post, receber DM no atendimento (fila como WhatsApp/Telegram) e Consumo/Resultados do canal.
 - **Visão geral — limites da V1:** "Pedidos esperando pagamento" leva ao Resultados do Telegram (o WhatsApp ainda não tem tela de Resultados); TPR fica "—" até a equipe responder alguém que estava na fila.
 - **Funil — próximos itens da proposta (não feitos, esperando o dono):** 2) motivo de perda obrigatório (lista fixa + gráfico); 3) métricas de funil (conversão etapa→etapa, tempo por etapa, previsão ponderada, canal × campanha); 4) quadro com arrastar e soltar + Tier/responsável no cartão + filtros; 5) próxima ação/lembrete por lead.
