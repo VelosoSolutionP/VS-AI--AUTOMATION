@@ -450,6 +450,7 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 | 2026-09-27 | Auditor gera histórico → tela com gráficos e valores para apresentar, "perto de como o mercado mostra auditoria" | Telegram · Auditor refeito: KPIs de mercado (TPR, TMA, SLA, CSAT, resolução pelo bot) com variação, 6 gráficos, log de auditoria com filtro/busca/CSV, Apresentar e Imprimir. Prova 36/36 | (este) |
 | 2026-09-27 | Log de auditoria poluía a tela → acordeão | Log fechado por padrão, abre ao clicar (contagem de eventos no título); Exportar log funciona fechado. Prova 38/38 | (este) |
 | 2026-09-27 | Auditor do WhatsApp na mesma pegada do Telegram, só com as informações do WhatsApp | `wa-auditor` passa a usar `telaAuditorCanal('whatsapp')`; texto do acordeão (Abrir/Fechar) acompanha o estado. Prova 40/40 | (este) |
+| 2026-09-27 | **Telas Telegram · Auditor e WhatsApp · Auditor FECHADAS** pelo dono | Padrão de mercado (KPIs, gráficos, log em acordeão, Apresentar/Imprimir/CSV), cada canal com os seus dados | (este) |
 | 2026-09-27 | **Tela Telegram · Canal e conexão FECHADA** pelo dono | Conexão do bot + "Onde o bot trabalha" (adicionar canal, grupo ou pelo ID). Campanhas: o dono vai revisar mais a fundo depois | (este) |
 | 2026-09-27 | **Tela Telegram · Atendimento FECHADA** pelo dono | Aprovada com o resultado do teste ao vivo. Teste de recebimento real (mensagem de um celular de verdade) fica pra depois, por escolha do dono (tempo da tela esgotado) | (este) |
 
@@ -477,7 +478,7 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 - **Avatar de nome com número** ("Cliente 001") vira "C0" — cosmético.
 - **Avaliação — próximos passos possíveis:** média por vendedor/equipe em Resultados; alerta ao dono em nota ≤ 2; texto da pergunta configurável.
 - **Teste intermitente:** `tests/vsresultados.test.mjs` → "conversa pelo link da campanha…" falhou 1 vez em 4 rodadas da bateria completa (passa sozinho). Observar.
-- **Próxima tela do Telegram a trabalhar:** escolha do dono (Resultados, Atendimento e Canal e conexão fechados; Campanhas feita, dono revisa depois; Auditor feito, dono revisa; resta Consumo). Depois do Telegram: revisar o Atendimento do WhatsApp com o dono.
+- **Próxima tela do Telegram a trabalhar:** escolha do dono (Resultados, Atendimento e Canal e conexão fechados; Campanhas feita, dono revisa depois; Auditor fechado; resta Consumo). Depois do Telegram: revisar o Atendimento do WhatsApp com o dono.
 
 ---
 
