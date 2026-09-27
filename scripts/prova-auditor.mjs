@@ -275,6 +275,14 @@ async function main() {
     await d.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark')); await espera(200);
     await d.screenshot({ path: join(FOTOS, '13-auditor-escuro.png'), fullPage: true });
     await d.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
+    // ── AUDITOR do WhatsApp: mesma tela, dados do WhatsApp ──
+    await d.goto(`${base}/crm?t=${token}#wa-auditor`); await d.reload();
+    await d.waitForSelector('.aud-kpi');
+    ok('WhatsApp · Auditor: mesma tela (KPIs, gráficos, log fechado)', (await d.textContent('.page-head')).includes('WhatsApp · Auditor') && await d.locator('.aud-kpi').count() === 6 && await d.locator('.aud-svg').count() > 0 && !(await d.isVisible('.aud-log')));
+    await d.click('.aud-acc > summary');
+    const tw = await d.textContent('.viz.aud');
+    ok('WhatsApp · Auditor: dados do WhatsApp (Clara, encerrado à força), nada do Telegram', tw.includes('Clara') && /Conversa ofensiva ou pesada/.test(tw) && !tw.includes('Ana Souza') && !tw.includes('Bruno Lima') && !/telegram/i.test(tw), tw.replace(/\s+/g, ' ').slice(0, 160));
+    await d.screenshot({ path: join(FOTOS, '15-auditor-whatsapp.png'), fullPage: true });
     const celA = await navegador.newPage({ viewport: { width: 390, height: 844 } });
     await celA.goto(`${base}/crm?t=${token}#tg-auditor`); await celA.waitForSelector('.aud-kpi');
     ok('Auditor no celular: sem rolagem lateral', await celA.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));

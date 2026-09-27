@@ -1380,7 +1380,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 .aud-tipo.t-finalizado{color:var(--ok);border-color:var(--ok-line);background:var(--ok-bg)} .aud-tipo.t-encerrado,.aud-tipo.t-moderacao,.aud-tipo.t-seguranca{color:var(--err);border-color:var(--err-line);background:var(--err-bg)}
 .aud-tipo.t-transferido,.aud-tipo.t-assumido,.aud-tipo.t-responsavel,.aud-tipo.t-encaminhado{color:var(--ac);border-color:var(--ac-line);background:var(--ac-soft)} .aud-tipo.t-avaliacao{color:var(--warn);border-color:var(--warn-line);background:var(--warn-bg)}
 .aud-acc>summary{list-style:none;cursor:pointer;margin:0} .aud-acc>summary::-webkit-details-marker{display:none} .aud-acc[open]>summary{margin-bottom:10px}
-.aud-acc-s{margin-left:auto;font-size:12px;font-weight:650;color:var(--ac)} .aud-acc-s::after{content:" ▾"} .aud-acc[open] .aud-acc-s::after{content:" ▴"}
+.aud-acc-s{margin-left:auto;font-size:12px;font-weight:650;color:var(--ac)} .aud-acc-s::after{content:"Abrir ▾"} .aud-acc[open] .aud-acc-s::after{content:"Fechar ▴"}
 .aud-acc{--x:0} .aud-pag{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:8px} .aud-pag small{margin-right:auto;color:var(--dim)}
 .aud-tip{position:fixed;z-index:80;pointer-events:none;background:var(--ink);color:var(--ink-fg);font-size:12px;padding:6px 9px;border-radius:8px;box-shadow:var(--sh-3);max-width:250px;display:none}
 body.aud-apresentar aside,body.aud-apresentar .topbar,body.aud-apresentar header.top,body.aud-apresentar .tbl-bar,body.aud-apresentar .page-head .ph-acts{display:none!important}
@@ -3752,7 +3752,7 @@ let AUDC={}, AUDC_LOG=false, AUDC_DIAS=30, AUDC_TIPO='', AUDC_Q='', AUDC_PAG=0;
 async function carregarAuditorCanal(canal,forcar){
   const k=canal+':'+AUDC_DIAS; if(AUDC[k]&&!forcar) return AUDC[k];
   try{ AUDC[k]=await apiCru(`auditor/canal?canal=${canal}&dias=${AUDC_DIAS}`); }catch(e){ AUDC[k]={erro:e.message}; }
-  if(rota==='tg-auditor') render();
+  if(rota===(canal==='telegram'?'tg-auditor':'wa-auditor')) render();
   return AUDC[k];
 }
 const audFmtMin=(m)=>m==null?'—':m<1?'< 1 min':m<60?`${String(Math.round(m*10)/10).replace('.',',')} min`:`${Math.floor(m/60)} h ${Math.round(m%60)} min`;
@@ -3838,7 +3838,7 @@ function telaAuditorCanal(canal){
       <div class="card aud-card"><div class="aud-ct"><h3>Satisfação (CSAT)</h3><small class="hint">${K.avaliacoes} de ${K.pedidasAvaliacao} avaliaram</small></div>${notas}</div>
       <div class="card aud-card"><div class="aud-ct"><h3>Desempenho por atendente</h3></div>${ats}</div>
     </div>
-    <details class="card aud-card aud-acc" style="margin-top:14px" ${AUDC_LOG?'open':''} ontoggle="AUDC_LOG=this.open"><summary class="aud-ct"><h3>Log de auditoria</h3><small class="hint">${(a.log||[]).length} evento(s) · cada linha gravada quando aconteceu — é a evidência dos números acima</small><span class="aud-acc-s">${AUDC_LOG?'Fechar':'Abrir'}</span></summary>${log}</details>
+    <details class="card aud-card aud-acc" style="margin-top:14px" ${AUDC_LOG?'open':''} ontoggle="AUDC_LOG=this.open"><summary class="aud-ct"><h3>Log de auditoria</h3><small class="hint">${(a.log||[]).length} evento(s) · cada linha gravada quando aconteceu — é a evidência dos números acima</small><span class="aud-acc-s"></span></summary>${log}</details>
   </div>`;
 }
 function audApresentar(){ document.body.classList.toggle('aud-apresentar'); if(document.body.classList.contains('aud-apresentar')){ document.documentElement.requestFullscreen?.().catch(()=>{}); flash('Modo apresentação — Esc para sair.','ok'); } }
@@ -6094,7 +6094,7 @@ const S2={
  /* Auditor de canal. Mesma trilha, recortada pelo canal que gerou o evento —
     e por isso ele vive dentro de cada canal em vez de ser um item solto que
     mistura WhatsApp, rede social e marketplace na mesma tabela. */
- 'wa-auditor':()=>auditorDoCanal('whatsapp','WhatsApp · Auditor','Tudo que passou pelo WhatsApp: quem falou, quando, e por que o score deu o que deu.'),
+ 'wa-auditor':()=>telaAuditorCanal('whatsapp'),
  'redes-auditor':()=>auditorDoCanal('rede','Redes sociais · Auditor','O que entrou pelas redes sociais.'),
  /* O que o contrato cobre e o que e adendo. Deixar isso escrito na tela evita a
     conversa mais cara que existe: a de "eu achei que estava incluso". */

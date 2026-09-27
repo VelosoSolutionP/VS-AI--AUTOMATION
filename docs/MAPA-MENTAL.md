@@ -253,11 +253,10 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 - **Rotas do servidor:** `/crm/api/canais/conectar`, `/crm/api/canais/desconectar`, `/crm/api/canais/personalizar`, `/crm/api/canais/restaurar-perfil`, `/crm/api/canais/trocar-numero`, `/crm/api/operadores/salvar` → `backend/server.mjs`
 
 #### WhatsApp → Auditor  ·  `#wa-auditor`
-- **Pra que serve:** Tudo que passou pelo WhatsApp: quem falou, quando, e por que o score deu o que deu.
-- **O que tem:** indicadores: Eventos, Mensagens, Leads com trilha · cartões: Trilha
-- **Botões:** Atualizar
-- **Código da tela:** `backend/crm.html` → `auditorDoCanal('whatsapp')`
-- **Ações (funções JS):** `buscarEm()`
+- **Pra que serve:** a MESMA tela do Telegram · Auditor (padrão de mercado), com os dados do WhatsApp — pedido do dono: "mesma pegada, diferenciar só as informações".
+- **O que tem / botões:** iguais ao Telegram → Auditor (KPIs TPR/TMA/SLA/CSAT/bot com variação, 6 gráficos, log de auditoria em acordeão fechado, Apresentar, Imprimir/PDF, Exportar log). Campanhas não entram no log (são do Telegram).
+- **Código da tela:** `backend/crm.html` → `telaAuditorCanal('whatsapp')`; dados `GET /crm/api/auditor/canal?canal=whatsapp`. A trilha antiga (`auditorDoCanal`) segue só em Redes sociais e Quebra-Galho → Auditor.
+- **Prova:** `scripts/prova-auditor.mjs` (40/40) — mostra a Clara e os encerrados à força do WhatsApp, nada do Telegram.
 
 #### WhatsApp → Consumo  ·  `#wa-consumo`
 - **Pra que serve:** Quanta conversa passou por aqui, o que ela virou no funil — e o que só a fatura da Meta responde.
@@ -329,7 +328,7 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 - **O que tem:** período 7/30/90 dias com **variação sobre o período anterior** · KPIs: Conversas, Resolvidas pelo bot, **TPR** (fila → 1ª resposta da equipe, com p90), **TMA** (abertura → encerramento), **SLA** (≤ 5 min), **CSAT** (% notas 4–5) · gráficos: Atendimentos por dia (bot × equipe, com "ver dados"), Funil, Horário de pico (dia × hora), Desfechos + motivos do "à força", Satisfação 1–5, Desempenho por atendente · **Log de auditoria** num acordeão **fechado por padrão** (pedido do dono: "polui a tela"; abre ao clicar) (quem, evento, detalhe, protocolo; filtro por tipo, busca, paginação).
 - **Botões:** 7/30/90 dias · Apresentar (tela cheia, sem menu; Esc sai) · Imprimir / PDF · Exportar log (CSV para Excel)
 - **Código da tela:** `backend/crm.html` → `telaAuditorCanal('telegram')`; dados `GET /crm/api/auditor/canal?canal=telegram&dias=30` → `engine/vsauditoria` (`montarAuditoria`). Sem IA: tudo calculado do que foi gravado (protocolos, histórico do lead, segurança, campanhas). Paleta validada: azul = bot, laranja = equipe.
-- **Testes/prova:** `tests/vsauditoria.test.mjs` · `scripts/prova-auditor.mjs` (38/38). WhatsApp → Auditor continua o antigo (`auditorDoCanal`).
+- **Testes/prova:** `tests/vsauditoria.test.mjs` · `scripts/prova-auditor.mjs` (40/40). WhatsApp → Auditor continua o antigo (`auditorDoCanal`).
 
 #### Telegram → Consumo  ·  `#tg-consumo`
 - **Pra que serve:** Volume de conversa, quanto o bot resolveu sozinho e o que isso custa. O que virou dinheiro está em Resultados.
@@ -450,6 +449,7 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 | 2026-09-27 | Canal e conexão: cliente coloca o bot nos canais e grupos dele | Cartão "Onde o bot trabalha" + "Adicionar destino" (canal · grupo · ID), confirmação automática do que o dono adiciona pelo painel; Campanhas só lista os liberados. Prova 43/43 | (este) |
 | 2026-09-27 | Auditor gera histórico → tela com gráficos e valores para apresentar, "perto de como o mercado mostra auditoria" | Telegram · Auditor refeito: KPIs de mercado (TPR, TMA, SLA, CSAT, resolução pelo bot) com variação, 6 gráficos, log de auditoria com filtro/busca/CSV, Apresentar e Imprimir. Prova 36/36 | (este) |
 | 2026-09-27 | Log de auditoria poluía a tela → acordeão | Log fechado por padrão, abre ao clicar (contagem de eventos no título); Exportar log funciona fechado. Prova 38/38 | (este) |
+| 2026-09-27 | Auditor do WhatsApp na mesma pegada do Telegram, só com as informações do WhatsApp | `wa-auditor` passa a usar `telaAuditorCanal('whatsapp')`; texto do acordeão (Abrir/Fechar) acompanha o estado. Prova 40/40 | (este) |
 | 2026-09-27 | **Tela Telegram · Canal e conexão FECHADA** pelo dono | Conexão do bot + "Onde o bot trabalha" (adicionar canal, grupo ou pelo ID). Campanhas: o dono vai revisar mais a fundo depois | (este) |
 | 2026-09-27 | **Tela Telegram · Atendimento FECHADA** pelo dono | Aprovada com o resultado do teste ao vivo. Teste de recebimento real (mensagem de um celular de verdade) fica pra depois, por escolha do dono (tempo da tela esgotado) | (este) |
 
@@ -491,6 +491,6 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 
 **Próximo:** o dono vai "dar uma olhada mais a fundo" em Campanhas. Canal real de teste já conectado: **"Teste campanha Bolso Cheio"** (`-1003782351972`, privado, bot admin com permissão) — está **pendente** (entrou antes do botão novo), falta o dono clicar em Confirmar em **Telegram → Canal e conexão → Onde o bot trabalha**. Pendente dele também: o valor da política de frequência (hoje 4 h / 3 por dia).
 
-**Provas (instâncias isoladas):** `prova-auditor` 38/38, `prova-campanhas` 40/40, `prova-qualificacao` 26/26, `prova-encerramento` 27/27, `prova-bot-telegram` 8/8, `prova-horario` 11/11.
+**Provas (instâncias isoladas):** `prova-auditor` 40/40, `prova-campanhas` 40/40, `prova-qualificacao` 26/26, `prova-encerramento` 27/27, `prova-bot-telegram` 8/8, `prova-horario` 11/11.
 
 **Como trabalhar (regra do dono):** implementar direto a V1 da proposta; perguntar só o absurdo, em TEXTO (nunca AskUserQuestion). Sem IA em recurso novo (custo). Tela de um canal não mostra dado do outro.
