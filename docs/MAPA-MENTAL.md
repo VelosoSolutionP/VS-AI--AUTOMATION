@@ -93,6 +93,7 @@ backend/usuarios.mjs .... login, sessões, convites (dono × cliente × vendedor
 
 | Decisão | Onde no código | Por quê |
 |---|---|---|
+| **Banda por instalação (2026-09-27):** a banda é GERAL do sistema, medida em bytes no ponto onde passa — HTTP do servidor (painel, loja, webhooks), chamadas que o servidor faz (Telegram, Meta, integrações; `fetch` global medido), WhatsApp Web pelo protocolo do Chrome (websocket + downloads da sessão) e mídia guardada no mês. Limite = plano (`storage_limit_mb`, que o contrato chama de "banda total de consumo mensal") + banda adicional. **Passou → MODO CONSULTA:** lê tudo; nada sai pelos canais (nem o bot), nada publica, nada edita (servidor responde 402); o que chega dos clientes continua gravado. Sai do modo ao virar o mês ou ao liberar banda. Oferta: adendo "Banda adicional (+10 GB/mês)" — **sob consulta até o dono dar o preço**; o cliente pede pelo painel, o dono libera com motivo | `engine/vsconsumo` (medidor, `estado`, pedidos), `engine/vsplanos` → `bandaDoMes`/`adicionarBanda`/`removerBanda`, `backend/server.mjs` → `estadoConsumo`, `LIVRE_EM_CONSULTA`, `backend/canais.mjs` → `comTrava` | Pedido do dono: "consumo geral no sistema… uma banda para cada cliente, passou disso deixa em modo consulta e oferece o adendo de banda". |
 | E-mail do dono (`CONSOLE_ADMIN_EMAIL` + `velosobil@gmail.com`) entra como **dono** com a senha de dono **ou** com a senha da conta de cliente | `backend/usuarios.mjs` → `entrar()`, `autenticar()` | O e-mail pessoal dele também é cliente (compra de teste); caía na tela de compra sem caminho pro dashboard. |
 | Receita de um canal **só com vínculo rastreável**: pedido gerado pelo bot na conversa do canal **+** pagamento confirmado (`CONFIRMADO`/`DISPONIVEL`) | `engine/vsresultados` → `registrarPedido`, `resumo` | Não mostrar faturamento que o comerciante não consegue comprovar. |
 | "Pagar na entrega" = pedido, **nunca** receita. Estorno/chargeback não contam. | idem | idem |
@@ -259,9 +260,10 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 - **Prova:** `scripts/prova-auditor.mjs` (40/40) — mostra a Clara e os encerrados à força do WhatsApp, nada do Telegram.
 
 #### WhatsApp → Consumo  ·  `#wa-consumo`
-- **Pra que serve:** Quanta conversa passou por aqui, o que ela virou no funil — e o que só a fatura da Meta responde.
-- **O que tem:** indicadores: Mensagens, Leads com conversa, Viraram venda, Custo · cartões: Por etapa do funil, Por mês, Por que o custo aparece como “—”
-- **Código da tela:** `backend/crm.html` → `consumoDoCanal('whatsapp')`
+- **Pra que serve:** banda do mês **GERAL da instalação** (todos os canais, painel, loja, integrações e mídia somam no mesmo limite) + o recorte do WhatsApp. Passou do limite → **modo consulta** e oferta do **adendo de banda**.
+- **O que tem:** medidor (usado × limite, % , aviso em 80%, renova dia 1º, projeção no ritmo do mês, limite = plano + banda adicional) · KPIs do canal (banda do WhatsApp, conversas, respostas do bot/equipe, via (WhatsApp Web), custo por mensagem R$ 0) · Banda por dia (WhatsApp × resto do sistema) · Para onde foi a banda (categorias) · Banda adicional e pedidos (dono: liberar/tirar, com motivo) · Como é medido.
+- **Código da tela:** `backend/crm.html` → `telaConsumoCanal('whatsapp')`; dados `GET /crm/api/consumo?canal=…`; faixa de aviso em todas as telas `faixaConsumo()` (via `GET /crm/api/consumo/estado`).
+- **Prova:** `scripts/prova-consumo.mjs` (17/17) · `tests/vsconsumo.test.mjs`.
 
 #### WhatsApp → Desconectar do telefone  ·  `#wa-desconectar`
 - **Pra que serve:** Tirar o bot do WhatsApp do aparelho.
@@ -331,10 +333,10 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 - **Testes/prova:** `tests/vsauditoria.test.mjs` · `scripts/prova-auditor.mjs` (40/40). WhatsApp → Auditor continua o antigo (`auditorDoCanal`).
 
 #### Telegram → Consumo  ·  `#tg-consumo`
-- **Pra que serve:** Volume de conversa, quanto o bot resolveu sozinho e o que isso custa. O que virou dinheiro está em Resultados.
-- **O que tem:** indicadores: Mensagens, Respondidas pelo bot, Respondidas pela equipe, Custo · cartões: Uso do bot, Mensagens por mês
-- **Botões:** Ver resultados
-- **Código da tela:** `backend/crm.html` → `consumoDoCanal('telegram')`
+- **Pra que serve:** banda do mês **GERAL da instalação** (todos os canais, painel, loja, integrações e mídia somam no mesmo limite) + o recorte do Telegram. Passou do limite → **modo consulta** e oferta do **adendo de banda**.
+- **O que tem:** medidor (usado × limite, % , aviso em 80%, renova dia 1º, projeção no ritmo do mês, limite = plano + banda adicional) · KPIs do canal (banda do Telegram, conversas, respostas do bot/equipe, publicações de campanha, custo por mensagem R$ 0) · Banda por dia (Telegram × resto do sistema) · Para onde foi a banda (categorias) · Banda adicional e pedidos (dono: liberar/tirar, com motivo) · Como é medido.
+- **Código da tela:** `backend/crm.html` → `telaConsumoCanal('telegram')`; dados `GET /crm/api/consumo?canal=…`; faixa de aviso em todas as telas `faixaConsumo()` (via `GET /crm/api/consumo/estado`).
+- **Prova:** `scripts/prova-consumo.mjs` (17/17) · `tests/vsconsumo.test.mjs`.
 
 
 ### Crescimento
@@ -450,6 +452,7 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 | 2026-09-27 | Auditor gera histórico → tela com gráficos e valores para apresentar, "perto de como o mercado mostra auditoria" | Telegram · Auditor refeito: KPIs de mercado (TPR, TMA, SLA, CSAT, resolução pelo bot) com variação, 6 gráficos, log de auditoria com filtro/busca/CSV, Apresentar e Imprimir. Prova 36/36 | (este) |
 | 2026-09-27 | Log de auditoria poluía a tela → acordeão | Log fechado por padrão, abre ao clicar (contagem de eventos no título); Exportar log funciona fechado. Prova 38/38 | (este) |
 | 2026-09-27 | Auditor do WhatsApp na mesma pegada do Telegram, só com as informações do WhatsApp | `wa-auditor` passa a usar `telaAuditorCanal('whatsapp')`; texto do acordeão (Abrir/Fechar) acompanha o estado. Prova 40/40 | (este) |
+| 2026-09-27 | Consumo com dados e valores reais; banda por cliente; passou → modo consulta + adendo de banda | Medidor geral (`engine/vsconsumo`), limite do plano + banda adicional, modo consulta (servidor 402 + canais sem envio + agendador parado), faixa de aviso em todas as telas, telas Telegram/WhatsApp · Consumo, pedido e liberação de banda. Prova 17/17 | (este) |
 | 2026-09-27 | **Telas Telegram · Auditor e WhatsApp · Auditor FECHADAS** pelo dono | Padrão de mercado (KPIs, gráficos, log em acordeão, Apresentar/Imprimir/CSV), cada canal com os seus dados | (este) |
 | 2026-09-27 | **Tela Telegram · Canal e conexão FECHADA** pelo dono | Conexão do bot + "Onde o bot trabalha" (adicionar canal, grupo ou pelo ID). Campanhas: o dono vai revisar mais a fundo depois | (este) |
 | 2026-09-27 | **Tela Telegram · Atendimento FECHADA** pelo dono | Aprovada com o resultado do teste ao vivo. Teste de recebimento real (mensagem de um celular de verdade) fica pra depois, por escolha do dono (tempo da tela esgotado) | (este) |
@@ -478,7 +481,7 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 - **Avatar de nome com número** ("Cliente 001") vira "C0" — cosmético.
 - **Avaliação — próximos passos possíveis:** média por vendedor/equipe em Resultados; alerta ao dono em nota ≤ 2; texto da pergunta configurável.
 - **Teste intermitente:** `tests/vsresultados.test.mjs` → "conversa pelo link da campanha…" falhou 1 vez em 4 rodadas da bateria completa (passa sozinho). Observar.
-- **Próxima tela do Telegram a trabalhar:** escolha do dono (Resultados, Atendimento e Canal e conexão fechados; Campanhas feita, dono revisa depois; Auditor fechado; resta Consumo). Depois do Telegram: revisar o Atendimento do WhatsApp com o dono.
+- **Próxima tela do Telegram a trabalhar:** escolha do dono (Resultados, Atendimento e Canal e conexão fechados; Campanhas feita, dono revisa depois; Auditor fechado; Consumo feito (dono revisa)). Depois do Telegram: revisar o Atendimento do WhatsApp com o dono.
 
 ---
 
@@ -490,8 +493,8 @@ Os textos de "Pra que serve", cartões e botões foram **lidos do console rodand
 
 **Entregue hoje (ver Histórico):** Campanhas V1 + 2ª entrega (destinos, publicar/agendar, política) + auditor pela especificação do dono (campos por objetivo, 3 resultados, assistente sem inventar, texto e imagem juntos, revalidação no backend, reabrir) · Qualificação e roteamento (tiers do comercial) · Encerramento (Finalizar × Encerrar), avaliação e Histórico · Bot por canal (Telegram → Bot do Telegram) · Horário em calendário · Avisos que fecham sozinhos · Tela sem atendimento.
 
-**Próximo:** o dono vai "dar uma olhada mais a fundo" em Campanhas. Canal real de teste já conectado: **"Teste campanha Bolso Cheio"** (`-1003782351972`, privado, bot admin com permissão) — está **pendente** (entrou antes do botão novo), falta o dono clicar em Confirmar em **Telegram → Canal e conexão → Onde o bot trabalha**. Pendente dele também: o valor da política de frequência (hoje 4 h / 3 por dia).
+**Próximo:** o dono vai "dar uma olhada mais a fundo" em Campanhas. Canal real de teste já conectado: **"Teste campanha Bolso Cheio"** (`-1003782351972`, privado, bot admin com permissão) — está **pendente** (entrou antes do botão novo), falta o dono clicar em Confirmar em **Telegram → Canal e conexão → Onde o bot trabalha**. Pendente dele também: o valor da política de frequência (hoje 4 h / 3 por dia). E o **preço do adendo de banda** (hoje sob consulta, +10 GB).
 
-**Provas (instâncias isoladas):** `prova-auditor` 40/40, `prova-campanhas` 40/40, `prova-qualificacao` 26/26, `prova-encerramento` 27/27, `prova-bot-telegram` 8/8, `prova-horario` 11/11.
+**Provas (instâncias isoladas):** `prova-consumo` 17/17, `prova-auditor` 40/40, `prova-campanhas` 40/40, `prova-qualificacao` 26/26, `prova-encerramento` 27/27, `prova-bot-telegram` 8/8, `prova-horario` 11/11.
 
 **Como trabalhar (regra do dono):** implementar direto a V1 da proposta; perguntar só o absurdo, em TEXTO (nunca AskUserQuestion). Sem IA em recurso novo (custo). Tela de um canal não mostra dado do outro.

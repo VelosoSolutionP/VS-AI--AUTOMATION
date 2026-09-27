@@ -51,6 +51,15 @@ import * as clientesSrv from './clientes-servicos.mjs';
 import * as midia from './midia.mjs';
 import { pagina as paginaVitrine, paginaProduto, paginaSumiu } from './vitrine.mjs';
 import { lerCorpoLimitado, criarRateLimit, ipDe, segredoIgual, CORPO_MAX_BYTES } from './limites.mjs';
+import * as consumo from '../engine/vsconsumo/index.mjs';
+import { dentroDaCasa } from '../engine/casa.mjs';
+
+/* Medidor de banda: toda chamada que o servidor faz (Telegram, Meta,
+   integrações) passa a ser contada. Precisa vir antes de qualquer provider
+   nascer — eles leem globalThis.fetch na hora de chamar. */
+consumo.medirFetch({ telegramApi: process.env.TELEGRAM_API_URL });
+for (const sinal of ['SIGTERM', 'SIGINT']) { process.once(sinal, () => { consumo.descarregar(); process.exit(0); }); }
+process.on('exit', () => consumo.descarregar());
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /* Hora em toda linha de log. Sem isto, `tail` do arquivo mistura o que acabou de
@@ -251,6 +260,8 @@ function publicarCampanha(pub, c, dest) {
    mesma trava — duas rodadas juntas podiam publicar a mesma campanha 2 vezes. */
 let rodadaCampanhas = null;
 function agendadorCampanhas() {
+  // Modo consulta: nada é publicado; as agendadas esperam (não viram falha).
+  if (emModoConsulta()) { return Promise.resolve({ publicadas: 0, falhas: 0, modoConsulta: true }); }
   if (!rodadaCampanhas) {
     rodadaCampanhas = campanhasTg.rodarAgendador({ publicar: publicarCampanha, revalidarCom: contextoCampanha() }).finally(() => { rodadaCampanhas = null; });
   }
@@ -426,7 +437,27 @@ function entregaResumo(entrega) {
   };
 }
 
+/* Banda do mês: plano + adendos contra o que o medidor contou. A mídia
+   guardada varre pastas — por isso a foto vale 15 s. */
+let fotoConsumo = null;
+function pastasDeMidia() { return [...new Set([midia.baseDir(), dentroDaCasa('midia'), dentroDaCasa('vscampanhas'), dentroDaCasa('vsdocumentos')])]; }
+function estadoConsumo(forcar = false) {
+  if (!forcar && fotoConsumo && Date.now() - fotoConsumo.t < 15000) { return fotoConsumo.e; }
+  const banda = planos.bandaDoMes();
+  const md = consumo.midiaDoMes(pastasDeMidia());
+  const e = { ...consumo.estado({ limiteGb: banda.totalGb, midia: md }), banda };
+  fotoConsumo = { t: Date.now(), e };
+  return e;
+}
+export const emModoConsulta = () => { try { return estadoConsumo().modoConsulta; } catch { return false; } };
+canais.definirTrava(emModoConsulta);
+const MSG_CONSULTA = 'modo consulta: a banda do mês acabou — dá para ver tudo, mas enviar, publicar e editar ficam parados até renovar ou entrar banda adicional';
+/* O que continua funcionando em modo consulta: sair, trocar senha, o próprio
+   consumo (pedir/liberar banda) e ler. */
+const LIVRE_EM_CONSULTA = new Set(['/crm/api/sair', '/crm/api/trocar-senha', '/crm/api/consumo/banda', '/crm/api/consumo/banda/remover', '/crm/api/consumo/pedir-banda']);
+
 const server = createServer(async (req, res) => {
+  consumo.medirRequisicao(req, res);
   if (req.method === 'GET' && req.url === '/health') { return json(res, 200, { ok: true }); }
 
   /**
@@ -1183,6 +1214,10 @@ const server = createServer(async (req, res) => {
         || (req.method === 'POST' && ['/crm/api/atendimentos/responder', '/crm/api/atendimentos/assumir', '/crm/api/atendimentos/devolver', '/crm/api/atendimentos/encerrar', '/crm/api/atendimentos/finalizar'].includes(rota));
       if (!livre) { return json(res, 403, { erro: 'área restrita ao administrador', papel: 'vendedor' }); }
     }
+    /* MODO CONSULTA: banda do mês esgotada. Leitura segue; escrita para. */
+    if (req.method !== 'GET' && !LIVRE_EM_CONSULTA.has(rota) && emModoConsulta()) {
+      return json(res, 402, { erro: MSG_CONSULTA, modoConsulta: true });
+    }
     if (req.method === 'GET' && rota === '/crm/api/minha-conta') { return json(res, 200, { papel: 'admin', email: quem.email }); }
     /* Qualificacao e roteamento: a matriz, as equipes (setores dos operadores) e
        quem tem acesso de vendedor. */
@@ -1219,6 +1254,40 @@ const server = createServer(async (req, res) => {
       const dias = [7, 30, 90].includes(Number(u.searchParams.get('dias'))) ? Number(u.searchParams.get('dias')) : 30;
       const doCanal = (id) => (canal === 'telegram' ? ehTelegram(id) : !ehTelegram(id));
       return json(res, 200, montarAuditoria({ canal, doCanal, dias, leads: crm.listar(), protocolos: proto.listar(), campanhas: canal === 'telegram' ? campanhasTg.listar() : [], seguranca: seguranca.auditoria(500) }));
+    }
+    /* Consumo: banda GERAL da instalação (todos os canais, painel, loja,
+       integrações e mídia) + o recorte do canal pedido. */
+    if (req.method === 'GET' && rota === '/crm/api/consumo/estado') {
+      const e = estadoConsumo();
+      return json(res, 200, { mes: e.mes, faixa: e.faixa, modoConsulta: e.modoConsulta, pct: e.pct, usadoBytes: e.usadoBytes, limiteBytes: e.limiteBytes, renovaEm: e.renovaEm });
+    }
+    if (req.method === 'GET' && rota === '/crm/api/consumo') {
+      const u = new URL(req.url, 'http://x');
+      const canal = u.searchParams.get('canal') === 'whatsapp' ? 'whatsapp' : 'telegram';
+      const e = estadoConsumo(true);
+      const doCanal = (id) => (canal === 'telegram' ? ehTelegram(id) : !ehTelegram(id));
+      const noMes = (q) => consumo.mesDe(q) === e.mes;
+      let recebidas = 0; let peloBot = 0; let pelaEquipe = 0; let comMidia = 0; const conversas = new Set();
+      for (const l of crm.listar()) {
+        if (!doCanal(l.telefone)) { continue; }
+        for (const h of l.historico || []) {
+          if (h.tipo !== 'interacao' || !noMes(h.quando)) { continue; }
+          conversas.add(l.telefone);
+          if (h.direcao === 'entrada') { recebidas++; } else if (h.autor === 'atendente') { pelaEquipe++; } else { peloBot++; }
+          if (h.midia || h.anexo) { comMidia++; }
+        }
+      }
+      const publicacoes = canal === 'telegram' ? campanhasTg.listar().flatMap((c) => c.publicacoes || []).filter((p) => p.estado === 'publicada' && noMes(p.publicadaEm || p.quando)).length : 0;
+      // O atendimento do WhatsApp roda pelo WhatsApp Web (a API da Meta aqui só entrega licença).
+      const via = canal === 'telegram' ? 'API do Telegram' : 'WhatsApp Web';
+      return json(res, 200, {
+        ...e, canal, via,
+        mensagens: { recebidas, peloBot, pelaEquipe, conversas: conversas.size, comMidia, publicacoes },
+        custoPorMensagem: canal === 'telegram' ? 'A API do Telegram não cobra por mensagem.' : 'O WhatsApp Web não cobra por mensagem.',
+        adendo: planos.adicionais().find((x) => x.code === 'banda-extra') || null,
+        pedidos: consumo.pedidosBanda().slice(-10).reverse(),
+        podeLiberar: quem.papel === 'admin',
+      });
     }
     if (req.method === 'GET' && rota === '/crm/api/auditor') { return json(res, 200, await vspainel.painelAuditor()); }
     if (req.method === 'GET' && rota === '/crm/api/financeiro') { return json(res, 200, await vspainel.painelFinanceiro()); }
@@ -1934,6 +2003,10 @@ const server = createServer(async (req, res) => {
         case '/crm/api/campanhas/destino/confirmar': r = campanhasTg.confirmarDestino(String(d.id || ''), quem.email || null); break;
         case '/crm/api/campanhas/destino/remover': r = campanhasTg.removerDestino(String(d.id || '')); break;
         case '/crm/api/campanhas/politica': r = campanhasTg.salvarPolitica(d); break;
+        /* Banda: liberar (adendo pago ou decisão do dono), tirar, pedir. */
+        case '/crm/api/consumo/banda': r = planos.adicionarBanda({ gb: d.gb, motivo: d.motivo, por: quem.email || null }); if (r.ok) { consumo.fecharPedidosBanda({ por: quem.email || null }); console.log(`[consumo] +${d.gb} GB de banda liberados por ${quem.email} — ${d.motivo}`); } estadoConsumo(true); break;
+        case '/crm/api/consumo/banda/remover': r = planos.removerBanda(String(d.id || ''), { por: quem.email || null }); estadoConsumo(true); break;
+        case '/crm/api/consumo/pedir-banda': r = consumo.pedirBanda({ gb: d.gb, por: quem.email || null, observacao: d.observacao }); if (r.ok && !r.repetido) { console.log(`[consumo] pedido de banda adicional de ${quem.email}`); } break;
         /* Publicar agora ou agendar. "Agora" entra na fila e o agendador manda
            na mesma hora — e o mesmo caminho, com as mesmas regras. */
         case '/crm/api/campanhas/publicar': {

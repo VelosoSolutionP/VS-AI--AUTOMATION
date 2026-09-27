@@ -63,6 +63,9 @@ export const SEMENTE = [
 /** Adicionais vendidos à parte. */
 export const SEMENTE_ADICIONAIS = [
   { code: 'atendente-extra', name: 'Atendente adicional', monthly_price: R$(19.90), usage_price: null, active: true },
+  /* Banda adicional: oferecida quando a banda do mês acaba (modo consulta).
+     Sem preço definido pelo dono ainda → sob consulta (vai pro WhatsApp). */
+  { code: 'banda-extra', name: 'Banda adicional (+10 GB/mês)', gb: 10, monthly_price: null, usage_price: null, sob_consulta: true, active: true },
   /* Marketplace NÃO entra com preço: o custo de API/provider muda, e prometer
      hoje um número que muda amanhã é prometer errado. */
   { code: 'canal-marketplace', name: 'Canais adicionais (iFood, 99, Zé Delivery, Mercado Livre, Shopee, X)',
@@ -86,7 +89,15 @@ export function listar({ incluirInativos = false } = {}) {
   return incluirInativos ? todos : todos.filter((p) => p.active !== false);
 }
 
-export const adicionais = () => load('adicionais', null) || (semear() && load('adicionais', []));
+export function adicionais() {
+  const lista = load('adicionais', null) || (semear() && load('adicionais', []));
+  // Catálogo gravado antes do adendo de banda existir: entra sem mexer no resto.
+  if (!lista.some((x) => x.code === 'banda-extra')) {
+    lista.push(SEMENTE_ADICIONAIS.find((x) => x.code === 'banda-extra'));
+    save('adicionais', lista);
+  }
+  return lista;
+}
 
 export const buscar = (code) => (load('planos') || semear()).find((p) => p.code === String(code || '').toLowerCase()) || null;
 
@@ -173,6 +184,42 @@ export function limiteDeAtendentes() {
   const base = a.limites?.atendentes;
   if (base == null) { return null; }
   return base + (a.atendentesExtras || 0);
+}
+
+/**
+ * Banda do mês desta instalação: a do plano (storage_limit_mb, que o contrato
+ * chama de "banda total de consumo mensal") + a banda adicional liberada.
+ * Sem plano = sem limite (erro nosso não trava quem paga — ver cabeMais).
+ */
+export function bandaDoMes() {
+  const a = assinatura();
+  const mb = a.limites?.storageMb;
+  const planoGb = mb == null ? null : Math.round((mb / 1024) * 10) / 10;
+  const extraGb = (a.bandaExtra || []).filter((x) => x.ativa !== false).reduce((s, x) => s + (Number(x.gb) || 0), 0);
+  return { planoGb, extraGb, totalGb: planoGb == null ? null : planoGb + extraGb, plano: a.detalhe?.nome ? `${({ whatsapp: 'WhatsApp', redes: 'Redes sociais', combo: 'Combo' })[a.detalhe.module] || a.detalhe.module} ${a.detalhe.nome}` : null, historico: a.bandaExtra || [] };
+}
+
+/** Libera banda adicional (adendo contratado ou decisão do dono). Fica no histórico. */
+export function adicionarBanda({ gb, motivo, por } = {}) {
+  const n = Number(gb);
+  if (!Number.isFinite(n) || n <= 0 || n > 10000) { return { ok: false, erro: 'diga quantos GB liberar (número maior que zero)' }; }
+  if (!String(motivo || '').trim()) { return { ok: false, erro: 'diga o motivo (ex.: adendo de banda pago, cortesia)' }; }
+  const todas = assinaturas();
+  if (!todas.local) { return { ok: false, erro: 'esta instalação não tem plano — sem plano não há limite de banda' }; }
+  const item = { id: `b${Date.now().toString(36)}`, gb: n, motivo: String(motivo).trim().slice(0, 200), por: por || null, em: new Date().toISOString(), ativa: true };
+  todas.local.bandaExtra = [...(todas.local.bandaExtra || []), item];
+  save('assinaturas', todas);
+  return { ok: true, item, banda: bandaDoMes() };
+}
+
+/** Tira uma banda adicional (adendo cancelado). O registro fica, marcado inativo. */
+export function removerBanda(id, { por } = {}) {
+  const todas = assinaturas();
+  const it = (todas.local?.bandaExtra || []).find((x) => x.id === id && x.ativa !== false);
+  if (!it) { return { ok: false, erro: 'banda adicional não encontrada' }; }
+  it.ativa = false; it.removidaEm = new Date().toISOString(); it.removidaPor = por || null;
+  save('assinaturas', todas);
+  return { ok: true, banda: bandaDoMes() };
 }
 
 /** Só pra teste: devolve o catálogo ao estado de fábrica. */

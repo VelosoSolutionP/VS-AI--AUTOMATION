@@ -216,6 +216,11 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
         },
         statusFind: (s) => onStatus(s),
       });
+      /* Medidor de banda: a conversa corre no navegador da sessão — quem mede
+         é quem montou o provider (opcoes.aoNavegador). Falhar aqui não derruba o canal. */
+      if (typeof opcoes.aoNavegador === 'function' && cliente?.page) {
+        Promise.resolve().then(() => opcoes.aoNavegador(cliente.page)).catch((e) => console.warn('[whatsapp-web] medidor de banda não ligou:', e.message));
+      }
 
       cliente.onMessage?.(async (m) => {
         ultimaAtividade = agora();

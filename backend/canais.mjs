@@ -11,6 +11,7 @@
  */
 import { criarGateway } from '../engine/canais/gateway.mjs';
 import { criarWhatsAppWebProvider } from '../engine/canais/whatsapp-web/index.mjs';
+import * as consumo from '../engine/vsconsumo/index.mjs';
 import { criarTelegramProvider, ehTelegram } from '../engine/canais/telegram/index.mjs';
 import { reservarEvento } from './idempotencia.mjs';
 import * as atendimento from './atendimento.mjs';
@@ -72,6 +73,24 @@ function jaDisseAgora(para, texto) {
 }
 
 let gateway = null;
+/* MODO CONSULTA (banda do mês esgotada): nada sai pelos canais — nem o bot,
+   nem a equipe, nem campanha. O que chega continua sendo recebido e gravado,
+   para o cliente ver. A regra de quando trava mora no servidor (definirTrava). */
+let travado = () => false;
+export function definirTrava(fn) { travado = typeof fn === 'function' ? fn : () => false; }
+export const MSG_TRAVA = 'modo consulta: a banda do mês acabou — nada é enviado até renovar ou entrar banda adicional';
+function comTrava(p) {
+  return new Proxy(p, {
+    get(alvo, k) {
+      const v = alvo[k];
+      if (typeof v !== 'function') { return v; }
+      if (/^(enviar|publicar)/.test(String(k))) {
+        return (...a) => (travado() ? Promise.resolve({ ok: false, erro: MSG_TRAVA, modoConsulta: true }) : v.apply(alvo, a));
+      }
+      return v.bind(alvo);
+    },
+  });
+}
 let whatsappWeb = null;
 let telegram = null;
 
@@ -240,7 +259,7 @@ function montar({ produtos } = {}) {
     },
   });
 
-  whatsappWeb = criarWhatsAppWebProvider();
+  whatsappWeb = comTrava(criarWhatsAppWebProvider({ aoNavegador: (page) => consumo.medirNavegador(page, 'whatsapp') }));
   vigiaPix.iniciar({ consultar: (id) => pagamentos.atualizarEstado(id), aoConfirmar: avisarPixPago });
 
   /* TODA mudanca de estado no log. Antes so a queda e a retomada no boot
@@ -313,7 +332,7 @@ function montar({ produtos } = {}) {
   /* TELEGRAM_API_URL existe SO pro teste de volume (scripts/teste-volume-telegram.mjs),
      que aponta uma instancia isolada pra um Telegram falso local. Sem a
      variavel, e a API oficial — em producao ela nunca e definida. */
-  telegram = criarTelegramProvider(process.env.TELEGRAM_API_URL ? { api: process.env.TELEGRAM_API_URL } : {});
+  telegram = comTrava(criarTelegramProvider(process.env.TELEGRAM_API_URL ? { api: process.env.TELEGRAM_API_URL } : {}));
   telegram.aoMudarStatus((st) => {
     const e = st?.estado || '?';
     if (e === 'conectado') { console.log(`[canais] telegram CONECTADO${st.numero ? ' — ' + st.numero : ''}`); }

@@ -1350,6 +1350,21 @@ td.num,th.num{text-align:right;white-space:nowrap}
 @keyframes gira{to{transform:rotate(360deg)}}
 .cp-dests-ok{display:flex;flex-wrap:wrap;gap:6px} .cp-dest-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ok-line);background:var(--ok-bg);color:var(--ok);border-radius:99px;padding:4px 10px;font-size:12.5px;font-weight:600}
 .cp-dest-chip svg{width:13px;height:13px}
+/* Consumo (banda) */
+.cons-faixa{border:1px solid var(--warn-line);background:var(--warn-bg);color:var(--fg);border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.cons-faixa.consulta{border-color:var(--err-line);background:var(--err-bg)} .cons-faixa .btn{margin-left:auto}
+.cons-medidor{margin-bottom:14px} .cons-top{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}
+.cons-top small{font-size:11px;color:var(--dim);font-weight:650;letter-spacing:.03em} .cons-top b{display:block;font-size:28px;letter-spacing:-.03em;font-variant-numeric:tabular-nums} .cons-top b span{font-size:15px;color:var(--muted);font-weight:500;letter-spacing:0}
+.cons-selo{margin-left:auto;font-size:12px;font-weight:700;border-radius:99px;padding:4px 10px;border:1px solid var(--ok-line);background:var(--ok-bg);color:var(--ok)}
+.cons-selo.atencao{border-color:var(--warn-line);background:var(--warn-bg);color:var(--warn)} .cons-selo.consulta{border-color:var(--err-line);background:var(--err-bg);color:var(--err)}
+.cons-barra{position:relative;height:14px;border-radius:7px;background:var(--raised);overflow:hidden} .cons-barra i{display:block;height:100%;background:var(--s1);border-radius:7px}
+.cons-medidor.atencao .cons-barra i{background:var(--warn)} .cons-medidor.consulta .cons-barra i{background:var(--err)}
+.cons-barra em{position:absolute;top:0;bottom:0;width:2px;background:var(--panel)}
+.cons-leg{display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:8px} .cons-leg .ruim{color:var(--err)}
+.cons-consulta{margin-top:12px;border:1px solid var(--err-line);background:var(--err-bg);border-radius:10px;padding:12px;font-size:13px}
+.cons-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.cons-ped{font-size:13px;border:1px solid var(--warn-line);background:var(--warn-bg);border-radius:8px;padding:8px 10px;margin-bottom:10px}
+.cons-como{margin:0;padding-left:18px;font-size:13px;color:var(--muted);display:grid;gap:6px}
 /* Auditor: paleta validada (dataviz): s1 = bot (azul), s2 = equipe (laranja) */
 .viz{--s1:#2a78d6;--s2:#eb6834}
 [data-theme="dark"] .viz{--s1:#3987e5;--s2:#d95926}
@@ -1695,6 +1710,8 @@ async function apiCru(r,body){
   const j=await res.json().catch(()=>({erro:[502,503,504,520,521,522,523,524,530].includes(res.status)||res.status===0
     ?'A conexão com o servidor caiu no meio do pedido (internet ou túnel). Nada foi cobrado — tente de novo em alguns segundos.'
     :`o servidor respondeu fora do formato (HTTP ${res.status}) — tente de novo`}));
+  // Modo consulta: o servidor recusou a escrita — a faixa aparece na hora.
+  if(res.status===402&&j.modoConsulta){ CONS_EST={...(CONS_EST||{}),faixa:'consulta',modoConsulta:true}; setTimeout(()=>{checarConsumo();render();},0); }
   if(!res.ok||j.erro) throw new Error(j.erro||('HTTP '+res.status));
   return j;
 }
@@ -5370,8 +5387,110 @@ const S={
     ${cardH('alerta',`O que NÃO entrou neste relatório`,``,5)}${notas(r.naoEntrou)}</div>`;
  },
 
- 'wa-consumo':()=>consumoDoCanal('whatsapp'),
+ 'wa-consumo':()=>telaConsumoCanal('whatsapp'),
 };
+/* ── Consumo (banda) ─────────────────────────────────────────────────────────
+   A banda é GERAL da instalação: todos os canais, o painel, a loja, as
+   integrações e a mídia guardada somam no mesmo limite do mês (plano +
+   adendos). A tela de cada canal mostra o total e o recorte dele. Medido em
+   bytes pelo servidor, na hora que passa — não é estimativa. */
+let CONS={}, CONS_EST=null;
+const fmtBytes=(b)=>{ if(b==null) return '—'; const u=['B','KB','MB','GB','TB']; let i=0,x=b; while(x>=1024&&i<u.length-1){x/=1024;i++;} return `${String(i?(x>=100?Math.round(x):Math.round(x*10)/10):x).replace('.',',')} ${u[i]}`; };
+async function carregarConsumo(canal){
+  try{ CONS[canal]=await apiCru('consumo?canal='+canal); CONS_EST=CONS[canal]; }catch(e){ CONS[canal]={erro:e.message}; }
+  if(rota===(canal==='telegram'?'tg-consumo':'wa-consumo')) render();
+}
+/* Estado leve para a faixa de aviso em todas as telas. */
+async function checarConsumo(){
+  try{ const e=await apiCru('consumo/estado'); const mudou=!CONS_EST||CONS_EST.faixa!==e.faixa; CONS_EST={...(CONS_EST||{}),...e}; if(mudou) render(); }catch{ /* sem sessão ainda */ }
+}
+function faixaConsumo(){
+  const e=CONS_EST; if(!e||e.faixa==='normal'||/-consumo$/.test(rota)) return '';
+  const ir=`ir('${rota.startsWith('tg')?'tg':'wa'}-consumo')`;
+  if(e.faixa==='consulta') return `<div class="cons-faixa consulta" role="alert"><b>Modo consulta</b> — a banda do mês acabou (${fmtBytes(e.usadoBytes)} de ${fmtBytes(e.limiteBytes)}). Dá para ver tudo; enviar, publicar e editar ficam parados até ${new Date(e.renovaEm).toLocaleDateString('pt-BR')} ou até entrar banda adicional. <button class="btn btn-s btn-xs" onclick="${ir}">Ver consumo e contratar banda</button></div>`;
+  return `<div class="cons-faixa atencao"><b>${Math.round(e.pct*100)}% da banda do mês</b> já foi usada (${fmtBytes(e.usadoBytes)} de ${fmtBytes(e.limiteBytes)}). Ao chegar em 100%, o sistema entra em modo consulta. <button class="btn btn-g btn-xs" onclick="${ir}">Ver consumo</button></div>`;
+}
+async function pedirBanda(canal){
+  try{ const r=await api('consumo/pedir-banda',{gb:CONS[canal]?.adendo?.gb||10}); flash(r.repetido?'Seu pedido de banda adicional já está registrado — a Veloso Solution entra em contato.':'Pedido de banda adicional registrado — a Veloso Solution entra em contato para liberar.','ok'); carregarConsumo(canal); }catch(e){ avisoErro(e); }
+}
+function liberarBanda(canal){
+  abrirModal('Liberar banda adicional',`<p class="hint">Soma no limite do mês desta instalação (e dos próximos, até ser tirada). Fica no histórico com o motivo.</p>
+    <div class="form-grid"><div class="field"><label>GB a liberar</label><input id="bdGb" type="number" min="1" step="1" value="${CONS[canal]?.adendo?.gb||10}"></div>
+    <div class="field"><label>Motivo</label><input id="bdMot" placeholder="ex.: adendo de banda pago, cortesia"></div></div>`,
+    botao({t:'Cancelar',v:'g',on:'fecharModal()'})+botao({t:'Liberar',ic:'check',v:'p',on:`confirmarBanda('${canal}')`}));
+}
+async function confirmarBanda(canal){
+  try{ await api('consumo/banda',{gb:Number(document.getElementById('bdGb').value),motivo:document.getElementById('bdMot').value}); fecharModal(); flash('Banda liberada.','ok'); await carregarConsumo(canal); checarConsumo(); }catch(e){ avisoErro(e); }
+}
+async function tirarBanda(canal,id){
+  if(!confirm('Tirar esta banda adicional do limite?')) return;
+  try{ await api('consumo/banda/remover',{id}); flash('Banda adicional retirada.','ok'); await carregarConsumo(canal); checarConsumo(); }catch(e){ avisoErro(e); }
+}
+function consBarrasDia(porDia,canal,mes){
+  const [a,m]=mes.split('-').map(Number), nDias=new Date(a,m,0).getDate();
+  const dias=Array.from({length:nDias},(_,i)=>{ const d=`${mes}-${String(i+1).padStart(2,'0')}`; const x=porDia.find(p=>p.dia===d)||{}; const c=x[canal]||0; return {d,c,r:(x.total||0)-c}; });
+  const W=720,H=180,PB=22,PL=62, max=Math.max(1,...dias.map(x=>x.c+x.r)), passo=(W-PL)/nDias, bw=Math.min(18,Math.max(3,passo-3)), off=(passo-bw)/2;
+  const y=(v)=>H-PB-(v/max)*(H-PB-10), nome=canal==='telegram'?'Telegram':'WhatsApp';
+  return `<svg viewBox="0 0 ${W} ${H}" class="aud-svg" role="img" aria-label="Banda por dia: ${nome} e o resto do sistema">
+    ${[0,max/2,max].map(t=>`<line x1="${PL}" x2="${W}" y1="${y(t)}" y2="${y(t)}" class="aud-grade"/><text x="${PL-6}" y="${y(t)+4}" class="aud-eixo" text-anchor="end">${fmtBytes(t)}</text>`).join('')}
+    ${dias.map((x,i)=>{ const X=PL+i*passo+off, yc=y(x.c), yr=y(x.c+x.r);
+      return `<g class="aud-hit" data-tip="${esc(`${x.d.slice(8)}/${x.d.slice(5,7)} — ${nome} ${fmtBytes(x.c)} · resto do sistema ${fmtBytes(x.r)}`)}"><rect x="${X-1}" y="0" width="${bw+2}" height="${H-PB}" fill="transparent"/>
+      ${x.c?`<rect x="${X}" y="${yc}" width="${bw}" height="${H-PB-yc}" rx="2" fill="var(--s1)"/>`:''}${x.r?`<rect x="${X}" y="${yr}" width="${bw}" height="${Math.max(0,yc-yr-2)}" rx="2" fill="var(--s2)"/>`:''}</g>`; }).join('')}
+    ${dias.map((x,i)=>i%5===0?`<text x="${PL+i*passo+passo/2}" y="${H-6}" class="aud-eixo" text-anchor="middle">${x.d.slice(8)}/${x.d.slice(5,7)}</text>`:'').join('')}</svg>`;
+}
+function telaConsumoCanal(canal){
+  const c=CONS[canal]; if(!c) setTimeout(()=>carregarConsumo(canal),0);
+  const nome=canal==='telegram'?'Telegram':'WhatsApp';
+  const cab=head(`${nome} · Consumo`,`Banda do mês — geral do sistema (todos os canais, painel, loja e mídia) — e quanto o ${nome} usou. Medido em bytes, na hora que passa pelo servidor.`,
+    botao({t:'Atualizar',ic:'atualizar',v:'g',on:`carregarConsumo('${canal}')`})+botao({t:'Ver resultados',ic:'financeiro',v:'s',on:`ir('${canal==='telegram'?'tg':'wa'}-resultados')`}));
+  if(!c) return cab+'<div class="card"><p class="hint">Carregando…</p></div>';
+  if(c.erro) return cab+`<div class="card"><p class="hint">Não consegui carregar: ${esc(c.erro)}</p></div>`;
+  const pct=c.pct==null?null:Math.min(1,c.pct), cats=c.porCategoria, doCanal=cats[canal]?.total||0, M=c.mensagens;
+  const rotC={telegram:'Telegram',whatsapp:'WhatsApp',painel:'Painel (uso da equipe)',loja:'Loja e páginas públicas',integracoes:'Outras integrações',midia:'Mídia guardada no mês'};
+  const renova=new Date(c.renovaEm).toLocaleDateString('pt-BR');
+  const estouraProj=c.limiteBytes&&c.projecaoBytes>c.limiteBytes;
+  const b=c.banda||{};
+  const medidor=`<div class="card cons-medidor ${c.faixa}">
+    <div class="cons-top"><div><small>BANDA DO MÊS · GERAL DO SISTEMA</small>
+      <b>${fmtBytes(c.usadoBytes)} <span>de ${c.limiteBytes?fmtBytes(c.limiteBytes):'sem limite'}</span></b></div>
+      <span class="cons-selo ${c.faixa}">${c.faixa==='consulta'?'Modo consulta':c.faixa==='atencao'?'Atenção':'Normal'}</span></div>
+    ${pct==null?'<p class="hint">Esta instalação não tem plano com limite de banda — nada trava.</p>'
+      :`<div class="cons-barra" role="img" aria-label="${Math.round(c.pct*100)}% da banda usada"><i style="width:${Math.max(pct?1:0,pct*100)}%"></i><em style="left:80%" title="aviso em 80%"></em></div>
+      <div class="cons-leg"><span><b>${Math.round(c.pct*100)}%</b> usado</span><span>renova em <b>${renova}</b></span>
+      <span class="${estouraProj?'ruim':''}">no ritmo atual: <b>${fmtBytes(c.projecaoBytes)}</b> até o fim do mês${estouraProj?' — passa do limite':''}</span></div>`}
+    <p class="hint" style="margin:8px 0 0">Limite: plano ${esc(b.plano||'—')} = ${b.planoGb==null?'sem limite':b.planoGb+' GB'}${b.extraGb?` + ${b.extraGb} GB de banda adicional`:''}.</p>
+    ${c.faixa==='consulta'?`<div class="cons-consulta"><b>O sistema está em modo consulta.</b> Dá para ver tudo, mas nada é enviado (nem pelo bot), publicado ou editado até ${renova} — ou até contratar banda adicional.
+      <div class="cons-acts">${c.adendo?botao({t:`Contratar ${(c.adendo.name||'Banda adicional').replace(/^B/,'b')}`,ic:'mais',v:'p',on:`pedirBanda('${canal}')`}):''}${c.podeLiberar?botao({t:'Liberar banda adicional',ic:'check',v:'s',on:`liberarBanda('${canal}')`}):''}</div></div>`
+      :c.podeLiberar&&c.limiteBytes?`<div class="cons-acts">${botao({t:'Liberar banda adicional',ic:'mais',v:'g',sz:'xs',on:`liberarBanda('${canal}')`})}</div>`:''}
+  </div>`;
+  const kpis=`<div class="aud-kpis">
+    ${audKpi(`Banda do ${nome}`,fmtBytes(doCanal),c.usadoBytes?`${Math.round(100*doCanal/c.usadoBytes)}% do total do mês`:'nada ainda','','Bytes que o '+nome+' trocou com o servidor neste mês')}
+    ${audKpi('Conversas no mês',M.conversas,`${M.recebidas} mensagem(ns) recebida(s)`)}
+    ${audKpi('Respostas do bot',M.peloBot,M.peloBot+M.pelaEquipe?`${Math.round(100*M.peloBot/(M.peloBot+M.pelaEquipe))}% das respostas`:'—')}
+    ${audKpi('Respostas da equipe',M.pelaEquipe,'enviadas pelo painel')}
+    ${canal==='telegram'?audKpi('Publicações',M.publicacoes,'campanhas publicadas no mês'):audKpi('Via',`<span style="font-size:18px">${esc(c.via)}</span>`,'como o canal está ligado')}
+    ${audKpi('Custo por mensagem','R$ 0',esc(c.custoPorMensagem))}
+  </div>`;
+  const maxC=Math.max(...Object.values(cats).map(x=>x.total));
+  const onde=audBarrasH(Object.entries(cats).sort((a,b2)=>b2[1].total-a[1].total).map(([k,v])=>({rot:rotC[k]||k,n:v.total,cor:k===canal?'--s1':'--s2'})),maxC,fmtBytes);
+  const leg=`<div class="aud-leg"><span><i style="background:var(--s1)"></i>${nome}</span><span><i style="background:var(--s2)"></i>Resto do sistema</span></div>`;
+  const hist=(b.historico||[]);
+  const extra=c.podeLiberar?`<div class="card aud-card"><div class="aud-ct"><h3>Banda adicional e pedidos</h3></div>
+    ${(c.pedidos||[]).filter(p=>p.estado==='aberto').map(p=>`<div class="cons-ped">Pedido aberto de <b>+${p.gb} GB</b> por ${esc(p.por||'—')} em ${new Date(p.em).toLocaleString('pt-BR')}</div>`).join('')}
+    ${hist.length?`<div class="tbl-wrap"><table><thead><tr><th>Quando</th><th class="num">GB</th><th>Motivo</th><th>Quem</th><th></th></tr></thead><tbody>${hist.slice().reverse().map(h=>`<tr${h.ativa===false?' style="opacity:.55"':''}><td>${new Date(h.em).toLocaleDateString('pt-BR')}</td><td class="num">+${h.gb}</td><td>${esc(h.motivo)}</td><td>${esc(h.por||'—')}</td><td>${h.ativa===false?'<small>retirada</small>':botao({t:'Tirar',v:'g',sz:'xs',on:`tirarBanda('${canal}','${h.id}')`})}</td></tr>`).join('')}</tbody></table></div>`:'<p class="hint">Nenhuma banda adicional liberada até agora.</p>'}</div>`:'';
+  return cab+`<div class="viz aud">${medidor}${kpis}
+    <div class="aud-grade2">
+      <div class="card aud-card"><div class="aud-ct"><h3>Banda por dia</h3>${leg}</div>${consBarrasDia(c.porDia||[],canal,c.mes)}</div>
+      <div class="card aud-card"><div class="aud-ct"><h3>Para onde foi a banda</h3><small class="hint">mês inteiro, sistema todo</small></div>${onde}</div>
+      ${extra}
+      <details class="card aud-card aud-acc"><summary class="aud-ct"><h3>Como é medido</h3><span class="aud-acc-s"></span></summary>
+        <ul class="cons-como"><li><b>Canais:</b> bytes reais trocados com a API do Telegram e, no WhatsApp Web, os bytes do navegador da sessão (conexão, mensagens e mídia).</li>
+        <li><b>Painel e loja:</b> o que entra e sai do servidor quando alguém usa o painel ou abre a loja.</li>
+        <li><b>Mídia guardada:</b> arquivos de imagem, vídeo, áudio e PDF gravados no mês.</li>
+        <li><b>Passou do limite:</b> modo consulta — lê tudo, não envia, não publica, não edita. O que chega dos clientes continua sendo recebido e fica gravado.</li></ul></details>
+    </div></div>`;
+}
+
 function consumoDoCanal(canal){
   const tg=canal==='telegram';
   const inter=trilhaDeLeads().filter(e=>e.tipo==='interacao'&&ehTg(e.telefone)===tg);
@@ -5439,7 +5558,7 @@ Object.assign(S,{
  'tg-atendimento':()=>telaFilaTelegram(),
  'tg-canal':()=>telaTelegram(),
  'tg-auditor':()=>telaAuditorCanal('telegram'),
- 'tg-consumo':()=>consumoDoCanal('telegram'),
+ 'tg-consumo':()=>telaConsumoCanal('telegram'),
  'tg-resultados':()=>telaResultados('telegram'),
  'tg-campanhas':()=>telaCampanhas('telegram'),
  'qualificacao':()=>telaQualificacao(),
@@ -6425,7 +6544,7 @@ function render(){
   document.getElementById('crumb').innerHTML=t.map((x,i)=>i===t.length-1?`<b>${esc(x)}</b>`:`<span class="pai">${esc(x)} <i>/</i></span>`).join(' ');
   /* Na caixa de conversas o aviso vai pro alto: embaixo ele tapava o botao de enviar. */
   document.body.classList.toggle('tela-chat',/^(wa|tg)-atendimento$|^(whats|tg)$/.test(rota));
-  document.getElementById('view').innerHTML=(TELAS[rota]||telaVisao)();
+  document.getElementById('view').innerHTML=faixaConsumo()+(TELAS[rota]||telaVisao)();
   if(rota==='indicacao') trocaModelo();
   /* O perfil do assistente e buscado DEPOIS de desenhar: ele baixa a foto do
      servidor da Meta, e segurar a tela por causa de uma imagem faria o console
@@ -7044,6 +7163,7 @@ async function carregar(){
     /* Vendedor: so o Atendimento (o servidor recusa o resto de qualquer jeito). */
     if(eu.papel==='vendedor'){ return carregarVendedor(eu); }
     EU=eu;
+    checarConsumo(); if(!window.__consTimer) window.__consTimer=setInterval(checarConsumo,60000);
   }catch(e){ if(/sessão expirada|senha ausente|403/.test(e.message)){ TOKEN='';sessionStorage.removeItem('crm_token');return telaEntrar(); } }
   try{
     // O diagnostico do TikTok nao pode derrubar o painel inteiro se o backend for antigo.
