@@ -56,12 +56,21 @@ export function codigoDe(nome, existentes = []) {
   return c;
 }
 
-export function criarCampanha({ nome, canal = 'telegram' } = {}) {
+/**
+ * `codigo` vem pronto quando a campanha foi montada e aprovada no `vscampanhas`
+ * (o dono já viu o link na prévia) — aí ele é usado como está, ou recusado.
+ */
+export function criarCampanha({ nome, canal = 'telegram', codigo: pedido } = {}) {
   const n = String(nome || '').trim();
   if (!n) { return { ok: false, erro: 'dê um nome pra campanha (ex.: "Promo de sexta")' }; }
   if (n.length > 80) { return { ok: false, erro: 'nome longo demais (até 80 caracteres)' }; }
   const d = ler();
-  const codigo = codigoDe(n, d.campanhas.map((c) => c.codigo));
+  const existentes = d.campanhas.map((c) => c.codigo);
+  if (pedido != null) {
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(String(pedido))) { return { ok: false, erro: 'código do link fora do formato do Telegram' }; }
+    if (existentes.includes(String(pedido))) { return { ok: false, erro: `já existe campanha com o código "${pedido}"` }; }
+  }
+  const codigo = pedido != null ? String(pedido) : codigoDe(n, existentes);
   const campanha = { codigo, nome: n, canal, criadaEm: agoraIso(), arquivada: false };
   d.campanhas.push(campanha);
   gravar(d);
@@ -92,7 +101,12 @@ export function registrarOrigem(telefone, { canal, campanha, quando = agoraIso()
   const cod = String(campanha || '').trim();
   if (!tel || !cod) { return { ok: false }; }
   const d = ler();
-  if (!d.campanhas.some((c) => c.codigo === cod)) { return { ok: false, motivo: 'campanha desconhecida' }; }
+  const c = d.campanhas.find((x) => x.codigo === cod);
+  if (!c) { return { ok: false, motivo: 'campanha desconhecida' }; }
+  /* Entrada = cada /start com o código, repetido ou não. Não é "clique": o
+     Telegram só avisa quem abriu o bot, não quem viu o link e desistiu. */
+  const dia = String(quando).slice(0, 10);
+  c.entradas = { ...(c.entradas || {}), [dia]: ((c.entradas || {})[dia] || 0) + 1 };
   d.origens[tel] = { canal: canal || null, campanha: cod, quando };
   gravar(d);
   return { ok: true };
@@ -227,7 +241,8 @@ export function resumo({ canal, dias = 30, agora, pagamentos = [], leads = {} } 
   }
   const porCampanha = cams.map((c) => {
     const ps = atual.filter((p) => p.campanha === c.codigo);
-    return { codigo: c.codigo, nome: c.nome, arquivada: c.arquivada, criadaEm: c.criadaEm,
+    const entradas = Object.entries(c.entradas || {}).filter(([dia]) => dia >= ini.toISOString().slice(0, 10) && dia <= fim.toISOString().slice(0, 10)).reduce((s, [, n]) => s + n, 0);
+    return { codigo: c.codigo, nome: c.nome, arquivada: c.arquivada, criadaEm: c.criadaEm, entradas,
       conversas: conversasPorCampanha[c.codigo] || 0, pedidos: ps.length, concluidos: ps.filter((p) => p.pago).length, receitaCentavos: receita(ps) };
   });
 

@@ -1173,6 +1173,58 @@ body.tela-chat .toasts{top:66px;bottom:auto}
 .fc-espera svg{width:12px;height:12px}
 .fc-espera.aguarda{color:var(--muted)} .fc-espera.morno{color:var(--warn)} .fc-espera.quente{color:var(--err)}
 .fc-assumir{margin-left:auto}
+/* Telegram · Campanhas: assistente com previa ao lado */
+.cp-passos{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:-2px 0 18px}
+.cp-passo{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);
+  border-radius:99px;padding:6px 13px 6px 6px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+.cp-passo[disabled]{cursor:default;opacity:.55}
+.cp-passo .n{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;background:var(--raised);color:var(--muted)}
+.cp-passo .n svg{width:12px;height:12px}
+.cp-passo.on{border-color:var(--ac-line);background:var(--ac-soft);color:var(--ac)} .cp-passo.on .n{background:var(--ac);color:var(--ac-fg)}
+.cp-passo.feito .n{background:var(--ok-bg);color:var(--ok)}
+.cp-sep{flex:0 0 14px;height:1px;background:var(--line-2)}
+.cp-grade{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:22px;align-items:start}
+.cp-form{display:grid;gap:14px;min-width:0}
+.cp-lado{position:sticky;top:14px}
+.cp-lado-t{font-size:11.5px;font-weight:650;color:var(--muted);margin-bottom:8px}
+@media(max-width:980px){.cp-grade{grid-template-columns:1fr}.cp-lado{position:static}}
+.cp-h{margin:4px 0 2px;font-size:13.5px;font-weight:680}
+.cp-objs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.cp-obj{display:grid;gap:3px;text-align:left;border:1px solid var(--line);background:var(--panel-2);border-radius:12px;padding:12px;
+  font:inherit;color:var(--fg);cursor:pointer;transition:border-color .14s,background .14s}
+.cp-obj svg{width:18px;height:18px;color:var(--muted);margin-bottom:4px}
+.cp-obj b{font-size:13px} .cp-obj small{font-size:11.5px;color:var(--dim)}
+.cp-obj:hover{border-color:var(--line-2)}
+.cp-obj.on{border-color:var(--ac);background:var(--ac-soft)} .cp-obj.on svg{color:var(--ac)}
+.cp-form textarea{width:100%;resize:vertical}
+.cp-conta{font-size:11px;font-weight:600;color:var(--dim)} .cp-conta.estourou{color:var(--err)}
+.cp-img{display:flex;gap:12px;align-items:center} .cp-img img{width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+.cp-img b{font-size:12.5px}
+.cp-rodape{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px;margin-top:4px}
+.cp-veredito{border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px;font-weight:550}
+.cp-veredito.b-ok,.cp-veredito.b-warn,.cp-veredito.b-err,.cp-veredito.b-ac{border-style:solid}
+.cp-aud{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--panel-2)}
+.cp-aud-h{display:flex;align-items:center;gap:8px;font-size:13px}
+.cp-aud ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
+.cp-aud li{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--muted)} .cp-aud li .badge{flex:0 0 auto}
+.cp-ressalva{display:flex;gap:9px;align-items:flex-start;border:1px solid var(--warn-line);background:var(--warn-bg);border-radius:10px;padding:10px 12px;font-size:12.5px;margin-top:10px;cursor:pointer}
+.cp-det{display:grid;grid-template-columns:300px minmax(0,1fr);gap:20px} @media(max-width:720px){.cp-det{grid-template-columns:1fr}}
+.cp-nums{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cp-num{border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:var(--panel-2)} .cp-num small{display:block;font-size:11px;color:var(--dim)} .cp-num b{font-size:18px}
+td.num,th.num{text-align:right;white-space:nowrap}
+.cp-linha{cursor:pointer} .cp-linha:focus-visible{outline:2px solid var(--ac);outline-offset:-2px}
+/* previa estilo Telegram (cores do app, nao do tema: e o que o cliente vai ver) */
+.tgp{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}
+.tgp-top{display:flex;align-items:center;gap:9px;padding:9px 12px;background:#517da2;color:#fff}
+.tgp-top b{display:block;font-size:13px} .tgp-top small{font-size:11px;opacity:.8}
+.tgp-av{width:30px;height:30px;border-radius:50%;background:#7fa7c9;display:grid;place-items:center;font-weight:700;font-size:13px}
+.tgp-chat{background:#cfdcc8;padding:14px 12px 16px;min-height:220px}
+.tgp-msg{background:#fff;border-radius:12px 12px 12px 4px;overflow:hidden;box-shadow:0 1px 1px rgba(0,0,0,.12);max-width:100%}
+.tgp-msg img{display:block;width:100%;max-height:320px;object-fit:cover}
+.tgp-semimg{padding:30px 10px;text-align:center;font-size:12px;color:#8a8a8a;background:#f1f1f1}
+.tgp-txt{padding:8px 10px 6px;font-size:13.5px;line-height:1.42;color:#111;overflow-wrap:anywhere}
+.tgp-hora{float:right;font-size:10.5px;color:#9aa;margin:6px 0 0 10px}
+.tgp-bt{margin-top:5px;background:rgba(0,0,0,.18);color:#fff;border-radius:10px;padding:8px;text-align:center;font-size:13px;font-weight:600}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
@@ -6715,7 +6767,7 @@ async function carregarResultados(canal,dias,forcar){
   if(rota==='tg-resultados'||rota==='tg-campanhas') render();
   return RES[k];
 }
-function trocarPeriodo(d){ RES_DIAS=d; render(); }
+function trocarPeriodo(d){ RES_DIAS=d; if(rota==='tg-campanhas') carregarCampanhas(); render(); }
 const idade=(iso)=>{ const m=Math.round((Date.now()-new Date(iso))/60000);
   return m<60?`há ${m} min`:m<1440?`há ${Math.round(m/60)} h`:`há ${Math.round(m/1440)} dia(s)`; };
 
@@ -6857,52 +6909,274 @@ async function enviarRetomada(ref){
   }catch(e){ avisoErro('A mensagem não saiu',esc(e.message)); }
 }
 
-function telaCampanhas(canal){
-  const r=RES[canal+':'+RES_DIAS];
-  if(!r) setTimeout(()=>carregarResultados(canal,RES_DIAS),0);
-  const bot=TG?.numero?TG.numero.slice(1):null;
-  const link=(c)=>bot?`https://t.me/${bot}?start=${c}`:null;
-  const lista=(r?.porCampanha||[]);
-  const ativas=lista.filter(c=>!c.arquivada), arquivadas=lista.filter(c=>c.arquivada);
-  const linhaCamp=(c)=>`<div class="stat-row" style="flex-wrap:wrap">
-      <div class="lbl" style="flex:1 1 220px">${esc(c.nome)}<small>${link(c.codigo)?esc(link(c.codigo)):'conecte o bot pra gerar o link'}</small></div>
-      <span class="badge">${c.conversas} conversa(s) · ${c.concluidos} pago(s) · ${reais(c.receitaCentavos)}</span>
-      <div class="acoes">
-        ${link(c.codigo)?bi('copiar','Copiar link',`navigator.clipboard.writeText('${esc(link(c.codigo))}').then(()=>flash('Link copiado.','ok'))`):''}
-        ${bi(c.arquivada?'atualizar':'excluir',c.arquivada?'Reativar':'Arquivar',`arquivarCampanha('${esc(c.codigo)}',${!c.arquivada})`,c.arquivada?'':'dan')}
-      </div></div>`;
-  return head('Telegram · Campanhas','Um link por divulgação. Quem entra pelo link chega com a campanha marcada — e a venda que sair dali é creditada a ela.')+
-  `<div class="card" style="margin-bottom:16px">
-    ${cardH('publicar','Nova campanha','Ex.: “Promo de sexta”, “Stories do Instagram”, “Panfleto do bairro”.',1)}
-    <div class="cv-compor" style="padding-left:12px">
-      <input id="cpNome" maxlength="80" placeholder="Nome da campanha" style="border:0;background:none;box-shadow:none;padding:9px 0"
-        onkeydown="if(event.key==='Enter')criarCampanhaUI('${canal}')">
-      ${botao({t:'Criar link',ic:'mais',v:'p',on:`criarCampanhaUI('${canal}')`})}
-    </div>
-    ${bot?'':`<p class="hint" style="margin-top:8px">O link usa o endereço do seu bot — <a href="#tg-canal" onclick="ir('tg-canal');return false">conecte o bot</a> pra ele aparecer.</p>`}
-  </div>
+/* ── Telegram · Campanhas ───────────────────────────────────────────────────
+   Um assistente em 4 passos (Conteúdo → Auditoria → Aprovação → Divulgação)
+   com a prévia do Telegram ao lado, e embaixo o acompanhamento. O link só
+   passa a contar venda depois de aprovado — rascunho não atribui nada. */
+let CP={},CP_ED=null;
+const CP_OBJ={
+  produto:{t:'Divulgar produto',d:'Um item do catálogo, com foto e preço.',ic:'estoque'},
+  promocao:{t:'Criar promoção',d:'Preço promocional com prazo.',ic:'vender'},
+  evento:{t:'Divulgar evento',d:'Data e local — bazar, lançamento, live.',ic:'relogio'},
+  captar:{t:'Captar clientes',d:'Só mensagem e link, sem produto.',ic:'person'},
+};
+const CP_NIVEL={ok:['Aprovado','b-ok'],sugerir:['Sugestão','b-ac'],alertar:['Atenção','b-warn'],revisar:['Revisar','b-warn'],corrigir:['Corrigir','b-err'],bloquear:['Bloqueado','b-err']};
+const CP_ORDEM=['ok','sugerir','alertar','revisar','corrigir','bloquear'];
+const CP_GRUPO={produto:'Produto e preço',imagem:'Imagem',mensagem:'Mensagem',destino:'Destino (link)'};
+const CP_ESTADO={rascunho:'',"em-revisao":'b-warn',"aguardando-aprovacao":'b-ac',ativa:'b-ok',encerrada:''};
+const cpLink=(codigo)=>{ const b=CP[RES_DIAS]?.linkBot; return b&&codigo?`${b}?start=${codigo}`:null; };
+const cpReaisTxt=(c)=>c==null?'':(c/100).toFixed(2).replace('.',',');
+const cpCentavos=(t)=>{ const s=String(t||'').replace(/[^\d,.]/g,''); if(!s) return null;
+  const n=Number(s.includes(',')?s.replace(/\./g,'').replace(',','.'):s); return Number.isFinite(n)?Math.round(n*100):null; };
+const cpData=(iso)=>iso?new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—';
+
+async function carregarCampanhas(forcar){
+  if(CP[RES_DIAS]&&!forcar) return CP[RES_DIAS];
+  try{ CP[RES_DIAS]=await apiCru('campanhas?dias='+RES_DIAS); }
+  catch(e){ CP[RES_DIAS]={erro:e.message,campanhas:[],catalogo:[]}; }
+  if(rota==='tg-campanhas') render();
+  return CP[RES_DIAS];
+}
+
+function telaCampanhas(){
+  const r=CP[RES_DIAS];
+  if(!r) setTimeout(()=>carregarCampanhas(),0);
+  if(CP_ED) return head('Telegram · Campanhas','Monte a divulgação, deixe o auditor conferir e aprove — só então o link passa a contar.',
+    botao({t:'Voltar para a lista',ic:'ant',v:'g',on:'fecharAssistente()'}))+cpAssistente(r);
+  const periodo=`<div class="seg seg-sm">${[7,30,90].map(d=>`<button class="${RES_DIAS===d?'on':''}" onclick="trocarPeriodo(${d})">${d} dias</button>`).join('')}</div>`;
+  const lista=r?.campanhas||[];
+  const n=(c,k)=>c.metricas?c.metricas[k]:'—';
+  const linha=(c)=>{ const k=c.id||('legado:'+c.codigo); const link=['ativa','encerrada'].includes(c.estado)?cpLink(c.codigo):null;
+    return `<tr class="cp-linha" tabindex="0" onclick="abrirCampanha('${esc(k)}')" onkeydown="if(event.key==='Enter')abrirCampanha('${esc(k)}')">
+      <td><b>${esc(c.nome||'(sem nome)')}</b><small style="display:block;color:var(--dim)">${esc(c.objetivoTexto||'')}${c.legado?' · link antigo':''}</small></td>
+      <td><span class="badge ${CP_ESTADO[c.estado]||''}" style="margin:0">${esc(c.estadoTexto||c.estado)}</span></td>
+      <td class="num">${n(c,'entradas')}</td><td class="num">${n(c,'conversas')}</td><td class="num">${n(c,'pedidos')}</td>
+      <td class="num">${c.metricas?reais(c.metricas.receitaCentavos):'—'}</td>
+      <td><div class="acoes" onclick="event.stopPropagation()">${link?bi('copiar','Copiar link',`cpCopiar('${esc(link)}')`):''}
+        ${c.id&&['rascunho','em-revisao','aguardando-aprovacao'].includes(c.estado)?bi('editar','Continuar',`editarCampanha('${esc(c.id)}')`):''}</div></td></tr>`; };
+  return head('Telegram · Campanhas','Monte a divulgação, deixe o auditor conferir e aprove — só então o link passa a contar.',
+    botao({t:'Nova campanha',ic:'mais',v:'p',on:'novaCampanha()'}))+
+  `${r?.linkBot||!r?'':`<p class="hint" style="margin-bottom:12px">${ico('alerta')} O link usa o endereço do seu bot — <a href="#tg-canal" onclick="ir('tg-canal');return false">conecte o bot</a> pra ele funcionar.</p>`}
   <div class="card" style="margin-bottom:16px">
-    ${cardH('relatorios',`Campanhas ativas (${ativas.length})`,`Números dos últimos ${RES_DIAS} dias.`,2)}
-    ${!r?'<p class="hint">Carregando…</p>':ativas.length?ativas.map(linhaCamp).join(''):'<p class="hint">Nenhuma campanha ainda. Crie a primeira acima.</p>'}
+    ${cardH('relatorios','Acompanhamento',`Números dos últimos ${RES_DIAS} dias. <b>Entradas</b> = vezes que alguém abriu o bot pelo link; <b>conversas</b> = pessoas diferentes.`,2,periodo)}
+    ${!r?'<p class="hint">Carregando…</p>':r.erro?`<p class="hint">Não consegui carregar: ${esc(r.erro)}</p>`:lista.length?
+      `<div class="tbl-wrap"><table><thead><tr><th>Campanha</th><th>Situação</th><th class="num">Entradas pelo link</th><th class="num">Conversas iniciadas</th><th class="num">Pedidos</th><th class="num">Receita confirmada</th><th></th></tr></thead>
+       <tbody>${lista.map(linha).join('')}</tbody></table></div>`
+      :vazio('publicar','Nenhuma campanha ainda','Escolha o objetivo, o produto e a foto — o auditor confere antes de você divulgar.',['Clique em <b>Nova campanha</b>','Monte o texto e veja a prévia','Aprove e copie o link'])}
   </div>
-  ${arquivadas.length?`<details class="card"><summary class="hint" style="cursor:pointer">Arquivadas (${arquivadas.length})</summary>${arquivadas.map(linhaCamp).join('')}</details>`:''}
   <p class="hint regra">${ico('politica')}<span>O Telegram não deixa bot começar conversa com quem nunca falou com ele — a campanha trabalha com quem <b>escolheu</b> entrar pelo link. Nada de disparo em massa.</span></p>`;
 }
-async function criarCampanhaUI(canal){
-  const campo=document.getElementById('cpNome'); const nome=(campo?.value||'').trim();
-  if(!nome){ campo?.focus(); return avisoErro('Dê um nome pra campanha','Ex.: “Promo de sexta”.'); }
+
+/* ── assistente ── */
+function cpVazio(){ return {id:null,objetivo:'produto',nome:'',sku:'',texto:'',imagem:null,botao:'Falar com a loja',codigo:'',promo:{precoCentavos:null,ate:'',comoAproveitar:''},evento:{data:'',local:''}}; }
+function novaCampanha(){ CP_ED={passo:1,d:cpVazio(),c:null}; render(); }
+function editarCampanha(id){
+  const c=(CP[RES_DIAS]?.campanhas||[]).find(x=>x.id===id); if(!c) return;
+  fecharModal?.();
+  CP_ED={passo:c.auditoria&&c.estado!=='rascunho'?2:1,c,d:{...cpVazio(),...c,promo:{...cpVazio().promo,...(c.promo||{})},evento:{...cpVazio().evento,...(c.evento||{})},sku:c.sku||''}};
+  render();
+}
+function fecharAssistente(){ CP_ED=null; carregarCampanhas(true); render(); }
+const cpProduto=()=>(CP[RES_DIAS]?.catalogo||[]).find(p=>p.sku===CP_ED?.d.sku)||null;
+const cpUsaProduto=()=>['produto','promocao'].includes(CP_ED.d.objetivo);
+
+function cpSet(k,v){ const d=CP_ED.d; const [a,b]=k.split('.'); if(b) d[a]={...d[a],[b]:v}; else d[k]=v; cpSujo(); cpPrevia(); }
+function cpSetRender(k,v){ cpSet(k,v); render(); }
+/* Mexeu no material: a auditoria que estava na tela era da versão anterior. */
+function cpSujo(){ if(CP_ED.c&&CP_ED.c.auditoria) CP_ED.sujo=true; }
+function cpObjetivo(o){ CP_ED.d.objetivo=o; if(!['produto','promocao'].includes(o)) CP_ED.d.sku=''; cpSujo(); render(); }
+function cpEscolherProduto(sku){
+  const d=CP_ED.d; d.sku=sku; const p=cpProduto(); cpSujo();
+  if(p){ if(!d.nome) d.nome=(d.objetivo==='promocao'?'Promo ':'')+p.nome;
+    if(!d.imagem&&p.imagem) d.imagem={url:p.imagem,doCatalogo:true};
+    if(!d.texto) d.texto=cpTextoModelo(); }
+  render();
+}
+function cpTextoModelo(){
+  const d=CP_ED.d, p=cpProduto(), R=(c)=>'R$ '+cpReaisTxt(c);
+  if(d.objetivo==='promocao'&&p){ const normal=p.precoDeCentavos??p.precoCentavos;
+    return `🔥 ${p.nome} em promoção!\n\nDe ${R(normal)} por ${d.promo.precoCentavos?R(d.promo.precoCentavos):'R$ —'}${d.promo.ate?`, só até ${d.promo.ate.split('-').reverse().join('/')}`:''}.\n${d.promo.comoAproveitar||'Toque no botão abaixo e fale com a gente.'}`; }
+  if(d.objetivo==='produto'&&p) return `${p.nome}${p.descricao?`\n\n${String(p.descricao).slice(0,400)}`:''}\n\nPor ${R(p.precoCentavos)}. Toque no botão abaixo e peça o seu!`;
+  if(d.objetivo==='evento') return `📅 ${d.nome||'Nosso evento'}${d.evento.data?` — ${d.evento.data.split('-').reverse().join('/')}`:''}${d.evento.local?`, ${d.evento.local}`:''}.\n\nToque no botão abaixo pra saber mais.`;
+  return `${d.nome||'Novidades da loja'}: entre na nossa lista e receba as ofertas primeiro.\n\nToque no botão abaixo.`;
+}
+function cpMontarTexto(){ CP_ED.d.texto=cpTextoModelo(); cpSujo(); render(); }
+async function cpSubirImagem(input){
+  const f=input.files?.[0]; if(!f) return;
   try{
-    const r=await api('resultados/campanha',{nome,canal});
-    await carregarResultados(canal,RES_DIAS,true);
-    const bot=TG?.numero?TG.numero.slice(1):null;
-    const link=bot?`https://t.me/${bot}?start=${r.campanha.codigo}`:null;
-    if(link){ navigator.clipboard?.writeText(link).catch(()=>{}); }
-    avisoOk('Campanha criada',link?`Link copiado: <b>${esc(link)}</b>. Cole onde for divulgar.`:'Conecte o bot pra gerar o link.');
-  }catch(e){ avisoErro('Não consegui criar a campanha',esc(e.message)); }
+    const r=await fetch('/crm/api/midia?tipo=imagem&nome='+encodeURIComponent(f.name),
+      {method:'POST',headers:{'content-type':f.type||'image/jpeg',...(TOKEN?{'x-crm-token':TOKEN}:{})},body:f});
+    const j=await r.json().catch(()=>({erro:'resposta inválida do servidor'}));
+    if(!r.ok||j.erro) throw new Error(j.erro||('HTTP '+r.status));
+    CP_ED.d.imagem={arquivo:j.arquivo,url:j.url}; cpSujo(); render();
+  }catch(e){ avisoErro('A imagem não subiu',esc(e.message)); }
+  input.value='';
+}
+
+function cpPassos(){
+  const c=CP_ED.c, a=c?.auditoria, p=CP_ED.passo;
+  const pode=[true,!!c,!!a&&!CP_ED.sujo&&!['bloquear','corrigir'].includes(a.resultado),c?.estado==='ativa'];
+  const nomes=['Conteúdo','Auditoria','Aprovação','Divulgação'];
+  return `<div class="cp-passos">${nomes.map((n,i)=>{ const k=i+1;
+    const cls=k===p?'on':k<p||(k===4&&c?.estado==='ativa')?'feito':'';
+    const clicavel=pode[i]&&c?.estado!=='ativa'&&k<4||k===p;
+    return `<button class="cp-passo ${cls}" ${clicavel?`onclick="cpIr(${k})"`:'disabled'}><span class="n">${cls==='feito'&&k!==p?ico('check'):k}</span>${n}</button>`; }).join('<span class="cp-sep"></span>')}</div>`;
+}
+async function cpIr(k){ if(k===2&&(!CP_ED.c||CP_ED.sujo||CP_ED.c.estado==='rascunho')) return cpAuditar(); CP_ED.passo=k; render(); }
+
+function cpAssistente(r){
+  if(!r) return '<div class="card"><p class="hint">Carregando…</p></div>';
+  const p=CP_ED.passo;
+  const corpo=p===1?cpFormConteudo(r):p===2?cpTelaAuditoria():p===3?cpTelaAprovacao():cpTelaDivulgacao();
+  return `<div class="card" style="margin-bottom:16px">${cpPassos()}
+    <div class="cp-grade"><div class="cp-form">${corpo}</div>
+    <div class="cp-lado"><div class="cp-lado-t">Prévia no Telegram</div><div id="cpPrevia">${cpPreviaHtml()}</div></div></div></div>`;
+}
+function cpPrevia(){ const el=document.getElementById('cpPrevia'); if(el) el.innerHTML=cpPreviaHtml();
+  const ct=document.getElementById('cpConta'); if(ct){ const lim=CP_ED.d.imagem?1024:4096, n=CP_ED.d.texto.length; ct.textContent=`${n} / ${lim}`; ct.className='cp-conta'+(n>lim?' estourou':''); } }
+function cpPreviaHtml(d=CP_ED.d,bot){
+  const nome=(bot||CP[RES_DIAS]?.linkBot||'').replace('https://t.me/','')||'seu_bot';
+  const img=d.imagem?.url?`<img src="${esc(d.imagem.url)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'tgp-semimg',textContent:'imagem não carregou'}))">`:'';
+  const texto=d.texto?esc(d.texto).replace(/\n/g,'<br>'):'<span style="color:var(--dim)">O texto da publicação aparece aqui.</span>';
+  return `<div class="tgp"><div class="tgp-top"><span class="tgp-av">${esc(nome[0]||'b').toUpperCase()}</span><div><b>@${esc(nome)}</b><small>bot</small></div></div>
+    <div class="tgp-chat"><div class="tgp-msg">${img}<div class="tgp-txt">${texto}<span class="tgp-hora">12:00</span></div></div>
+    <div class="tgp-bt">${esc(d.botao||'Falar com a loja')} ↗</div></div></div>
+    <p class="hint" style="margin-top:8px">O botão abre o bot com o link da campanha${d.codigo?` (<code>?start=${esc(d.codigo)}</code>)`:''}.</p>`;
+}
+
+function cpFormConteudo(r){
+  const d=CP_ED.d, p=cpProduto(), ed=!CP_ED.c||['rascunho','em-revisao','aguardando-aprovacao'].includes(CP_ED.c.estado);
+  const cat=r.catalogo||[];
+  const f=(rot,html,dica)=>`<div class="field"><label>${rot}</label>${html}${dica?`<p class="hint" style="margin-top:5px">${dica}</p>`:''}</div>`;
+  const obj=`<div class="cp-objs">${Object.entries(CP_OBJ).map(([k,o])=>`<button class="cp-obj ${d.objetivo===k?'on':''}" onclick="cpObjetivo('${k}')">${ico(o.ic)}<b>${o.t}</b><small>${o.d}</small></button>`).join('')}</div>`;
+  const prod=cpUsaProduto()?f('Produto do catálogo',cat.length?`<select id="cpSku" onchange="cpEscolherProduto(this.value)"><option value="">Escolha…</option>${cat.map(x=>`<option value="${esc(x.sku)}" ${x.sku===d.sku?'selected':''}>${esc(x.nome)} — ${reais(x.precoCentavos)}${x.esgotado?' (sem estoque)':''}</option>`).join('')}</select>`
+      :`<p class="hint">Nenhum produto ativo no catálogo. <a href="#estoque" onclick="ir('estoque');return false">Cadastre um</a> ou escolha “Captar clientes”.</p>`,
+      p?`Nome, preço e foto vêm do catálogo: ${reais(p.precoCentavos)}${p.precoDeCentavos?` (de ${reais(p.precoDeCentavos)})`:''}.`:''):'';
+  const promo=d.objetivo==='promocao'?`<div class="form-grid">
+      ${f('Preço promocional (R$)',`<input id="cpPromoPreco" inputmode="decimal" placeholder="39,90" value="${esc(cpReaisTxt(d.promo.precoCentavos))}" oninput="cpSet('promo.precoCentavos',cpCentavos(this.value))">`)}
+      ${f('Válida até',`<input id="cpPromoAte" type="date" value="${esc(d.promo.ate||'')}" oninput="cpSet('promo.ate',this.value)">`)}</div>
+      ${f('Como aproveitar',`<input id="cpComo" maxlength="160" placeholder="Ex.: chame no botão e diga PROMO" value="${esc(d.promo.comoAproveitar||'')}" oninput="cpSet('promo.comoAproveitar',this.value)">`)}`:'';
+  const evento=d.objetivo==='evento'?`<div class="form-grid">
+      ${f('Data do evento',`<input id="cpEvData" type="date" value="${esc(d.evento.data||'')}" oninput="cpSet('evento.data',this.value)">`)}
+      ${f('Local',`<input id="cpEvLocal" maxlength="120" placeholder="Endereço ou “on-line”" value="${esc(d.evento.local||'')}" oninput="cpSet('evento.local',this.value)">`)}</div>`:'';
+  const img=d.imagem?`<div class="cp-img"><img src="${esc(d.imagem.url||'')}" alt=""><div><b>${d.imagem.doCatalogo?'Foto do catálogo':'Imagem enviada'}</b>
+      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap"><label class="btn btn-s btn-xs">${ico('importar')}<span>Trocar</span><input type="file" accept="image/jpeg,image/png,image/webp" hidden onchange="cpSubirImagem(this)"></label>
+      ${botao({t:'Tirar imagem',ic:'excluir',v:'g',sz:'xs',on:"cpSetRender('imagem',null)"})}</div></div></div>`
+    :`<div style="display:flex;gap:8px;flex-wrap:wrap"><label class="btn btn-s">${ico('importar')}<span>Enviar imagem</span><input type="file" accept="image/jpeg,image/png,image/webp" hidden onchange="cpSubirImagem(this)"></label>
+      ${p?.imagem?botao({t:'Usar foto do catálogo',ic:'estoque',v:'g',on:`cpSetRender('imagem',{url:'${esc(p.imagem)}',doCatalogo:true})`}):''}</div>`;
+  return `${ed?'':'<p class="hint">Esta campanha já foi aprovada — o conteúdo não muda mais.</p>'}
+    <h4 class="cp-h">Objetivo</h4>${obj}
+    ${prod}${promo}${evento}
+    ${f('Nome da campanha',`<input id="cpNome" maxlength="80" placeholder="Ex.: Promo de sexta" value="${esc(d.nome)}" oninput="cpSet('nome',this.value)">`,'Só pra você achar ela depois — o cliente não vê.')}
+    <div class="field"><label style="display:flex;align-items:center">Texto da publicação <span id="cpConta" class="cp-conta${d.texto.length>(d.imagem?1024:4096)?' estourou':''}" style="margin-left:auto">${d.texto.length} / ${d.imagem?1024:4096}</span></label>
+      <textarea id="cpTexto" rows="7" oninput="cpSet('texto',this.value)">${esc(d.texto)}</textarea>
+      <div style="margin-top:6px">${botao({t:'Montar texto a partir dos dados',ic:'gerar',v:'g',sz:'xs',on:'cpMontarTexto()'})}</div></div>
+    <div class="field"><label>Imagem</label>${img}<p class="hint" style="margin-top:5px">JPG, PNG ou WebP, até 10 MB. A partir de 600 px no menor lado sai nítida.</p></div>
+    <div class="form-grid">
+      ${f('Texto do botão',`<input id="cpBotao" maxlength="40" value="${esc(d.botao)}" oninput="cpSet('botao',this.value)">`)}
+      ${f('Código do link',`<input id="cpCodigo" maxlength="64" placeholder="gerado do nome" value="${esc(d.codigo)}" oninput="cpSet('codigo',this.value.trim())">`,'Letras sem acento, números, “_” e “-”.')}</div>
+    <div class="cp-rodape">${CP_ED.c?.id&&ed?botao({t:'Excluir rascunho',ic:'excluir',v:'g',on:`excluirCampanhaUI('${esc(CP_ED.c.id)}')`}):''}
+      <span style="flex:1"></span>${ed?botao({t:'Salvar rascunho',ic:'salvar',v:'s',on:'cpSalvar()'})+botao({t:'Auditar',ic:'prox',v:'p',on:'cpAuditar()',id:'btCpAuditar'}):''}</div>`;
+}
+function cpDados(){ const d=CP_ED.d; return {...d,id:CP_ED.c?.id||null,sku:d.sku||null}; }
+async function cpSalvar(quieto){
+  try{ const r=await api('campanhas/salvar',cpDados()); CP_ED.c=r.campanha; CP_ED.d.id=r.campanha.id; CP_ED.d.codigo=r.campanha.codigo;
+    if(!quieto){ flash('Rascunho salvo.','ok'); render(); } return true; }
+  catch(e){ avisoErro('Não consegui salvar',esc(e.message)); return false; }
+}
+async function cpAuditar(){
+  if(!await cpSalvar(true)) return;
+  try{ const r=await api('campanhas/auditar',{id:CP_ED.c.id}); CP_ED.c=r.campanha; CP_ED.sujo=false; CP_ED.passo=2; render(); }
+  catch(e){ avisoErro('A auditoria não rodou',esc(e.message)); }
+}
+
+function cpRelatorio(a){
+  if(!a) return '<p class="hint">Ainda não auditada.</p>';
+  const grupos=Object.keys(CP_GRUPO).map(g=>{ const its=a.itens.filter(i=>i.grupo===g); if(!its.length) return '';
+    const pior=its.reduce((m,i)=>CP_ORDEM.indexOf(i.nivel)>CP_ORDEM.indexOf(m)?i.nivel:m,'ok');
+    return `<div class="cp-aud"><div class="cp-aud-h"><b>${CP_GRUPO[g]}</b><span class="badge ${CP_NIVEL[pior][1]}">${CP_NIVEL[pior][0]}</span></div>
+      <ul>${its.map(i=>`<li class="n-${i.nivel}">${its.length>1?`<span class="badge ${CP_NIVEL[i.nivel][1]}" style="margin:0">${CP_NIVEL[i.nivel][0]}</span>`:''}<span>${esc(i.texto)}</span></li>`).join('')}</ul></div>`; }).join('');
+  return grupos+`<p class="hint" style="margin-top:8px">Auditado em ${cpData(a.em)} · versão ${esc(a.versao||'')}. Mexeu no texto, na imagem, no produto ou o catálogo mudou? O auditor roda de novo.</p>`;
+}
+function cpResumoAud(res){
+  return ({bloquear:['b-err','Há bloqueio: o Telegram recusaria ou a campanha venderia algo errado. Volte e ajuste.'],
+    corrigir:['b-err','Há algo a corrigir antes de aprovar.'],
+    revisar:['b-warn','Há item pra você conferir. Se estiver certo, dá pra aprovar com a ressalva registrada.'],
+    alertar:['b-warn','Pode seguir — mas veja os avisos.'],sugerir:['b-ac','Pode seguir. Há sugestões que podem melhorar o resultado.'],ok:['b-ok','Tudo certo. Pode seguir para a aprovação.']})[res]||['',''];
+}
+function cpTelaAuditoria(){
+  const a=CP_ED.c?.auditoria; const [cls,txt]=cpResumoAud(a?.resultado);
+  const segue=a&&!['bloquear','corrigir'].includes(a.resultado);
+  return `<h4 class="cp-h">Relatório do auditor</h4>
+    <div class="cp-veredito ${cls}">${esc(txt)}</div>${cpRelatorio(a)}
+    <div class="cp-rodape">${botao({t:'Voltar e ajustar',ic:'ant',v:'s',on:'cpIr(1)'})}<span style="flex:1"></span>
+      ${botao({t:'Continuar',ic:'prox',v:'p',on:'cpIr(3)',off:!segue})}</div>`;
+}
+function cpTelaAprovacao(){
+  const c=CP_ED.c, a=c.auditoria, ress=a.itens.filter(i=>i.nivel==='revisar'), link=cpLink(c.codigo);
+  return `<h4 class="cp-h">Aprovar e gerar o link</h4>
+    <div class="stat-row"><div class="lbl">Campanha<small>${esc(c.nome)} · ${esc(c.objetivoTexto)}</small></div></div>
+    <div class="stat-row"><div class="lbl">Link rastreável<small>${link?esc(link):'conecte o bot para o link funcionar'}</small></div></div>
+    <div class="stat-row"><div class="lbl">Auditoria<small>${esc(cpResumoAud(a.resultado)[1])}</small></div><span class="badge ${CP_NIVEL[a.resultado][1]}">${CP_NIVEL[a.resultado][0]}</span></div>
+    ${ress.length?`<label class="cp-ressalva"><input type="checkbox" id="cpAceito"> <span>Conferi e está tudo certo: ${ress.map(i=>esc(i.texto)).join(' ')}</span></label>`:''}
+    <p class="hint" style="margin:12px 0">Ao aprovar, o conteúdo fica travado e o link passa a contar entradas, conversas e vendas desta campanha.</p>
+    <div class="cp-rodape">${botao({t:'Voltar',ic:'ant',v:'s',on:'cpIr(2)'})}<span style="flex:1"></span>${botao({t:'Aprovar e gerar link',ic:'check',v:'p',on:'cpAprovar()',id:'btCpAprovar'})}</div>`;
+}
+async function cpAprovar(){
+  const ress=CP_ED.c.auditoria.itens.some(i=>i.nivel==='revisar');
+  const aceito=document.getElementById('cpAceito')?.checked===true;
+  if(ress&&!aceito) return avisoErro('Confirme a revisão','Marque que você conferiu os itens em revisão para aprovar.');
+  try{ const r=await api('campanhas/aprovar',{id:CP_ED.c.id,aceitarRessalvas:aceito}); CP_ED.c=r.campanha; CP_ED.passo=4; carregarCampanhas(true); render(); }
+  catch(e){ avisoErro('Não aprovei',esc(e.message)); }
+}
+function cpTelaDivulgacao(){
+  const c=CP_ED.c, link=cpLink(c.codigo);
+  const pacote=link?`${c.texto}\n\n${link}`:'';
+  return `<h4 class="cp-h">Campanha ativa 🎉</h4>
+    <p class="hint" style="margin-bottom:12px">Cole o link onde for divulgar — Instagram, grupo, panfleto (vira QR code), status. Quem entrar por ele chega com a campanha marcada.</p>
+    ${link?`<div class="linkbox"><span>${esc(link)}</span>${botao({t:'Copiar link',ic:'copiar',v:'p',sz:'xs',on:`cpCopiar('${esc(link)}')`})}</div>
+      <div style="margin-top:10px">${botao({t:'Copiar texto + link',ic:'copiar',v:'s',sz:'xs',on:`cpCopiar(${esc(JSON.stringify(pacote))})`})}</div>`
+      :`<p class="hint">Conecte o bot em <a href="#tg-canal" onclick="ir('tg-canal');return false">Canal e conexão</a> — o link aparece aqui.</p>`}
+    <div class="cp-rodape">${botao({t:'Ver no acompanhamento',ic:'relatorios',v:'s',on:'fecharAssistente()'})}</div>`;
+}
+function cpCopiar(t){ navigator.clipboard?.writeText(t).then(()=>flash('Copiado.','ok'),()=>flash('Não consegui copiar — selecione e copie.','err')); }
+
+/* ── detalhe (clicar na linha) ── */
+function abrirCampanha(k){
+  const lista=CP[RES_DIAS]?.campanhas||[];
+  const c=k.startsWith('legado:')?lista.find(x=>x.legado&&x.codigo===k.slice(7)):lista.find(x=>x.id===k); if(!c) return;
+  const link=['ativa','encerrada'].includes(c.estado)?cpLink(c.codigo):null, m=c.metricas;
+  const num=(t,v)=>`<div class="cp-num"><small>${t}</small><b>${v}</b></div>`;
+  const editavel=c.id&&['rascunho','em-revisao','aguardando-aprovacao'].includes(c.estado);
+  const corpo=`<div class="cp-det">${c.legado?'':`<div>${cpPreviaHtml(c)}</div>`}<div>
+    <span class="badge ${CP_ESTADO[c.estado]||''}" style="margin:0 0 10px">${esc(c.estadoTexto)}</span>
+    <h4 class="cp-h">Resultados (${RES_DIAS} dias)</h4>
+    ${m?`<div class="cp-nums">${num('Entradas pelo link',m.entradas)}${num('Conversas iniciadas',m.conversas)}${num('Pedidos',m.pedidos)}${num('Receita confirmada',reais(m.receitaCentavos))}</div>`
+      :'<p class="hint">Os números começam a contar quando a campanha é aprovada.</p>'}
+    ${link?`<div class="linkbox" style="margin:10px 0"><span>${esc(link)}</span>${bi('copiar','Copiar link',`cpCopiar('${esc(link)}')`)}</div>`:''}
+    ${c.legado?'<p class="hint">Link criado antes do assistente (só nome e código) — conta como “Captar clientes”.</p>'
+      :`<h4 class="cp-h">Relatório do auditor</h4>${cpRelatorio(c.auditoria)}
+        ${c.aprovacao?`<p class="hint">Aprovada em ${cpData(c.aprovacao.em)}${c.aprovacao.por?` por ${esc(c.aprovacao.por)}`:''}${c.aprovacao.ressalvas?.length?` — com ressalva: ${c.aprovacao.ressalvas.map(esc).join(' ')}`:''}.</p>`:''}
+        <details style="margin-top:8px"><summary class="hint" style="cursor:pointer">Histórico</summary><ul class="notas">${(c.historico||[]).map(h=>`<li>${cpData(h.em)} — ${esc(h.evento)}</li>`).join('')}</ul></details>`}
+  </div></div>`;
+  const rod=BT.cancelar()+
+    (editavel?botao({t:'Continuar editando',ic:'editar',v:'p',on:`fecharModal();editarCampanha('${esc(c.id)}')`}):'')+
+    (c.estado==='ativa'?botao({t:'Encerrar campanha',ic:'power',v:'dan',on:c.legado?`fecharModal();arquivarCampanha('${esc(c.codigo)}',true)`:`fecharModal();encerrarCampanhaUI('${esc(c.id)}')`}):'')+
+    (c.legado&&c.estado==='encerrada'?botao({t:'Reativar',ic:'atualizar',v:'s',on:`fecharModal();arquivarCampanha('${esc(c.codigo)}',false)`}):'');
+  abrirModal(c.nome||'Campanha',corpo,rod);
+}
+function encerrarCampanhaUI(id){
+  return confirmar({titulo:'Encerrar esta campanha?',texto:'Ela sai das ativas e não pode mais ser editada. O link continua abrindo o bot, e quem já entrou por ele ainda tem a venda atribuída por 30 dias.',
+    rotulo:'Encerrar',icone:'power',perigo:true,
+    aoConfirmar:async()=>{ await api('campanhas/encerrar',{id}); await carregarCampanhas(true); flash('Campanha encerrada.','ok'); }});
+}
+function excluirCampanhaUI(id){
+  return confirmar({titulo:'Excluir este rascunho?',texto:'O rascunho some de vez. Ele nunca foi aprovado, então não tem resultado a perder.',
+    aoConfirmar:async()=>{ await api('campanhas/excluir',{id}); CP_ED=null; await carregarCampanhas(true); flash('Rascunho excluído.','ok'); }});
 }
 async function arquivarCampanha(codigo,arquivar){
-  try{ await api('resultados/campanha/arquivar',{codigo,arquivada:arquivar}); await carregarResultados('telegram',RES_DIAS,true);
-    flash(arquivar?'Campanha arquivada — o link continua funcionando, só sai da lista.':'Campanha reativada.','ok'); }
+  try{ await api('resultados/campanha/arquivar',{codigo,arquivada:arquivar}); await carregarCampanhas(true);
+    flash(arquivar?'Campanha encerrada — o link continua funcionando, só sai das ativas.':'Campanha reativada.','ok'); }
   catch(e){ avisoErro('Não consegui concluir',esc(e.message)); }
 }
 async function conectarTelegram(soReconectar){

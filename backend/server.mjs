@@ -34,6 +34,8 @@ import * as atendimento from './atendimento.mjs';
 import * as canais from './canais.mjs';
 import { ehTelegram } from '../engine/canais/telegram/index.mjs';
 import * as resultados from '../engine/vsresultados/index.mjs';
+import * as campanhasTg from '../engine/vscampanhas/index.mjs';
+import { lerImagem } from '../engine/vscampanhas/imagem.mjs';
 import * as seguranca from '../engine/vsseguranca/index.mjs';
 import * as operadores from '../engine/vsoperadores/index.mjs';
 import * as proto from '../engine/vsprotocolo/index.mjs';
@@ -169,6 +171,26 @@ const CRM_ENABLED = process.env.CRM_ENABLED === '1';
  * verificada aqui e o dominio raiz — nao o subdominio do painel. Fica gravada no
  * store pra sobreviver a reinicio sem depender de variavel de ambiente.
  */
+/* O que o auditor de campanhas precisa do mundo: o produto como o cliente o
+   ve (preco vigente, estoque) — ou marcado inativo —, os dados da imagem lidos
+   do disco quando ela e nossa (/midia/...) e o link do bot. */
+function contextoCampanha(extra = {}) {
+  return {
+    produto: (sku) => {
+      const vivo = estoque.doAtendimento().find((p) => p.sku === sku);
+      if (vivo) { return { ...vivo, ativo: true }; }
+      const cru = estoque.obter(sku);
+      return cru && !cru.excluidoEm ? { sku, nome: cru.nome, ativo: false } : null;
+    },
+    imagem: (img) => {
+      const nome = midia.nomeValido(img.arquivo) ? img.arquivo : String(img.url || '').match(/\/midia\/([0-9a-f]{24}\.[a-z]+)$/)?.[1];
+      return nome && midia.nomeValido(nome) ? lerImagem(join(midia.baseDir(), nome)) : null;
+    },
+    linkBot: canais.telegramInfo().link || null,
+    ...extra,
+  };
+}
+
 function baseRedirect() {
   try {
     const c = tk.getConfig();
@@ -1279,6 +1301,29 @@ const server = createServer(async (req, res) => {
         linkBot: canal === 'telegram' ? tg.link || null : null,
       });
     }
+    /* Campanhas do Telegram: as montadas no assistente (vscampanhas) mais os
+       links antigos, criados so com nome, que aparecem como "Captar clientes". */
+    if (req.method === 'GET' && rota === '/crm/api/campanhas') {
+      const u = new URL(req.url, 'http://x');
+      const dias = [7, 30, 90].includes(Number(u.searchParams.get('dias'))) ? Number(u.searchParams.get('dias')) : 30;
+      const r = resultados.resumo({ canal: 'telegram', dias, pagamentos: pagar.listar() });
+      const num = new Map(r.porCampanha.map((c) => [c.codigo, c]));
+      const doAssistente = campanhasTg.listar().filter((c) => c.canal === 'telegram');
+      const conhecidos = new Set(doAssistente.map((c) => c.codigo));
+      const metricas = (c) => { const n = num.get(c.codigo); return n ? { entradas: n.entradas, conversas: n.conversas, pedidos: n.pedidos, concluidos: n.concluidos, receitaCentavos: n.receitaCentavos } : null; };
+      const lista = [
+        ...doAssistente.map((c) => ({ ...c, metricas: ['ativa', 'encerrada'].includes(c.estado) ? metricas(c) : null })),
+        ...r.porCampanha.filter((c) => !conhecidos.has(c.codigo)).map((c) => ({
+          id: null, legado: true, canal: 'telegram', codigo: c.codigo, nome: c.nome, objetivo: 'captar', objetivoTexto: campanhasTg.OBJETIVOS.captar,
+          estado: c.arquivada ? 'encerrada' : 'ativa', estadoTexto: c.arquivada ? 'Encerrada' : 'Ativa', criadaEm: c.criadaEm, metricas: metricas(c),
+        })),
+      ].sort((a, b) => String(b.atualizadaEm || b.criadaEm).localeCompare(String(a.atualizadaEm || a.criadaEm)));
+      return json(res, 200, {
+        dias, campanhas: lista, linkBot: canais.telegramInfo().link || null,
+        catalogo: estoque.doAtendimento().map((p) => ({ sku: p.sku, nome: p.nome, descricao: p.descricao, precoCentavos: p.precoCentavos, precoDeCentavos: p.precoDeCentavos, imagem: p.imagem, esgotado: p.esgotado })),
+        limites: campanhasTg.LIMITE,
+      });
+    }
     /* Tela do Telegram: estado do bot e se ha token guardado. O token nao sai. */
     if (req.method === 'GET' && rota === '/crm/api/canais/telegram') {
       return json(res, 200, canais.telegramInfo());
@@ -1665,6 +1710,11 @@ const server = createServer(async (req, res) => {
           r = { ok: true, enviado: true, id: envio.id || null };
           break;
         }
+        case '/crm/api/campanhas/salvar': r = campanhasTg.salvar(d, { canal: 'telegram' }); break;
+        case '/crm/api/campanhas/auditar': r = campanhasTg.rodarAuditoria(String(d.id || ''), contextoCampanha({ forcar: d.forcar === true })); break;
+        case '/crm/api/campanhas/aprovar': r = campanhasTg.aprovar(String(d.id || ''), { ...contextoCampanha(), por: quem.email || null, aceitarRessalvas: d.aceitarRessalvas === true }); break;
+        case '/crm/api/campanhas/encerrar': r = campanhasTg.encerrar(String(d.id || '')); break;
+        case '/crm/api/campanhas/excluir': r = campanhasTg.excluir(String(d.id || '')); break;
         case '/crm/api/resultados/campanha': r = resultados.criarCampanha({ nome: d.nome, canal: d.canal === 'whatsapp' ? 'whatsapp' : 'telegram' }); break;
         case '/crm/api/resultados/campanha/arquivar': r = resultados.arquivarCampanha(String(d.codigo || ''), d.arquivada !== false); break;
         /* Retomar um pedido parado: UMA mensagem, pelo canal de onde a pessoa
