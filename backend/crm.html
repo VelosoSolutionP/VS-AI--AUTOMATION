@@ -1289,6 +1289,12 @@ td.num,th.num{text-align:right;white-space:nowrap}
 .tranq-equipe li em{font-style:normal;font-size:10.5px;font-weight:600;color:var(--dim);border:1px solid var(--line);border-radius:99px;padding:2px 7px}
 .tranq-equipe li em.st-on{color:var(--ok);border-color:var(--ok-line);background:var(--ok-bg)}
 .tranq-equipe .av{width:28px;height:28px;font-size:11px}
+.q-tiers{display:grid;gap:8px}
+.q-check{display:flex!important;gap:8px;align-items:center;font-size:12.5px!important;color:var(--fg)!important;cursor:pointer}
+.q-check input{width:auto!important;flex:0 0 auto;margin:0}
+.q-tierl{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--panel-2);flex-wrap:wrap}
+.q-tierl b{font-size:13px} .q-tierl input{flex:0 1 220px;font-size:13px;padding:5px 8px} .q-tierl small{flex:1;color:var(--dim);font-size:12px;min-width:140px}
+.q-tierl.fixo{opacity:.85}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
@@ -5436,13 +5442,13 @@ function telaFilaTelegram(){
    A conversa chega ao vendedor como OPORTUNIDADE: o que o cliente quer, o porte,
    a complexidade, quem é o responsável e o próximo passo — sem ele perguntar de
    novo o que o cliente já contou ao bot. Tudo por regras, sem IA. */
-let EU=null,QUALI=null,QUALI_ED=null,QUALI_SIM=null;
+let EU=null,QUALI=null,QUALI_ED=null,QUALI_SIM=null,QUALI_TIERS=[];
 const Q_INT={comprar:'Comprar',conhecer:'Conhecer',suporte:'Suporte',reclamacao:'Reclamação'};
 const Q_PRAZO={imediato:'Imediato','esta-semana':'Esta semana','este-mes':'Este mês','sem-pressa':'Sem pressa'};
 const ehVendedor=()=>EU?.papel==='vendedor';
 const respTag=(c)=>{ const r=c.comercial?.responsavel; return r?`<span class="q-resp" title="Vendedor responsável">${ico('usuario')}${esc(r.nome)}</span>`:''; };
 const tierTag=(c)=>{ const d=c.comercial?.decisao; if(!d) return '';
-  return d.tier===2?`<span class="q-tier t2" title="${esc(d.motivo||'')}">Tier 2${d.equipe?' · '+esc(d.equipe):''}</span>`:''; };
+  return d.tier>=2?`<span class="q-tier t2" title="${esc(d.motivo||'')}">Tier ${d.tier}${d.equipe?' · '+esc(d.equipe):''}</span>`:''; };
 function fichaPorte(p={}){ return [p.unidades&&`${p.unidades} unidade(s)`,p.vendedores&&`${p.vendedores} vendedor(es)`,p.funcionarios&&`${p.funcionarios} funcionário(s)`].filter(Boolean).join(', '); }
 function fichaHtml(f){
   if(!f) return '<p class="hint">Ainda sem informação comercial.</p>';
@@ -5460,13 +5466,13 @@ function oportunidadeHtml(c){
   const trocar=!ehVendedor()&&ops.length?`<select class="q-sel" aria-label="Trocar o responsável" onchange="trocarResponsavel('${esc(c.telefone)}',this.value)">
       <option value="">${r?'Tirar o responsável':'Definir responsável…'}</option>${ops.map(o=>`<option value="${esc(o.id)}" ${r?.operadorId===o.id?'selected':''}>${esc(o.nome)} · ${esc(o.setor)}</option>`).join('')}</select>`:'';
   /* No celular nasce fechado: aberto, ocupava a tela e o chat sumia. */
-  return `<details class="q-card" ${(d?.tier===2||!ehVendedor())&&innerWidth>700?'open':''}>
+  return `<details class="q-card" ${(d?.tier>=2||!ehVendedor())&&innerWidth>700?'open':''}>
     <summary><span class="q-h">${ico('relatorios')}Oportunidade comercial</span>
-      ${d?`<span class="q-tier ${d.tier===2?'t2':'t1'}">${d.tier===2?'Tier 2 · venda consultiva':'Tier 1 · bot conduz'}</span>`:''}</summary>
+      ${d?`<span class="q-tier ${d.tier>=2?'t2':'t1'}">${d.tier>=2?`Tier ${d.tier} · ${d.destino==='tier'?'comercial':'equipe'}`:'Tier 1 · bot conduz'}</span>`:''}</summary>
     ${k.resumo?`<p class="q-resumo">${esc(k.resumo)}</p>`:''}
     ${fichaHtml(k.ficha)}
     <div class="q-rodape">
-      <div><small>Equipe</small><b>${esc(d?.equipe||(d?.tier===2?'fila geral':'—'))}</b></div>
+      <div><small>Equipe</small><b>${esc(d?.equipe||(d?.tier>=2?'fila geral':'—'))}</b></div>
       <div><small>Responsável</small><b>${r?esc(r.nome):'ninguém ainda'}</b>${trocar}</div>
       <div><small>Próxima ação</small><b>${esc(d?.proximaAcao||'—')}</b></div>
     </div>
@@ -5489,7 +5495,7 @@ async function trocarResponsavel(tel,operadorId){
 /* ── tela: Qualificação e equipes ── */
 async function carregarQuali(forcar){
   if(QUALI&&!forcar) return QUALI;
-  try{ QUALI=await apiCru('qualificacao'); QUALI_ED=QUALI.matriz.map(r=>({...r})); }catch(e){ QUALI={erro:e.message}; }
+  try{ QUALI=await apiCru('qualificacao'); QUALI_ED=QUALI.matriz.map(r=>({...r})); QUALI_TIERS=(QUALI.tiers||[]).map(t=>({...t})); }catch(e){ QUALI={erro:e.message}; }
   if(rota==='qualificacao') render();
   return QUALI;
 }
@@ -5498,7 +5504,8 @@ function telaQualificacao(){
   if(q.erro) return head('Qualificação e equipes','')+`<p class="hint">Não consegui carregar: ${esc(q.erro)}</p>`;
   const equipes=Object.keys(q.equipes||{}).sort();
   const eqOpts=(sel)=>[...new Set([...equipes,sel].filter(Boolean))].map(e=>`<option value="${esc(e)}" ${e===sel?'selected':''}>${esc(e)}${q.equipes[e]?` (${q.equipes[e].length})`:' — sem ninguém'}</option>`).join('');
-  const regra=(r,i)=>{ const sem=r.destino==='equipe'&&!q.equipes[r.equipe];
+  const temEq=(e)=>Object.keys(q.equipes||{}).some(k=>k.replace(/s$/,'')===String(e||'').toLowerCase().trim().replace(/s$/,''));
+  const regra=(r,i)=>{ const sem=r.destino==='equipe'&&!temEq(r.equipe);
     const valor=r.condicao==='intencao'?`<select onchange="qSet(${i},'valor',this.value)">${Object.entries(q.intencoes).map(([k,v])=>`<option value="${k}" ${r.valor===k?'selected':''}>${v}</option>`).join('')}</select>`
       :/^porte/.test(r.condicao)?`<input type="number" min="1" value="${esc(r.valor??'')}" oninput="qSet(${i},'valor',Number(this.value))" style="width:80px">`
       :['termo','produto'].includes(r.condicao)?`<input value="${esc(r.valor||'')}" placeholder="${r.condicao==='termo'?'ex.: atacado':'nome do produto'}" oninput="qSet(${i},'valor',this.value)">`:'';
@@ -5509,7 +5516,9 @@ function telaQualificacao(){
         <input class="q-nome" value="${esc(r.nome||'')}" oninput="qSet(${i},'nome',this.value)" aria-label="Nome da regra">
         <div class="q-linha"><span>Se</span><select onchange="qSet(${i},'condicao',this.value,true)">${Object.entries(q.condicoes).map(([k,v])=>`<option value="${k}" ${r.condicao===k?'selected':''}>${v}</option>`).join('')}</select>${valor}
           <span>→</span><select onchange="qSet(${i},'destino',this.value,true)">${Object.entries(q.destinos).map(([k,v])=>`<option value="${k}" ${r.destino===k?'selected':''}>${v}</option>`).join('')}</select>
-          ${r.destino==='equipe'?`<input list="qEquipes" value="${esc(r.equipe||'')}" placeholder="equipe" oninput="qSet(${i},'equipe',this.value)" style="width:150px">`:''}</div>
+          ${r.destino==='equipe'?`<input list="qEquipes" value="${esc(r.equipe||'')}" placeholder="equipe" oninput="qSet(${i},'equipe',this.value)" style="width:150px">`:''}
+          ${r.destino==='tier'?`<select onchange="qSet(${i},'tier',Number(this.value),true)">${QUALI_TIERS.map(t=>`<option value="${t.n}" ${Number(r.tier)===t.n?'selected':''}>Tier ${t.n} · ${esc(t.nome)}</option>`).join('')}</select>`:''}</div>
+        ${r.destino==='tier'&&!(q.porTier||{})[r.tier]?`<p class="hint" style="color:var(--warn);margin-top:4px">${ico('alerta')} Ninguém do comercial no Tier ${esc(r.tier)} — a regra é pulada até alguém ser cadastrado nele.</p>`:''}
         ${sem?`<p class="hint" style="color:var(--warn);margin-top:4px">${ico('alerta')} Ninguém ativo na equipe “${esc(r.equipe)}” — a regra é pulada até alguém ser cadastrado nela.</p>`:''}
       </div>
       <div class="acoes">${bi('ant','Subir',`qMover(${i},-1)`)}${bi('prox','Descer',`qMover(${i},1)`)}${bi('excluir','Remover regra',`qRemover(${i})`,'dan')}</div></div>`; };
@@ -5527,10 +5536,26 @@ function telaQualificacao(){
       <textarea id="qMsg" rows="2">${esc(q.mensagemTransferencia||'')}</textarea></div>
   </div>
   <div class="card" style="margin-bottom:16px">
+    ${cardH('relatorios','Tiers do comercial',`Cada nível do atendimento humano do <b>comercial</b>. O Tier 1 é sempre o bot. O operador do setor comercial escolhe o tier dele no cadastro; as regras acima mandam cada oportunidade para o tier certo.`,4)}
+    <div class="q-tiers">
+      <div class="q-tierl fixo"><span class="q-tier t1">Tier 1</span><b>Bot</b><small>Venda padronizada, conduzida pelo bot</small></div>
+      ${QUALI_TIERS.map((t,i)=>`<div class="q-tierl"><span class="q-tier t2">Tier ${t.n}</span>
+        <input value="${esc(t.nome)}" maxlength="60" oninput="QUALI_TIERS[${i}].nome=this.value" aria-label="Nome do Tier ${t.n}">
+        <small>${(q.porTier||{})[t.n]?.length?esc(q.porTier[t.n].join(', ')):'<span style="color:var(--warn)">ninguém neste tier</span>'}</small>
+        ${i===QUALI_TIERS.length-1&&QUALI_TIERS.length>1?bi('excluir','Remover este tier','qTirarTier()','dan'):''}</div>`).join('')}
+    </div>
+    ${QUALI_TIERS.length<(q.tierMax-q.tierMin+1)?`<div style="margin-top:10px">${botao({t:'Novo tier',ic:'mais',v:'s',sz:'xs',on:'qNovoTier()'})}</div>`:''}
+    <div class="field" style="margin-top:14px"><label class="q-check"><input type="checkbox" id="qPergAtivo" ${q.perguntar?.ativo!==false?'checked':''}> O bot pergunta o porte quando faltar dado para decidir</label>
+      <textarea id="qPergTxt" rows="2" style="margin-top:6px">${esc(q.perguntar?.texto||'')}</textarea>
+      <p class="hint" style="margin-top:5px">Vai <b>uma vez</b>, junto da resposta do bot, para quem quer comprar e ainda não disse o porte nem se precisa de algo sob medida. Sem isso a matriz não tem com o que decidir e tudo cai no Tier 1.</p></div>
+    <div style="margin-top:8px">${botao({t:'Salvar tiers e pergunta',ic:'salvar',v:'p',sz:'xs',on:'qSalvar()'})}</div>
+  </div>
+  <div class="card" style="margin-bottom:16px">
     ${cardH('testar','Testar com uma conversa','Escreva o que um cliente diria (uma mensagem por linha). Nada é gravado e o rodízio não gira.',2)}
     <textarea id="qSimTxt" rows="3" placeholder="Tenho 35 vendedores, três lojas e preciso integrar o CRM ao meu ERP.">${esc(sim?.texto||'')}</textarea>
     <div style="margin-top:8px">${botao({t:'Testar',ic:'testar',v:'s',on:'qSimular()'})}</div>
-    ${sim?.r?`<div class="q-sim"><div class="q-tier ${sim.r.decisao.tier===2?'t2':'t1'}">${sim.r.decisao.tier===2?`Tier 2 → ${esc(sim.r.decisao.equipe||sim.r.decisao.destino)}`:'Tier 1 → o bot conduz'}</div>
+    ${sim?.r?`<div class="q-sim"><div class="q-tier ${sim.r.decisao.tier>=2?'t2':'t1'}">${sim.r.decisao.tier>=2?`Tier ${sim.r.decisao.tier} → ${esc(sim.r.decisao.destino==='tier'?'comercial':(sim.r.decisao.equipe||sim.r.decisao.destino))}`:'Tier 1 → o bot conduz'}</div>
+      ${sim.r.decisao.pergunta?`<p class="hint" style="margin-top:6px">${ico('alerta')} Falta dado para decidir — o bot vai perguntar: <i>“${esc(sim.r.decisao.pergunta)}”</i></p>`:''}
       <p class="q-resumo">${esc(sim.r.resumo)}</p>${fichaHtml(sim.r.ficha)}
       <p class="hint">Por quê: ${esc(sim.r.decisao.motivo)} · Próxima ação: ${esc(sim.r.decisao.proximaAcao)}${sim.r.faltando.length?` · Falta saber: ${esc(sim.r.faltando.join(', '))}`:''}</p></div>`:''}
   </div>
@@ -5538,7 +5563,7 @@ function telaQualificacao(){
     ${cardH('usuario','Equipes e acesso dos vendedores','Cada operador é de uma equipe (o setor dele). Com acesso, ele entra no painel e vê <b>só o Atendimento</b>: os clientes dele e a fila da equipe.',3,
       botao({t:'Cadastrar operador',ic:'mais',v:'s',sz:'xs',on:"ir('canais')"}))}
     ${ops.length?`<div class="tbl-wrap"><table><thead><tr><th>Operador</th><th>Equipe</th><th>Acesso ao painel</th><th></th></tr></thead><tbody>
-      ${ops.map(o=>`<tr${o.ativo===false?' style="opacity:.55"':''}><td><b>${esc(o.nome)}</b>${o.ativo===false?' <small>(desativado)</small>':''}</td><td><code>${esc(o.setor)}</code></td>
+      ${ops.map(o=>`<tr${o.ativo===false?' style="opacity:.55"':''}><td><b>${esc(o.nome)}</b>${o.ativo===false?' <small>(desativado)</small>':''}</td><td><code>${esc(o.setor)}</code>${o.comercial?` <span class="q-tier t2" style="margin-left:4px">Tier ${esc(o.tier||2)}</span>`:''}</td>
         <td>${o.acesso?`<span class="badge b-ok" style="margin:0">${esc(o.acesso.email)}</span><small style="display:block;color:var(--dim);margin-top:3px">${o.acesso.ultimoLogin?'último acesso '+new Date(o.acesso.ultimoLogin).toLocaleString('pt-BR'):'ainda não entrou'}</small>`:'<span class="hint">sem acesso</span>'}</td>
         <td style="text-align:right;white-space:nowrap">${o.acesso?botao({t:'Nova senha',ic:'editar',v:'g',sz:'xs',on:`qAcesso('${esc(o.id)}')`})+botao({t:'Tirar acesso',ic:'excluir',v:'g',sz:'xs',on:`qTirarAcesso('${esc(o.id)}')`})
           :o.ativo===false?'':botao({t:'Dar acesso',ic:'entrar',v:'s',sz:'xs',on:`qAcesso('${esc(o.id)}')`})}</td></tr>`).join('')}
@@ -5546,15 +5571,19 @@ function telaQualificacao(){
   </div>`;
 }
 function qSet(i,k,v,redesenhar){ QUALI_ED[i]={...QUALI_ED[i],[k]:v};
+  if(k==='destino'&&v==='tier'&&!QUALI_ED[i].tier) QUALI_ED[i].tier=QUALI_TIERS[0]?.n||2;
   if(k==='condicao'){ const c=v; QUALI_ED[i].valor=c==='intencao'?'reclamacao':/^porte/.test(c)?3:c==='temResponsavel'||c==='complexidade'?undefined:''; if(c==='temResponsavel') QUALI_ED[i].destino='responsavel'; }
   if(redesenhar) render(); }
+function qNovoTier(){ const n=(QUALI_TIERS.at(-1)?.n||1)+1; QUALI_TIERS.push({n,nome:`Tier ${n}`}); render(); }
+function qTirarTier(){ const t=QUALI_TIERS.at(-1); if(QUALI_ED.some(r=>r.destino==='tier'&&Number(r.tier)===t.n)) return avisoErro('Tier em uso',`Há regra mandando para o Tier ${t.n}. Troque o destino dela antes de remover.`); QUALI_TIERS.pop(); render(); }
 function qMover(i,d){ const j=i+d; if(j<0||j>=QUALI_ED.length) return; [QUALI_ED[i],QUALI_ED[j]]=[QUALI_ED[j],QUALI_ED[i]]; render(); }
 function qRemover(i){ QUALI_ED.splice(i,1); render(); }
 function qNova(){ QUALI_ED.push({ativa:true,nome:'Nova regra',condicao:'termo',valor:'',destino:'equipe',equipe:''}); render(); }
 function qPadrao(){ confirmar({titulo:'Voltar às regras padrão?',texto:'As regras que você mudou somem e voltam as do Bolso Cheio. Só vale depois de salvar.',rotulo:'Voltar ao padrão',icone:'atualizar',perigo:false,
   aoConfirmar:async()=>{ const r=await api('qualificacao/salvar',{matriz:null}).catch(()=>null); await carregarQuali(true); }}); }
 async function qSalvar(){
-  try{ const r=await api('qualificacao/salvar',{matriz:QUALI_ED,mensagemTransferencia:document.getElementById('qMsg')?.value}); QUALI=null; await carregarQuali(true); flash('Regras salvas — já valem na próxima mensagem.','ok'); }
+  try{ const r=await api('qualificacao/salvar',{matriz:QUALI_ED,mensagemTransferencia:document.getElementById('qMsg')?.value,tiers:QUALI_TIERS,
+      perguntar:{ativo:document.getElementById('qPergAtivo')?.checked!==false,texto:document.getElementById('qPergTxt')?.value}}); QUALI=null; await carregarQuali(true); flash('Salvo — já vale na próxima mensagem.','ok'); }
   catch(e){ avisoErro('Não salvei as regras',esc(e.message)); }
 }
 async function qSimular(){
@@ -7693,7 +7722,7 @@ function operadoresHtml(){
       <thead><tr><th>Nome</th><th>Setor</th><th>Contato</th><th>Situação</th><th></th></tr></thead><tbody>
       ${o.operadores.map(op=>`<tr${op.ativo===false?' style="opacity:.55"':''}>
         <td><b>${esc(op.nome)}</b></td>
-        <td><code>${esc(op.setor)}</code></td>
+        <td><code>${esc(op.setor)}</code>${op.tier?` <span class="q-tier t2" style="margin-left:4px">Tier ${esc(op.tier)}</span>`:''}</td>
         <td>${esc(op.telefone||op.email||'—')}</td>
         <td><span class="badge ${op.ativo===false?'':'b-ok'}">${op.ativo===false?'desativado':'atende'}</span></td>
         <td style="text-align:right;white-space:nowrap">
@@ -7706,8 +7735,10 @@ function operadoresHtml(){
       <div class="field"><label>Nome *</label>
         <input id="opNome" value="${esc(e.nome||'')}" placeholder="Ex.: Joana Ribeiro"></div>
       <div class="field"><label>Setor *</label>
-        <input id="opSetor" list="opSetores" value="${esc(e.setor||'')}" placeholder="financeiro">
+        <input id="opSetor" list="opSetores" value="${esc(e.setor||'')}" placeholder="financeiro" oninput="document.getElementById('opTierCampo').style.display=/^(comercial|vendas?)\\b/i.test(this.value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,''))?'':'none'">
         <datalist id="opSetores">${setores.map(x=>`<option value="${esc(x)}">`).join('')}</datalist></div>
+      <div class="field" id="opTierCampo" style="${/^(comercial|vendas?)\b/i.test(e.setor||'')?'':'display:none'}"><label>Tier <small>(só comercial — o Tier 1 é o bot)</small></label>
+        <select id="opTier">${[2,3,4,5,6].map(n=>`<option value="${n}" ${Number(e.tier||2)===n?'selected':''}>Tier ${n}</option>`).join('')}</select></div>
       <div class="field"><label>Telefone <small>(opcional, com DDD)</small></label>
         <input id="opTel" value="${esc(e.telefone||'')}" placeholder="31 90000-0000"></div>
       <div class="field"><label>E-mail <small>(opcional)</small></label>
@@ -7752,7 +7783,7 @@ function salvarOperador(){
         mensagem:'Telefone precisa do DDD — ex.: 31 90000-0000.'},
     ],
     rota:'operadores/salvar',
-    corpo:()=>({id:OP_EDIT?.id||undefined,nome:el('opNome'),setor:el('opSetor'),
+    corpo:()=>({id:OP_EDIT?.id||undefined,nome:el('opNome'),setor:el('opSetor'),tier:Number(el('opTier'))||null,
       telefone:el('opTel'),email:el('opMail'),ativo:OP_EDIT?OP_EDIT.ativo!==false:true}),
     sucesso:OP_EDIT?.id?'Operador atualizado.':'Operador cadastrado — já pode receber cliente.',
     depois:()=>{ OP_EDIT=null; carregar(); },

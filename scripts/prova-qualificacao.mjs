@@ -101,9 +101,15 @@ async function main() {
     ok('instância isolada conectou no Telegram falso', con.ok, con.numero || con.erro);
     await api('funil', { etapas: ['Novo lead', 'Qualificado', 'Fechado'] });
     await api('bot/config', { ativo: true, nome: 'Bia' }).catch(() => {});
-    const marta = await api('operadores/salvar', { nome: 'Marta Especialista', setor: 'especialistas', email: 'marta@loja.teste' });
-    const rui = await api('operadores/salvar', { nome: 'Rui Corporativo', setor: 'corporativo' });
-    ok('duas equipes cadastradas (especialistas, corporativo)', marta.ok && rui.ok, marta.erro || rui.erro || '');
+    const marta = await api('operadores/salvar', { nome: 'Marta Especialista', setor: 'comercial', tier: 2, email: 'marta@loja.teste' });
+    const rui = await api('operadores/salvar', { nome: 'Rui Corporativo', setor: 'comercial', tier: 3 });
+    const fin = await api('operadores/salvar', { nome: 'Fábio Financeiro', setor: 'financeiro', tier: 3 });
+    ok('comercial com dois tiers (Marta T2, Rui T3); fora do comercial não tem tier', marta.operador?.tier === 2 && rui.operador?.tier === 3 && fin.operador?.tier === null, JSON.stringify([marta.operador?.tier, rui.operador?.tier, fin.operador?.tier]));
+    // Empresa com dois níveis: operação grande vai pro Tier 3.
+    const q0 = await api('qualificacao');
+    const matriz = q0.matriz.map((r) => (r.id === 'porte' ? { ...r, tier: 3, nome: 'Operação com 10+ vendedores vai para o Tier 3' } : r));
+    const cfg = await api('qualificacao/salvar', { matriz, tiers: [{ nome: 'Venda consultiva' }, { nome: 'Grandes contas' }] });
+    ok('dois tiers humanos configurados', cfg.ok && cfg.tiers.length === 2, (cfg.tiers || []).map((t) => `${t.n}:${t.nome}`).join(', '));
     const acesso = await api('vendedores/acesso', { operadorId: marta.operador.id, email: 'marta@loja.teste', senha: 'senha-marta-1' });
     ok('acesso de vendedora criado para a Marta', acesso.ok, acesso.erro || acesso.email);
 
@@ -116,19 +122,21 @@ async function main() {
     const por = (n) => at.conversas.find((c) => c.nome === n);
     const paula = por('Paula Pequena'), carlos = por('Carlos Rede'), wagner = por('Wagner Atacado');
     ok('Tier 1: cliente pequeno fica com o bot', paula?.comercial?.decisao?.tier === 1 && paula.situacao === 'com-bot', paula?.comercial?.decisao?.motivo);
-    ok('Tier 2 (Telegram): integração → especialistas → Marta', carlos?.comercial?.decisao?.equipe === 'especialistas' && carlos?.comercial?.responsavel?.nome === 'Marta Especialista' && carlos.situacao === 'aguardando', carlos?.comercial?.resumo);
-    ok('Tier 2 (WhatsApp): 12 vendedores → corporativo → Rui', wagner?.comercial?.decisao?.equipe === 'corporativo' && wagner?.comercial?.responsavel?.nome === 'Rui Corporativo', wagner?.comercial?.resumo);
+    const paraPaula = (await (await fetch(`${tg.url}/bot/_enviados`, { method: 'POST' })).json()).result.filter((m) => m.chat === '900001').map((m) => m.texto);
+    ok('faltou dado: o bot perguntou o porte/integração ao cliente pequeno', paraPaula.some((t) => /quantas pessoas ou lojas/.test(t)));
+    ok('Tier 2 (Telegram): integração → comercial Tier 2 → Marta', carlos?.comercial?.decisao?.tier === 2 && carlos?.comercial?.responsavel?.nome === 'Marta Especialista' && carlos.situacao === 'aguardando', carlos?.comercial?.resumo);
+    ok('Tier 3 (WhatsApp): 12 vendedores → comercial Tier 3 → Rui', wagner?.comercial?.decisao?.tier === 3 && wagner?.comercial?.responsavel?.nome === 'Rui Corporativo', wagner?.comercial?.resumo);
     const saiu = (await (await fetch(`${tg.url}/bot/_enviados`, { method: 'POST' })).json()).result.filter((m) => m.chat === '900002').map((m) => m.texto);
-    ok('cliente do Tier 2 recebeu a mensagem de transferência', saiu.some((t) => /equipe especialistas/.test(t)), saiu.at(-1));
+    ok('cliente do Tier 2 recebeu a mensagem de transferência', saiu.some((t) => /equipe comercial/.test(t)), saiu.at(-1));
 
     // ── dono ──
     const dono = await pagina(token, 'tg-atendimento');
     await dono.waitForSelector('.fila-card');
-    ok('fila do Telegram mostra Tier 2 e o responsável no cartão', await dono.isVisible('.fila-col.sit-aguarda .fila-card:has-text("Carlos Rede") .q-tier.t2') && await dono.isVisible('.fila-card:has-text("Carlos Rede") .q-resp:has-text("Marta")'));
+    ok('fila do Telegram mostra Tier 2 e o responsável no cartão', await dono.isVisible('.fila-col.sit-aguarda .fila-card:has-text("Carlos Rede") .q-tier.t2:has-text("Tier 2")') && await dono.isVisible('.fila-card:has-text("Carlos Rede") .q-resp:has-text("Marta")'));
     await dono.click('.fila-card:has-text("Carlos Rede")');
     await dono.waitForSelector('.gaveta .q-card');
     ok('conversa abre com a oportunidade comercial (resumo, ficha, próxima ação)', (await dono.textContent('.gaveta .q-card')).includes('35 vendedor') && (await dono.textContent('.gaveta .q-card')).includes('Avaliar a integração'));
-    ok('linha do tempo registra encaminhamento e responsável', await dono.isVisible('.gaveta .cv-evento:has-text("Encaminhado para especialistas")') && await dono.isVisible('.gaveta .cv-evento:has-text("Responsável: Marta")'));
+    ok('linha do tempo registra encaminhamento e responsável', await dono.isVisible('.gaveta .cv-evento:has-text("Encaminhado para comercial")') && await dono.isVisible('.gaveta .cv-evento:has-text("Responsável: Marta")'));
     await dono.screenshot({ path: join(FOTOS, '01-dono-telegram-oportunidade.png') });
     await dono.keyboard.press('Escape');
 
@@ -141,12 +149,21 @@ async function main() {
 
     await dono.goto(`${base}/crm?t=${token}#qualificacao`); await dono.reload();
     await dono.waitForSelector('.q-regra');
-    ok('tela de regras mostra a matriz padrão', (await dono.$$('.q-regra')).length === 6);
+    ok('tela de regras mostra a matriz e os tiers (T1 bot, T2 Marta, T3 Rui)', (await dono.$$('.q-regra')).length === 6 && (await dono.textContent('.q-tiers')).includes('Marta Especialista') && (await dono.$$eval('.q-tiers input', (i) => i.map((x) => x.value))).includes('Grandes contas'));
     await dono.fill('#qSimTxt', 'sou MEI, só eu, mas preciso integrar com o Bling');
     await dono.click('button:has-text("Testar")');
     await dono.waitForSelector('.q-sim');
-    ok('teste da matriz: MEI com integração vai para especialistas (porte não decide sozinho)', (await dono.textContent('.q-sim')).includes('Tier 2 → especialistas'));
+    ok('teste da matriz: MEI com integração vai para o comercial Tier 2 (porte não decide sozinho)', (await dono.textContent('.q-sim')).includes('Tier 2 → comercial'));
     await dono.screenshot({ path: join(FOTOS, '03-regras-e-teste.png'), fullPage: true });
+    // Cadastro de operador: campo Tier só aparece no setor comercial.
+    await dono.goto(`${base}/crm?t=${token}#canais`); await dono.reload();
+    await dono.waitForSelector('#opSetor');
+    await dono.fill('#opSetor', 'financeiro');
+    const tierFin = await dono.isVisible('#opTier');
+    await dono.fill('#opSetor', 'Comercial');
+    const tierCom = await dono.isVisible('#opTier');
+    ok('cadastro: campo Tier só aparece para o setor comercial', !tierFin && tierCom);
+    await dono.screenshot({ path: join(FOTOS, '03b-operador-tier.png') });
 
     // ── vendedora ──
     const ent = await api('entrar', { email: 'marta@loja.teste', senha: 'senha-marta-1' }, '');

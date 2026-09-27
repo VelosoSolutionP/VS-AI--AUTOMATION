@@ -45,6 +45,7 @@ function escolherResponsavel(decisao, lead, equipe) {
   if (decisao?.destino === 'responsavel' && cart && ativos.some((o) => o.id === cart.operadorId)) {
     return { operadorId: cart.operadorId, nome: cart.nome, equipe: cart.equipe || null, motivo: 'carteira: já era o vendedor deste cliente' };
   }
+  if (decisao?.destino === 'tier') { return qualif.distribuir('comercial', ativos, { tier: decisao.tier }); }
   return equipe ? qualif.distribuir(equipe, ativos) : null;
 }
 /* TODA conversa tem protocolo. So o fluxo em planilha abria um: loja que usa so
@@ -60,7 +61,8 @@ function garantirProtocolo(telefone, endereco, departamento) {
     return vivo;
   } catch (e) { console.error(`[protocolo] nao garanti o protocolo: ${e.message}`); return null; }
 }
-const equipesComGente = () => [...new Set(operadores.ativos(operadores.listar()).map((o) => qualif.norm(o.setor).trim()))];
+const equipesComGente = () => [...new Set(operadores.ativos(operadores.listar()).map((o) => qualif.normEquipe(o.setor)))];
+const tiersComGente = () => qualif.tiersComGente(operadores.ativos(operadores.listar()));
 
 /**
  * Confere a assinatura da Meta (X-Hub-Signature-256 = HMAC-SHA256 do corpo CRU
@@ -322,17 +324,17 @@ export async function receberMensagem(msg, deps = {}) {
       /* `handoff` vem tambem no "nao entendi, quer falar com alguem?" — que so
          OFERECE. Rotular a fila so quando o bot de fato passou pra gente. */
       if (r.handoff && bot.estaComGente(t.telefone) && !r.emergencia && r.departamento !== 'urgencia') {
-        const d = qualif.decidir(ficha, { responsavel: resp, texto: msg.texto, equipesComGente: equipesComGente(), gatilho: 'handoff' });
+        const d = qualif.decidir(ficha, { responsavel: resp, texto: msg.texto, equipesComGente: equipesComGente(), tiersComGente: tiersComGente(), gatilho: 'handoff' });
         const generico = !r.departamento || r.departamento === 'humano';
-        const equipe = d.tier === 2 ? (d.equipe || (generico ? null : qualif.norm(r.departamento))) : (generico ? null : qualif.norm(r.departamento));
-        if (d.tier === 2 && generico && d.equipe) { bot.entregarParaEquipe(t.telefone, { departamento: d.equipe, contexto: r.contexto || {} }); }
+        const equipe = d.tier >= 2 ? (d.equipe || (generico ? null : qualif.norm(r.departamento))) : (generico ? null : qualif.norm(r.departamento));
+        if (d.tier >= 2 && generico && d.equipe) { bot.entregarParaEquipe(t.telefone, { departamento: d.equipe, contexto: r.contexto || {} }); }
         const quem = escolherResponsavel(d, lead, equipe);
-        crm.comercial(lead.id, { decisao: d.tier === 2 ? d : { ...d, tier: 2, destino: equipe ? 'equipe' : 'humano', equipe, motivo: 'o bot passou para gente', proximaAcao: qualif.proximaAcao(ficha) }, ...(quem ? { responsavel: quem } : {}) });
+        crm.comercial(lead.id, { decisao: d.tier >= 2 ? d : { ...d, tier: 2, destino: equipe ? 'equipe' : 'humano', equipe, motivo: 'o bot passou para gente', proximaAcao: qualif.proximaAcao(ficha) }, ...(quem ? { responsavel: quem } : {}) });
         roteamento = { quando: 'handoff', decisao: d, responsavel: quem };
       } else if (!r.handoff && !r.cobranca && !r.emergencia && !String(r.tipo || '').startsWith('moderacao')) {
-        const d = qualif.decidir(ficha, { responsavel: resp, texto: msg.texto, equipesComGente: equipesComGente() });
-        const jaFoi = lead.comercial?.decisao?.tier === 2 && lead.comercial.decisao.regra === d.regra;
-        if (d.tier === 2 && !jaFoi) {
+        const d = qualif.decidir(ficha, { responsavel: resp, texto: msg.texto, equipesComGente: equipesComGente(), tiersComGente: tiersComGente() });
+        const jaFoi = lead.comercial?.decisao?.tier >= 2 && lead.comercial.decisao.regra === d.regra;
+        if (d.tier >= 2 && !jaFoi) {
           const quem = escolherResponsavel({ ...d, destino: resp && d.destino !== 'equipe' ? 'responsavel' : d.destino }, lead, d.equipe);
           /* O resumo vai no cartao da oportunidade (lead.comercial), nao no contexto:
              ali ele aparecia duas vezes na mesma conversa. */
@@ -340,13 +342,22 @@ export async function receberMensagem(msg, deps = {}) {
           if (r.protocolo) { try { proto.anotar(r.protocolo, { estado: proto.ESTADOS.NA_FILA, departamento: d.equipe || 'humano' }); } catch { /* protocolo e complemento */ } }
           crm.comercial(lead.id, { decisao: d, ...(quem ? { responsavel: quem } : {}) });
           const cfgQ = qualif.config();
-          texto = String(cfgQ.mensagemTransferencia || qualif.MENSAGEM_PADRAO).replace(/\{equipe\}/g, d.equipe || 'de atendimento').replace(/\{vendedor\}/g, quem?.nome || 'um vendedor');
+          texto = String(cfgQ.mensagemTransferencia || qualif.MENSAGEM_PADRAO).replace(/\{equipe\}/g, d.destino === 'tier' ? 'comercial' : (d.equipe || 'de atendimento')).replace(/\{vendedor\}/g, quem?.nome || 'um vendedor');
           r.handoff = true; r.tipo = 'qualificacao:transferir'; r.produtos = null; r.imagem = null;
           // O "nao entendi" que a transferencia substituiu nao conta como falha do bot.
           falhas.set(chave, 0);
           roteamento = { quando: 'mensagem', decisao: d, responsavel: quem };
         } else if (d.tier === 1) {
-          crm.comercial(lead.id, { decisao: d });
+          /* COLETAR O MINIMO: sem porte e sem saber se e sob medida, a matriz
+             nao tem o que decidir — tudo cairia no bot por falta de dado. O bot
+             faz UMA pergunta, junto da resposta dele. */
+          const cfgQ = qualif.config();
+          if (qualif.precisaPerguntar(ficha, cfgQ) && texto && !r.cobranca) {
+            texto = `${texto}\n\n${cfgQ.perguntar.texto}`;
+            crm.comercial(lead.id, { decisao: d, ficha: { ...ficha, perguntouEm: new Date().toISOString() } });
+          } else {
+            crm.comercial(lead.id, { decisao: d });
+          }
         }
       }
     } catch (e) { console.error(`[qualificacao] roteamento falhou, segue o bot: ${e.message}`); }

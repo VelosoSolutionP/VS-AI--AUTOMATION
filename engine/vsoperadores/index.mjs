@@ -13,6 +13,7 @@ import { limiteDeAtendentes } from '../vsplanos/index.mjs';
 
 import { dentroDaCasa } from '../casa.mjs';
 export { porSetor, setoresSemGente, ativos, norm };
+export { ehComercial, TIER_MIN, TIER_MAX } from './regras.mjs';
 
 const arq = () => join(process.env.VSOPERADORES_DIR || dentroDaCasa('vsoperadores'), 'operadores.json');
 const ler = () => { try { return JSON.parse(readFileSync(arq(), 'utf8')); } catch { return []; } };

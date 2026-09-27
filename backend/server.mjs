@@ -1166,9 +1166,11 @@ const server = createServer(async (req, res) => {
       const acessos = usuarios.acessosVendedores();
       const equipes = {};
       for (const o of operadores.ativos(ops)) { const e = operadores.norm(o.setor); (equipes[e] ||= []).push(o.nome); }
+      const porTier = {};
+      for (const o of operadores.ativos(ops).filter((x) => operadores.ehComercial(x.setor))) { (porTier[o.tier || operadores.TIER_MIN] ||= []).push(o.nome); }
       return json(res, 200, {
         ...qualif.config(), condicoes: qualif.CONDICOES, destinos: qualif.DESTINOS, intencoes: qualif.INTENCOES, prazos: qualif.PRAZOS,
-        equipes, operadores: ops.map((o) => ({ ...o, acesso: acessos.find((a) => a.operadorId === o.id) || null })),
+        equipes, porTier, tierMin: qualif.TIER_MIN, tierMax: qualif.TIER_MAX, operadores: ops.map((o) => ({ ...o, comercial: operadores.ehComercial(o.setor), acesso: acessos.find((a) => a.operadorId === o.id) || null })),
       });
     }
     if (req.method === 'GET' && rota === '/crm/api/painel') { return json(res, 200, crm.painel()); }
@@ -1930,7 +1932,9 @@ const server = createServer(async (req, res) => {
           let ficha = null;
           const cat = estoque.doAtendimento().map((p) => ({ sku: p.sku, nome: p.nome }));
           for (const m of msgs) { ficha = qualif.qualificar(ficha, m, { produtos: cat }); }
-          const dec = qualif.decidir(ficha, { texto: msgs.join(' '), equipesComGente: [...new Set(operadores.ativos(operadores.listar()).map((o) => operadores.norm(o.setor)))], matriz: Array.isArray(d.matriz) ? d.matriz : undefined });
+          const ativosOps = operadores.ativos(operadores.listar());
+          const dec = qualif.decidir(ficha, { texto: msgs.join(' '), equipesComGente: [...new Set(ativosOps.map((o) => qualif.normEquipe(o.setor)))], tiersComGente: qualif.tiersComGente(ativosOps), matriz: Array.isArray(d.matriz) ? d.matriz : undefined });
+          if (dec.tier === 1 && qualif.precisaPerguntar(ficha)) { dec.pergunta = qualif.config().perguntar.texto; }
           r = { ok: true, ficha, decisao: dec, resumo: qualif.resumo(ficha), faltando: qualif.faltando(ficha) };
           break;
         }

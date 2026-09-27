@@ -32,6 +32,10 @@ function gravar(d) {
 }
 const agoraIso = () => new Date().toISOString();
 export const norm = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+/* Nome de equipe/setor: "especialista" e "especialistas" sao a mesma fila.
+   A diferenca de um "s" fazia a regra nao achar ninguem — e tudo caia no bot. */
+export const normEquipe = (t) => norm(t).trim().replace(/\s+/g, ' ').replace(/s$/, '');
+const ehComercial = (setor) => /^(comercial|vendas?)\b/.test(norm(setor).trim());
 
 /* ── 1. ficha ───────────────────────────────────────────────────────────── */
 
@@ -162,22 +166,35 @@ export const CONDICOES = {
   termo: 'Mensagem contém',
   produto: 'Interesse no produto',
 };
-export const DESTINOS = { bot: 'Bot continua (Tier 1)', equipe: 'Equipe', responsavel: 'Vendedor responsável' };
+export const DESTINOS = { bot: 'Bot continua (Tier 1)', tier: 'Tier do comercial', equipe: 'Outra equipe (setor)', responsavel: 'Vendedor responsável' };
+export const TIER_MIN = 2;
+export const TIER_MAX = 6;
 
 /* Padrão do Bolso Cheio, tirado da proposta. A empresa liga/desliga e troca as
    equipes; sem equipe cadastrada, a regra que manda pra equipe fica inerte. */
+/* O humano do comercial e dividido em TIERS (2 a 6). A empresa que so tem um
+   nivel usa so o Tier 2 — e quem tem cinco, cadastra cinco. */
+export const TIERS_PADRAO = [{ n: 2, nome: 'Venda consultiva' }];
 export const MATRIZ_PADRAO = [
   { id: 'carteira', ativa: true, condicao: 'temResponsavel', destino: 'responsavel', nome: 'Cliente de carteira: quando for para gente, vai para o vendedor dele' },
-  { id: 'reclamacao', ativa: true, condicao: 'intencao', valor: 'reclamacao', destino: 'equipe', equipe: 'suporte', nome: 'Reclamação vai para gente, na hora' },
+  { id: 'reclamacao', ativa: true, condicao: 'intencao', valor: 'reclamacao', destino: 'equipe', equipe: 'suporte', nome: 'Reclamação vai para o suporte, na hora' },
   { id: 'suporte', ativa: false, condicao: 'intencao', valor: 'suporte', destino: 'equipe', equipe: 'suporte', nome: 'Pedido de suporte vai para o suporte' },
-  { id: 'personalizada', ativa: true, condicao: 'complexidade', destino: 'equipe', equipe: 'especialistas', nome: 'Integração ou projeto sob medida vai para especialistas' },
-  { id: 'porte', ativa: true, condicao: 'porteVendedores', valor: 10, destino: 'equipe', equipe: 'corporativo', nome: 'Operação com 10+ vendedores vai para vendas corporativas' },
-  { id: 'unidades', ativa: true, condicao: 'porteUnidades', valor: 3, destino: 'equipe', equipe: 'corporativo', nome: 'Três ou mais lojas vão para vendas corporativas' },
+  { id: 'personalizada', ativa: true, condicao: 'complexidade', destino: 'tier', tier: 2, nome: 'Integração ou projeto sob medida vai para o comercial (Tier 2)' },
+  { id: 'porte', ativa: true, condicao: 'porteVendedores', valor: 10, destino: 'tier', tier: 2, nome: 'Operação com 10+ vendedores vai para o comercial (Tier 2)' },
+  { id: 'unidades', ativa: true, condicao: 'porteUnidades', valor: 3, destino: 'tier', tier: 2, nome: 'Três ou mais lojas vão para o comercial (Tier 2)' },
 ];
+export const PERGUNTA_PADRAO = 'Pra eu te direcionar pra pessoa certa: é pra quantas pessoas ou lojas, e precisa integrar com algum sistema (ERP, loja virtual…)?';
 
 export function config() {
   const d = ler();
-  return { matriz: Array.isArray(d.matriz) ? d.matriz : MATRIZ_PADRAO.map((r) => ({ ...r })), mensagemTransferencia: d.mensagemTransferencia || MENSAGEM_PADRAO, rodizio: d.rodizio || {} };
+  return {
+    matriz: Array.isArray(d.matriz) ? d.matriz : MATRIZ_PADRAO.map((r) => ({ ...r })),
+    tiers: Array.isArray(d.tiers) && d.tiers.length ? d.tiers : TIERS_PADRAO.map((t) => ({ ...t })),
+    /* Coletar o minimo: sem porte e sem saber se e sob medida, a matriz nao tem
+       com o que decidir e tudo cai no bot. O bot pergunta UMA vez. */
+    perguntar: { ativo: d.perguntar?.ativo !== false, texto: d.perguntar?.texto || PERGUNTA_PADRAO },
+    mensagemTransferencia: d.mensagemTransferencia || MENSAGEM_PADRAO, rodizio: d.rodizio || {},
+  };
 }
 export const MENSAGEM_PADRAO = 'Entendi. Para isso vou chamar nossa equipe {equipe} — já passei o que você me contou, não vai precisar repetir. Em instantes alguém continua com você aqui.';
 
@@ -186,6 +203,7 @@ function validarRegra(r, i) {
   if (!CONDICOES[r.condicao]) { return erro('condição desconhecida'); }
   if (!DESTINOS[r.destino]) { return erro('destino desconhecido'); }
   if (r.destino === 'equipe' && !norm(r.equipe).trim()) { return erro('diga para qual equipe'); }
+  if (r.destino === 'tier' && !(Number.isInteger(Number(r.tier)) && Number(r.tier) >= TIER_MIN && Number(r.tier) <= TIER_MAX)) { return erro(`escolha o tier (${TIER_MIN} a ${TIER_MAX})`); }
   if (r.condicao === 'intencao' && !INTENCOES[r.valor]) { return erro('escolha a intenção'); }
   if (/^porte/.test(r.condicao) && !(Number(r.valor) >= 1)) { return erro('informe o número mínimo'); }
   if ((r.condicao === 'termo' || r.condicao === 'produto') && !String(r.valor || '').trim()) { return erro('informe o termo'); }
@@ -195,12 +213,22 @@ function validarRegra(r, i) {
       nome: String(r.nome || '').trim().slice(0, 120) || `${CONDICOES[r.condicao]} → ${DESTINOS[r.destino]}`,
       condicao: r.condicao, valor: /^porte/.test(r.condicao) ? Number(r.valor) : r.valor != null ? String(r.valor).trim().slice(0, 80) : undefined,
       destino: r.destino, equipe: r.destino === 'equipe' ? norm(r.equipe).trim().slice(0, 60) : undefined,
+      tier: r.destino === 'tier' ? Number(r.tier) : undefined,
     },
   };
 }
 
-export function salvarConfig({ matriz, mensagemTransferencia } = {}) {
+export function salvarConfig({ matriz, mensagemTransferencia, tiers, perguntar } = {}) {
   const d = ler();
+  if (tiers !== undefined) {
+    if (tiers === null) { delete d.tiers; } else {
+      if (!Array.isArray(tiers) || !tiers.length || tiers.length > TIER_MAX - TIER_MIN + 1) { return { ok: false, erro: `de 1 a ${TIER_MAX - TIER_MIN + 1} tiers humanos` }; }
+      d.tiers = tiers.map((t, i) => ({ n: TIER_MIN + i, nome: String(t?.nome || '').trim().slice(0, 60) || `Tier ${TIER_MIN + i}` }));
+    }
+  }
+  if (perguntar !== undefined) {
+    d.perguntar = { ativo: perguntar?.ativo !== false, texto: String(perguntar?.texto || '').trim().slice(0, 400) || PERGUNTA_PADRAO };
+  }
   if (matriz === null) { delete d.matriz; } else if (matriz !== undefined) {
     if (!Array.isArray(matriz) || matriz.length > 30) { return { ok: false, erro: 'matriz inválida (até 30 regras)' }; }
     const out = [];
@@ -235,7 +263,7 @@ function bate(r, ficha, ctx) {
  * @param {'mensagem'|'handoff'} gatilho  mensagem = decidir se sai do bot; handoff = o bot já passou pra gente, decidir PRA QUEM
  * @returns {{tier:1|2, destino:'bot'|'equipe'|'responsavel', equipe?, regra?, motivo, proximaAcao}}
  */
-export function decidir(ficha, { responsavel = null, texto = '', equipesComGente = null, matriz, gatilho = 'mensagem' } = {}) {
+export function decidir(ficha, { responsavel = null, texto = '', equipesComGente = null, tiersComGente = null, matriz, gatilho = 'mensagem' } = {}) {
   /* Ter vendedor NÃO tira a conversa do bot: quem já é cliente e só quer repetir
      o pedido de sempre segue com o bot. A carteira decide QUEM atende quando a
      conversa for para gente (gatilho 'handoff'). */
@@ -248,7 +276,11 @@ export function decidir(ficha, { responsavel = null, texto = '', equipesComGente
       if (!responsavel) { continue; }
       return { tier: 2, destino: 'responsavel', responsavel, equipe: responsavel.equipe || null, regra: r.id, motivo: r.nome, proximaAcao: proximaAcao(ficha) };
     }
-    if (equipesComGente && !equipesComGente.includes(r.equipe)) { pulei.push(r.equipe); continue; }
+    if (r.destino === 'tier') {
+      if (tiersComGente && !tiersComGente.includes(r.tier)) { pulei.push(`Tier ${r.tier} do comercial`); continue; }
+      return { tier: r.tier, destino: 'tier', equipe: 'comercial', regra: r.id, motivo: r.nome, proximaAcao: proximaAcao(ficha) };
+    }
+    if (equipesComGente && !equipesComGente.map(normEquipe).includes(normEquipe(r.equipe))) { pulei.push(r.equipe); continue; }
     return { tier: 2, destino: 'equipe', equipe: r.equipe, regra: r.id, motivo: r.nome, proximaAcao: proximaAcao(ficha) };
   }
   return { tier: 1, destino: 'bot', regra: null, motivo: pulei.length ? `nenhuma regra com gente disponível (sem atendente em: ${[...new Set(pulei)].join(', ')})` : 'nenhuma regra de transferência bateu', proximaAcao: 'Bot conduz a venda' };
@@ -281,15 +313,34 @@ export function resumo(f = {}, nome) {
  * Quem da equipe recebe. `operadores` = ativos ({id, nome, setor}).
  * Rodízio guardado por equipe: o próximo depois do último que recebeu.
  */
-export function distribuir(equipe, operadores = []) {
-  const eq = norm(equipe).trim();
-  const time = operadores.filter((o) => o.ativo !== false && norm(o.setor).trim() === eq).sort((a, b) => String(a.id).localeCompare(String(b.id)));
+export function distribuir(equipe, operadores = [], { tier } = {}) {
+  const eq = normEquipe(equipe);
+  /* Tier: so o comercial daquele nivel. Sem tier: o setor inteiro. */
+  const time = operadores.filter((o) => o.ativo !== false && (tier ? ehComercial(o.setor) && Number(o.tier || TIER_MIN) === Number(tier) : normEquipe(o.setor) === eq))
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
   if (!time.length) { return null; }
   const d = ler();
-  const ultimo = d.rodizio?.[eq];
+  const chave = tier ? `tier:${tier}` : eq;
+  const ultimo = d.rodizio?.[chave];
   const i = time.findIndex((o) => o.id === ultimo);
   const escolhido = time[(i + 1) % time.length];
-  d.rodizio = { ...(d.rodizio || {}), [eq]: escolhido.id };
+  d.rodizio = { ...(d.rodizio || {}), [chave]: escolhido.id };
   gravar(d);
-  return { operadorId: escolhido.id, nome: escolhido.nome, equipe: eq, motivo: time.length > 1 ? `rodízio da equipe ${eq}` : `único da equipe ${eq}` };
+  const onde = tier ? `do Tier ${tier} do comercial` : `da equipe ${eq}`;
+  return { operadorId: escolhido.id, nome: escolhido.nome, equipe: tier ? 'comercial' : eq, tier: tier || null, motivo: time.length > 1 ? `rodízio ${onde}` : `único ${onde}` };
+}
+
+/** Tiers do comercial que têm alguém ativo para receber. */
+export const tiersComGente = (operadores = []) => [...new Set(operadores.filter((o) => o.ativo !== false && ehComercial(o.setor)).map((o) => Number(o.tier || TIER_MIN)))];
+
+/**
+ * Falta o mínimo para a matriz decidir? Cliente com interesse comercial que
+ * ainda não disse o porte nem se precisa de algo sob medida — sem isso, toda
+ * conversa cai no Tier 1 (bot) por falta de dado, não por decisão. Uma vez só.
+ */
+export function precisaPerguntar(f = {}, cfg = config()) {
+  if (!cfg.perguntar?.ativo || !f || f.perguntouEm) { return false; }
+  if (!['comprar', 'conhecer'].includes(f.intencao)) { return false; }
+  const temPorte = (f.porte?.vendedores || 0) > 0 || (f.porte?.funcionarios || 0) > 0 || (f.porte?.unidades || 0) > 1;
+  return !temPorte && f.complexidade !== 'personalizada';
 }

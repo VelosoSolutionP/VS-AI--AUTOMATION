@@ -31,14 +31,15 @@ test('ficha: cenário A da proposta (microempresa) fica com o bot', () => {
   assert.equal(Q.decidir(f).tier, 1);
 });
 
-test('ficha: cenário B (35 vendedores, 3 lojas, ERP) vai para especialistas com resumo', () => {
+test('ficha: cenário B (35 vendedores, 3 lojas, ERP) vai para o comercial Tier 2 com resumo', () => {
   const f = conversa('Tenho 35 vendedores, três lojas e preciso integrar o CRM ao meu ERP.');
   assert.deepEqual(f.porte, { vendedores: 35, unidades: 3 });
   assert.equal(f.complexidade, 'personalizada');
   assert.deepEqual(f.produtos, ['CRM']);
   const d = Q.decidir(f);
   assert.equal(d.tier, 2);
-  assert.equal(d.equipe, 'especialistas', 'personalizada vem antes do porte na matriz');
+  assert.equal(d.destino, 'tier');
+  assert.equal(d.regra, 'personalizada', 'personalizada vem antes do porte na matriz');
   assert.equal(d.proximaAcao, 'Avaliar a integração e o escopo');
   assert.match(Q.resumo(f), /3 unidade\(s\), 35 vendedor\(es\).*CRM.*sob medida/);
 });
@@ -64,17 +65,18 @@ test('ficha: não regride — porte só cresce, reclamação ganha de compra, pr
 
 test('matriz: porte sozinho não decide — microempresa com integração vai pra gente', () => {
   const f = conversa('sou MEI, só eu, mas preciso integrar com o Bling');
-  assert.equal(Q.decidir(f).equipe, 'especialistas');
+  assert.equal(Q.decidir(f).regra, 'personalizada');
+  assert.equal(Q.decidir(f).tier, 2);
   const g = conversa('somos 40 vendedores e queremos o bot de vendas padrão');
-  assert.equal(Q.decidir(g).equipe, 'corporativo');
+  assert.equal(Q.decidir(g).regra, 'porte');
 });
 
 test('matriz: equipe sem ninguém não recebe — segue a próxima regra ou fica com o bot', () => {
   const f = conversa('temos 12 vendedores e precisamos integrar o ERP');
-  assert.equal(Q.decidir(f, { equipesComGente: ['corporativo'] }).equipe, 'corporativo');
-  const d = Q.decidir(f, { equipesComGente: [] });
+  assert.equal(Q.decidir(f, { tiersComGente: [2] }).tier, 2);
+  const d = Q.decidir(f, { tiersComGente: [] });
   assert.equal(d.tier, 1);
-  assert.match(d.motivo, /sem atendente em: especialistas, corporativo/);
+  assert.match(d.motivo, /sem atendente em: Tier 2 do comercial/);
 });
 
 test('matriz: carteira escolhe QUEM na transferência, mas não tira do bot', () => {
@@ -112,7 +114,7 @@ test('atendimento: Tier 2 transfere com resumo e responsável; Tier 1 segue com 
   const atendimento = await import('../backend/atendimento.mjs');
   crm.setFunil(['Novo lead', 'Qualificado', 'Fechado']);
   bot.salvarConfig({ ativo: true, assinatura: '', nome: 'Bia' });
-  const op = operadores.salvar({ nome: 'Marta Especialista', setor: 'especialistas', email: 'marta@loja.com' });
+  const op = operadores.salvar({ nome: 'Marta Especialista', setor: 'comercial', tier: 2, email: 'marta@loja.com' });
   assert.equal(op.ok, true, op.motivo || op.erro);
   const enviados = [];
   const enviar = async (m) => { enviados.push(m); return { ok: true }; };
@@ -122,11 +124,12 @@ test('atendimento: Tier 2 transfere com resumo e responsável; Tier 1 segue com 
   await atendimento.receberMensagem(msg('5531990000001', 'Tenho 35 vendedores, três lojas e preciso integrar o CRM ao meu ERP.', 1), { enviar, reservar: () => true });
   const lead = crm.listar().find((l) => l.telefone === '5531990000001');
   assert.equal(lead.comercial.decisao.tier, 2);
-  assert.equal(lead.comercial.decisao.equipe, 'especialistas');
+  assert.equal(lead.comercial.decisao.equipe, 'comercial');
+  assert.equal(lead.comercial.decisao.tier, 2);
   assert.equal(lead.comercial.responsavel.nome, 'Marta Especialista');
-  assert.match(enviados.at(-1).texto, /equipe especialistas/);
+  assert.match(enviados.at(-1).texto, /equipe comercial/);
   const fila = bot.emAtendimento().find((e) => e.telefone === '5531990000001');
-  assert.equal(fila.departamento, 'especialistas');
+  assert.equal(fila.departamento, 'comercial');
   assert.match(Q.resumo(lead.comercial.ficha), /35 vendedor/);
   assert.ok(lead.historico.some((h) => h.tipo === 'responsavel' && h.para === 'Marta Especialista'));
 
@@ -143,7 +146,7 @@ test('atendimento: Tier 2 transfere com resumo e responsável; Tier 1 segue com 
   assert.equal(bot.estaComGente('77000123'), false);
 
   // Cliente de carteira pede gente: vai para o vendedor dele.
-  crm.comercial(tg.id, { responsavel: { operadorId: op.operador.id, nome: 'Marta Especialista', equipe: 'especialistas' } });
+  crm.comercial(tg.id, { responsavel: { operadorId: op.operador.id, nome: 'Marta Especialista', equipe: 'comercial' } });
   await atendimento.receberMensagem(msg('77000123', 'quero falar com um atendente', 4), { enviar, reservar: () => true });
   const tg2 = crm.listar().find((l) => l.telefone === '77000123');
   assert.equal(bot.estaComGente('77000123'), true);
@@ -164,4 +167,56 @@ test('acesso de vendedor: cria, entra como vendedor, sai na hora ao remover', as
   usuarios.removerAcessoVendedor('op-j');
   assert.equal(usuarios.autenticar(s.token), null, 'sessão derrubada');
   assert.equal(usuarios.entrar('joana@loja.com', 'senha-forte-1').ok, false);
+});
+
+test('tiers: cada nível do comercial recebe o seu; sem ninguém no nível, a regra é pulada', () => {
+  const ops = [
+    { id: 't2a', nome: 'Ana T2', setor: 'comercial', tier: 2 },
+    { id: 't3a', nome: 'Beto T3', setor: 'Comercial', tier: 3 },
+    { id: 'fin', nome: 'Caio Fin', setor: 'financeiro' },
+  ];
+  assert.deepEqual(Q.tiersComGente(ops).sort(), [2, 3]);
+  assert.equal(Q.distribuir('comercial', ops, { tier: 3 }).nome, 'Beto T3');
+  assert.equal(Q.distribuir('comercial', ops, { tier: 2 }).nome, 'Ana T2');
+  assert.equal(Q.distribuir('comercial', ops, { tier: 4 }), null);
+  const matriz = [
+    { id: 'grande', condicao: 'porteVendedores', valor: 50, destino: 'tier', tier: 3, nome: 'grande → T3' },
+    { id: 'medio', condicao: 'porteVendedores', valor: 10, destino: 'tier', tier: 2, nome: 'médio → T2' },
+  ];
+  assert.equal(Q.decidir(conversa('temos 80 vendedores'), { matriz, tiersComGente: [2, 3] }).tier, 3);
+  assert.equal(Q.decidir(conversa('temos 15 vendedores'), { matriz, tiersComGente: [2, 3] }).tier, 2);
+  assert.equal(Q.decidir(conversa('temos 80 vendedores'), { matriz, tiersComGente: [2] }).tier, 2, 'sem ninguém no Tier 3, cai na próxima regra que tem gente');
+  assert.equal(Q.decidir(conversa('temos 80 vendedores'), { matriz, tiersComGente: [] }).tier, 1, 'ninguém no comercial: fica com o bot');
+});
+
+test('equipe: singular e plural são a mesma fila ("especialista" × "especialistas")', () => {
+  const matriz = [{ id: 'x', condicao: 'complexidade', destino: 'equipe', equipe: 'especialistas', nome: 'x' }];
+  const f = conversa('preciso integrar com o ERP');
+  assert.equal(Q.decidir(f, { matriz, equipesComGente: ['especialista'] }).tier, 2);
+  assert.equal(Q.distribuir('especialistas', [{ id: 'j', nome: 'Juarez', setor: 'especialista' }]).nome, 'Juarez');
+});
+
+test('coletar o mínimo: pergunta porte/integração UMA vez a quem quer comprar', async () => {
+  const f = conversa('quero comprar o bot de vendas');
+  assert.equal(Q.precisaPerguntar(f), true);
+  assert.equal(Q.precisaPerguntar({ ...f, perguntouEm: 'x' }), false, 'uma vez só');
+  assert.equal(Q.precisaPerguntar(conversa('quero comprar para minhas 4 lojas')), false, 'porte já dito');
+  assert.equal(Q.precisaPerguntar(conversa('meu pedido veio quebrado, absurdo')), false, 'reclamação não é venda');
+  const crm = await import('../engine/vscrm/index.mjs');
+  const atendimento = await import('../backend/atendimento.mjs');
+  const enviados = [];
+  await atendimento.receberMensagem({ id: 'pq1', de: '5531990000077', nome: 'Rui', texto: 'quero comprar o bot de vendas', tipo: 'text' }, { enviar: async (m) => { enviados.push(m); return { ok: true }; }, reservar: () => true });
+  assert.match(enviados.at(-1).texto, /quantas pessoas ou lojas/);
+  const lead = crm.listar().find((l) => l.telefone === '5531990000077');
+  assert.ok(lead.comercial.ficha.perguntouEm);
+  await atendimento.receberMensagem({ id: 'pq2', de: '5531990000077', nome: 'Rui', texto: 'quero comprar agora', tipo: 'text' }, { enviar: async (m) => { enviados.push(m); return { ok: true }; }, reservar: () => true });
+  assert.doesNotMatch(enviados.at(-1).texto, /quantas pessoas ou lojas/, 'não pergunta de novo');
+});
+
+test('operador: tier só no setor comercial', async () => {
+  const R = await import('../engine/vsoperadores/regras.mjs');
+  assert.equal(R.validar({ nome: 'a', setor: 'Comercial', tier: 4 }).operador.tier, 4);
+  assert.equal(R.validar({ nome: 'a', setor: 'comercial' }).operador.tier, 2, 'comercial sem tier = Tier 2');
+  assert.equal(R.validar({ nome: 'a', setor: 'financeiro', tier: 4 }).operador.tier, null, 'fora do comercial não tem tier');
+  assert.equal(R.validar({ nome: 'a', setor: 'comercial', tier: 1 }).ok, false, 'Tier 1 é o bot');
 });

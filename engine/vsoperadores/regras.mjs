@@ -10,6 +10,11 @@
 export const norm = (t) => String(t ?? '')
   .normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
+/** Setor "comercial" (ou "comercial ...", "vendas"): o unico que tem tier. */
+export const ehComercial = (setor) => /^(comercial|vendas?)\b/.test(norm(setor));
+export const TIER_MIN = 2;
+export const TIER_MAX = 6;
+
 /** Só dígitos — telefone é identificação, não texto livre. */
 const soDigitos = (t) => String(t ?? '').replace(/\D/g, '');
 
@@ -26,6 +31,13 @@ export function validar(dados = {}) {
   if (telefone && (telefone.length < 10 || telefone.length > 13)) {
     erros.push('telefone fora do padrão — informe com DDD');
   }
+  /* TIER: so o setor COMERCIAL tem nivel. E ele que diz ao bot pra quem
+     passar cada oportunidade (Tier 1 e o proprio bot; humanos vao de 2 a 6). */
+  const comercial = ehComercial(setor);
+  const tierBruto = dados.tier == null || dados.tier === '' ? null : Number(dados.tier);
+  if (comercial && tierBruto != null && !(Number.isInteger(tierBruto) && tierBruto >= TIER_MIN && tierBruto <= TIER_MAX)) {
+    erros.push(`tier do comercial vai de ${TIER_MIN} a ${TIER_MAX} (o Tier 1 é o bot)`);
+  }
   if (erros.length) { return { ok: false, erros }; }
 
   return {
@@ -36,6 +48,7 @@ export function validar(dados = {}) {
       setor,
       telefone: telefone || null,
       email: String(dados.email || '').trim() || null,
+      tier: comercial ? (tierBruto ?? TIER_MIN) : null,
       /* Ativo por padrao: quem acabou de ser cadastrado e pra trabalhar. */
       ativo: dados.ativo !== false,
       criadoEm: dados.criadoEm || new Date().toISOString(),
