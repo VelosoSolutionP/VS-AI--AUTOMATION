@@ -1295,6 +1295,23 @@ td.num,th.num{text-align:right;white-space:nowrap}
 .q-tierl{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--panel-2);flex-wrap:wrap}
 .q-tierl b{font-size:13px} .q-tierl input{flex:0 1 220px;font-size:13px;padding:5px 8px} .q-tierl small{flex:1;color:var(--dim);font-size:12px;min-width:140px}
 .q-tierl.fixo{opacity:.85}
+/* Horario de funcionamento: calendario */
+.hr-cal{display:grid;gap:12px}
+.hr-semana,.hr-esp{display:grid;gap:6px}
+.hr-linha{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--line);border-radius:10px;padding:7px 10px;background:var(--panel-2)}
+.hr-linha.off{opacity:.7}
+.hr-dia{width:74px;font-size:13px}
+.hr-aberto{display:inline-flex!important;align-items:center;gap:6px;font-size:12.5px!important;cursor:pointer;min-width:84px;margin:0!important;color:var(--fg)!important}
+.hr-aberto input{width:auto!important;margin:0}
+.hr-linha.off .hr-aberto span{color:var(--dim)}
+.hr-turno{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+.hr-turno input[type=time]{width:auto;padding:5px 8px;font-size:13px}
+.hr-turno em{font-style:normal;font-size:11px;color:var(--warn);border:1px solid var(--warn-line);background:var(--warn-bg);padding:1px 7px;border-radius:99px}
+.hr-e{font-size:12px;color:var(--dim)}
+.hr-atalhos{display:flex;gap:8px;flex-wrap:wrap}
+.hr-esp>b{font-size:13px} .hr-esp>small{margin-top:-4px}
+.hr-data{width:auto!important;padding:5px 8px;font-size:13px} .hr-nome{width:150px!important;padding:5px 8px;font-size:13px}
+@media(max-width:560px){.hr-dia{width:100%}}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
@@ -3439,10 +3456,69 @@ async function salvarBot(){
       cerebro:{...(BOT.config?.cerebro||{}),ligado:ck('bcCerebro')},
       avisosAntesDePausa:Number(v('bcAvisos')),horasDePausa:Number(String(v('bcPausa')).replace(',','.')),errosDeOpcaoAtePausa:Number(v('bcErros')),
       usarCatalogo:ck('bcCat'),assinarMensagens:ck('bcAssina'),
-      horario:ck('bcHorOn')?Object.fromEntries(['seg','ter','qua','qui','sex','sab','dom'].map(d=>[d,v('bcH_'+d).trim()||'fechado'])):null,
+      horario:ck('bcHorOn')?hrLer():null,
       ...(document.getElementById('bcFechado')?.value.trim()?{mensagemFechado:v('bcFechado')}:{})}),
     sucesso:`Comportamento salvo. ${ck('bcAtivo')?'O bot está ligado.':'O bot segue desligado — ligue quando quiser que ele atenda.'}`,
   });
+}
+
+/* ── Horário de funcionamento: calendário ─────────────────────────────────────
+   Semana (dia, início, fim, segundo turno) + DATAS ESPECIAIS (feriado fechado ou
+   horário diferente). Grava no mesmo formato que o bot já entende:
+   { seg:'08:00-12:00, 13:00-18:00', …, excecoes:{'2026-12-25':{horario:'fechado',nome:'Natal'}} }. */
+const HR_DIAS=[['seg','Segunda'],['ter','Terça'],['qua','Quarta'],['qui','Quinta'],['sex','Sexta'],['sab','Sábado'],['dom','Domingo']];
+let HR=null;
+function hrDoTexto(txt){ const f=String(txt||'').split(',').map(x=>x.trim()).filter(x=>/^\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}$/.test(x)).map(x=>x.split('-').map(y=>y.trim().padStart(5,'0')));
+  return {aberto:f.length>0,t1:f[0]||['08:00','18:00'],t2:f[1]||null}; }
+function hrIniciar(h){
+  HR={dias:Object.fromEntries(HR_DIAS.map(([d])=>[d,h?hrDoTexto(h[d]):{aberto:!['dom'].includes(d),t1:d==='sab'?['08:00','12:00']:['08:00','18:00'],t2:null}])),
+    excecoes:Object.entries(h?.excecoes||{}).sort(([a],[b])=>a.localeCompare(b)).map(([data,e])=>({data,nome:e.nome||'',...hrDoTexto(e.horario)}))};
+}
+const hrTxt=(x)=>x.aberto?[x.t1,x.t2].filter(Boolean).map(t=>`${t[0]}-${t[1]}`).join(', '):'fechado';
+function hrLer(){
+  if(!HR) return null;
+  const out=Object.fromEntries(HR_DIAS.map(([d])=>[d,hrTxt(HR.dias[d])]));
+  const ex={}; for(const e of HR.excecoes){ if(e.data) ex[e.data]={horario:hrTxt(e),...(e.nome.trim()?{nome:e.nome.trim()}:{})}; }
+  if(Object.keys(ex).length) out.excecoes=ex;
+  return out;
+}
+function hrSet(caminho,v){ const [a,b,c,dd]=caminho.split('.'); let o=a==='d'?HR.dias[b]:HR.excecoes[Number(b)];
+  if((c==='t1'||c==='t2')&&dd!==undefined){ o[c]=o[c]||['08:00','18:00']; o[c][Number(dd)]=v; } else o[c]=v; }
+function hrRedesenhar(){ const el=document.getElementById('bcHorDias'); if(el) el.innerHTML=hrHtml(); }
+function hrTurno(t,cam,rot){ const vira=t&&t[1]<=t[0];
+  return `<span class="hr-turno"><input type="time" value="${esc(t[0])}" aria-label="${rot} início" onchange="hrSet('${cam}.0',this.value);hrRedesenhar()"><span>às</span>
+    <input type="time" value="${esc(t[1])}" aria-label="${rot} fim" onchange="hrSet('${cam}.1',this.value);hrRedesenhar()">${vira?'<em title="Termina depois da meia-noite">até a madrugada</em>':''}</span>`; }
+function hrLinha(x,cam,rot,extra=''){
+  return `<div class="hr-linha${x.aberto?'':' off'}">${extra}
+    <label class="hr-aberto"><input type="checkbox" ${x.aberto?'checked':''} onchange="hrSet('${cam}.aberto',this.checked);hrRedesenhar()"><span>${x.aberto?'Aberto':'Fechado'}</span></label>
+    ${x.aberto?`${hrTurno(x.t1,cam+'.t1',rot)}${x.t2?`<span class="hr-e">e</span>${hrTurno(x.t2,cam+'.t2',rot+' 2º turno')}${bi('fechar','Tirar o 2º turno',`hrSet('${cam}.t2',null);hrRedesenhar()`)}`
+      :botao({t:'2º turno',ic:'mais',v:'g',sz:'xs',on:`hrSet('${cam}.t2',['13:00','18:00']);hrRedesenhar()`,tit:'Ex.: fecha no almoço e volta à tarde'})}`:''}</div>`;
+}
+function hrHtml(){
+  const hoje=new Date().toISOString().slice(0,10);
+  return `<div class="hr-semana">${HR_DIAS.map(([d,n])=>hrLinha(HR.dias[d],'d.'+d,n,`<b class="hr-dia">${n}</b>`)).join('')}</div>
+    <div class="hr-atalhos">${botao({t:'Copiar segunda para os dias úteis',ic:'copiar',v:'g',sz:'xs',on:'hrCopiarUteis()'})}${botao({t:'Horário comercial',ic:'relogio',v:'g',sz:'xs',on:'hrComercial()',tit:'Seg a sex 08:00–18:00, sáb 08:00–12:00, dom fechado'})}</div>
+    <div class="hr-esp"><b>Datas especiais</b><small class="hint">Feriado, recesso ou dia com horário diferente — vale no lugar do dia da semana.</small>
+      ${HR.excecoes.length?HR.excecoes.map((e,i)=>hrLinha(e,'e.'+i,e.nome||'data',
+        `<input type="date" class="hr-data" value="${esc(e.data)}" min="${hoje}" onchange="hrSet('e.${i}.data',this.value)" aria-label="Data">
+         <input class="hr-nome" value="${esc(e.nome)}" placeholder="Ex.: Natal" maxlength="40" oninput="hrSet('e.${i}.nome',this.value)">`)
+        .replace('</div>',`${bi('excluir','Remover esta data',`HR.excecoes.splice(${i},1);hrRedesenhar()`,'dan')}</div>`)).join(''):'<p class="hint">Nenhuma data especial.</p>'}
+      <div class="hr-atalhos">${botao({t:'Adicionar data',ic:'mais',v:'s',sz:'xs',on:"HR.excecoes.push({data:'',nome:'',aberto:false,t1:['08:00','12:00'],t2:null});hrRedesenhar()"})}
+        ${botao({t:`Feriados nacionais de ${new Date().getFullYear()}`,ic:'gerar',v:'g',sz:'xs',on:'hrFeriados()',tit:'Adiciona os feriados nacionais que ainda vão acontecer, como fechado'})}</div></div>`;
+}
+function hrCopiarUteis(){ const s=HR.dias.seg; ['ter','qua','qui','sex'].forEach(d=>HR.dias[d]={aberto:s.aberto,t1:[...s.t1],t2:s.t2?[...s.t2]:null}); hrRedesenhar(); flash('Segunda copiada para terça a sexta.','ok'); }
+function hrComercial(){ HR_DIAS.forEach(([d])=>HR.dias[d]={aberto:d!=='dom',t1:d==='sab'?['08:00','12:00']:['08:00','18:00'],t2:null}); hrRedesenhar(); }
+/* Pascoa (algoritmo de Meeus) -> Carnaval, Sexta-feira Santa e Corpus Christi. */
+function hrFeriados(){
+  const a=new Date().getFullYear(), f=(y,m,d)=>new Date(Date.UTC(y,m-1,d)).toISOString().slice(0,10);
+  const A=a%19,B=Math.floor(a/100),C=a%100,D=Math.floor(B/4),E=B%4,F=Math.floor((B+8)/25),G=Math.floor((B-F+1)/3),H=(19*A+B-D-G+15)%30,I=Math.floor(C/4),K=C%4,L=(32+2*E+2*I-H-K)%7,M=Math.floor((A+11*H+22*L)/451);
+  const mes=Math.floor((H+L-7*M+114)/31), dia=((H+L-7*M+114)%31)+1, pascoa=Date.UTC(a,mes-1,dia), mais=(n)=>new Date(pascoa+n*86400000).toISOString().slice(0,10);
+  const lista=[[f(a,1,1),'Confraternização'],[mais(-47),'Carnaval'],[mais(-2),'Sexta-feira Santa'],[f(a,4,21),'Tiradentes'],[f(a,5,1),'Dia do Trabalho'],[mais(60),'Corpus Christi'],
+    [f(a,9,7),'Independência'],[f(a,10,12),'Nossa Senhora Aparecida'],[f(a,11,2),'Finados'],[f(a,11,15),'Proclamação da República'],[f(a,11,20),'Consciência Negra'],[f(a,12,25),'Natal']];
+  const hoje=new Date().toISOString().slice(0,10); let n=0;
+  for(const [data,nome] of lista){ if(data<hoje||HR.excecoes.some(e=>e.data===data)) continue; HR.excecoes.push({data,nome,aberto:false,t1:['08:00','12:00'],t2:null}); n++; }
+  HR.excecoes.sort((x,y)=>x.data.localeCompare(y.data)); hrRedesenhar();
+  flash(n?`${n} feriado(s) adicionado(s) como fechado — ajuste se for abrir em algum.`:'Os feriados que faltam deste ano já estão na lista.','ok');
 }
 
 /* ---- livro-caixa ---- */
@@ -4731,17 +4807,16 @@ const S={
         uma IA que roda nesta máquina diz qual opção ela quis. Grátis, nada sai do servidor. A resposta continua sendo
         a que você escreveu no fluxo — a IA não fala com o cliente. Leva uns segundos a mais só nesses casos.</small></div>
       <div class="field" style="grid-column:1/-1"><label style="display:flex;align-items:center;gap:7px;font-weight:400;cursor:pointer;padding-bottom:4px">
-        <input type="checkbox" id="bcHorOn" style="width:auto;margin:0"${c.horario?' checked':''} onchange="document.getElementById('bcHorDias').style.display=this.checked?'':'none'">
+        <input type="checkbox" id="bcHorOn" style="width:auto;margin:0"${c.horario?' checked':''} onchange="document.getElementById('bcHorBox').style.display=this.checked?'':'none'">
         Horário de funcionamento</label>
         <small class="hint">Fora do horário o bot responde que está fechado e mostra o horário, em vez de anotar um pedido que ninguém vai preparar.
-        Quem já está no meio do pedido termina. Formato <b>18:00-23:30</b>; duas faixas com vírgula (<b>11:00-14:00, 18:00-23:00</b>); vazio = fechado.
-        Faixa que passa da meia-noite (<b>18:00-02:00</b>) vale até a madrugada.</small>
-        <div id="bcHorDias" class="form-grid" style="margin-top:8px${c.horario?'':';display:none'}">
-          ${[['seg','Segunda'],['ter','Terça'],['qua','Quarta'],['qui','Quinta'],['sex','Sexta'],['sab','Sábado'],['dom','Domingo']].map(([d,n])=>
-            `<div class="field"><label>${n}</label><input id="bcH_${d}" placeholder="fechado" value="${esc((c.horario||{})[d]&&(c.horario||{})[d]!=='fechado'?(c.horario||{})[d]:'')}"></div>`).join('')}
-          <div class="field" style="grid-column:1/-1"><label>Mensagem quando está fechado</label>
+        Quem já está no meio do pedido termina, e quem pede para falar com uma pessoa vai para a fila. Hora de Brasília.</small>
+        ${(hrIniciar(c.horario),'')}
+        <div id="bcHorBox" style="margin-top:8px${c.horario?'':';display:none'}">
+          <div id="bcHorDias" class="hr-cal">${hrHtml()}</div>
+          <div class="field" style="margin-top:12px"><label>Mensagem quando está fechado</label>
             <textarea id="bcFechado" rows="3">${esc(c.mensagemFechado||'')}</textarea>
-            <small class="hint"><b>{horario}</b> vira a lista dos dias e horários.</small></div>
+            <small class="hint"><b>{horario}</b> vira a lista dos dias, horários e das próximas datas especiais.</small></div>
         </div></div>
       <div class="field" style="grid-column:1/-1"><label>Respeito e brincadeira</label>
         <small class="hint">Ofensa: avisa, e depois do último aviso encerra o atendimento com uma pausa. Escolher opção

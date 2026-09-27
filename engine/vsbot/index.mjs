@@ -73,6 +73,18 @@ const faixas = (txt) => String(txt || '').split(',').map((f) => f.trim()).filter
  * Aberto agora? Hora de Brasília, não do servidor: a máquina pode estar em UTC
  * e o bot diria "fechado" às 20h de sexta.
  */
+/** Data (AAAA-MM-DD) em Brasília. */
+const dataBr = (quando) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(quando);
+
+/**
+ * Faixas de UM dia de calendário: data especial (feriado, horário diferente)
+ * vence o dia da semana. É o "calendário" do horário de funcionamento.
+ */
+function faixasDoDia(horario, quando, diaSemana) {
+  const ex = horario?.excecoes?.[dataBr(quando)];
+  return faixas(ex ? ex.horario : horario?.[DIAS[diaSemana]]);
+}
+
 export function estaAberto(horario, quando = new Date()) {
   if (!horario) { return true; }
   const partes = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
@@ -80,13 +92,20 @@ export function estaAberto(horario, quando = new Date()) {
   const dia = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(partes.weekday);
   const agora = Number(partes.hour) * 60 + Number(partes.minute);
   // Hoje, dentro de alguma faixa (a que vira a noite vale até meia-noite aqui).
-  if (faixas(horario[DIAS[dia]]).some(([a, b]) => (b > a ? agora >= a && agora < b : agora >= a))) { return true; }
-  // Madrugada: faixa de ONTEM que passou da meia-noite.
-  return faixas(horario[DIAS[(dia + 6) % 7]]).some(([a, b]) => b <= a && agora < b);
+  if (faixasDoDia(horario, quando, dia).some(([a, b]) => (b > a ? agora >= a && agora < b : agora >= a))) { return true; }
+  // Madrugada: faixa de ONTEM que passou da meia-noite (ontem também pode ser data especial).
+  return faixasDoDia(horario, new Date(quando.getTime() - 86400000), (dia + 6) % 7).some(([a, b]) => b <= a && agora < b);
 }
 
-export const horarioLegivel = (horario) => DIAS.slice(1).concat('dom')
-  .map((d) => `${NOME_DIA[d]}: ${faixas(horario?.[d]).length ? String(horario[d]).replace(/\s+/g, '').replace(/,/g, ' e ').replace(/-/g, ' às ') : 'fechado'}`).join('\n');
+const faixaTxt = (txt) => (faixas(txt).length ? String(txt).replace(/\s+/g, '').replace(/,/g, ' e ').replace(/-/g, ' às ') : 'fechado');
+/** Semana + as datas especiais dos próximos 30 dias (é o que o cliente precisa saber agora). */
+export const horarioLegivel = (horario, quando = new Date()) => {
+  const semana = DIAS.slice(1).concat('dom').map((d) => `${NOME_DIA[d]}: ${faixaTxt(horario?.[d])}`);
+  const hoje = dataBr(quando); const limite = dataBr(new Date(quando.getTime() + 30 * 86400000));
+  const esp = Object.entries(horario?.excecoes || {}).filter(([d]) => d >= hoje && d <= limite).sort(([a], [b]) => a.localeCompare(b))
+    .map(([d, e]) => `${d.slice(8, 10)}/${d.slice(5, 7)}${e.nome ? ` (${e.nome})` : ''}: ${faixaTxt(e.horario)}`);
+  return semana.join('\n') + (esp.length ? `\n\nDatas especiais:\n${esp.join('\n')}` : '');
+};
 
 export const getConfig = () => ({ ...PADRAO, ...(load('config', {}) || {}) });
 
@@ -99,7 +118,13 @@ export function salvarConfig(mudancas = {}) {
   /* Horário escrito errado vira "fechado" calado e o bot recusa cliente em
      pleno expediente. Melhor recusar na hora de salvar, dizendo qual dia. */
   if (novo.horario) {
+    const faixaOk = (t) => !t || t === 'fechado' || t.split(',').map((x) => x.trim()).every((f) => /^([01]?\d|2[0-3]):[0-5]\d\s*-\s*([01]?\d|2[0-3]):[0-5]\d$/.test(f) && f.split('-')[0].trim() !== f.split('-')[1].trim());
+    for (const [data, e] of Object.entries(novo.horario.excecoes || {})) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) { return { ok: false, erros: [`data especial "${data}" inválida`] }; }
+      if (!faixaOk(String(e?.horario || '').trim().toLowerCase())) { return { ok: false, erros: [`horário da data ${data.split('-').reverse().join('/')} está errado (início e fim, e diferentes)`] }; }
+    }
     for (const [d, txt] of Object.entries(novo.horario)) {
+      if (d === 'excecoes') { continue; }
       const t = String(txt || '').trim().toLowerCase();
       if (!DIAS.includes(d)) { return { ok: false, erros: [`dia "${d}" não existe no horário`] }; }
       if (!t || t === 'fechado') { continue; }
@@ -841,6 +866,11 @@ export function atender(texto, ctx = {}) {
     if (convR?.handoffEm && aindaEmSilencio(convR)) {
       return { tipo: 'silencio', texto: '', calado: true, motivo: 'conversa com uma pessoa' };
     }
+  }
+  /* Fora do horário vale aqui também (antes so valia com fluxo em planilha).
+     Pedir gente passa: a regra que chama pessoa ainda responde e poe na fila. */
+  if (cfg.horario && !estaAberto(cfg.horario) && !pediuHumano(texto)) {
+    return { tipo: 'fechado', texto: assinar(preencher(cfg.mensagemFechado, { horario: horarioLegivel(cfg.horario) }), cfg) };
   }
   const r = responder(texto, cfg, ctx);
   if (r.handoff && de) {
