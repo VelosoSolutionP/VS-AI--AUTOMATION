@@ -252,6 +252,9 @@ async function main() {
     ok('Auditor: KPIs de mercado (TPR, TMA, SLA, CSAT, resolvidas pelo bot)', ['TPR', 'TMA', 'SLA', 'CSAT', 'Resolvidas pelo bot'].every((x) => ta.includes(x)), ta.replace(/\s+/g, ' ').slice(0, 200));
     ok('Auditor: gráficos (dia, funil, pico, desfechos, satisfação, atendente)', await d.locator('.aud-svg rect[fill="var(--s1)"], .aud-svg rect[fill="var(--s2)"]').count() > 0 && await d.locator('.aud-cel[style*="color-mix"]').count() > 0 && ta.includes('Marta'));
     ok('Auditor: nada do WhatsApp (Clara não aparece)', !ta.includes('Clara') && !/whatsapp/i.test(ta));
+    ok('Auditor: log começa fechado (não polui a tela)', !(await d.isVisible('.aud-log')));
+    await d.click('.aud-acc > summary');
+    ok('Auditor: log abre ao clicar', await d.isVisible('.aud-log'));
     ok('Auditor: log mostra encerramento com motivo e avaliação', await d.locator('.aud-log .aud-tipo').count() > 0 && /nota/i.test(await d.textContent('.aud-log')));
     await d.screenshot({ path: join(FOTOS, '10-auditor.png'), fullPage: true });
     await d.hover('.aud-hit:has(rect[fill="var(--s2)"])').catch(() => d.hover('.aud-hit'));
