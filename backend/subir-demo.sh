@@ -31,6 +31,11 @@ cd "$RAIZ"
 # EXCECAO consciente: a credencial de TESTE do Mercado Pago entra, pra demo
 # conseguir mostrar o pagamento funcionando de ponta a ponta. Ela nao cobra
 # ninguem. A de PRODUCAO nunca entra aqui — nem por engano de variavel.
+#
+# WPP_SESSAO: a sessao do WhatsApp mora em <esta pasta>/tokens/<sessao>, FORA da
+# casa. Sem um nome proprio a demo abria o login do numero da producao (28/09).
+# Em DEMO=1 o backend/canais.mjs recusa a sessao "veloso" e o bot do Telegram
+# da producao.
 nohup env \
   VS_HOME="$CASA" \
   PORT="$PORTA" \
@@ -40,6 +45,7 @@ nohup env \
   CONSOLE_ADMIN_EMAILS_EXTRA= \
   PAINEL_URL="${URL_DEMO:-https://demo.velososolution.com.br}" \
   WHATSAPP_PROVIDER=log \
+  WPP_SESSAO="${WPP_SESSAO_DEMO:-demo}" \
   MP_AMBIENTE=teste \
   MP_ACCESS_TOKEN_TESTE="${MP_ACCESS_TOKEN_TESTE:-}" \
   MP_PUBLIC_KEY_TESTE="${MP_PUBLIC_KEY_TESTE:-}" \

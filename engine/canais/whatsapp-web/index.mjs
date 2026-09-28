@@ -293,6 +293,12 @@ export function criarWhatsAppWebProvider(opcoes = {}) {
           }
         }
 
+        /* Áudio: o arquivo vem cifrado e só a sessão sabe abrir. Quem decide se
+           transcreve é o domínio; aqui só se entrega o jeito de baixar. */
+        if (canonica.tipo === 'audio' && typeof cliente.decryptFile === 'function') {
+          canonica.baixarAudio = async () => ({ buffer: await cliente.decryptFile(m), mime: m.mimetype || 'audio/ogg' });
+        }
+
         for (const fn of ouvintesMsg) {
           try { fn(canonica); } catch (e) { console.error('[whatsapp-web] ouvinte de mensagem quebrou:', e.message); }
         }

@@ -17,7 +17,11 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-export const casa = () => process.env.VS_HOME || join(homedir(), '.qa-gate');
+/* A casa da instalação PADRÃO (a de produção), sem olhar VS_HOME. Só pra quem
+   precisa CONFERIR a produção de fora dela — a trava da demo lê o token do
+   Telegram de lá pra se recusar a usá-lo. Gravar continua sendo só na casa(). */
+export const casaPadrao = () => join(homedir(), '.qa-gate');
+export const casa = () => process.env.VS_HOME || casaPadrao();
 
 /** Caminho dentro da casa: `dentroDaCasa('vsbot')` → <casa>/vsbot */
 export const dentroDaCasa = (...partes) => join(casa(), ...partes);

@@ -72,7 +72,10 @@ function servidorTelegramFalso() {
   const achaChat = (ref) => Object.values(chats).find((c) => String(c.chat.id) === String(ref) || (c.chat.username && '@' + c.chat.username === String(ref)));
 
   const corpoJson = (req) => new Promise((ok) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', () => { try { ok(JSON.parse(b || '{}')); } catch { ok({}); } }); });
+  const arquivos = {}; // file_id -> Buffer (áudios que o "cliente" mandou)
   const srv = http.createServer(async (req, res) => {
+    const arqM = req.url.match(/^\/file\/bot[^/]+\/voice\/([^/.]+)\.ogg$/);
+    if (arqM) { const buf = arquivos[arqM[1]]; res.writeHead(buf ? 200 : 404, { 'content-type': 'audio/ogg' }); return res.end(buf || ''); }
     const metodo = req.url.split('/').pop().split('?')[0];
     const json = (r) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: true, result: r })); };
     const erro = (code, desc) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: false, error_code: code, description: desc })); };
@@ -103,7 +106,16 @@ function servidorTelegramFalso() {
       enviados.push({ chat: String(chat), texto: Buffer.from(campo(cru, 'caption') || '', 'latin1').toString('utf8'), em: Date.now(), foto: true, botao });
       return json({ message_id: msgId++, chat: { id: chat, username: c?.chat.username } });
     }
-    if (['sendDocument', 'deleteMessage'].includes(metodo)) { req.resume(); return json({ message_id: msgId++ }); }
+    /* Documento (PDF do orçamento, contrato): guarda quem recebeu, o nome e se
+       o arquivo é mesmo um PDF — é o que a prova confere. */
+    if (metodo === 'sendDocument') {
+      const cru = await corpoCru(req);
+      const nome = (cru.match(/name="document"; filename="([^"]+)"/) || [])[1] || null;
+      enviados.push({ chat: String(campo(cru, 'chat_id')), texto: Buffer.from(campo(cru, 'caption') || '', 'latin1').toString('utf8'), em: Date.now(),
+        documento: nome, pdf: cru.includes('%PDF-') });
+      return json({ message_id: msgId++ });
+    }
+    if (metodo === 'deleteMessage') { req.resume(); return json({ message_id: msgId++ }); }
     /* Simulador: o dono adicionou o bot a um canal/grupo (ou tirou). Gera o
        my_chat_member que o Telegram mandaria. */
     if (metodo === '_membro') {
@@ -126,6 +138,17 @@ function servidorTelegramFalso() {
       return json({ message_id: update.message.message_id });
     }
     if (metodo === '_enviados') { return json(enviados); }
+    /* Cliente manda ÁUDIO (voz): guarda o arquivo e gera o update com voice. */
+    if (metodo === '_escreverAudio') {
+      const b = await corpoJson(req);
+      const fid = 'voz-' + (prox + 1);
+      arquivos[fid] = Buffer.from(b.base64 || '', 'base64');
+      const update = { update_id: prox++, message: { message_id: 100000 + prox, date: Math.floor(Date.now() / 1000), chat: { id: b.chat, type: 'private' },
+        from: { id: b.chat, is_bot: false, first_name: b.nome }, voice: { file_id: fid, mime_type: 'audio/ogg', duration: b.duracao || 5 } } };
+      fila.push(update); acorda?.();
+      return json({ message_id: update.message.message_id });
+    }
+    if (metodo === 'getFile') { const b = await corpoJson(req); return arquivos[b.file_id] ? json({ file_id: b.file_id, file_path: `voice/${b.file_id}.ogg` }) : erro(400, 'Bad Request: file not found'); }
     res.writeHead(404); res.end('{"ok":false,"description":"metodo nao simulado"}');
   });
   return new Promise((ok) => srv.listen(0, '127.0.0.1', () => ok({ srv, url: `http://127.0.0.1:${srv.address().port}` })));

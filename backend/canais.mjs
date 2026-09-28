@@ -18,6 +18,7 @@ import * as atendimento from './atendimento.mjs';
 import * as proto from '../engine/vsprotocolo/index.mjs';
 import * as bot from '../engine/vsbot/index.mjs';
 import * as vigiaPix from './vigia-pix.mjs';
+import * as transcricao from '../engine/vstranscricao/index.mjs';
 import * as seguranca from '../engine/vsseguranca/index.mjs';
 import * as pagamentos from '../engine/vspagamentos/index.mjs';
 import * as fin from '../engine/vsfinanceiro/index.mjs';
@@ -186,6 +187,20 @@ function montar({ produtos } = {}) {
      */
     entregar: async (msg, ctx) => {
       const quem = msg.nome ? `${msg.de} (${msg.nome})` : msg.de;
+      /* ÁUDIO → TEXTO. Quem está no campo, na oficina ou dirigindo manda áudio;
+         antes chegava "(sem texto)" e ninguém respondia. Transcreve na máquina
+         (whisper local, sem custo) e segue como se tivesse digitado. Falhou? A
+         mensagem segue como áudio, do jeito de sempre. */
+      if (msg.tipo === 'audio' && typeof msg.baixarAudio === 'function' && !msg.texto) {
+        try {
+          const a = await msg.baixarAudio();
+          const t = await transcricao.transcrever(a.buffer, { mime: a.mime });
+          if (t.texto) {
+            console.log(`[transcricao] áudio de ${quem} em ${t.ms} ms: "${trecho(t.texto)}"`);
+            msg.texto = t.texto; msg.tipo = 'text'; msg.transcrito = true;
+          } else { console.warn(`[transcricao] áudio de ${quem} sem texto: ${t.erro}`); }
+        } catch (e) { console.warn(`[transcricao] não baixei o áudio de ${quem}: ${e.message}`); }
+      }
       console.log(`[canais] chegou de ${quem} — ${msg.tipo || 'texto'}: ${trecho(msg.texto)}`);
 
       let respondidas = 0;
@@ -356,10 +371,9 @@ function montar({ produtos } = {}) {
 /* Config do canal: numero previsto, apelido e setores. Fica em disco junto do
    resto — e o que o contrato promete, nao o que a sessao descobriu. */
 import { readFileSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 
-import { dentroDaCasa } from '../engine/casa.mjs';
+import { dentroDaCasa, casaPadrao } from '../engine/casa.mjs';
 const arqConfig = () => dentroDaCasa('canais', 'config.json');
 const lerConfig = () => { try { return JSON.parse(readFileSync(arqConfig(), 'utf8')); } catch { return {}; } };
 /* Grava a config do canal. Existe separado porque o registro de invasao precisa
@@ -412,7 +426,9 @@ export async function retomar({ produtos } = {}) {
   /* Telegram volta sozinho se estava ligado: o token esta guardado e nao existe
      QR pra ler. Independe do WhatsApp — um canal fora nao segura o outro. */
   const tg = lerTelegram();
-  if (tg.ligado && tg.token) {
+  const bloqueioTg = tg.ligado && tg.token ? bloqueioDemo('telegram', tg.token) : null;
+  if (bloqueioTg) { console.warn(`[canais] DEMO: Telegram NAO religado — ${bloqueioTg}`); }
+  if (tg.ligado && tg.token && !bloqueioTg) {
     const p = montar({ produtos }).obter('telegram');
     p.conectar({ token: tg.token }).then((st) => {
       if (st.ok) { console.log(`[canais] Telegram de volta no ar — ${st.numero}`); }
@@ -422,6 +438,11 @@ export async function retomar({ produtos } = {}) {
   const cfg = lerConfig();
   if (!cfg.ligado) {
     return { ok: true, retomado: false, motivo: 'o canal estava desligado quando o painel parou' };
+  }
+  const bloqueioWpp = bloqueioDemo('whatsapp-web', null);
+  if (bloqueioWpp) {
+    console.warn(`[canais] DEMO: WhatsApp NAO reaberto — ${bloqueioWpp}`);
+    return { ok: false, retomado: false, erro: bloqueioWpp };
   }
   console.log('[canais] o canal estava ligado — reabrindo a sessao do WhatsApp');
   const g = montar({ produtos });
@@ -554,10 +575,39 @@ function esperarQr(p, limiteMs = 20000) {
   });
 }
 
+/* ── Demo nunca encosta no canal da producao ───────────────────────────────
+   A casa separa os dados, mas duas coisas escapavam dela: a sessao do WhatsApp
+   mora em <cwd>/tokens/<WPP_SESSAO> e a demo roda da mesma pasta, e o token do
+   Telegram podia ser colado na demo. Em 28/09 a demo abriu o WhatsApp do numero
+   da producao e disputou o mesmo bot do Telegram, derrubando o canal de verdade
+   ("outro programa esta lendo este mesmo bot"). Com a sessao compartilhada, um
+   "Trocar numero" clicado na demo despareava a producao. */
+const emDemo = () => process.env.DEMO === '1';
+function tokenTelegramDaProducao() {
+  const casaProducao = process.env.VS_HOME_PRODUCAO || casaPadrao();
+  try { return JSON.parse(readFileSync(join(casaProducao, 'canais', 'telegram.json'), 'utf8')).token || ''; } catch { return ''; }
+}
+function bloqueioDemo(canal, token) {
+  if (!emDemo()) { return null; }
+  if (canal === 'telegram') {
+    const daProducao = tokenTelegramDaProducao();
+    if (token && daProducao && String(token).trim() === daProducao) {
+      return 'a demonstração não pode usar o bot do Telegram da produção — crie outro bot no @BotFather para a demo';
+    }
+    return null;
+  }
+  if ((process.env.WPP_SESSAO || 'veloso') === 'veloso') {
+    return 'a demonstração não pode abrir a sessão do WhatsApp da produção — suba a demo pelo backend/subir-demo.sh (WPP_SESSAO=demo)';
+  }
+  return null;
+}
+
 export async function conectar({ canal = 'whatsapp-web', produtos, token } = {}) {
   const g = montar({ produtos });
   const p = g.obter(canal);
   if (!p) { return { ok: false, erro: `canal "${canal}" não existe` }; }
+  const bloqueio = bloqueioDemo(canal, canal === 'telegram' ? (String(token || '').trim() || lerTelegram().token) : null);
+  if (bloqueio) { console.warn(`[canais] DEMO: ${bloqueio}`); return { ok: false, erro: bloqueio }; }
   if (canal === 'telegram') { return conectarTelegram(p, token); }
   marcarLigado(true);
 
@@ -583,6 +633,8 @@ export async function trocarNumero({ canal = 'whatsapp-web', produtos } = {}) {
   if (typeof p.esquecerAparelho !== 'function') {
     return { ok: false, erro: `o canal "${canal}" não permite trocar de número` };
   }
+  const bloqueio = bloqueioDemo(canal, null);
+  if (bloqueio) { console.warn(`[canais] DEMO: ${bloqueio}`); return { ok: false, erro: bloqueio }; }
 
   console.log('[canais] TROCANDO o numero que atende — o pareamento atual sera esquecido');
   const r = await p.esquecerAparelho();

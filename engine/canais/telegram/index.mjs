@@ -219,6 +219,17 @@ export function criarTelegramProvider({ fetchImpl = globalThis.fetch, api = 'htt
           }
           const msg = normalizarUpdate(u);
           if (!msg) { continue; }
+          /* Áudio (voz ou arquivo de áudio): o Telegram entrega um file_id; o
+             arquivo mesmo se busca em /file/bot<token>/<caminho>. */
+          const midia = u.message?.voice || u.message?.audio;
+          if (msg.tipo === 'audio' && midia?.file_id) {
+            msg.baixarAudio = async () => {
+              const arq = await chamar('getFile', { file_id: midia.file_id });
+              const r = await fetchImpl(`${api}/file/bot${token}/${arq.file_path}`);
+              if (!r.ok) { throw new Error(`HTTP ${r.status} ao baixar o áudio`); }
+              return { buffer: Buffer.from(await r.arrayBuffer()), mime: midia.mime_type || 'audio/ogg' };
+            };
+          }
           ultimaAtividade = new Date().toISOString();
           for (const fn of aoMsg) {
             try { await fn(msg); } catch (e) { console.error(`[telegram] quem recebe a mensagem quebrou: ${e.message}`); }
