@@ -56,6 +56,7 @@ import * as consumo from '../engine/vsconsumo/index.mjs';
 import * as integ from '../engine/vsintegracoes/index.mjs';
 import * as orc from '../engine/vsorcamentos/index.mjs';
 import * as orcSrv from './orcamentos.mjs';
+import * as prosp from '../engine/vsprospeccao/index.mjs';
 import { dentroDaCasa } from '../engine/casa.mjs';
 
 /* Pagamento confirmado por QUALQUER caminho → o lead do pedido vira Ganho no
@@ -1281,9 +1282,10 @@ const server = createServer(async (req, res) => {
        na tela nao protege nada. */
     if (quem.papel === 'vendedor') {
       if (req.method === 'GET' && rota === '/crm/api/minha-conta') { return json(res, 200, { papel: 'vendedor', email: quem.email, ...quemAtende(quem) }); }
-      const livre = (req.method === 'GET' && ['/crm/api/atendimentos', '/crm/api/atendimentos/historico', '/crm/api/atendimentos/historico/detalhe', '/crm/api/canais/telegram', '/crm/api/seguranca/pendentes', '/crm/api/orcamentos', '/crm/api/orcamentos/pdf'].includes(rota))
+      const livre = (req.method === 'GET' && ['/crm/api/atendimentos', '/crm/api/atendimentos/historico', '/crm/api/atendimentos/historico/detalhe', '/crm/api/canais/telegram', '/crm/api/seguranca/pendentes', '/crm/api/orcamentos', '/crm/api/orcamentos/pdf', '/crm/api/prospeccao'].includes(rota))
         || (req.method === 'POST' && ['/crm/api/atendimentos/responder', '/crm/api/atendimentos/assumir', '/crm/api/atendimentos/devolver', '/crm/api/atendimentos/encerrar', '/crm/api/atendimentos/finalizar',
-          '/crm/api/orcamentos/salvar', '/crm/api/orcamentos/enviar', '/crm/api/orcamentos/cancelar', '/crm/api/orcamentos/duplicar', '/crm/api/orcamentos/cobrar'].includes(rota));
+          '/crm/api/orcamentos/salvar', '/crm/api/orcamentos/enviar', '/crm/api/orcamentos/cancelar', '/crm/api/orcamentos/duplicar', '/crm/api/orcamentos/cobrar',
+          '/crm/api/prospeccao/contato', '/crm/api/prospeccao/mover'].includes(rota));
       if (!livre) { return json(res, 403, { erro: 'área restrita ao administrador', papel: 'vendedor' }); }
     }
     /* MODO CONSULTA: banda do mês esgotada. Leitura segue; escrita para. */
@@ -1592,6 +1594,21 @@ const server = createServer(async (req, res) => {
     /* Orçamentos: a lista (o vendedor vê só os dele), os números do período e o
        catálogo pra montar — o vendedor não tem acesso ao Estoque, e orçamento
        sem catálogo seria digitar preço de cabeça. */
+    /* Prospecção: o vendedor indo atrás do cliente, região por região. */
+    if (req.method === 'GET' && rota === '/crm/api/prospeccao') {
+      const u = new URL(req.url, 'http://x').searchParams;
+      return json(res, 200, prosp.painel({ regiaoId: u.get('regiao') || null, busca: u.get('busca') || '', etapa: u.get('etapa') || '', limite: Number(u.get('limite')) || 10, pagina: Number(u.get('pagina')) || 1,
+        loja: orcSrv.loja(), vendedor: quem.papel === 'vendedor' ? quemAtende(quem).nome : null }));
+    }
+    /* Balanço da prospecção: é pra diretoria — vendedor não chega aqui (fora da lista livre). */
+    if (req.method === 'GET' && rota === '/crm/api/prospeccao/balanco') { return json(res, 200, prosp.balanco()); }
+    if (req.method === 'GET' && rota === '/crm/api/prospeccao/balanco/pdf') {
+      try {
+        const buf = await clientesSrv.imprimirPdf(prosp.balancoHtml(prosp.balanco(), { loja: orcSrv.loja() }));
+        res.writeHead(200, { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="balanco-prospeccao-${new Date().toISOString().slice(0, 10)}.pdf"`, 'cache-control': 'no-store' });
+        return res.end(buf);
+      } catch (e) { return json(res, 500, { erro: `não consegui gerar o PDF: ${e.message}` }); }
+    }
     if (req.method === 'GET' && rota === '/crm/api/orcamentos') {
       const u = new URL(req.url, 'http://x');
       const dias = [7, 30, 90, 365].includes(Number(u.searchParams.get('dias'))) ? Number(u.searchParams.get('dias')) : 30;
@@ -2150,6 +2167,13 @@ const server = createServer(async (req, res) => {
           r = { ok: true, enviado: true, id: envio.id || null };
           break;
         }
+        /* Prospecção: plano, regiões e abordagem são do dono; contato e etapa, de quem prospecta. */
+        case '/crm/api/prospeccao/plano': r = prosp.salvarPlano(d, { por: quem.email || null }); break;
+        case '/crm/api/prospeccao/regiao': r = prosp.salvarRegiao(d); break;
+        case '/crm/api/prospeccao/regiao/remover': r = prosp.removerRegiao(String(d.id || '')); break;
+        case '/crm/api/prospeccao/abordagem': r = prosp.trocarAbordagem(String(d.regiaoId || ''), String(d.abordagem || ''), { por: quem.email || null, motivo: d.motivo }); break;
+        case '/crm/api/prospeccao/contato': r = prosp.registrarContato(d, { por: quemAtende(quem).nome || quem.email || null }); break;
+        case '/crm/api/prospeccao/mover': r = prosp.mover(String(d.id || ''), String(d.etapa || ''), { por: quemAtende(quem).nome || quem.email || null, nota: d.nota, canal: d.canal }); break;
         /* Ligar/desligar o orçamento do negócio: só o dono (vendedor não chega aqui). */
         case '/crm/api/orcamentos/config': r = orc.configurar({ ligado: d.ligado === true }, { por: quem.email || null }); break;
         /* Orçamento: o vendedor mexe no que é dele; o dono, em todos. */

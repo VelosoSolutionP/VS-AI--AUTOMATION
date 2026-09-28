@@ -117,6 +117,7 @@ export function montar(f = {}) {
   return lista;
 }
 
+const NAO_E_QUEDA = new Set(['loja']);
 /** Resumo + caídas (o que já funcionou e parou). Atualiza o histórico. */
 export function comHistorico(lista, { agora = new Date().toISOString() } = {}) {
   const h = ler();
@@ -128,7 +129,9 @@ export function comHistorico(lista, { agora = new Date().toISOString() } = {}) {
     }
   }
   if (mudou) { gravar(h); }
-  const caidas = lista.filter((i) => i.estado !== OK && h.jaFuncionou[i.id] && !h.dispensadas[i.id]).map((i) => ({ id: i.id, nome: i.nome, detalhe: i.detalhe, tela: i.tela || null }));
+  /* Loja sem produto na vitrine é ESCOLHA do dono (tirou da vitrine), não queda:
+     o aviso vermelho em toda tela por isso foi o que o dono mandou erradicar (28/09). */
+  const caidas = lista.filter((i) => i.estado !== OK && h.jaFuncionou[i.id] && !h.dispensadas[i.id] && !NAO_E_QUEDA.has(i.id)).map((i) => ({ id: i.id, nome: i.nome, detalhe: i.detalhe, tela: i.tela || null }));
   const conta = (e) => lista.filter((i) => i.estado === e).length;
   return { itens: lista.map((i) => ({ ...i, caiu: caidas.some((c) => c.id === i.id) })), grupos: GRUPOS, resumo: { ok: conta(OK), incompletas: conta(INC), desligadas: conta(OFF) }, caidas };
 }

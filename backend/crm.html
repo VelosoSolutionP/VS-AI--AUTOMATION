@@ -1470,6 +1470,48 @@ body.aud-apresentar main{margin:0!important;max-width:none!important} body.aud-a
 .orc-sub{display:block;color:var(--muted);font-size:12px}
 .orc-acoes{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
 .orc-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+.prosp-aprov{display:flex;gap:12px;align-items:center;padding:12px 16px;margin-bottom:12px;border:1px solid var(--ok-line);border-radius:12px;background:var(--ok-bg);color:var(--ok)}
+.prosp-aprov svg{width:22px;height:22px;flex:none}.prosp-aprov b{display:block;color:var(--fg)}.prosp-aprov small{color:var(--muted)}
+.prosp-plano{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:12px;margin-bottom:14px}
+.prosp-prop{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px 14px}.prosp-prop small{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:650}.prosp-prop p{margin:6px 0 0;font-size:14px}
+.prosp-kpis{grid-template-columns:repeat(5,minmax(0,1fr));margin:0}
+.prosp-barra{display:block;height:5px;border-radius:9px;background:var(--line);margin-top:6px;overflow:hidden}.prosp-barra i{display:block;height:100%;background:var(--ok)}
+.prosp-h{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;justify-content:space-between;padding:4px 2px 10px}.prosp-h small{color:var(--muted)}
+.prosp-alerta td{background:var(--err-bg)}
+.prosp-hoje{color:var(--warn)}.prosp-esg{color:var(--err);font-size:12.5px}
+.prosp-sel{font-size:12.5px;padding:5px 8px;max-width:150px}
+.prosp-filtros{display:flex;flex-wrap:wrap;gap:8px;width:100%}.prosp-filtros input{flex:1;min-width:200px}.prosp-filtros select{max-width:220px}
+.prosp-fonte{opacity:.75}.prosp-fonte a{color:inherit;text-decoration:underline dotted;text-underline-offset:2px}.prosp-fonte a:hover{color:var(--ac)}
+.prosp-fontes{display:flex;flex-wrap:wrap;align-items:center;gap:6px;width:100%;min-width:0}.prosp-fontes>small{color:var(--muted)}
+.prosp-fch{display:inline-flex;align-items:center;gap:8px;max-width:100%;min-width:0;padding:4px 10px;border:1px solid var(--line);border-radius:99px;background:var(--raised);font-size:12px;transition:border-color .15s}
+.prosp-fch:hover{border-color:var(--line-2)}
+.prosp-fch-t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg)}
+.prosp-fch b{font-variant-numeric:tabular-nums;color:var(--muted);font-weight:600}
+.prosp-fch a{flex:none;color:var(--ok);text-decoration:none;font-weight:600}.prosp-fch a:hover{text-decoration:underline}
+.prosp-fch-mais{cursor:help;color:var(--muted)}
+/* Nada rosa na Prospecção (dono, 28/09): o destaque aqui é verde. */
+.prosp-tela .btn-p{background:linear-gradient(180deg,#1a9142,#15803d);border-color:#15803d;color:#fff;box-shadow:0 8px 20px -12px #15803d}
+.prosp-tela .btn-p:hover{filter:brightness(1.08)}
+.prosp-tela .prosp-fechou{border-color:var(--ok-line);color:var(--ok)}
+.btn.prosp-ligar{background:linear-gradient(180deg,#1a9142,#15803d);border:1px solid #15803d;color:#fff;box-shadow:0 6px 16px -10px #15803d}
+.btn.prosp-ligar:hover{filter:brightness(1.1);transform:translateY(-1px)}
+.prosp-tela{animation:prospEntra .28s ease-out}
+@keyframes prospEntra{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.prosp-tela{animation:none}}
+.prosp-cts tbody tr,.prosp-regs tbody tr{transition:background .15s}
+.prosp-cts tbody tr:hover,.prosp-regs tbody tr:hover{background:var(--raised)}
+.prosp-tela .aud-kpi{transition:transform .18s,box-shadow .18s}.prosp-tela .aud-kpi:hover{transform:translateY(-2px);box-shadow:var(--sh-2)}
+.prosp-pend{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:99px;font-size:11px;background:var(--warn-bg);color:var(--warn)}
+.prosp-pag{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;padding:12px 4px 2px;color:var(--muted);font-size:13px}
+.prosp-pag select{width:auto;padding:4px 8px;margin:0 4px}.prosp-pag>div{display:flex;gap:8px;align-items:center}.prosp-pag b{color:var(--fg);font-weight:600}
+.prosp-aviso{color:var(--warn);display:flex;gap:4px;align-items:center}.prosp-aviso svg{width:12px;height:12px;flex:none}
+.prosp-fim{border-color:var(--ac);background:var(--raised);color:var(--ac)}.prosp-fim>div{flex:1}
+.prosp-hist{display:flex;flex-direction:column;gap:10px}.prosp-hist>div{border-left:2px solid var(--line);padding:2px 0 2px 12px}.prosp-hist small{display:block;color:var(--muted)}.prosp-hist p{margin:4px 0 0;font-size:13px}
+.prosp-bal-kpis{grid-template-columns:repeat(4,minmax(0,1fr));margin:0 0 14px}
+.prosp-bal-g{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.prosp-env{display:flex;align-items:flex-end;gap:3px;height:90px;padding:0 16px;border-bottom:1px solid var(--line)}.prosp-env i{flex:1;min-height:2px;border-radius:3px 3px 0 0;background:var(--s1,var(--ok))}
+.prosp-envd{display:flex;justify-content:space-between;padding:4px 16px 12px;color:var(--muted);font-size:12px}
+@media(max-width:900px){.prosp-plano,.prosp-bal-g{grid-template-columns:1fr}.prosp-kpis{grid-template-columns:1fr 1fr}}
 .orc-chave{display:flex;gap:12px;align-items:center;padding:14px 16px;margin-bottom:14px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
 .orc-chave>svg{width:22px;height:22px;flex:none;color:var(--muted)}.orc-chave.on>svg{color:var(--ok)}
 .orc-chave>div{flex:1;min-width:0}.orc-chave p{margin:3px 0 0;color:var(--muted);font-size:13px}
@@ -1547,6 +1589,7 @@ function marcarTema(t){
 
 /* ---------- icones ---------- */
 const I={
+ telefone:'<path d="M21.5 16.4v3a2 2 0 0 1-2.2 2 19.6 19.6 0 0 1-8.5-3 19.3 19.3 0 0 1-6-6A19.6 19.6 0 0 1 1.8 3.8 2 2 0 0 1 3.8 1.6h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L7.8 9.4a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.6 2z"/>',
  visao:'<rect x="3" y="3" width="8" height="9" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="14" width="8" height="7" rx="1.5"/>',
  estoque:'<path d="M3 7.5 12 3l9 4.5v9L12 21 3 16.5z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/>',
  financeiro:'<path d="M12 2v20"/><path d="M17 6.5c0-1.9-2.2-3-5-3s-5 1.1-5 3 2.2 2.6 5 3 5 1.2 5 3.2-2.2 3.3-5 3.3-5-1.3-5-3.3"/>',
@@ -1665,6 +1708,8 @@ const GRUPOS=[
      {id:'tg-consumo',nome:'Consumo'}]},
  ]},
  { secao:'Crescimento', itens:[
+   /* Prospecção NÃO é campanha: campanha é vitrine com link; aqui é o vendedor indo atrás. */
+   {id:'prospeccao',nome:'Prospecção de clientes',icone:'usuario'},
    {id:'clientes',nome:'Clientes e licenças',icone:'perfil'},
    {id:'indicacao',nome:'Indicações e parceiros',icone:'indicacao'},
  ]},
@@ -1806,7 +1851,7 @@ function toggleNav(v){document.getElementById('side').classList.toggle('open',v)
 /* Sobrancelha = a seção do menu em que a rota vive. Dita de graça em toda tela
    onde a pessoa está, sem ela ter que reler a barra lateral. */
 const SECAO={}; GRUPOS.forEach(g=>g.itens.forEach(m=>{SECAO[m.id]=g.secao;(m.filhos||[]).forEach(f=>SECAO[f.id]=g.secao);}));
-SECAO['pl-checkout']='Conta';
+SECAO['pl-checkout']='Conta'; SECAO['prosp-balanco']='Crescimento';
 /**
  * UM lugar decide se o WhatsApp esta no ar — e por onde.
  * Sem isto, cada tela inventava a sua resposta a partir de `STATUS.whatsapp`,
@@ -6432,6 +6477,248 @@ function telaOrcamentos(){
       :`<p class="hint" style="padding:18px">Nenhum orçamento no período. Pra fazer um, abra uma conversa no Atendimento e toque em <b>Orçamento</b>.</p>`}</div>`;
 }
 
+/* ── Prospecção de clientes ────────────────────────────────────────────────────
+   Não é campanha (vitrine com link): é o vendedor indo atrás do cliente, região
+   por região. Pode ter resposta ou não — e quando não tem, a tela manda TROCAR a
+   abordagem em vez de insistir. Em cima fica o plano aprovado: é o lastro da
+   decisão de ir pro interior. */
+let PROSP=null, PROSP_REG='', PROSP_Q='', PROSP_ET_F='', PROSP_PAG=1, PROSP_TAM=10;
+const PROSP_SIT={lista:['Lista pronta','b-warn'],'nao-iniciada':['Não iniciada',''],andamento:['Em andamento','b-ok'],trocar:['Trocar abordagem','b-err']};
+const PROSP_ET={'na-lista':'',contatado:'b-warn',respondeu:'b-ok',demonstracao:'b-ok',cliente:'b-ok','sem-resposta':'b-err','nao-quer':''};
+async function carregarProsp(forcar){
+  if(PROSP&&!forcar) return PROSP;
+  try{ PROSP=await api('prospeccao?'+new URLSearchParams({regiao:PROSP_REG,busca:PROSP_Q,etapa:PROSP_ET_F,pagina:PROSP_PAG,limite:PROSP_TAM})); }catch(e){ PROSP={erro:e.message}; }
+  if(rota==='prospeccao') render();
+  return PROSP;
+}
+const prospData=(d)=>d?String(d).slice(0,10).split('-').reverse().join('/'):'—';
+function telaProspeccao(){
+  const p=PROSP; if(!p){ setTimeout(()=>carregarProsp(),0); return head('Prospecção de clientes','Carregando…'); }
+  if(p.erro) return head('Prospecção de clientes','')+`<p class="hint">Não consegui carregar: ${esc(p.erro)}</p>`;
+  const pl=p.plano, t=p.totais;
+  const acts=(p.regioes.length?botao({t:'Registrar contato',ic:'mais',v:'p',on:'prospNovoContato()'}):'')+(ehVendedor()?'':botao({t:'Nova região',ic:'mais',v:'s',on:'prospNovaRegiao()'}))
+    +(ehVendedor()||!pl?'':botao({t:'Balanço da prospecção',ic:'crm',v:'s',on:"ir('prosp-balanco')"}));
+  if(!pl) return head('Prospecção de clientes','O vendedor indo atrás do cliente, região por região.',acts)+
+    `<div class="card"><p class="hint" style="padding:16px">Nenhum plano de prospecção ainda.${ehVendedor()?' Peça ao administrador para criar.':''}</p></div>`;
+  const pct=pl.duracaoDias?Math.round(pl.diaAtual/pl.duracaoDias*100):0;
+  const acabou=prospData(pl.fim)!=='—'&&new Date().toISOString().slice(0,10)>pl.fim;
+  const topo=(acabou&&!ehVendedor()?`<div class="prosp-aprov prosp-fim">${ico('crm')}<div><b>Os ${pl.duracaoDias} dias do plano acabaram — o balanço final está pronto.</b>
+      <small>Funil, resultado por região e abordagem, quem fechou e quem ainda pode fechar. Sai em PDF.</small></div>${botao({t:'Ver balanço',ic:'ver',v:'p',sz:'s',on:"ir('prosp-balanco')"})}</div>`:'')+
+    `<div class="prosp-aprov">${ico('check')}<div><b>${pl.aprovacao?`Aprovado por ${esc(pl.aprovacao.por)}`:'Plano ainda sem aprovação'}</b>
+      <small>${pl.aprovacao?`em ${prospData(pl.aprovacao.em)}`:''}</small></div></div>
+    <div class="prosp-plano">
+      <div class="prosp-prop"><small>Propósito</small><p>${esc(pl.proposito)}</p></div>
+      <div class="aud-kpis prosp-kpis">
+        ${audKpi('Duração',`dia ${pl.diaAtual} de ${pl.duracaoDias}`,`${prospData(pl.inicio)} → ${prospData(pl.fim)}<span class="prosp-barra"><i style="width:${pct}%"></i></span>`)}
+        ${audKpi('Meta',`${pl.clientes} de ${pl.meta}`,'clientes pagantes no período')}
+        ${audKpi('A contatar',String(t.naLista),'empresas da base pública que ainda não receberam mensagem')}
+        ${audKpi('Contatados',String(t.contatos),`${t.responderam} responderam · ${t.demonstracoes} demonstração(ões)`)}
+        ${audKpi('Tocar hoje',String(t.tocarHoje),'contatos com toque vencido')}
+      </div></div>`;
+  const regs=p.regioes.map(r=>{ const [st,cl]=PROSP_SIT[r.situacao]||['',''];
+    const tent=(r.tentadas||[]).filter(x=>x.ate).map(x=>p.abordagens[x.abordagem]).join(' · ');
+    return `<tr class="${r.trocar?'prosp-alerta':''}">
+      <td><b>${esc(r.nome)}</b><small class="orc-sub">${esc(r.cidades||'')}</small></td>
+      <td>${esc(r.uf)}</td>
+      <td>${esc(p.abordagens[r.abordagem]||r.abordagem)}${tent?`<small class="orc-sub">já tentado: ${esc(tent)}</small>`:''}</td>
+      <td class="orc-n">${r.naLista}</td><td class="orc-n">${r.contatos}</td><td class="orc-n">${r.responderam}</td><td class="orc-n">${r.demonstracoes}</td><td class="orc-n"><b>${r.clientes}</b></td>
+      <td><span class="badge ${cl}" style="margin-left:0">${st}</span>${r.trocar?`<small class="orc-sub">${r.naAbordagem.semResposta} sem resposta e ninguém respondeu nesta abordagem</small>`:''}</td>
+      <td>${ehVendedor()?'':botao({t:r.trocar&&r.sugestao?`Trocar p/ ${p.abordagens[r.sugestao].split(' (')[0]}`:'Trocar abordagem',ic:'atualizar',v:r.trocar?'p':'g',sz:'xs',on:`prospTrocar('${esc(r.id)}')`})}</td></tr>`; }).join('');
+  const lista=p.contatos;
+  const nomeReg=(id)=>p.regioes.find(r=>r.id===id)?.nome||'—';
+  const prox=(c)=>c.etapa==='na-lista'?(c.email?'<small>1ª mensagem automática por e-mail <span class="prosp-pend">envio ainda não ligado</span></small>':'<small>sem e-mail — ligar</small>'):!c.proximo?'—':c.proximo.esgotado?'<span class="prosp-esg">cadência acabou — sem resposta?</span>':`${prospData(c.proximo.quando)}<small class="orc-sub">${esc(c.proximo.oque||'')}</small>${c.proximo.vencido?' <b class="prosp-hoje">vencido</b>':''}`;
+  /* A etapa não se escolhe num menu: ela anda pelo que aconteceu. O botão do WhatsApp
+     abre a conversa com o texto pronto e já registra o toque; o resto são os resultados. */
+  const b=(t,et,ic='check',v='g')=>(c)=>botao({t,ic,v,sz:'xs',on:`prospMover('${esc(c.id)}','${et}')`});
+  /* Regra do dono (28/09): 1ª e 2ª mensagem são AUTOMÁTICAS (e-mail) — nessas etapas
+     não há botão nenhum, a mensagem sai sozinha. O 3º contato (dia 10) é de gente: só
+     aí aparece o "Ligar" (e o WhatsApp). Quem já respondeu também ganha os dois. */
+  const tel=(c)=>{ const n=String(c.whatsapp||c.telefone||'').replace(/\D/g,'').replace(/^55(?=\d{10,11}$)/,''); return n.length>=10?n:''; };
+  const vezDeGente=(c)=>!c.optout&&((c.etapa==='contatado'&&c.toques>=2&&c.proximo?.vencido)||['respondeu','demonstracao'].includes(c.etapa));
+  const acoes=(c)=>{ const out=[]; const n=tel(c); const gente=vezDeGente(c);
+    if(n&&gente) out.push(`<a class="btn btn-xs prosp-ligar" href="tel:+55${esc(n)}" onclick="prospLigou('${esc(c.id)}')" title="Liga para (${esc(n.slice(0,2))}) ${esc(n.slice(2))}">${ico('telefone')}<span>Ligar</span></a>`);
+    if(c.whatsapp&&gente) out.push(`<a class="btn btn-g btn-xs" href="https://wa.me/55${esc(String(c.whatsapp).replace(/^55/,''))}" target="_blank" rel="noopener" title="Abre a conversa no WhatsApp">${ico('whats')}<span>WhatsApp</span></a>`);
+    if(c.etapa==='contatado'){ out.push(b('Respondeu','respondeu','check','s')(c)); if(c.proximo?.esgotado) out.push(b('Sem resposta','sem-resposta','fechar')(c)); }
+    if(c.etapa==='respondeu') out.push(b('Demonstração','demonstracao','ver','s')(c));
+    if(['respondeu','demonstracao'].includes(c.etapa)) out.push(botao({t:'Fechou',ic:'check',v:'s',sz:'xs',on:`prospMover('${esc(c.id)}','cliente')`,extra:'prosp-fechou'}));
+    if(['contatado','respondeu','demonstracao'].includes(c.etapa)) out.push(b('Sem interesse','nao-quer','fechar')(c));
+    if(!c.optout&&c.etapa!=='na-lista'&&c.etapa!=='cliente') out.push(botao({t:'Pediu pra sair',ic:'fechar',v:'g',sz:'xs',on:`prospSair('${esc(c.id)}')`,tit:'Apaga o contato e bloqueia o número (LGPD)'}));
+    if((c.historico||[]).length>1) out.push(botao({t:'Histórico',ic:'relogio',v:'g',sz:'xs',on:`prospHistorico('${esc(c.id)}')`}));
+    return out.join(''); };
+  const pager=`<div class="prosp-pag"><label>Mostrar <select onchange="PROSP_TAM=Number(this.value);PROSP_PAG=1;carregarProsp(true)" aria-label="Empresas por página">${[10,50,100].map(n=>`<option ${p.porPagina===n?'selected':''}>${n}</option>`).join('')}</select> por página</label>
+      <span>${p.filtrados?`${(p.pagina-1)*p.porPagina+1}–${Math.min(p.pagina*p.porPagina,p.filtrados)} de ${p.filtrados.toLocaleString('pt-BR')}`:'0'}</span>
+      <div>${botao({t:'Anterior',ic:'ant',v:'g',sz:'xs',on:'prospPagina(-1)',off:p.pagina<=1})}<b>página ${p.pagina} de ${p.paginas}</b>${botao({t:'Próxima',ic:'prox',v:'g',sz:'xs',on:'prospPagina(1)',off:p.pagina>=p.paginas})}</div></div>`;
+  const ult=(c)=>(c.historico||[]).at(-1);
+  const cts=lista.map(c=>`<tr>
+      <td><b>${esc(c.nome)}</b><small class="orc-sub">${esc([c.cidade,c.segmento].filter(Boolean).join(' · '))}</small>
+        <small class="orc-sub">${[c.whatsapp?`WhatsApp ${esc(c.whatsapp)}`:'',c.telefone&&c.telefone!==c.whatsapp?`tel. ${esc(c.telefone)}`:'',c.email?esc(c.email):'',c.cnpj?`CNPJ ${esc(c.cnpj)}`:''].filter(Boolean).join(' · ')}</small>
+        ${c.fonte?prospFonteLinha(c.fonte,p.fontes):''}
+        ${(c.alertas||[]).map(a=>`<small class="orc-sub prosp-aviso">${ico('alerta')}${esc(a)}</small>`).join('')}</td>
+      <td>${esc(nomeReg(c.regiaoId))}</td>
+      <td><small>${esc(p.abordagens[c.abordagem]||'')}</small></td>
+      <td>${c.etapa==='na-lista'?'<small class="hint">não contatado</small>':`<span class="badge ${PROSP_ET[c.etapa]||''}" style="margin-left:0">${esc(c.optout?'Pediu pra sair':p.etapas[c.etapa]||c.etapa)}</span><small class="orc-sub">${c.etapa==='contatado'?`${c.toques} toque(s) · `:''}${prospData(ult(c)?.em)}</small>`}</td>
+      <td>${prox(c)}</td>
+      <td><div class="orc-acoes">${acoes(c)}</div></td></tr>`).join('');
+  return '<div class="prosp-tela">'+head('Prospecção de clientes',esc(pl.nome),acts)+topo+
+    `<div class="card" style="margin-bottom:14px"><div class="prosp-h"><b>Regiões</b><small>Por empresa: 1ª mensagem no dia 0 · 2ª no dia ${p.cadencia[0]} (recebeu? 10 minutos?) · ligação no dia ${p.cadencia[1]}. Na abordagem da vez, 5 sem resposta e nenhum retorno = trocar.</small></div>
+      <div class="tbl-wrap"><table class="tbl prosp-regs"><thead><tr><th>Região</th><th>UF</th><th>Abordagem da vez</th><th class="orc-n">Na lista</th><th class="orc-n">Contatados</th><th class="orc-n">Responderam</th><th class="orc-n">Demos</th><th class="orc-n">Clientes</th><th>Situação</th><th></th></tr></thead><tbody>${regs}</tbody></table></div></div>
+    <div class="card"><div class="prosp-h"><b>Empresas e contatos</b><small>${p.filtrados.toLocaleString('pt-BR')} empresa(s)</small>${prospFontes(p.fontes)}
+      <div class="prosp-filtros"><input placeholder="Buscar nome, cidade, segmento ou CNPJ" value="${esc(PROSP_Q)}" onkeydown="if(event.key==='Enter'){PROSP_Q=this.value;PROSP_PAG=1;carregarProsp(true)}" aria-label="Buscar empresa">
+      <select onchange="PROSP_REG=this.value;PROSP_PAG=1;carregarProsp(true)" aria-label="Filtrar por região"><option value="">Todas as regiões</option>${p.regioes.map(r=>`<option value="${esc(r.id)}" ${PROSP_REG===r.id?'selected':''}>${esc(r.nome)}</option>`).join('')}</select></div></div>
+      ${lista.length?`<div class="tbl-wrap"><table class="tbl prosp-cts"><thead><tr><th>Empresa</th><th>Região</th><th>Abordagem</th><th>Situação</th><th>Próximo passo</th><th></th></tr></thead><tbody>${cts}</tbody></table></div>${pager}`
+        :`<p class="hint" style="padding:16px">Nenhum contato ainda. Toque em <b>Registrar contato</b> a cada comércio abordado — a tela avisa quando cutucar de novo e quando trocar a abordagem.</p>`}</div></div>`;
+}
+function prospPagina(d){ PROSP_PAG=Math.max(1,Math.min(PROSP?.paginas||1,PROSP_PAG+d)); carregarProsp(true).then(()=>document.querySelector('.prosp-cts')?.scrollIntoView({behavior:'smooth',block:'start'})); }
+/* Ligar: o telefone abre; a tela só anota a ligação de quem já está na cadência (o
+   dia 10 é o contato de gente). Quem está na lista continua esperando o automático. */
+function prospLigou(id){ const c=PROSP?.contatos.find(x=>x.id===id); if(c&&c.etapa==='contatado'&&c.toques>=2) setTimeout(()=>prospMover(id,'toque'),400); }
+/* De onde vieram as empresas: um chip por fonte, com o site oficial. Os chips quebram
+   linha e cortam o texto com reticências — com 1 ou com 10 fontes a tela não estoura.
+   Passou de 3, as outras ficam no "+N" (lista completa no title). */
+function prospFontes(fs){
+  if(!fs?.length) return '';
+  const chip=(f)=>`<span class="prosp-fch" title="${esc(f.texto)} — ${f.n.toLocaleString('pt-BR')} empresa(s)">
+      <span class="prosp-fch-t">${esc(f.texto)}</span><b>${f.n.toLocaleString('pt-BR')}</b>
+      ${f.url?`<a href="${esc(f.url)}" target="_blank" rel="noopener noreferrer">site ↗</a>`:''}${f.arquivos?`<a href="${esc(f.arquivos)}" target="_blank" rel="noopener noreferrer">arquivos ↗</a>`:''}</span>`;
+  const vis=fs.slice(0,3), resto=fs.slice(3);
+  return `<div class="prosp-fontes"><small>Fonte${fs.length>1?'s':''}:</small>${vis.map(chip).join('')}${resto.length?`<span class="prosp-fch prosp-fch-mais" title="${esc(resto.map(f=>f.texto).join('\n'))}">+${resto.length}</span>`:''}</div>`;
+}
+/* Na linha, só o nome curto com o link — o texto inteiro fica no title. */
+function prospFonteLinha(txt,fs){
+  const f=(fs||[]).find(x=>x.texto===txt);
+  return `<small class="orc-sub prosp-fonte" title="${esc(txt)}">fonte: ${f?.url?`<a href="${esc(f.url)}" target="_blank" rel="noopener noreferrer">${esc(f.nome)} ↗</a>`:esc(txt)}</small>`;
+}
+async function prospMover(id,etapa,extra={}){
+  try{ const r=await api('prospeccao/mover',{id,etapa,...extra}); if(!r.ok) return avisoErro('Não consegui',esc(r.motivo||''));
+    flash(extra.canal==='whatsapp'?'Envio registrado no histórico.':etapa==='toque'||etapa==='contatado'?'Toque registrado.':etapa==='saiu'?'Contato apagado e número bloqueado.':'Registrado.','ok'); await carregarProsp(true); }
+  catch(e){ avisoErro('Não consegui',esc(e.message)); }
+}
+/* Abre a conversa ANTES do await (senão o navegador bloqueia a janela) e registra o toque. */
+function prospWhats(id){
+  const c=PROSP?.contatos.find(x=>x.id===id); if(!c?.wa) return;
+  window.open(c.wa.url,'_blank','noopener');
+  prospMover(id,c.wa.toque===1?'contatado':'toque',{canal:'whatsapp'});
+}
+function prospSair(id){
+  const c=PROSP?.contatos.find(x=>x.id===id); if(!c) return;
+  abrirModal('Pediu pra não receber mais',
+    `<p>O WhatsApp, telefone e e-mail de <b>${esc(c.nome)}</b> serão <b>apagados</b> e o número fica bloqueado — não volta nem numa importação nova da Receita.</p>
+    <p class="hint">É o direito de oposição da LGPD. Não dá pra desfazer.</p>`,
+    BT.cancelar()+botao({t:'Apagar e bloquear',ic:'fechar',v:'p',on:`fecharModal();prospMover('${esc(id)}','saiu')`}),{classe:'modal-sm'});
+}
+function prospHistorico(id){
+  const c=PROSP?.contatos.find(x=>x.id===id); if(!c) return;
+  const h=[...(c.historico||[])].reverse();
+  abrirModal(`Histórico · ${c.nome}`,
+    `<div class="prosp-hist">${h.map(e=>`<div><b>${esc(e.evento)}</b>${e.canal==='whatsapp'?' <span class="badge b-ok">pelo WhatsApp</span>':''}
+      <small>${new Date(e.em).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}${e.por?` · ${esc(e.por)}`:''}${e.fonte?` · ${esc(e.fonte)}`:''}</small>${e.nota?`<p>${esc(e.nota)}</p>`:''}</div>`).join('')}</div>`,
+    BT.fechar('Fechar'),{classe:'modal-sm'});
+}
+
+/* ── Balanço da prospecção ─────────────────────────────────────────────────────
+   O que o período rendeu, pra diretoria: parcial enquanto o plano corre, final
+   depois do último dia. Sem "visualizaram": pelo wa.me o WhatsApp não conta quem leu. */
+let PBAL=null;
+async function carregarProspBalanco(){
+  try{ PBAL=await api('prospeccao/balanco'); }catch(e){ PBAL={erro:e.message}; }
+  if(rota==='prosp-balanco') render();
+}
+function telaProspBalanco(){
+  const volta=botao({t:'Voltar à prospecção',ic:'seta',v:'g',on:"PBAL=null;ir('prospeccao')"});
+  const b=PBAL; if(!b){ setTimeout(carregarProspBalanco,0); return head('Balanço da prospecção','Carregando…',volta); }
+  if(b.erro) return head('Balanço da prospecção','',volta)+`<p class="hint">Não consegui carregar: ${esc(b.erro)}</p>`;
+  const pl=b.plano, pctT=(v)=>v==null?'—':String(v).replace('.',',')+'%';
+  const acts=volta+botao({t:'Baixar PDF',ic:'baixar',v:'p',on:'prospBalancoPdf()'});
+  if(!pl) return head('Balanço da prospecção','Sem plano de prospecção ainda.',volta);
+  const selo=b.final?'<span class="badge b-ok">Resultado final</span>':`<span class="badge b-warn">Parcial · dia ${pl.diaAtual} de ${pl.duracaoDias}</span>`;
+  const fMax=Math.max(1,b.contatados);
+  const funil=audBarrasH([['Contatados',b.contatados],['Responderam',b.responderam],['Demonstração',b.demonstracoes],['Fecharam',b.fechados]]
+    .map(([rot,n],i)=>({rot,n,extra:i?pctT(Math.round(n/fMax*1000)/10):''})),fMax);
+  const tab=(tit,l)=>l.length?`<div class="card" style="margin-bottom:14px">${cardH('crm',tit,'',1)}<div class="tbl-wrap"><table class="tbl"><thead><tr><th></th><th class="orc-n">Contatados</th><th class="orc-n">Responderam</th><th class="orc-n">Taxa de resposta</th><th class="orc-n">Podem fechar</th><th class="orc-n">Fecharam</th></tr></thead><tbody>${
+    l.map(x=>`<tr><td>${esc(x.nome)}</td><td class="orc-n">${x.contatados}</td><td class="orc-n">${x.responderam}</td><td class="orc-n">${pctT(x.taxaResposta)}</td><td class="orc-n">${x.emConversa}</td><td class="orc-n"><b>${x.fechados}</b></td></tr>`).join('')}</tbody></table></div></div>`:'';
+  const nomes=(tit,l,vazio)=>`<div class="card" style="margin-bottom:14px">${cardH('usuario',`${tit} · ${l.length}`,'',1)}${l.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Empresa</th><th>Região</th><th>Situação</th><th>Desde</th><th>Quem abordou</th></tr></thead><tbody>${
+    l.map(c=>`<tr><td><b>${esc(c.nome)}</b><small class="orc-sub">${esc([c.cidade,c.segmento].filter(Boolean).join(' · '))}</small></td><td>${esc(c.regiao)}</td><td>${esc(c.etapa)}</td><td>${prospData(c.desde)}</td><td>${esc(c.por||'—')}</td></tr>`).join('')}</tbody></table></div>`:`<p class="hint" style="padding:12px 16px">${vazio}</p>`}</div>`;
+  const eMax=Math.max(1,...b.enviosPorDia.map(e=>e.n));
+  return head('Balanço da prospecção',`${esc(pl.nome)} · ${prospData(pl.inicio)} → ${prospData(pl.fim)} ${selo}`,acts)+
+    `<div class="viz"><div class="aud-kpis prosp-kpis prosp-bal-kpis">
+      ${audKpi('Contatados',String(b.contatados),`de ${b.base} empresas na base`)}
+      ${audKpi('Responderam',String(b.responderam),`taxa de resposta ${pctT(b.taxaResposta)}`)}
+      ${audKpi('Podem fechar',String(b.emConversa),'responderam e estão em conversa')}
+      ${audKpi('Fecharam',String(b.fechados),`meta ${pl.meta} · ${pctT(b.taxaFechamento)} dos contatados`)}
+    </div>
+    <div class="prosp-bal-g">
+      <div class="card">${cardH('crm','Funil','Quanto de quem recebeu mensagem chegou em cada passo.',1)}${funil}</div>
+      <div class="card">${cardH('relogio','Onde o resto está','',5)}
+        ${audBarrasH([['Aguardando retorno',b.aguardando],['Sem resposta',b.semResposta],['Sem interesse',b.semInteresse],['Pediram pra sair',b.pediramSair],['Não contatados',b.naoContatados]].map(([rot,n])=>({rot,n})),Math.max(1,b.aguardando,b.semResposta,b.semInteresse,b.pediramSair,b.naoContatados))}</div>
+    </div>
+    ${b.enviosPorDia.length>1?`<div class="card" style="margin-bottom:14px">${cardH('enviar','Mensagens e ligações por dia',`pico de ${eMax} no dia`,1)}
+      <div class="prosp-env">${b.enviosPorDia.map(e=>`<i style="height:${Math.round(e.n/eMax*100)}%" data-tip="${prospData(e.dia)}: ${e.n}"></i>`).join('')}</div>
+      <div class="prosp-envd"><span>${prospData(b.enviosPorDia[0].dia)}</span><span>${prospData(b.enviosPorDia.at(-1).dia)}</span></div></div>`:''}
+    ${nomes('Fecharam',b.listaFechados,'Nenhum fechamento no período ainda.')}
+    ${nomes('Podem fechar',b.listaPossiveis,'Ninguém em conversa agora.')}
+    ${tab('Por região',b.porRegiao)}${tab('Por abordagem',b.porAbordagem)}${tab('Por segmento',b.porSegmento)}${tab('Por vendedor',b.porVendedor)}
+    <p class="hint">Por que não tem "visualizaram": a mensagem sai pelo link do WhatsApp (wa.me), e o WhatsApp não informa leitura por esse caminho — só a API oficial faz isso. O balanço mostra só o que foi registrado: envio, resposta e resultado.</p></div>`;
+}
+async function prospBalancoPdf(){
+  try{
+    const res=await fetch('/crm/api/prospeccao/balanco/pdf',{headers:TOKEN?{'x-crm-token':TOKEN}:{}});
+    if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j.erro||'HTTP '+res.status); }
+    const url=URL.createObjectURL(await res.blob()); const a=document.createElement('a');
+    a.href=url; a.download=(res.headers.get('content-disposition')||'').match(/filename="([^"]+)"/)?.[1]||'balanco-prospeccao.pdf'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),4000);
+  }catch(e){ avisoErro('Não consegui gerar o PDF',esc(e.message)); }
+}
+function prospNovoContato(){
+  const p=PROSP, reg=PROSP_REG||p.regioes[0]?.id;
+  const abOpts=(sel)=>Object.entries(p.abordagens).map(([k,v])=>`<option value="${k}" ${k===sel?'selected':''}>${esc(v)}</option>`).join('');
+  abrirModal('Registrar contato',
+    `<div class="field"><label>Região *</label><select id="pcReg" onchange="prospRegMudou(this.value)">${p.regioes.map(r=>`<option value="${esc(r.id)}" ${r.id===reg?'selected':''}>${esc(r.nome)} (${esc(r.uf)})</option>`).join('')}</select></div>
+    <div class="orc-grade orc-grade2"><div class="field"><label>Comércio ou pessoa *</label><input id="pcNome" maxlength="120" placeholder="Ex.: Auto Peças Jequi"></div>
+      <div class="field"><label>Cidade</label><input id="pcCid" maxlength="80" placeholder="Ex.: Araçuaí"></div></div>
+    <div class="orc-grade orc-grade2"><div class="field"><label>WhatsApp</label><input id="pcWa" inputmode="tel" placeholder="(33) 99999-0000"></div>
+      <div class="field"><label>Segmento</label><input id="pcSeg" maxlength="80" placeholder="Ex.: peças, roupa, insumos"></div></div>
+    <div class="field"><label>Abordagem usada</label><select id="pcAb">${abOpts(p.regioes.find(r=>r.id===reg)?.abordagem)}</select></div>
+    <p class="hint" id="pcErro" role="alert"></p>`,
+    BT.cancelar()+botao({t:'Registrar',ic:'check',v:'p',on:'prospSalvarContato()'}));
+}
+/* Trocou a região no formulário: a abordagem sugerida passa a ser a da vez nela. */
+function prospRegMudou(id){ const r=PROSP?.regioes.find(x=>x.id===id); const sel=document.getElementById('pcAb'); if(r&&sel) sel.value=r.abordagem; }
+async function prospSalvarContato(){
+  const v=(i)=>document.getElementById(i)?.value||'';
+  try{ const r=await api('prospeccao/contato',{regiaoId:v('pcReg'),nome:v('pcNome'),cidade:v('pcCid'),whatsapp:v('pcWa'),segmento:v('pcSeg'),abordagem:v('pcAb')});
+    if(!r.ok){ document.getElementById('pcErro').textContent=r.motivo; return; }
+    fecharModal(); flash(`${r.contato.nome} registrado. Próximo toque em ${prospData(r.contato.proximo?.quando)}.`,'ok'); await carregarProsp(true);
+  }catch(e){ document.getElementById('pcErro').textContent=e.message; }
+}
+function prospTrocar(regId){
+  const p=PROSP, r=p.regioes.find(x=>x.id===regId); if(!r) return;
+  const ja=new Set((r.tentadas||[]).map(t=>t.abordagem));
+  abrirModal(`Trocar abordagem · ${r.nome}`,
+    `<p class="hint">Hoje: <b>${esc(p.abordagens[r.abordagem])}</b> — ${r.naAbordagem.contatos} contato(s), ${r.naAbordagem.responderam} responderam, ${r.naAbordagem.semResposta} sem resposta.</p>
+    <div class="field"><label>Nova abordagem</label><select id="ptAb">${Object.entries(p.abordagens).filter(([k])=>k!==r.abordagem).map(([k,v])=>`<option value="${k}" ${k===r.sugestao?'selected':''}>${esc(v)}${ja.has(k)?' (já tentada)':''}</option>`).join('')}</select></div>
+    <div class="field"><label>Por que trocar</label><input id="ptMot" maxlength="200" placeholder="Ex.: ninguém respondeu mensagem direta"></div>`,
+    BT.cancelar()+botao({t:'Trocar',ic:'atualizar',v:'p',on:`prospConfirmarTroca('${esc(regId)}')`}),{classe:'modal-sm'});
+}
+async function prospConfirmarTroca(regId){
+  try{ const r=await api('prospeccao/abordagem',{regiaoId:regId,abordagem:document.getElementById('ptAb').value,motivo:document.getElementById('ptMot').value});
+    if(!r.ok) return avisoErro('Não consegui',esc(r.motivo||'')); fecharModal(); flash('Abordagem trocada. A contagem recomeça nesta região.','ok'); await carregarProsp(true);
+  }catch(e){ avisoErro('Não consegui',esc(e.message)); }
+}
+function prospNovaRegiao(){
+  abrirModal('Nova região',
+    `<div class="orc-grade orc-grade2"><div class="field"><label>Região *</label><input id="prNome" maxlength="80" placeholder="Ex.: Vale do Jequitinhonha"></div>
+      <div class="field"><label>UF *</label><input id="prUf" maxlength="2" placeholder="MG"></div></div>
+    <div class="field"><label>Cidades-polo</label><input id="prCid" maxlength="200" placeholder="Ex.: Araçuaí, Diamantina, Almenara"></div>
+    <div class="field"><label>Público</label><input id="prPub" maxlength="200" placeholder="Ex.: lojas, revendas e oficinas"></div>
+    <p class="hint" id="prErro" role="alert"></p>`,
+    BT.cancelar()+botao({t:'Salvar',ic:'salvar',v:'p',on:'prospSalvarRegiao()'}),{classe:'modal-sm'});
+}
+async function prospSalvarRegiao(){
+  const v=(i)=>document.getElementById(i)?.value||'';
+  try{ const r=await api('prospeccao/regiao',{nome:v('prNome'),uf:v('prUf'),cidades:v('prCid'),publico:v('prPub')});
+    if(!r.ok){ document.getElementById('prErro').textContent=r.motivo; return; } fecharModal(); flash('Região criada.','ok'); await carregarProsp(true);
+  }catch(e){ document.getElementById('prErro').textContent=e.message; }
+}
+
 /* ── tela: Qualificação e equipes ── */
 async function carregarQuali(forcar){
   if(QUALI&&!forcar) return QUALI;
@@ -6551,12 +6838,12 @@ function qTirarAcesso(id){
 }
 
 /* ── modo vendedor: só o Atendimento ── */
-const GRUPOS_VENDEDOR=[{secao:'Atendimento',itens:[{id:'wa-atendimento',nome:'WhatsApp',icone:'whats'},{id:'tg-atendimento',nome:'Telegram',icone:'telegram'},{id:'orcamentos',nome:'Orçamentos',icone:'contrato'}]}];
+const GRUPOS_VENDEDOR=[{secao:'Atendimento',itens:[{id:'wa-atendimento',nome:'WhatsApp',icone:'whats'},{id:'tg-atendimento',nome:'Telegram',icone:'telegram'},{id:'orcamentos',nome:'Orçamentos',icone:'contrato'},{id:'prospeccao',nome:'Prospecção',icone:'usuario'}]}];
 async function carregarVendedor(eu){
   EU=eu;
   try{ ATEND=await api('atendimentos'); CANAIS=ATEND?.canal||null; TG=await api('canais/telegram').catch(()=>null); }
   catch(e){ avisoErro('Não consegui carregar','Não consegui carregar: '+esc(e.message)); }
-  if(!['wa-atendimento','tg-atendimento','orcamentos'].includes(rota)) rota=(ATEND?.conversas||[]).some(c=>c.canal==='telegram')&&!(ATEND?.conversas||[]).some(c=>c.canal==='whatsapp')?'tg-atendimento':'wa-atendimento';
+  if(!['wa-atendimento','tg-atendimento','orcamentos','prospeccao'].includes(rota)) rota=(ATEND?.conversas||[]).some(c=>c.canal==='telegram')&&!(ATEND?.conversas||[]).some(c=>c.canal==='whatsapp')?'tg-atendimento':'wa-atendimento';
   document.getElementById('envDot').className='dot on';
   document.getElementById('envName').textContent=eu.nome||'Vendedor';
   document.getElementById('envSub').textContent=eu.equipe?'equipe '+eu.equipe:eu.email;
@@ -7042,6 +7329,7 @@ const TELAS={
   ...S,
   'pl-planos':telaPlanos, 'pl-checkout':telaCheckout,
   orcamentos:telaOrcamentos,
+  prospeccao:telaProspeccao, 'prosp-balanco':telaProspBalanco,
 };
 
 /* ---------- render ---------- */
