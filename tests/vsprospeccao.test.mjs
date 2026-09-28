@@ -30,18 +30,15 @@ test('região nasce com a primeira abordagem (a mais barata) e guarda o que já 
   assert.equal(p.salvarRegiao({ nome: '', uf: 'MG' }).ok, false);
 });
 
-test('cadência do dono: 1ª mensagem no dia 0, 2ª no dia 5, ligação no dia 10; depois, esgotado', () => {
+test('regra do dono: e-mail no dia 0, WhatsApp (última tentativa) no dia 5; depois, esgotado', () => {
   const rg = p.painel().regioes[0];
   const c = p.registrarContato({ regiaoId: rg.id, nome: 'Loja A', whatsapp: '(33) 99999-0001' }, { agora: D0 }).contato;
   assert.equal(c.proximo.quando.slice(0, 10), '2026-10-03');
-  assert.match(c.proximo.oque, /2ª mensagem/);
+  assert.match(c.proximo.oque, /WhatsApp — última tentativa/);
   assert.equal(p.proximoToque(c, dias(4)).vencido, false);
   assert.equal(p.proximoToque(c, dias(5)).vencido, true);
   const t2 = p.mover(c.id, 'toque', { agora: dias(5) }).contato;
-  assert.equal(t2.proximo.quando.slice(0, 10), '2026-10-08');
-  assert.match(t2.proximo.oque, /ligação/);
-  const t3 = p.mover(c.id, 'toque', { agora: dias(10) }).contato;
-  assert.equal(t3.proximo.esgotado, true, 'depois da ligação do dia 10 não se cutuca mais');
+  assert.equal(t2.proximo.esgotado, true, 'depois do WhatsApp não se insiste');
   assert.equal(p.registrarContato({ regiaoId: rg.id, nome: 'Outra', whatsapp: '33999990001' }).ok, false, 'mesmo WhatsApp não entra duas vezes');
 });
 
@@ -96,21 +93,22 @@ test('lista pública (Receita): entra "na lista", CNPJ repetido não duplica, fo
   assert.equal(p.removerRegiao(rg.id).ok, false, 'região com contato não sai');
 });
 
-test('WhatsApp: link com texto pronto só pros toques de mensagem; a 1ª diz a fonte e todas oferecem o SAIR', () => {
+test('WhatsApp: só depois do e-mail, com o texto do dono; depois dele, acabou', () => {
   const rg = p.salvarRegiao({ nome: 'Serra Gaúcha', uf: 'RS' }, { agora: D0 }).regiao;
-  p.importarLista(rg.id, [{ cnpj: '40000000000101', nome: 'AGRO SERRA', segmento: 'Máquinas agrícolas | Peças', whatsapp: '54999990000' }], { fonte: 'Receita', agora: D0 });
-  const achar = () => p.painel({ agora: D0, regiaoId: rg.id, loja: 'Bolso Cheio', vendedor: 'Ana' }).contatos.find((c) => c.cnpj === '40000000000101');
+  p.importarLista(rg.id, [{ cnpj: '40000000000101', nome: 'AGRO SERRA', segmento: 'Máquinas agrícolas | Peças', whatsapp: '54999990000', email: 'agro@serra.com' }], { fonte: 'Receita', agora: D0 });
+  const achar = () => p.painel({ agora: D0, regiaoId: rg.id }).contatos.find((c) => c.cnpj === '40000000000101');
   let c = achar();
-  assert.equal(c.wa.toque, 1);
-  const t1 = decodeURIComponent(c.wa.url);
-  assert.match(t1, /^https:\/\/wa\.me\/5554999990000\?text=/);
-  assert.match(t1, /Aqui é Ana, da Bolso Cheio/); assert.match(t1, /Receita Federal/); assert.match(t1, /SAIR/);
-  const m = p.mover(c.id, 'contatado', { canal: 'whatsapp', por: 'Ana', agora: D0 }).contato;
-  assert.equal(m.historico.at(-1).canal, 'whatsapp');
+  assert.equal(c.wa, null, 'na lista: o 1º contato é o e-mail, não o WhatsApp');
+  assert.equal(p.marcarEmailEnviado(c.id, { id: 'msg-1', agora: D0 }).ok, true);
   c = achar();
-  assert.equal(c.wa.toque, 2); assert.match(decodeURIComponent(c.wa.url), /SAIR/);
-  p.mover(c.id, 'toque', { agora: dias(5) });
-  assert.equal(achar().wa, null, 'o 3º toque é ligação, não mensagem');
+  assert.equal(c.etapa, 'contatado'); assert.equal(c.historico.at(-1).canal, 'email');
+  assert.equal(c.wa.toque, 2);
+  const t = decodeURIComponent(c.wa.url);
+  assert.match(t, /^https:\/\/wa\.me\/5554999990000\?text=/);
+  assert.match(t, /Te enviei um e-mail apresentando o Bolso Cheio e uma proposta de parceria para a AGRO SERRA/);
+  assert.match(t, /encerro aqui no sistema e agradeço pelo seu tempo\. Fico no aguardo!/);
+  p.mover(c.id, 'toque', { canal: 'whatsapp', agora: dias(5) });
+  assert.equal(achar().wa, null, 'depois da última tentativa não tem outro WhatsApp');
 });
 
 test('pediu pra sair: apaga contato pessoal, bloqueia o número e não volta na importação nem no cadastro manual', () => {
@@ -167,4 +165,25 @@ test('fontes: cada lista mostra de onde veio, com o site oficial da Receita', ()
   assert.match(rf.url, /^https:\/\/dados\.gov\.br\//);
   assert.match(rf.arquivos, /^https:\/\/arquivos\.receitafederal\.gov\.br\//);
   assert.deepEqual(f.map((x) => x.n), [...f.map((x) => x.n)].sort((a, b) => b - a), 'a maior fonte primeiro');
+});
+
+test('e-mail do dia 0: modelo do dono com {EMPRESA} e saudação; lote em rodízio por região, sem e-mail repetido; conta o dia', () => {
+  const modelo = 'ASSUNTO: Parceria para a {EMPRESA} — teste\n\n{Bom dia | Boa tarde}, equipe da {EMPRESA}!\n\nCorpo.\n\nANEXO: x.pdf\n';
+  const manha = p.emailApresentacao({ nome: 'AGRO X' }, modelo, { agora: new Date('2026-09-28T12:00:00Z') });
+  assert.equal(manha.assunto, 'Parceria para a AGRO X — teste');
+  assert.match(manha.texto, /^Bom dia, equipe da AGRO X!/);
+  assert.doesNotMatch(manha.texto, /ANEXO|ASSUNTO|\{/);
+  assert.match(p.emailApresentacao({ nome: 'Y' }, modelo, { agora: new Date('2026-09-28T17:00:00Z') }).texto, /^Boa tarde/);
+  assert.match(p.emailApresentacao({ nome: 'CNPJ 123' }, modelo).texto, /equipe da sua empresa/, 'sem nome na base: nunca "CNPJ 123"');
+  const a = p.salvarRegiao({ nome: 'A', uf: 'AM' }, { agora: D0 }).regiao; const b = p.salvarRegiao({ nome: 'B', uf: 'RR' }, { agora: D0 }).regiao;
+  p.importarLista(a.id, [1, 2, 3].map((i) => ({ cnpj: String(51000000000100 + i), nome: `AM${i}`, email: i === 3 ? 'contador@x.com' : `am${i}@x.com` })), { fonte: 'Receita', agora: D0 });
+  p.importarLista(b.id, [1, 2].map((i) => ({ cnpj: String(52000000000100 + i), nome: `RR${i}`, email: i === 2 ? 'contador@x.com' : `rr${i}@x.com` })), { fonte: 'Receita', agora: D0 });
+  const lote = p.loteEmail({ limite: 50 }).filter((c) => /^(AM|RR)\d$/.test(c.nome));
+  const i1 = lote.findIndex((c) => c.nome === 'AM1'), i2 = lote.findIndex((c) => c.nome === 'RR1');
+  assert.ok(i1 >= 0 && i2 >= 0 && Math.abs(i1 - i2) <= p.painel().regioes.length, 'rodízio: as duas regiões aparecem logo no começo do lote');
+  assert.equal(lote.filter((c) => c.email === 'contador@x.com').length, 1, 'o mesmo e-mail não recebe duas vezes no lote');
+  const antes = p.emailsHoje(D0);
+  p.marcarEmailEnviado(lote[0].id, { agora: D0 });
+  assert.equal(p.emailsHoje(D0), antes + 1);
+  assert.equal(p.marcarEmailEnviado(lote[0].id, { agora: D0 }).ok, false, 'não marca duas vezes');
 });

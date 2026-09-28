@@ -36,8 +36,34 @@ writeFileSync(join(casa, 'console', 'sessoes.json'), JSON.stringify({ [hs(tAdmin
 
 const porta = 19600 + Math.floor(Math.random() * 90); const base = `http://127.0.0.1:${porta}`;
 const log = join(casa, 'painel.log');
+/* SMTP FALSO (TLS, certificado gerado na hora): recebe e guarda — nada sai da máquina.
+   "recusa@" responde 550, pra provar que falha não vira "enviado". */
+const { execFileSync } = await import('node:child_process');
+const tls = await import('node:tls');
+execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=127.0.0.1', '-keyout', join(casa, 'k.pem'), '-out', join(casa, 'c.pem')], { stdio: 'ignore' });
+const caixa = [];
+const smtp = tls.createServer({ key: readFileSync(join(casa, 'k.pem')), cert: readFileSync(join(casa, 'c.pem')) }, (sock) => {
+  let buf = '', dados = false, msg = { para: null, corpo: '' };
+  const w = (l) => sock.write(l + '\r\n');
+  w('220 falso ESMTP');
+  sock.on('data', (d) => {
+    buf += d.toString('latin1');
+    if (dados) { const f = buf.indexOf('\r\n.\r\n'); if (f < 0) { return; } msg.corpo = buf.slice(0, f); buf = buf.slice(f + 5); dados = false; caixa.push(msg); msg = { para: null, corpo: '' }; w('250 OK id-' + caixa.length); }
+    let i;
+    while (!dados && (i = buf.indexOf('\r\n')) >= 0) {
+      const l = buf.slice(0, i); buf = buf.slice(i + 2);
+      if (/^EHLO/i.test(l)) { w('250 ok'); } else if (/^AUTH LOGIN/i.test(l)) { w('334 VXNlcm5hbWU6'); msg.auth = 1; }
+      else if (msg.auth === 1) { w('334 UGFzc3dvcmQ6'); msg.auth = 2; } else if (msg.auth === 2) { w('235 ok'); msg.auth = 0; }
+      else if (/^MAIL FROM/i.test(l)) { w('250 ok'); } else if (/^RCPT TO:<(.+)>/i.test(l)) { msg.para = /<(.+)>/.exec(l)[1]; w(/^recusa@/.test(msg.para) ? '550 recusado' : '250 ok'); }
+      else if (/^DATA/i.test(l)) { w('354 manda'); dados = true; } else if (/^QUIT/i.test(l)) { w('221 tchau'); sock.end(); } else { w('250 ok'); }
+    }
+  });
+});
+await new Promise((ok) => smtp.listen(0, '127.0.0.1', ok));
+process.on('exit', () => smtp.close());
 const painel = spawn(process.execPath, [join(RAIZ, 'backend/server.mjs')], { cwd: RAIZ, stdio: ['ignore', openSync(log, 'a'), openSync(log, 'a')],
-  env: { PATH: process.env.PATH, HOME: casa, VS_HOME: casa, PORT: String(porta), HOST: '127.0.0.1', CRM_ENABLED: '1', RATE_CRM: '1000000', PAINEL_URL: base, TRANSCRICAO_DESLIGADA: '1' } });
+  env: { PATH: process.env.PATH, HOME: casa, VS_HOME: casa, PORT: String(porta), HOST: '127.0.0.1', CRM_ENABLED: '1', RATE_CRM: '1000000', PAINEL_URL: base, TRANSCRICAO_DESLIGADA: '1',
+    SMTP_HOST: '127.0.0.1', SMTP_PORT: String(smtp.address().port), SMTP_USER: 'contato@prova', SMTP_PASS: 'x', NODE_TLS_REJECT_UNAUTHORIZED: '0', PROSP_EMAIL_DIA: '3', PROSP_EMAIL_PAUSA_MS: '0' } });
 process.on('exit', () => { try { painel.kill('SIGTERM'); } catch { /* saiu */ } });
 for (let i = 0; i < 80; i++) { try { if ((await fetch(base + '/health')).ok) { break; } } catch { /* subindo */ } await espera(250); }
 const api = async (rota, corpo, tok = tAdmin) => { const r = await fetch(`${base}/crm/api/${rota}`, { method: corpo ? 'POST' : 'GET', headers: { 'content-type': 'application/json', 'x-crm-token': tok }, body: corpo ? JSON.stringify(corpo) : undefined }); return { status: r.status, ...(await r.json().catch(() => ({}))) }; };
@@ -111,7 +137,8 @@ try {
   ok('importados aparecem como "não contatado", sem etapa "Na lista"', /não contatado/.test(vi) && !/Na lista \(não contatado\)/.test(vi));
   ok('alertas de qualidade: DDD de fora e e-mail repetido', /DDD 61 é de fora de BA/.test(vi) && /e-mail repetido/.test(vi));
   const agro = (await api('prospeccao')).contatos.find((c) => c.cnpj === '11111111000191');
-  ok('1ª mensagem (automática) diz que o contato veio da Receita Federal e tem SAIR', /Receita Federal/.test(imp.mensagem(agro, 1)) && /SAIR/.test(imp.mensagem(agro, 1)));
+  const em1 = imp.emailApresentacao(agro, readFileSync(join(RAIZ, 'docs/prospeccao/email-1a-mensagem.txt'), 'utf8'));
+  ok('1º contato (e-mail automático) diz que o contato veio da Receita Federal e tem SAIR', /AGRO BARREIRAS/.test(em1.assunto) && /Receita Federal/.test(em1.texto) && /SAIR/.test(em1.texto));
   for (const cnpj of ['11111111000191', '22222222000191']) { const c = (await api('prospeccao')).contatos.find((x) => x.cnpj === cnpj); await api('prospeccao/mover', { id: c.id, etapa: 'contatado' }); }
   await pa.reload({ waitUntil: 'load' }); await espera(2500);
   await pa.locator('tr', { hasText: 'AGRO BARREIRAS' }).locator('button', { hasText: 'Respondeu' }).click(); await espera(1200);
@@ -147,6 +174,41 @@ try {
   const pdfBuf = Buffer.from(await pdf.arrayBuffer());
   ok('PDF do balanço sai', pdf.ok && pdfBuf.subarray(0, 4).toString() === '%PDF', `${pdf.status} · ${pdfBuf.length} bytes`);
   if (TELAS && pdf.ok) { writeFileSync(join(TELAS, 'balanco.pdf'), pdfBuf); }
+  // ── e-mail do dia 0 (regra do dono) ──
+  imp.importarLista(oeste.id, [['MAIL UM', 'um@lojas.com'], ['MAIL DOIS', 'recusa@lojas.com'], ['MAIL TRES', 'tres@lojas.com'], ['MAIL QUATRO', 'quatro@lojas.com']]
+    .map(([nome, email], i) => ({ cnpj: String(66000000000100 + i), nome, cidade: 'BARREIRAS', email, whatsapp: `7799997000${i}` })), { fonte: 'Receita Federal — dados abertos do CNPJ (2026-09)' });
+  await pa.goto(`${base}/crm?t=${tAdmin}#prospeccao`, { waitUntil: 'load' }); await espera(2500);
+  const env0 = await api('prospeccao/envio');
+  ok('cartão de envio: configurado, limite do dia 3, ninguém enviado ainda', env0.configurado && env0.limiteDia === 3 && env0.hoje === 0 && (await pa.locator('.prosp-envio').count()) === 1);
+  ok('vendedora não vê nem dispara o envio', (await api('prospeccao/envio', null, tAna)).status === 403 && (await api('prospeccao/envio', { quantos: 3, confirmar: true }, tAna)).status === 403);
+  await pa.locator('.prosp-envio button', { hasText: 'Ver o e-mail' }).click(); await espera(500);
+  const pv = await pa.locator('.prosp-mail').innerText();
+  ok('prévia do e-mail: modelo do dono, com o nome da empresa, sem campo em aberto', /Parceria para a /.test(pv) && /sou CEO da VDG Sistemas/.test(pv) && /18 anos de estrada/.test(pv) && /Receita Federal/.test(pv) && /SAIR/.test(pv) && !/\{/.test(pv));
+  ok('nada rosa nem na janela', await pa.evaluate(() => { const b = document.querySelector('#modalF .btn-p'); return !b || /21, 128, 61|26, 145, 66/.test(getComputedStyle(b).backgroundImage); }));
+  await pa.locator('#modalF button').first().click(); await espera(300);
+  await pa.locator('.prosp-envio button', { hasText: 'Enviar lote de 3' }).click(); await espera(400);
+  await pa.locator('#modalF button', { hasText: 'Enviar agora' }).click();
+  for (let i = 0; i < 40 && (await api('prospeccao/envio')).job?.rodando !== false; i++) { await espera(300); }
+  const env1 = await api('prospeccao/envio');
+  ok('lote: 3 tentativas, a recusada NÃO conta como enviada', env1.job.total === 3 && env1.job.falhas >= 0 && env1.job.enviados + env1.job.falhas === 3, JSON.stringify({ e: env1.job.enviados, f: env1.job.falhas }));
+  const aceitos = caixa.filter((m) => !/^recusa@/.test(m.para));
+  ok('e-mails chegaram ao servidor com o PDF do portfólio anexado', aceitos.length === env1.job.enviados && aceitos.every((m) => /multipart\/mixed/.test(m.corpo) && /filename="portfolio-bolso-cheio-agro\.pdf"/.test(m.corpo) && /JVBER/.test(m.corpo)), `${aceitos.length} na caixa`);
+  const dEnv = await api('prospeccao');
+  const enviadas = dEnv.contatos.filter((c) => c.historico?.some((h) => h.canal === 'email'));
+  ok('quem recebeu virou "contatado" pelo e-mail; a recusada continua na lista', enviadas.length === env1.job.enviados && enviadas.every((c) => c.etapa === 'contatado'));
+  ok('limite do dia respeitado: não cabe mais nenhum hoje', env1.hoje === env1.job.enviados && (await api('prospeccao/envio', { quantos: 10, confirmar: true })).ok === (env1.cabe > 0));
+  const futuro = imp.painel({ agora: new Date(Date.now() + 5 * 86400000 + 60000), limite: 100 }).contatos.find((c) => c.id === enviadas[0]?.id);
+  ok('dia 5: WhatsApp da última tentativa, com o texto do dono', futuro?.proximo?.vencido && /Te enviei um e-mail apresentando o Bolso Cheio/.test(decodeURIComponent(futuro?.wa?.url || '')) && /Fico no aguardo/.test(decodeURIComponent(futuro?.wa?.url || '')));
+  // respostas prontas
+  await pa.reload({ waitUntil: 'load' }); await espera(2500);
+  const linha = pa.locator('tr', { hasText: enviadas[0].nome });
+  await linha.locator('button', { hasText: 'Respostas prontas' }).click(); await espera(800);
+  const rp = await pa.locator('#modalB').innerText();
+  ok('respostas prontas: grosseria, "de onde veio o número" e sem interesse, cordiais', /Foi grosso/.test(rp) && /pedimos desculpas pelo transtorno/.test(rp) && /dados públicos de empresas da Receita Federal/.test(rp) && /agradecemos pelo seu tempo/.test(rp) && /A Veloso Solution deseja/.test(rp));
+  await Promise.all([pa.context().waitForEvent('page', { timeout: 5000 }).then((pp) => pp.close()).catch(() => {}), pa.locator('#modalB button', { hasText: 'Mandar no WhatsApp' }).first().click()]);
+  await espera(1500);
+  const gro = (await api('prospeccao')).contatos.find((c) => c.id === enviadas[0].id);
+  ok('resposta à grosseria apaga o contato e bloqueia o número', gro.optout && !gro.whatsapp && !gro.email);
   const cel = await (await nav.newContext({ viewport: { width: 375, height: 800 } })).newPage();
   await cel.goto(`${base}/crm?t=${tAna}#prospeccao`, { waitUntil: 'load' }); await espera(2500);
   ok('celular: sem rolagem lateral na página', await cel.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));

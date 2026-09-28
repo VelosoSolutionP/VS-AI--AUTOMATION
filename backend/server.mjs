@@ -57,6 +57,7 @@ import * as integ from '../engine/vsintegracoes/index.mjs';
 import * as orc from '../engine/vsorcamentos/index.mjs';
 import * as orcSrv from './orcamentos.mjs';
 import * as prosp from '../engine/vsprospeccao/index.mjs';
+import * as prospEnvio from './prospeccao-envio.mjs';
 import { dentroDaCasa } from '../engine/casa.mjs';
 
 /* Pagamento confirmado por QUALQUER caminho → o lead do pedido vira Ganho no
@@ -1282,7 +1283,7 @@ const server = createServer(async (req, res) => {
        na tela nao protege nada. */
     if (quem.papel === 'vendedor') {
       if (req.method === 'GET' && rota === '/crm/api/minha-conta') { return json(res, 200, { papel: 'vendedor', email: quem.email, ...quemAtende(quem) }); }
-      const livre = (req.method === 'GET' && ['/crm/api/atendimentos', '/crm/api/atendimentos/historico', '/crm/api/atendimentos/historico/detalhe', '/crm/api/canais/telegram', '/crm/api/seguranca/pendentes', '/crm/api/orcamentos', '/crm/api/orcamentos/pdf', '/crm/api/prospeccao'].includes(rota))
+      const livre = (req.method === 'GET' && ['/crm/api/atendimentos', '/crm/api/atendimentos/historico', '/crm/api/atendimentos/historico/detalhe', '/crm/api/canais/telegram', '/crm/api/seguranca/pendentes', '/crm/api/orcamentos', '/crm/api/orcamentos/pdf', '/crm/api/prospeccao', '/crm/api/prospeccao/respostas'].includes(rota))
         || (req.method === 'POST' && ['/crm/api/atendimentos/responder', '/crm/api/atendimentos/assumir', '/crm/api/atendimentos/devolver', '/crm/api/atendimentos/encerrar', '/crm/api/atendimentos/finalizar',
           '/crm/api/orcamentos/salvar', '/crm/api/orcamentos/enviar', '/crm/api/orcamentos/cancelar', '/crm/api/orcamentos/duplicar', '/crm/api/orcamentos/cobrar',
           '/crm/api/prospeccao/contato', '/crm/api/prospeccao/mover'].includes(rota));
@@ -1595,6 +1596,13 @@ const server = createServer(async (req, res) => {
        catálogo pra montar — o vendedor não tem acesso ao Estoque, e orçamento
        sem catálogo seria digitar preço de cabeça. */
     /* Prospecção: o vendedor indo atrás do cliente, região por região. */
+    /* Envio automático do e-mail do dia 0 (só o dono: vendedor não chega aqui). */
+    if (req.method === 'GET' && rota === '/crm/api/prospeccao/envio') {
+      if (quem.papel === 'vendedor') { return json(res, 403, { erro: 'área restrita ao administrador' }); }
+      let previa = null; try { previa = prospEnvio.previa(); } catch (e) { previa = { erro: e.message }; }
+      return json(res, 200, { ...prospEnvio.estado(), previa });
+    }
+    if (req.method === 'GET' && rota === '/crm/api/prospeccao/respostas') { return json(res, 200, { respostas: prosp.respostas() }); }
     if (req.method === 'GET' && rota === '/crm/api/prospeccao') {
       const u = new URL(req.url, 'http://x').searchParams;
       return json(res, 200, prosp.painel({ regiaoId: u.get('regiao') || null, busca: u.get('busca') || '', etapa: u.get('etapa') || '', limite: Number(u.get('limite')) || 10, pagina: Number(u.get('pagina')) || 1,
@@ -2170,6 +2178,10 @@ const server = createServer(async (req, res) => {
         /* Prospecção: plano, regiões e abordagem são do dono; contato e etapa, de quem prospecta. */
         case '/crm/api/prospeccao/plano': r = prosp.salvarPlano(d, { por: quem.email || null }); break;
         case '/crm/api/prospeccao/regiao': r = prosp.salvarRegiao(d); break;
+        case '/crm/api/prospeccao/envio':
+          r = d.confirmar === true ? prospEnvio.iniciar(d.quantos, { por: quem.email || null }) : { ok: false, motivo: 'confirme o envio' };
+          if (r.ok) { console.log(`[prospeccao] lote de ${r.total} e-mail(s) iniciado por ${quem.email}`); }
+          break;
         case '/crm/api/prospeccao/regiao/remover': r = prosp.removerRegiao(String(d.id || '')); break;
         case '/crm/api/prospeccao/abordagem': r = prosp.trocarAbordagem(String(d.regiaoId || ''), String(d.abordagem || ''), { por: quem.email || null, motivo: d.motivo }); break;
         case '/crm/api/prospeccao/contato': r = prosp.registrarContato(d, { por: quemAtende(quem).nome || quem.email || null }); break;

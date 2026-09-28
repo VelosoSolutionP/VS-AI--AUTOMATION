@@ -1481,7 +1481,11 @@ body.aud-apresentar main{margin:0!important;max-width:none!important} body.aud-a
 .prosp-hoje{color:var(--warn)}.prosp-esg{color:var(--err);font-size:12.5px}
 .prosp-sel{font-size:12.5px;padding:5px 8px;max-width:150px}
 .prosp-filtros{display:flex;flex-wrap:wrap;gap:8px;width:100%}.prosp-filtros input{flex:1;min-width:200px}.prosp-filtros select{max-width:220px}
-.prosp-fonte{opacity:.75}.prosp-fonte a{color:inherit;text-decoration:underline dotted;text-underline-offset:2px}.prosp-fonte a:hover{color:var(--ac)}
+.prosp-fonte{opacity:.75}
+.prosp-resp{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--panel-2)}.prosp-resp p{margin:6px 0 10px;font-size:14px}
+.prosp-envio{margin-bottom:14px;border-color:var(--ok-line)}.prosp-envio .prosp-h b{display:flex;align-items:center;gap:8px}.prosp-envio .prosp-h svg{width:18px;height:18px;color:var(--ok)}
+.prosp-prog{display:flex;align-items:center;gap:12px;margin:4px 0 8px}.prosp-prog span{flex:1;height:7px;border-radius:9px;background:var(--line);overflow:hidden}.prosp-prog i{display:block;height:100%;background:var(--ok);transition:width .4s}
+.prosp-mail{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--panel-2)}.prosp-mail pre{white-space:pre-wrap;font:13.5px/1.55 inherit;margin:10px 0 0;font-family:inherit}.prosp-fonte a{color:inherit;text-decoration:underline dotted;text-underline-offset:2px}.prosp-fonte a:hover{color:var(--ac)}
 .prosp-fontes{display:flex;flex-wrap:wrap;align-items:center;gap:6px;width:100%;min-width:0}.prosp-fontes>small{color:var(--muted)}
 .prosp-fch{display:inline-flex;align-items:center;gap:8px;max-width:100%;min-width:0;padding:4px 10px;border:1px solid var(--line);border-radius:99px;background:var(--raised);font-size:12px;transition:border-color .15s}
 .prosp-fch:hover{border-color:var(--line-2)}
@@ -1490,8 +1494,8 @@ body.aud-apresentar main{margin:0!important;max-width:none!important} body.aud-a
 .prosp-fch a{flex:none;color:var(--ok);text-decoration:none;font-weight:600}.prosp-fch a:hover{text-decoration:underline}
 .prosp-fch-mais{cursor:help;color:var(--muted)}
 /* Nada rosa na Prospecção (dono, 28/09): o destaque aqui é verde. */
-.prosp-tela .btn-p{background:linear-gradient(180deg,#1a9142,#15803d);border-color:#15803d;color:#fff;box-shadow:0 8px 20px -12px #15803d}
-.prosp-tela .btn-p:hover{filter:brightness(1.08)}
+body.rota-prosp .btn-p{background:linear-gradient(180deg,#1a9142,#15803d);border-color:#15803d;color:#fff;box-shadow:0 8px 20px -12px #15803d}
+body.rota-prosp .btn-p:hover{filter:brightness(1.08)}
 .prosp-tela .prosp-fechou{border-color:var(--ok-line);color:var(--ok)}
 .btn.prosp-ligar{background:linear-gradient(180deg,#1a9142,#15803d);border:1px solid #15803d;color:#fff;box-shadow:0 6px 16px -10px #15803d}
 .btn.prosp-ligar:hover{filter:brightness(1.1);transform:translateY(-1px)}
@@ -6485,7 +6489,26 @@ function telaOrcamentos(){
 let PROSP=null, PROSP_REG='', PROSP_Q='', PROSP_ET_F='', PROSP_PAG=1, PROSP_TAM=10;
 const PROSP_SIT={lista:['Lista pronta','b-warn'],'nao-iniciada':['Não iniciada',''],andamento:['Em andamento','b-ok'],trocar:['Trocar abordagem','b-err']};
 const PROSP_ET={'na-lista':'',contatado:'b-warn',respondeu:'b-ok',demonstracao:'b-ok',cliente:'b-ok','sem-resposta':'b-err','nao-quer':''};
+let PROSP_ENV=null, PROSP_ENV_TM=null;
+async function carregarEnvio(){
+  if(ehVendedor()) return;
+  try{ PROSP_ENV=await apiCru('prospeccao/envio'); }catch{ PROSP_ENV=null; }
+  clearTimeout(PROSP_ENV_TM);
+  if(PROSP_ENV?.job?.rodando) PROSP_ENV_TM=setTimeout(async()=>{ await carregarEnvio(); if(!PROSP_ENV?.job?.rodando) await carregarProsp(true); else if(rota==='prospeccao') render(); },3000);
+}
+function prospPrevia(){
+  const v=PROSP_ENV?.previa; if(!v||v.erro) return avisoErro('Não consegui montar a prévia',esc(v?.erro||''));
+  abrirModal('Como o e-mail vai sair',`<p class="hint">Para: <b>${esc(v.para||'—')}</b> · anexo: <b>${esc(v.anexo)}</b></p>
+    <div class="prosp-mail"><b>${esc(v.assunto)}</b><pre>${esc(v.texto)}</pre></div>`,BT.fechar(),{classe:'modal-orc'});
+}
+function prospEnviarLote(){
+  const ev=PROSP_ENV; const n=Math.min(ev.cabe,50);
+  confirmar({titulo:`Enviar ${n} e-mail(s) agora`,texto:`Sai o e-mail do dia 0 com o portfólio para ${n} empresa(s) da lista — um por vez, com pausa. Quem receber entra na cadência: no dia 5, o WhatsApp da última tentativa.`,
+    consequencia:`Limite de hoje: ${ev.limiteDia}. Não dá pra desfazer um e-mail enviado.`,rotulo:'Enviar agora',icone:'enviar',perigo:false,
+    aoConfirmar:async()=>{ const r=await api('prospeccao/envio',{quantos:n,confirmar:true}); if(!r.ok) return avisoErro('Não enviei',esc(r.motivo||'')); flash(`Lote de ${r.total} e-mail(s) começou.`,'ok'); await carregarEnvio(); render(); }});
+}
 async function carregarProsp(forcar){
+  if(!PROSP_ENV&&!ehVendedor()) await carregarEnvio();
   if(PROSP&&!forcar) return PROSP;
   try{ PROSP=await api('prospeccao?'+new URLSearchParams({regiao:PROSP_REG,busca:PROSP_Q,etapa:PROSP_ET_F,pagina:PROSP_PAG,limite:PROSP_TAM})); }catch(e){ PROSP={erro:e.message}; }
   if(rota==='prospeccao') render();
@@ -6526,7 +6549,7 @@ function telaProspeccao(){
       <td>${ehVendedor()?'':botao({t:r.trocar&&r.sugestao?`Trocar p/ ${p.abordagens[r.sugestao].split(' (')[0]}`:'Trocar abordagem',ic:'atualizar',v:r.trocar?'p':'g',sz:'xs',on:`prospTrocar('${esc(r.id)}')`})}</td></tr>`; }).join('');
   const lista=p.contatos;
   const nomeReg=(id)=>p.regioes.find(r=>r.id===id)?.nome||'—';
-  const prox=(c)=>c.etapa==='na-lista'?(c.email?'<small>1ª mensagem automática por e-mail <span class="prosp-pend">envio ainda não ligado</span></small>':'<small>sem e-mail — ligar</small>'):!c.proximo?'—':c.proximo.esgotado?'<span class="prosp-esg">cadência acabou — sem resposta?</span>':`${prospData(c.proximo.quando)}<small class="orc-sub">${esc(c.proximo.oque||'')}</small>${c.proximo.vencido?' <b class="prosp-hoje">vencido</b>':''}`;
+  const prox=(c)=>c.etapa==='na-lista'?(c.email?'<small>e-mail automático no próximo lote</small>':'<small>sem e-mail — fica fora do automático</small>'):!c.proximo?'—':c.proximo.esgotado?'<span class="prosp-esg">cadência acabou — sem resposta?</span>':`${prospData(c.proximo.quando)}<small class="orc-sub">${esc(c.proximo.oque||'')}</small>${c.proximo.vencido?' <b class="prosp-hoje">vencido</b>':''}`;
   /* A etapa não se escolhe num menu: ela anda pelo que aconteceu. O botão do WhatsApp
      abre a conversa com o texto pronto e já registra o toque; o resto são os resultados. */
   const b=(t,et,ic='check',v='g')=>(c)=>botao({t,ic,v,sz:'xs',on:`prospMover('${esc(c.id)}','${et}')`});
@@ -6534,14 +6557,19 @@ function telaProspeccao(){
      não há botão nenhum, a mensagem sai sozinha. O 3º contato (dia 10) é de gente: só
      aí aparece o "Ligar" (e o WhatsApp). Quem já respondeu também ganha os dois. */
   const tel=(c)=>{ const n=String(c.whatsapp||c.telefone||'').replace(/\D/g,'').replace(/^55(?=\d{10,11}$)/,''); return n.length>=10?n:''; };
-  const vezDeGente=(c)=>!c.optout&&((c.etapa==='contatado'&&c.toques>=2&&c.proximo?.vencido)||['respondeu','demonstracao'].includes(c.etapa));
+  /* Dia 5: a ÚLTIMA tentativa é o WhatsApp, pela mão de gente, com o texto do dono.
+     Depois dela, sem resposta = encerra ("não adianta insistir"). */
+  const vezDeGente=(c)=>!c.optout&&['respondeu','demonstracao'].includes(c.etapa);
   const acoes=(c)=>{ const out=[]; const n=tel(c); const gente=vezDeGente(c);
+    if(c.wa&&c.proximo?.vencido) out.push(botao({t:'WhatsApp · última tentativa',ic:'whats',v:'p',sz:'xs',on:`prospWhats('${esc(c.id)}')`,tit:'Abre a conversa com o texto pronto — você aperta enviar'}));
+    if(c.etapa==='contatado'&&c.toques>=2) out.push(b('Sem resposta — encerrar','sem-resposta','fechar','s')(c));
     if(n&&gente) out.push(`<a class="btn btn-xs prosp-ligar" href="tel:+55${esc(n)}" onclick="prospLigou('${esc(c.id)}')" title="Liga para (${esc(n.slice(0,2))}) ${esc(n.slice(2))}">${ico('telefone')}<span>Ligar</span></a>`);
     if(c.whatsapp&&gente) out.push(`<a class="btn btn-g btn-xs" href="https://wa.me/55${esc(String(c.whatsapp).replace(/^55/,''))}" target="_blank" rel="noopener" title="Abre a conversa no WhatsApp">${ico('whats')}<span>WhatsApp</span></a>`);
-    if(c.etapa==='contatado'){ out.push(b('Respondeu','respondeu','check','s')(c)); if(c.proximo?.esgotado) out.push(b('Sem resposta','sem-resposta','fechar')(c)); }
+    if(c.etapa==='contatado') out.push(b('Respondeu','respondeu','check','s')(c));
     if(c.etapa==='respondeu') out.push(b('Demonstração','demonstracao','ver','s')(c));
     if(['respondeu','demonstracao'].includes(c.etapa)) out.push(botao({t:'Fechou',ic:'check',v:'s',sz:'xs',on:`prospMover('${esc(c.id)}','cliente')`,extra:'prosp-fechou'}));
     if(['contatado','respondeu','demonstracao'].includes(c.etapa)) out.push(b('Sem interesse','nao-quer','fechar')(c));
+    if(!c.optout&&['contatado','respondeu','demonstracao'].includes(c.etapa)) out.push(botao({t:'Respostas prontas',ic:'enviar',v:'s',sz:'xs',on:`prospRespostas('${esc(c.id)}')`,tit:'Grosseria, "de onde veio meu número", sem interesse'}));
     if(!c.optout&&c.etapa!=='na-lista'&&c.etapa!=='cliente') out.push(botao({t:'Pediu pra sair',ic:'fechar',v:'g',sz:'xs',on:`prospSair('${esc(c.id)}')`,tit:'Apaga o contato e bloqueia o número (LGPD)'}));
     if((c.historico||[]).length>1) out.push(botao({t:'Histórico',ic:'relogio',v:'g',sz:'xs',on:`prospHistorico('${esc(c.id)}')`}));
     return out.join(''); };
@@ -6559,7 +6587,15 @@ function telaProspeccao(){
       <td>${c.etapa==='na-lista'?'<small class="hint">não contatado</small>':`<span class="badge ${PROSP_ET[c.etapa]||''}" style="margin-left:0">${esc(c.optout?'Pediu pra sair':p.etapas[c.etapa]||c.etapa)}</span><small class="orc-sub">${c.etapa==='contatado'?`${c.toques} toque(s) · `:''}${prospData(ult(c)?.em)}</small>`}</td>
       <td>${prox(c)}</td>
       <td><div class="orc-acoes">${acoes(c)}</div></td></tr>`).join('');
-  return '<div class="prosp-tela">'+head('Prospecção de clientes',esc(pl.nome),acts)+topo+
+  const ev=PROSP_ENV, jb=ev?.job;
+  const envio=ehVendedor()?'':!ev?'':`<div class="card prosp-envio"><div class="prosp-h"><b>${ico('enviar')} Envio automático por e-mail — dia 0</b>
+      <small>${ev.configurado?`${ev.hoje} de ${ev.limiteDia} enviados hoje · cabem mais ${ev.cabe}`:'<span class="prosp-pend">e-mail do servidor não configurado</span>'}</small></div>
+      ${jb?.rodando?`<div class="prosp-prog"><span><i style="width:${Math.round((jb.enviados+jb.falhas)/jb.total*100)}%"></i></span><small>Enviando: ${jb.enviados} de ${jb.total}${jb.falhas?` · ${jb.falhas} falha(s)`:''}</small></div>`
+        :jb?`<p class="hint">Último lote: <b>${jb.enviados}</b> enviado(s)${jb.falhas?` · ${jb.falhas} falha(s)`:''}${jb.parou?` — ${esc(jb.parou)}`:''}.</p>`:''}
+      <p class="hint">Próximos: ${(ev.proximos||[]).map(x=>esc(x.nome)).join(' · ')||'ninguém com e-mail na lista'}${ev.cabe>5?' …':''}</p>
+      <div class="orc-acoes" style="justify-content:flex-start">${botao({t:'Ver o e-mail',ic:'ver',v:'s',sz:'xs',on:'prospPrevia()'})}
+        ${ev.configurado&&ev.cabe&&!jb?.rodando?botao({t:`Enviar lote de ${Math.min(ev.cabe,50)}`,ic:'enviar',v:'p',sz:'xs',on:'prospEnviarLote()'}):''}</div></div>`;
+  return '<div class="prosp-tela">'+head('Prospecção de clientes',esc(pl.nome),acts)+topo+envio+
     `<div class="card" style="margin-bottom:14px"><div class="prosp-h"><b>Regiões</b><small>Por empresa: 1ª mensagem no dia 0 · 2ª no dia ${p.cadencia[0]} (recebeu? 10 minutos?) · ligação no dia ${p.cadencia[1]}. Na abordagem da vez, 5 sem resposta e nenhum retorno = trocar.</small></div>
       <div class="tbl-wrap"><table class="tbl prosp-regs"><thead><tr><th>Região</th><th>UF</th><th>Abordagem da vez</th><th class="orc-n">Na lista</th><th class="orc-n">Contatados</th><th class="orc-n">Responderam</th><th class="orc-n">Demos</th><th class="orc-n">Clientes</th><th>Situação</th><th></th></tr></thead><tbody>${regs}</tbody></table></div></div>
     <div class="card"><div class="prosp-h"><b>Empresas e contatos</b><small>${p.filtrados.toLocaleString('pt-BR')} empresa(s)</small>${prospFontes(p.fontes)}
@@ -6598,6 +6634,25 @@ function prospWhats(id){
   const c=PROSP?.contatos.find(x=>x.id===id); if(!c?.wa) return;
   window.open(c.wa.url,'_blank','noopener');
   prospMover(id,c.wa.toque===1?'contatado':'toque',{canal:'whatsapp'});
+}
+/* As três situações que o dono sabe que vão acontecer: grosseria, "de onde veio meu
+   número" e sem interesse. Sempre cordial; as que encerram apagam e bloqueiam (LGPD). */
+let PROSP_RESP=null;
+async function prospRespostas(id){
+  const c=PROSP?.contatos.find(x=>x.id===id); if(!c) return;
+  try{ PROSP_RESP=(await apiCru('prospeccao/respostas')).respostas; }catch(e){ return avisoErro('Não consegui carregar as respostas',esc(e.message)); }
+  const wa=String(c.whatsapp||'').replace(/^55/,'');
+  abrirModal(`Respostas prontas · ${c.nome}`,PROSP_RESP.map((r,i)=>`<div class="prosp-resp"><b>${esc(r.titulo)}</b>${r.apaga?' <span class="badge b-warn">apaga o contato</span>':''}
+      <p id="prResp${i}">${esc(r.texto)}</p>
+      <div class="orc-acoes" style="justify-content:flex-start">${botao({t:'Copiar',ic:'copiar',v:'g',sz:'xs',on:`prospCopiar(${i})`})}
+      ${wa?botao({t:'Mandar no WhatsApp',ic:'whats',v:'p',sz:'xs',on:`prospMandarResp('${esc(id)}',${i})`}):''}</div></div>`).join(''),BT.fechar('Fechar'),{classe:'modal-orc'});
+}
+function prospCopiar(i){ const t=PROSP_RESP?.[i]?.texto||''; navigator.clipboard?.writeText(t).then(()=>flash('Resposta copiada.','ok'),()=>flash('Não consegui copiar — selecione o texto.','err')); }
+function prospMandarResp(id,i){
+  const c=PROSP?.contatos.find(x=>x.id===id), r=PROSP_RESP?.[i]; if(!c||!r) return;
+  window.open(`https://wa.me/55${String(c.whatsapp).replace(/^55/,'')}?text=${encodeURIComponent(r.texto)}`,'_blank','noopener');
+  fecharModal();
+  if(r.apaga) setTimeout(()=>prospMover(id,'saiu'),600); else flash('Resposta aberta no WhatsApp. Se a pessoa pedir, use "Pediu pra sair".','ok');
 }
 function prospSair(id){
   const c=PROSP?.contatos.find(x=>x.id===id); if(!c) return;
@@ -7348,6 +7403,8 @@ function render(){
   const t=TITULO[rota]||['Console'];
   document.getElementById('crumb').innerHTML=t.map((x,i)=>i===t.length-1?`<b>${esc(x)}</b>`:`<span class="pai">${esc(x)} <i>/</i></span>`).join(' ');
   /* Na caixa de conversas o aviso vai pro alto: embaixo ele tapava o botao de enviar. */
+  /* Nada rosa na Prospecção (dono, 28/09) — nem nas janelas que ela abre. */
+  document.body.classList.toggle('rota-prosp',rota==='prospeccao');
   document.body.classList.toggle('tela-chat',/^(wa|tg)-atendimento$|^(whats|tg)$/.test(rota));
   document.getElementById('view').innerHTML=faixaConsumo()+faixaIntegracoes()+(TELAS[rota]||telaVisao)();
   if(rota==='indicacao') trocaModelo();

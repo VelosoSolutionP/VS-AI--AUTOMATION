@@ -84,20 +84,29 @@ export async function testarLogin() {
  * Envia. `ok:true` só quando o servidor ACEITOU a mensagem (250 após o DATA) —
  * mesma regra do WhatsApp: nada de "enviado" por gentileza.
  */
-export async function enviarEmail({ para, assunto, texto, html }) {
+/**
+ * `anexos`: [{ nome, tipo, conteudo: Buffer }] — o portfólio da prospecção vai assim.
+ * `responderPara`: pra onde a resposta do destinatário vai (Reply-To).
+ */
+export async function enviarEmail({ para, assunto, texto, html, anexos = [], responderPara = null }) {
   if (!configurado()) { return { ok: false, erro: 'e-mail não configurado no servidor (SMTP_USER/SMTP_PASS)' }; }
   const destino = String(para || '').trim();
   if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(destino)) { return { ok: false, erro: `e-mail inválido: "${destino}"` }; }
   const de = process.env.SMTP_FROM || process.env.SMTP_USER;
   const nome = process.env.SMTP_NOME || 'Bolso Cheio';
   const limite = 'bc' + randomBytes(12).toString('hex');
+  const misto = 'bm' + randomBytes(12).toString('hex');
+  const temAnexo = Array.isArray(anexos) && anexos.length > 0;
+  const quebra = (b) => b.replace(/.{76}/g, '$&\r\n');
   const corpo = [
     `From: ${cab(nome)} <${de}>`,
     `To: <${destino}>`,
+    ...(responderPara ? [`Reply-To: <${String(responderPara).replace(/[<>\r\n]/g, '')}>`] : []),
     `Subject: ${cab(assunto)}`,
     `Date: ${new Date().toUTCString()}`,
     `Message-ID: <${randomBytes(10).toString('hex')}@velososolution.com.br>`,
     'MIME-Version: 1.0',
+    ...(temAnexo ? [`Content-Type: multipart/mixed; boundary="${misto}"`, '', `--${misto}`] : []),
     `Content-Type: multipart/alternative; boundary="${limite}"`,
     '',
     `--${limite}`,
@@ -111,6 +120,12 @@ export async function enviarEmail({ para, assunto, texto, html }) {
     '',
     b64(html || String(texto || '').replace(/\n/g, '<br>')).replace(/.{76}/g, '$&\r\n'),
     `--${limite}--`,
+    ...(temAnexo ? anexos.flatMap((a) => ['', `--${misto}`,
+      `Content-Type: ${a.tipo || 'application/octet-stream'}; name="${cab(a.nome)}"`,
+      'Content-Transfer-Encoding: base64',
+      `Content-Disposition: attachment; filename="${cab(a.nome)}"`,
+      '',
+      quebra(Buffer.from(a.conteudo).toString('base64'))]).concat(['', `--${misto}--`]) : []),
     '',
   ].join('\r\n');
   try {

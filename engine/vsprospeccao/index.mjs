@@ -59,11 +59,13 @@ export const ETAPAS = Object.freeze({
   contatado: 'Contatado', respondeu: 'Respondeu', demonstracao: 'Demonstração',
   cliente: 'Virou cliente', 'sem-resposta': 'Sem resposta', 'nao-quer': 'Não quer',
 });
-/* Cadência do dono (28/09): 1ª mensagem no dia 0; no dia 5, a 2ª ("recebeu? 10
-   minutos por telefone/WhatsApp?"); no dia 10, ligação de gente (vendedor ou o
-   dono). Depois disso, sem resposta. */
-export const CADENCIA = [5, 10];
-export const TOQUES = Object.freeze({ 1: '1ª mensagem — apresentação e portfólio', 2: '2ª mensagem — recebeu? 10 minutos?', 3: 'ligação (vendedor ou dono)' });
+/* Regra do dono (28/09, revista no mesmo dia: "mata a segunda e vamos só em duas"):
+   dia 0 = E-MAIL automático com a apresentação e o portfólio; dia 5 = WhatsApp, a
+   ÚLTIMA tentativa, pela mão de gente, com o texto dele; sem resposta, encerra —
+   "não adianta insistir". WhatsApp nunca é automático: mensagem fria em volume
+   bane o número da Micaela. */
+export const CADENCIA = [5];
+export const TOQUES = Object.freeze({ 1: 'e-mail — apresentação e portfólio', 2: 'WhatsApp — última tentativa' });
 export const MIN_SEM_RESPOSTA = 5;
 const RESPONDEU = ['respondeu', 'demonstracao', 'cliente', 'nao-quer'];
 /*
@@ -93,22 +95,61 @@ const DDD_UF = { AC: [68], AL: [82], AP: [96], AM: [92, 97], BA: [71, 73, 74, 75
  * (transparência) e todas oferecem o SAIR (oposição) — é o que sustenta o
  * legítimo interesse se alguém perguntar.
  */
-export function mensagem(c, toque, { loja = 'nossa empresa', vendedor = null } = {}) {
-  const quem = vendedor ? `Aqui é ${vendedor}, da ${loja}` : `Aqui é da ${loja}`;
-  const sair = 'Se preferir não receber nossas mensagens, é só responder SAIR que não entramos mais em contato.';
-  if (toque === 1) {
-    return `Olá! ${quem}. Encontramos o cadastro da ${c.nome} nos dados públicos de empresas da Receita Federal`
-      + `${c.segmento ? ` (${c.segmento.split(' | ')[0].toLowerCase()})` : ''} e acreditamos que podemos ajudar no dia a dia do seu negócio. `
-      + `Posso te mandar uma apresentação rápida?\n\n${sair}`;
-  }
-  return `Olá! ${quem} de novo. Conseguiu ver minha mensagem? Se tiver 10 minutos esta semana, te mostro como funciona — `
-    + `por aqui mesmo ou numa ligação rápida.\n\n${sair}`;
+export const saudacao = (agora = new Date()) => {
+  /* Horário de Brasília (UTC-3): antes do meio-dia, bom dia; até as 18h, boa tarde. */
+  const h = (new Date(agora).getUTCHours() + 21) % 24;
+  return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+};
+/** Nome pra falar com a empresa: sem nome na base, "sua empresa" — nunca "CNPJ 1234". */
+const nomeDe = (c) => (c.nome && !/^CNPJ \d/.test(c.nome) ? c.nome : null);
+
+/**
+ * Texto do WhatsApp — a ÚLTIMA tentativa (dia 5), com as palavras do dono. O 1º
+ * contato é o e-mail (emailApresentacao); o WhatsApp só entra depois dele.
+ */
+export function mensagem(c, toque = 2, { loja = 'Veloso Solution', vendedor = 'Fabiano', agora = new Date() } = {}) {
+  const emp = nomeDe(c) ? ` para a ${nomeDe(c)}` : '';
+  return `${saudacao(agora)}! Aqui é o ${vendedor || 'Fabiano'}, da ${loja}. Te enviei um e-mail apresentando o Bolso Cheio e uma proposta de parceria${emp}. `
+    + 'Você recebeu? Se tiver interesse, é só me responder por aqui pra darmos continuidade. '
+    + 'Se não, encerro aqui no sistema e agradeço pelo seu tempo. Fico no aguardo!';
+}
+
+/**
+ * O e-mail do dia 0, a partir do modelo aprovado pelo dono
+ * (docs/prospeccao/email-1a-mensagem.txt): troca {EMPRESA} e {Bom dia | Boa tarde}
+ * e separa o assunto. A linha da fonte (Receita) e o SAIR vêm do próprio modelo.
+ */
+export function emailApresentacao(c, modelo, { agora = new Date() } = {}) {
+  const emp = nomeDe(c) || 'sua empresa';
+  const t = String(modelo || '').replace(/\{EMPRESA\}/g, emp).replace(/\{Bom dia \| Boa tarde\}/g, saudacao(agora));
+  const m = /^ASSUNTO:\s*(.+)\n+/.exec(t);
+  const corpo = (m ? t.slice(m[0].length) : t).replace(/\n+ANEXO:.*$/s, '').trim();
+  return { assunto: (m ? m[1] : `Parceria para a ${emp}`).replace(/para a sua empresa/g, 'para sua empresa').trim(), texto: corpo };
+}
+
+/**
+ * Respostas prontas pras três situações que o dono sabe que vão acontecer (28/09).
+ * Sempre cordial — quem responde é a marca. As que encerram também apagam o
+ * contato e bloqueiam o número (LGPD): pedir desculpa e continuar mandando é pior.
+ */
+export function respostas({ agora = new Date() } = {}) {
+  const fim = `A Veloso Solution deseja ${saudacao(agora) === 'Bom dia' ? 'um bom dia' : saudacao(agora) === 'Boa tarde' ? 'uma boa tarde' : 'uma boa noite'}.`;
+  return [
+    { id: 'grosseria', titulo: 'Foi grosso ou faltou com respeito', apaga: true,
+      texto: `Entendemos, e pedimos desculpas pelo transtorno. Já estamos removendo o seu número do nosso cadastro e você não receberá mais mensagens nossas. ${fim}` },
+    { id: 'origem', titulo: 'Perguntou de onde veio o número', apaga: false,
+      texto: 'Seu contato veio dos dados públicos de empresas da Receita Federal (dados abertos do CNPJ) — é assim que nós, vendedores, trabalhamos para apresentar soluções às empresas. '
+        + `Se isso te incomodou, pedimos desculpas: é só nos avisar que apagamos o seu contato na hora. ${fim}` },
+    { id: 'sem-interesse', titulo: 'Não tem interesse / pediu pra parar', apaga: true,
+      texto: `Tudo bem, agradecemos pelo seu tempo e pedimos desculpas pelo incômodo. Já estamos apagando o seu contato do nosso cadastro. ${fim}` },
+  ];
 }
 
 /** Link wa.me com o texto do próximo toque — só pros toques que são mensagem (1º e 2º). */
 function linkWhatsapp(c, opts) {
   if (!c.whatsapp) { return null; }
-  const toque = c.etapa === 'na-lista' ? 1 : c.etapa === 'contatado' && c.toques === 1 ? 2 : null;
+  /* Só a última tentativa (dia 5) é WhatsApp — e só depois que o e-mail saiu. */
+  const toque = c.etapa === 'contatado' && c.toques === 1 && !c.optout ? 2 : null;
   if (!toque) { return null; }
   return { toque, url: `https://wa.me/55${c.whatsapp}?text=${encodeURIComponent(mensagem(c, toque, opts))}` };
 }
@@ -225,6 +266,49 @@ export function registrarContato(d = {}, { por = null, agora = new Date() } = {}
   db.contatos.push(c);
   gravar(db);
   return { ok: true, contato: comProximo(c, agora) };
+}
+
+/**
+ * Quem recebe o e-mail do dia 0: na lista, com e-mail, sem pedido de saída. Um
+ * pouco de cada região por vez (rodízio), pra comparar os estados desde o 1º lote.
+ * E-mail que se repete em várias empresas (contador, genérico) fica por último.
+ */
+export function loteEmail({ limite = 50 } = {}) {
+  const db = ler();
+  const contagem = new Map();
+  for (const c of db.contatos) { if (c.email) { contagem.set(c.email, (contagem.get(c.email) || 0) + 1); } }
+  const fila = new Map(db.regioes.map((r) => [r.id, []]));
+  for (const c of db.contatos) {
+    if (c.etapa !== 'na-lista' || !c.email || c.optout || !fila.has(c.regiaoId)) { continue; }
+    fila.get(c.regiaoId).push(c);
+  }
+  for (const l of fila.values()) { l.sort((a, b) => (contagem.get(a.email) - contagem.get(b.email)) || String(a.criadoEm).localeCompare(String(b.criadoEm))); }
+  const out = []; const jaEmail = new Set();
+  const listas = [...fila.values()];
+  while (out.length < limite && listas.some((l) => l.length)) {
+    for (const l of listas) {
+      while (l.length && jaEmail.has(l[0].email)) { l.shift(); }
+      if (l.length && out.length < limite) { const c = l.shift(); jaEmail.add(c.email); out.push(c); }
+    }
+  }
+  return out;
+}
+
+/** E-mail do dia 0 saiu (o servidor aceitou): entra na cadência, com o id da mensagem no histórico. */
+export function marcarEmailEnviado(contatoId, { id = null, agora = new Date() } = {}) {
+  const db = ler();
+  const c = db.contatos.find((x) => x.id === contatoId);
+  if (!c || c.etapa !== 'na-lista') { return { ok: false }; }
+  c.etapa = 'contatado'; c.toques = 1; c.contatadoEm = iso(agora); c.atualizadoEm = iso(agora);
+  c.historico.push({ em: iso(agora), evento: TOQUES[1], canal: 'email', por: 'envio automático', msg: id || null });
+  gravar(db);
+  return { ok: true };
+}
+
+/** Quantos e-mails do dia 0 saíram hoje (limite diário do provedor). */
+export function emailsHoje(agora = new Date()) {
+  const hoje = iso(agora).slice(0, 10);
+  return ler().contatos.filter((c) => (c.historico || []).some((h) => h.canal === 'email' && String(h.em).slice(0, 10) === hoje)).length;
 }
 
 /**
