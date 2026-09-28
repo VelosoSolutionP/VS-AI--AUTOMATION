@@ -45,6 +45,7 @@ import * as proto from '../engine/vsprotocolo/index.mjs';
 import * as planos from '../engine/vsplanos/index.mjs';
 import * as pagar from '../engine/vspagamentos/index.mjs';
 import * as fin from '../engine/vsfinanceiro/index.mjs';
+import * as caixaCanal from '../engine/vscaixa/index.mjs';
 import * as bot from '../engine/vsbot/index.mjs';
 import * as profissoes from '../engine/vsbot/profissoes.mjs';
 import * as docs from '../engine/vsdocumentos/index.mjs';
@@ -1571,6 +1572,20 @@ const server = createServer(async (req, res) => {
        isso no status faria a tela inteira esperar por uma imagem. */
     /* Resultado comercial de um canal: receita comprovada, pedidos, conversao,
        oportunidades e campanhas. Leads atendidos saem do CRM (trilha do canal). */
+    /* Vendas do dia de UM canal (o que vendeu, pico, mais vendidos) + o caixa
+       desse canal (aberto com o esperado até agora, e os últimos fechamentos). */
+    if (req.method === 'GET' && rota === '/crm/api/vendas-dia') {
+      const u = new URL(req.url, 'http://x');
+      const canal = u.searchParams.get('canal') === 'telegram' ? 'telegram' : 'whatsapp';
+      const pagamentos = pagar.listar();
+      const cx = caixaCanal.estado(canal);
+      const vendasCaixa = cx.aberto ? resultados.vendasEntre({ canal, de: cx.aberto.abertoEm, ate: new Date(Date.now() + 60000), pagamentos }) : null;
+      return json(res, 200, {
+        dia: resultados.doDia({ canal, dia: u.searchParams.get('dia'), pagamentos }),
+        caixa: caixaCanal.estado(canal, { vendas: vendasCaixa }),
+        fechamentos: caixaCanal.historico(canal, { limite: 10 }),
+      });
+    }
     if (req.method === 'GET' && rota === '/crm/api/resultados') {
       const u = new URL(req.url, 'http://x');
       const canal = u.searchParams.get('canal') === 'telegram' ? 'telegram' : 'whatsapp';
@@ -2440,6 +2455,16 @@ const server = createServer(async (req, res) => {
           break;
         }
         case '/crm/api/caixa': r = fin.criar(d); break;
+        /* Caixa do CANAL (abertura/fechamento), separado do livro-caixa acima.
+           O fechamento grava o retrato das vendas desde a abertura. */
+        case '/crm/api/caixa-canal/abrir': r = caixaCanal.abrir({ canal: d.canal, troco: d.troco, quem: quem.email }); break;
+        case '/crm/api/caixa-canal/movimento': r = caixaCanal.movimentar({ canal: d.canal, tipo: d.tipo, valor: d.valor, motivo: d.motivo, quem: quem.email }); break;
+        case '/crm/api/caixa-canal/fechar': {
+          const cx = caixaCanal.estado(d.canal);
+          const vendas = cx.aberto ? resultados.vendasEntre({ canal: d.canal, de: cx.aberto.abertoEm, ate: new Date(Date.now() + 60000), pagamentos: pagar.listar() }) : null;
+          r = caixaCanal.fechar({ canal: d.canal, contado: d.contado, maquininha: d.maquininha, obs: d.obs, quem: quem.email, vendas });
+          break;
+        }
         case '/crm/api/caixa/editar': r = fin.editar(d.id, d.mudancas || {}); break;
         case '/crm/api/caixa/excluir': r = fin.excluir(d.id, { motivo: d.motivo }); break;
         case '/crm/api/caixa/restaurar': r = fin.restaurar(d.id); break;

@@ -271,3 +271,85 @@ export function resumo({ canal, dias = 30, agora, pagamentos = [], leads = {} } 
     regra: 'Entra como receita do canal só o pedido que o bot gerou numa conversa deste canal e cujo pagamento o gateway confirmou.',
   };
 }
+
+/* ── o dia (tela "Vendas do dia", por canal) ────────────────────────────── */
+
+/* Dia e hora de BRASÍLIA. Cortar o ISO (UTC) jogava a venda das 22h no dia
+   seguinte — justo a hora de pico de delivery. */
+const FMT_DIA = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' });
+const FMT_HORA = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hourCycle: 'h23' });
+export const diaBr = (quando = new Date()) => FMT_DIA.format(new Date(quando));
+export const horaBr = (quando) => Number(FMT_HORA.format(new Date(quando))) % 24;
+/** 00:00 de Brasília de um dia AAAA-MM-DD (UTC-3 o ano todo desde 2019). */
+const inicioDoDiaBr = (dia) => new Date(`${dia}T00:00:00-03:00`);
+
+/**
+ * Tudo o que um canal vendeu entre dois instantes: o que o dono quer ver no
+ * fim do dia e o que o caixa confere no fechamento.
+ *
+ *  - VENDIDO: pagamento confirmado no gateway (a mesma regra da receita).
+ *  - NA ENTREGA: pedido sem cobrança ("pago na entrega") — é pedido e é
+ *    dinheiro/maquininha que entra na mão, não no banco; fica à parte.
+ *  - AGUARDANDO: cobrança gerada e ainda não paga. Cancelado/estornado some.
+ * Pico e mais vendidos contam o que é venda de fato (vendido + na entrega).
+ */
+export function vendasEntre({ canal, de, ate, pagamentos = [] } = {}) {
+  const a = new Date(de); const b = new Date(ate);
+  const porId = new Map((pagamentos || []).map((p) => [String(p.id), p]));
+  const lista = ler().pedidos
+    .filter((p) => p.canal === canal && new Date(p.criadoEm) >= a && new Date(p.criadoEm) < b)
+    .map((p) => {
+      const pg = p.pagamentoId ? porId.get(p.pagamentoId) : null;
+      const situacao = !p.pagamentoId ? 'entrega' : PAGO.includes(pg?.estado) ? 'pago' : MORTO.includes(pg?.estado) ? 'cancelado' : 'aguardando';
+      return { ...p, situacao, metodo: pg?.metodo || null };
+    })
+    .sort((x, y) => String(x.criadoEm).localeCompare(String(y.criadoEm)));
+  const soma = (s) => lista.filter((p) => p.situacao === s).reduce((t, p) => t + p.valorCentavos, 0);
+  const vendas = lista.filter((p) => p.situacao === 'pago' || p.situacao === 'entrega');
+
+  const porHora = Array.from({ length: 24 }, (_, h) => ({ hora: h, pedidos: 0, centavos: 0 }));
+  for (const p of vendas) { const h = porHora[horaBr(p.criadoEm)]; h.pedidos += 1; h.centavos += p.valorCentavos; }
+  /* Pico = a hora com MAIS pedidos (é gente pra atender); empate, a de mais dinheiro. */
+  const pico = vendas.length ? porHora.reduce((m, h) => (h.pedidos > m.pedidos || (h.pedidos === m.pedidos && h.centavos > m.centavos) ? h : m)) : null;
+
+  const itens = new Map();
+  for (const p of vendas) {
+    for (const i of p.itens || []) {
+      if (i.taxa || !i.nome) { continue; } // taxa de entrega não é produto
+      const g = itens.get(i.nome) || { nome: i.nome, qtd: 0, centavos: 0 };
+      g.qtd += 1; g.centavos += Number(i.valorCentavos) || 0;
+      itens.set(i.nome, g);
+    }
+  }
+  const vendidoCentavos = soma('pago');
+  const naEntregaCentavos = soma('entrega');
+  return {
+    canal, de: a.toISOString(), ate: b.toISOString(),
+    vendidoCentavos,
+    naEntregaCentavos,
+    aguardandoCentavos: soma('aguardando'),
+    pedidos: vendas.length,
+    pedidosAguardando: lista.filter((p) => p.situacao === 'aguardando').length,
+    ticketMedioCentavos: vendas.length ? Math.round((vendidoCentavos + naEntregaCentavos) / vendas.length) : 0,
+    porHora,
+    pico: pico && { hora: pico.hora, pedidos: pico.pedidos, centavos: pico.centavos },
+    maisVendidos: [...itens.values()].sort((x, y) => y.qtd - x.qtd || y.centavos - x.centavos).slice(0, 5),
+    lista: lista.map((p) => ({ referencia: p.referencia, criadoEm: p.criadoEm, hora: horaBr(p.criadoEm), nome: p.nome, telefone: p.telefone,
+      valorCentavos: p.valorCentavos, situacao: p.situacao, metodo: p.metodo, itens: (p.itens || []).filter((i) => !i.taxa).map((i) => i.nome) })),
+  };
+}
+
+/** Um dia de calendário de Brasília (padrão: hoje), com o mesmo dia da semana passada pra comparar. */
+export function doDia({ canal, dia, pagamentos = [], agora = new Date() } = {}) {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(String(dia || '')) ? dia : diaBr(agora);
+  const ini = inicioDoDiaBr(d);
+  const fim = new Date(ini.getTime() + 86400000);
+  const semIni = new Date(ini.getTime() - 7 * 86400000);
+  const sem = vendasEntre({ canal, de: semIni, ate: new Date(fim.getTime() - 7 * 86400000), pagamentos });
+  return {
+    ...vendasEntre({ canal, de: ini, ate: fim, pagamentos }),
+    dia: d,
+    hoje: d === diaBr(agora),
+    semanaPassada: { dia: diaBr(new Date(semIni.getTime() + 43200000)), vendidoCentavos: sem.vendidoCentavos, naEntregaCentavos: sem.naEntregaCentavos, pedidos: sem.pedidos },
+  };
+}

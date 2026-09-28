@@ -1069,6 +1069,38 @@ body.sem-nav main,body.sem-nav .main{margin-left:0!important}
 
 /* Resultados: receita com o dobro da largura; no celular volta a uma coluna */
 .kpis-res{grid-template-columns:2fr 1fr 1fr 1fr;gap:14px}
+.vd-dia{display:flex;gap:6px;align-items:center;flex-wrap:nowrap}
+.vd-dia input[type=date]{width:auto;flex:none;height:32px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--fg);font:inherit;color-scheme:light dark}
+.vd-kpis{grid-template-columns:1.6fr 1fr 1fr 1fr}
+.vd-kpis .kpi-dinheiro b{font-size:34px;letter-spacing:-.03em}
+.vd-grid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px;align-items:start}
+.vd-centro{display:grid;gap:16px;min-width:0}
+.vd-duo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:16px}
+.vd-lado{position:sticky;top:16px}
+.g-barra.vd-pico{fill:var(--ok)}
+.vd-top{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}.vd-top:last-child{border-bottom:0}
+.vd-top-n{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--raised);font-size:12px;font-weight:700;flex:none}
+.vd-top-t{flex:1;min-width:0}.vd-top-t b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vd-top-b{height:6px;border-radius:99px;background:var(--raised);margin-top:5px;overflow:hidden}.vd-top-b i{display:block;height:100%;background:var(--serie-receita,var(--ac));border-radius:99px}
+.vd-top-v{text-align:right;font-weight:700;font-size:13px}.vd-top-v small{display:block;color:var(--muted);font-weight:400;font-size:11.5px}
+.vd-lista{max-height:420px;overflow:auto}
+.vd-hora{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12.5px;width:40px;flex:none}
+.vd-valor{font-variant-numeric:tabular-nums;white-space:nowrap}
+.vd-cx-l{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:13.5px}
+.vd-cx-l b{font-variant-numeric:tabular-nums}
+.vd-cx-tot{border-bottom:0;border-top:1px solid var(--line-2);margin-top:4px;padding-top:10px;font-size:15px}.vd-cx-tot b{color:var(--ok);font-size:18px}
+.vd-cx-nota{margin:8px 0 0;font-size:12px}
+.vd-cx-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.vd-cx-acts .btn-p{margin-left:auto}
+.vd-cx-hist{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+.vd-cx-hist h4{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 6px}
+.vd-cx-h{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;font-size:12.5px}
+.vd-cx-h span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vd-cx-h b.sobe{color:var(--ok)}.vd-cx-h b.desce{color:var(--err)}
+.vd-previa{margin:12px 0 0;font-weight:650;min-height:1.2em}.vd-previa.ok{color:var(--ok)}.vd-previa.info{color:var(--warn)}.vd-previa.err{color:var(--err)}
+@media (max-width:1320px){.vd-kpis{grid-template-columns:1fr 1fr}}
+@media (max-width:1100px){.vd-duo{grid-template-columns:1fr}}
+@media (max-width:980px){.vd-grid{grid-template-columns:1fr}.vd-lado{position:static}.vd-kpis{grid-template-columns:1fr 1fr}}
+@media (max-width:520px){.vd-kpis{grid-template-columns:1fr}.vd-dia .btn span{display:none}}
 .kpis-res .kpi-dinheiro b{font-size:38px;letter-spacing:-.04em;margin-top:2px}
 .kpis-res .kpi-dinheiro{box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 0 0 1px color-mix(in srgb,var(--t2) 22%,transparent),var(--sh-2)}
 @media(max-width:1100px){.kpis-res{grid-template-columns:1fr 1fr}.kpis-res .kpi-dinheiro{grid-column:1/-1}}
@@ -1713,6 +1745,8 @@ const GRUPOS=[
       como o Bot do Telegram mora no Telegram. */
    {id:'whats',nome:'WhatsApp',icone:'whats',filhos:[
      {id:'wa-atendimento',nome:'Atendimento'},
+     /* Fim do dia: o que vendeu, pico e o caixa DESTE canal (dono, 28/09, layout B). */
+     {id:'wa-vendas',nome:'Vendas do dia'},
      {id:'bot-regras',nome:'Bot — regras e comportamento'},
      {id:'wa-personalizar',nome:'Bot — personalizar'},
      {id:'canais',nome:'Canal e conexão'},
@@ -1724,6 +1758,7 @@ const GRUPOS=[
       o funil sao os mesmos — quem escreve por la cai no mesmo atendimento. */
    {id:'tg',nome:'Telegram',icone:'telegram',filhos:[
      {id:'tg-atendimento',nome:'Atendimento'},
+     {id:'tg-vendas',nome:'Vendas do dia'},
      {id:'tg-bot',nome:'Bot do Telegram'},
      /* Resultado e Consumo separados de proposito: consumo diz quanto se
         conversou; resultado diz quanto isso virou dinheiro — e e o que vende. */
@@ -6093,6 +6128,8 @@ Object.assign(S,{
  'tg-auditor':()=>telaAuditorCanal('telegram'),
  'tg-consumo':()=>telaConsumoCanal('telegram'),
  'tg-resultados':()=>telaResultados('telegram'),
+ 'wa-vendas':()=>telaVendasDia('whatsapp'),
+ 'tg-vendas':()=>telaVendasDia('telegram'),
  'tg-campanhas':()=>telaCampanhas('telegram'),
  'qualificacao':()=>telaQualificacao(),
 });
@@ -8789,6 +8826,172 @@ function telaResultados(canal){
   </div>`;
   const regra=`<p class="hint regra">${ico('politica')}<span>${esc(r.regra)} Pedido “pagar na entrega” conta como pedido, nunca como receita.</span></p>`;
   return topo+kpis+(semVenda?comecar:grafico)+oportunidades+campanhas+regra;
+}
+
+/* ── Vendas do dia + caixa (layout B, dono 28/09) ────────────────────────
+   O dia no centro (o que vendeu, pico, mais vendidos, pedidos) e o caixa do
+   canal na lateral. Cada canal tem a SUA tela e o SEU caixa: nada do WhatsApp
+   aparece no Telegram, nem o inverso. */
+const VD={};            // canal -> resposta de vendas-dia
+const VD_DIA={};        // canal -> 'AAAA-MM-DD' escolhido (vazio = hoje)
+const hojeBr=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo'}).format(new Date());
+const horaMin=(iso)=>new Date(iso).toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit'});
+const dataCurta=(iso)=>new Date(iso).toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit'});
+async function carregarVendasDia(canal,forcar){
+  if(VD[canal]&&!forcar) return VD[canal];
+  try{ VD[canal]=await apiCru('vendas-dia?canal='+canal+(VD_DIA[canal]?'&dia='+VD_DIA[canal]:'')); }
+  catch(e){ VD[canal]={erro:e.message}; }
+  if(rota==='wa-vendas'||rota==='tg-vendas') render();
+  return VD[canal];
+}
+function vdTrocarDia(canal,dia){ VD_DIA[canal]=dia&&dia!==hojeBr()?dia:''; delete VD[canal]; render(); }
+function vdAndarDia(canal,passo){
+  const base=new Date((VD_DIA[canal]||hojeBr())+'T12:00:00-03:00'); base.setDate(base.getDate()+passo);
+  vdTrocarDia(canal,new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo'}).format(base));
+}
+/* Pedidos por hora, em colunas. O pico ganha a cor de destaque; horas vazias
+   nas pontas somem (00h-06h sem venda nao conta nada), as do meio ficam. */
+function graficoHoras(porHora,pico){
+  const usadas=porHora.filter(h=>h.pedidos).map(h=>h.hora);
+  const ini=Math.min(8,...usadas), fim=Math.max(20,...usadas);
+  const hs=porHora.slice(ini,fim+1);
+  const W=720,H=200,E=30,D=8,T=12,B=26;
+  const max=Math.max(1,...hs.map(h=>h.pedidos));
+  const teto=Math.max(2,Math.ceil(max/2)*2);
+  const faixa=(W-E-D)/hs.length, larg=Math.min(26,faixa*0.62);
+  const y=(v)=>T+(H-T-B)*(1-v/teto);
+  const ticks=[0,teto/2,teto];
+  return `<div class="grafico"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Pedidos por hora do dia">
+    ${ticks.map(t=>`<line x1="${E}" x2="${W-D}" y1="${y(t)}" y2="${y(t)}" class="g-grade"/><text x="${E-6}" y="${y(t)+4}" text-anchor="end" class="g-eixo">${t}</text>`).join('')}
+    ${hs.map((h,i)=>{ const cx=E+faixa*i+faixa/2; const alt=h.pedidos?Math.max(3,y(0)-y(h.pedidos)):0;
+      return `${alt?`<rect class="g-barra${pico&&h.hora===pico.hora?' vd-pico':''}" x="${cx-larg/2}" y="${y(0)-alt}" width="${larg}" height="${alt}" rx="4"><title>${h.hora}h: ${h.pedidos} pedido(s) · ${reais(h.centavos)}</title></rect>`:''}
+        ${i%2===0||hs.length<=12?`<text x="${cx}" y="${H-8}" text-anchor="middle" class="g-eixo">${h.hora}h</text>`:''}`; }).join('')}
+  </svg></div>`;
+}
+const VD_SIT={pago:['pago','b-ok'],entrega:['na entrega','b-warn'],aguardando:['aguardando',''],cancelado:['cancelado','']};
+function telaVendasDia(canal){
+  const tg=canal==='telegram', nomeCanal=tg?'Telegram':'WhatsApp';
+  const r=VD[canal];
+  if(!r) setTimeout(()=>carregarVendasDia(canal),0);
+  const dia=VD_DIA[canal]||hojeBr();
+  const seletor=`<div class="vd-dia">
+    ${botao({t:'Dia anterior',ic:'ant',v:'g',sz:'xs',on:`vdAndarDia('${canal}',-1)`})}
+    <input type="date" id="vdDia" value="${dia}" max="${hojeBr()}" onchange="vdTrocarDia('${canal}',this.value)" aria-label="Escolher o dia">
+    ${VD_DIA[canal]?botao({t:'Hoje',ic:'relogio',v:'s',sz:'xs',on:`vdTrocarDia('${canal}','')`}):''}
+    ${botao({t:'Atualizar',ic:'atualizar',v:'g',sz:'xs',on:`carregarVendasDia('${canal}',true)`})}</div>`;
+  const topo=head(`${nomeCanal} · Vendas do dia`,`O que o ${nomeCanal} vendeu, a hora de pico e o caixa. Hora de Brasília.`,seletor);
+  if(!r) return topo+`<div class="card"><p class="hint">Somando as vendas do dia…</p></div>`;
+  if(r.erro) return topo+`<div class="card">${cardH('alerta','Não consegui carregar as vendas',esc(r.erro),5,
+    botao({t:'Tentar de novo',ic:'atualizar',v:'s',on:`carregarVendasDia('${canal}',true)`}))}</div>`;
+  const d=r.dia, sp=d.semanaPassada;
+  const totDia=d.vendidoCentavos+d.naEntregaCentavos, totSem=sp.vendidoCentavos+sp.naEntregaCentavos;
+  const comp=totSem?`${totDia>=totSem?'+':''}${pctTxt((totDia-totSem)/totSem)} vs ${dataCurta(sp.dia+'T12:00:00-03:00')} (semana passada)`
+    :totDia?'sem venda no mesmo dia da semana passada':`nenhuma venda ${d.hoje?'hoje':'neste dia'} ainda`;
+  const kpis=`<div class="grid vd-kpis">
+    <div class="kpi kpi-dinheiro" style="--kt:var(--t2);--kt-bg:var(--t2-bg)"><div class="kpi-top"><span>Vendido</span><div class="chip">${ico('financeiro')}</div></div>
+      <b>${reais(d.vendidoCentavos)}</b><em class="${totSem&&totDia>totSem?'sobe':totSem&&totDia<totSem?'desce':''}">${esc(comp)}</em></div>
+    ${kpi('Pedidos',d.pedidos,d.pedidosAguardando?`+ ${d.pedidosAguardando} aguardando pagamento (${reais(d.aguardandoCentavos)})`:'pagos + na entrega',1,'check')}
+    ${kpi('Ticket médio',reais(d.ticketMedioCentavos),d.pedidos?'por pedido, com a entrega':'aparece com o 1º pedido',3,'relatorios')}
+    ${kpi('A receber na entrega',reais(d.naEntregaCentavos),'dinheiro ou maquininha, na mão',4,'estoque')}
+  </div>`;
+  const pico=d.pico?`<span class="badge b-ok">Pico: ${d.pico.hora}h–${d.pico.hora+1}h · ${d.pico.pedidos} pedido(s)</span>`:'';
+  const horas=`<div class="card">${cardH('relogio','Vendas por hora','Pedidos pagos e na entrega, pela hora em que foram feitos.',2,pico)}
+    ${d.pedidos?graficoHoras(d.porHora,d.pico)
+      :`<p class="vazio-curto"><b>Nenhuma venda ${d.hoje?'hoje':'neste dia'} pelo ${nomeCanal}.</b><small>O gráfico enche conforme o bot fecha pedidos.</small></p>`}
+    ${d.pedidos?`<details class="g-tabela"><summary>Ver como tabela</summary><div class="tbl-wrap"><table><thead><tr><th>Hora</th><th>Pedidos</th><th style="text-align:right">Valor</th></tr></thead><tbody>
+      ${d.porHora.filter(h=>h.pedidos).map(h=>`<tr><td>${h.hora}h–${h.hora+1}h</td><td>${h.pedidos}</td><td style="text-align:right">${reais(h.centavos)}</td></tr>`).join('')}</tbody></table></div></details>`:''}
+  </div>`;
+  const topQtd=Math.max(1,...d.maisVendidos.map(i=>i.qtd));
+  const mais=`<div class="card">${cardH('estoque','Mais vendidos','Unidades no dia (sem a taxa de entrega).',3)}
+    ${d.maisVendidos.length?d.maisVendidos.map((i,k)=>`<div class="vd-top"><span class="vd-top-n">${k+1}</span>
+      <div class="vd-top-t"><b>${esc(i.nome)}</b><div class="vd-top-b"><i style="width:${Math.round(100*i.qtd/topQtd)}%"></i></div></div>
+      <span class="vd-top-v">${i.qtd} un<small>${reais(i.centavos)}</small></span></div>`).join('')
+      :'<p class="vazio-curto"><b>Nada vendido ainda.</b><small>Os produtos aparecem aqui em ordem de saída.</small></p>'}</div>`;
+  const pedidos=`<div class="card">${cardH('check','Pedidos do dia',`${d.lista.length} no total, do mais novo pro mais velho.`,1)}
+    ${d.lista.length?`<div class="vd-lista">${d.lista.slice().reverse().map(p=>{ const [t,c]=VD_SIT[p.situacao]||[p.situacao,''];
+      return `<div class="stat-row"><span class="vd-hora">${horaMin(p.criadoEm)}</span>
+        <div class="lbl" style="flex:1;min-width:0">${esc(p.nome||'Cliente')} · <span class="cv-proto">${esc(p.referencia)}</span>
+          <small>${esc((p.itens||[]).join(', ').slice(0,90)||'pedido')}</small></div>
+        <span class="badge ${c}">${esc(t)}</span><b class="vd-valor">${reais(p.valorCentavos)}</b></div>`; }).join('')}</div>`
+      :'<p class="vazio-curto"><b>Nenhum pedido.</b><small>Cada pedido que o bot fecha entra aqui, com a hora.</small></p>'}</div>`;
+  return topo+`<div class="vd-grid"><div class="vd-centro">${kpis}${horas}<div class="vd-duo">${mais}${pedidos}</div></div>
+    <div class="vd-lado">${painelCaixa(canal,r)}</div></div>`;
+}
+function painelCaixa(canal,r){
+  const cx=r.caixa?.aberto, ult=r.caixa?.ultimo, fech=r.fechamentos||[];
+  const linha=(l,v,cls)=>`<div class="vd-cx-l${cls?' '+cls:''}"><span>${l}</span><b>${v}</b></div>`;
+  const hist=fech.length?`<div class="vd-cx-hist"><h4>Últimos fechamentos</h4>${fech.slice(0,6).map(f=>{
+      const dif=f.diferencaCentavos, cls=dif===0?'b-ok':dif>0?'b-warn':'b-err';
+      return `<div class="vd-cx-h"><span>${dataCurta(f.fechadoEm)} · ${horaMin(f.abertoEm)}–${horaMin(f.fechadoEm)}</span>
+        <span class="badge ${cls}" title="Contado ${reais(f.contadoCentavos)} · esperado ${reais(f.esperadoCentavos)}">${dif===0?'bateu':(dif>0?'sobrou ':'faltou ')+reais(Math.abs(dif))}</span></div>`; }).join('')}</div>`:'';
+  if(!cx){
+    return `<div class="card vd-caixa">${cardH('financeiro','Caixa fechado','Abra com o troco que está na gaveta.',4)}
+      ${ult?`<p class="hint">Último fechamento: ${dataCurta(ult.fechadoEm)} às ${horaMin(ult.fechadoEm)} · contado ${reais(ult.contadoCentavos)}.</p>`:'<p class="hint">Nenhum caixa aberto ainda neste canal.</p>'}
+      <div class="vd-cx-acts">${botao({t:'Abrir caixa',ic:'mais',v:'p',on:`vdAbrir('${canal}')`})}</div>${hist}</div>`;
+  }
+  const movs=(cx.movimentos||[]).slice().reverse();
+  return `<div class="card vd-caixa">${cardH('financeiro','Caixa aberto',`Desde ${dataCurta(cx.abertoEm)} às ${horaMin(cx.abertoEm)}${cx.abertoPor?' · '+esc(cx.abertoPor):''}`,2,'<span class="badge b-ok">aberto</span>')}
+    ${linha('Troco inicial',reais(cx.trocoCentavos))}
+    ${linha('Reforços','+ '+reais(cx.reforcosCentavos))}
+    ${linha('Sangrias','− '+reais(cx.sangriasCentavos))}
+    ${linha('Pago na entrega','+ '+reais(cx.naEntregaCentavos))}
+    ${linha('Deveria ter na gaveta',reais(cx.esperadoCentavos),'vd-cx-tot')}
+    <p class="hint vd-cx-nota">Pix e cartão pelo link (${reais(cx.vendidoCentavos)} desde a abertura) caem no banco, não na gaveta. Entrega paga na maquininha você informa ao fechar.</p>
+    <div class="vd-cx-acts">
+      ${botao({t:'Sangria',ic:'enviar',v:'s',sz:'xs',on:`vdMov('${canal}','sangria')`,tit:'Tirou dinheiro da gaveta'})}
+      ${botao({t:'Reforço',ic:'mais',v:'s',sz:'xs',on:`vdMov('${canal}','reforco')`,tit:'Pôs dinheiro na gaveta'})}
+      ${botao({t:'Fechar caixa',ic:'check',v:'p',sz:'xs',on:`vdFechar('${canal}')`})}</div>
+    ${movs.length?`<div class="vd-cx-hist"><h4>Movimentos</h4>${movs.map(m=>`<div class="vd-cx-h"><span>${horaMin(m.quando)} · ${esc(m.motivo)}</span>
+      <b class="${m.tipo==='sangria'?'desce':'sobe'}">${m.tipo==='sangria'?'−':'+'} ${reais(m.valorCentavos)}</b></div>`).join('')}</div>`:''}
+    ${hist}</div>`;
+}
+const vdNome=(canal)=>canal==='telegram'?'Telegram':'WhatsApp';
+function vdAbrir(canal){
+  abrirModal(`Abrir o caixa do ${vdNome(canal)}`,
+    `<div class="field"><label>Troco na gaveta (R$)</label><input id="vdTroco" inputmode="decimal" placeholder="Ex.: 100,00" value="0,00"></div>
+     <p class="hint" style="margin-top:8px">É o dinheiro que já está na gaveta pra dar troco. Sem troco, deixe 0,00.</p>`,
+    BT.cancelar()+`<button class="btn btn-p" onclick="vdEnviar('${canal}','abrir')">${ico('check')}<span>Abrir caixa</span></button>`,{classe:'modal-sm'});
+}
+function vdMov(canal,tipo){
+  const s=tipo==='sangria';
+  abrirModal(s?'Sangria — tirar da gaveta':'Reforço — pôr na gaveta',
+    `<div class="field"><label>Valor (R$)</label><input id="vdValor" inputmode="decimal" placeholder="Ex.: 50,00"></div>
+     <div class="field" style="margin-top:10px"><label>Motivo</label><input id="vdMotivo" maxlength="120" placeholder="${s?'Ex.: pagou o motoboy, depósito no banco':'Ex.: troco que veio do banco'}"></div>`,
+    BT.cancelar()+`<button class="btn btn-p" onclick="vdEnviar('${canal}','${tipo}')">${ico('salvar')}<span>Lançar</span></button>`,{classe:'modal-sm'});
+}
+function vdFechar(canal){
+  const cx=VD[canal]?.caixa?.aberto; if(!cx) return;
+  abrirModal(`Fechar o caixa do ${vdNome(canal)}`,
+    `<p class="hint" style="margin-bottom:10px">Conte o dinheiro da gaveta. Deveria ter <b>${reais(cx.esperadoCentavos)}</b>${cx.naEntregaCentavos?' (contando as entregas como dinheiro)':''}.</p>
+     <div class="field"><label>Dinheiro contado (R$)</label><input id="vdContado" inputmode="decimal" placeholder="Ex.: 350,00" oninput="vdPrevia('${canal}')"></div>
+     ${cx.naEntregaCentavos?`<div class="field" style="margin-top:10px"><label>Das entregas, quanto foi na maquininha? (R$)</label><input id="vdMaq" inputmode="decimal" value="0,00" oninput="vdPrevia('${canal}')"></div>`:''}
+     <div class="field" style="margin-top:10px"><label>Observação (opcional)</label><input id="vdObs" maxlength="300" placeholder="Ex.: faltou troco de 5"></div>
+     <p class="vd-previa" id="vdPrevia"></p>`,
+    BT.cancelar()+`<button class="btn btn-p" onclick="vdEnviar('${canal}','fechar')">${ico('check')}<span>Fechar caixa</span></button>`,{classe:'modal-sm'});
+}
+const vdCent=(v)=>{ const t=String(v||'').trim().replace(/^R\$\s*/i,'').replace(/\./g,'').replace(',','.'); return /^\d+(\.\d{1,2})?$/.test(t)?Math.round(Number(t)*100):null; };
+function vdPrevia(canal){
+  const cx=VD[canal]?.caixa?.aberto, el=document.getElementById('vdPrevia'); if(!cx||!el) return;
+  const cont=vdCent(document.getElementById('vdContado')?.value), maq=vdCent(document.getElementById('vdMaq')?.value||'0')||0;
+  if(cont==null){ el.textContent=''; return; }
+  const esp=cx.esperadoCentavos-maq, dif=cont-esp;
+  el.className='vd-previa '+(dif===0?'ok':dif>0?'info':'err');
+  el.textContent=dif===0?`Bateu certinho: ${reais(esp)}.`:`${dif>0?'Sobrando':'Faltando'} ${reais(Math.abs(dif))} (deveria ter ${reais(esp)}).`;
+}
+async function vdEnviar(canal,acao){
+  const v=(id)=>document.getElementById(id)?.value;
+  const corpo=acao==='abrir'?{canal,troco:v('vdTroco')||'0'}
+    :acao==='fechar'?{canal,contado:v('vdContado'),maquininha:v('vdMaq')||'0',obs:v('vdObs')}
+    :{canal,tipo:acao,valor:v('vdValor'),motivo:v('vdMotivo')};
+  const rotaApi=acao==='abrir'?'caixa-canal/abrir':acao==='fechar'?'caixa-canal/fechar':'caixa-canal/movimento';
+  try{
+    const r=await api(rotaApi,corpo);
+    fecharModal();
+    if(acao==='fechar'){ const f=r.fechamento, dif=f.diferencaCentavos;
+      avisoOk('Caixa fechado',`Contado ${reais(f.contadoCentavos)} · esperado ${reais(f.esperadoCentavos)} · ${dif===0?'bateu':(dif>0?'sobrou ':'faltou ')+reais(Math.abs(dif))}.`); }
+    else avisoOk(acao==='abrir'?'Caixa aberto':'Lançado',acao==='abrir'?`Troco inicial ${reais(r.caixa.trocoCentavos)}.`:`${acao==='sangria'?'Sangria':'Reforço'} de ${reais(r.movimento.valorCentavos)}.`);
+    await carregarVendasDia(canal,true);
+  }catch(e){ avisoErro('Não deu',esc(e.message)); }
 }
 
 function abrirRetomada(ref){
