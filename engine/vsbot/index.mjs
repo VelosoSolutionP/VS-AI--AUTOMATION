@@ -306,6 +306,28 @@ export function importarFluxoCsv(texto) {
   return { ok: true, ...r.resumo };
 }
 
+/* O fluxo pronto da profissão (engine/vsbot/profissoes → montarFluxo). O que
+   estava no ar vira cópia ao lado (fluxo.antes-profissional-<quando>.json) — é
+   trabalho de alguém e tem volta. Os ids da árvore nova ("inicio", "gente"…)
+   podem coincidir com os da velha, então quem estava no meio de um menu volta
+   pro começo; quem está com uma PESSOA continua com ela (handoffEm fica). */
+export function trocarFluxoPronto(passos = []) {
+  const v = validarFluxo(passos);
+  if (v.erros.length) { return { ok: false, erros: v.erros }; }
+  const antes = getFluxo();
+  let copia = null;
+  if (antes) {
+    copia = `${nomePorCanal('fluxo')}.antes-profissional-${new Date().toISOString().replace(/\D/g, '').slice(0, 12)}`;
+    mkdirSync(dir(), { recursive: true, mode: 0o700 });
+    writeFileSync(arqBase(copia), JSON.stringify(antes, null, 2), { mode: 0o600 });
+  }
+  save('fluxo', v.fluxo);
+  const tg = canalAtual() === 'telegram';
+  save('conversas', Object.fromEntries(Object.entries(conversas()).map(([de, c]) =>
+    [de, ehIdTelegram(de) === tg && c ? { ...c, passo: null, coletando: false } : c])));
+  return { ok: true, passos: v.fluxo.passos.length, copia: copia ? `${copia}.json` : null };
+}
+
 /* Apagar o fluxo zera onde cada conversa DESTE canal estava na arvore — so
    deste: apagar o fluxo do Telegram nao pode derrubar conversa do WhatsApp. */
 const ehIdTelegram = (de) => /^999\d{12}$/.test(String(de || ''));

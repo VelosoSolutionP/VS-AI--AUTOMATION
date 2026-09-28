@@ -46,6 +46,8 @@ import * as planos from '../engine/vsplanos/index.mjs';
 import * as pagar from '../engine/vspagamentos/index.mjs';
 import * as fin from '../engine/vsfinanceiro/index.mjs';
 import * as bot from '../engine/vsbot/index.mjs';
+import * as profissoes from '../engine/vsbot/profissoes.mjs';
+import { desenhar as desenharPasso, comPrecosDoCatalogo } from '../engine/vsbot/fluxo.mjs';
 import * as docs from '../engine/vsdocumentos/index.mjs';
 import * as clientes from '../engine/vsclientes/index.mjs';
 import * as clientesSrv from './clientes-servicos.mjs';
@@ -1803,7 +1805,7 @@ const server = createServer(async (req, res) => {
     // Um bot por canal: ?canal=telegram abre o bot do Telegram.
     if (req.method === 'GET' && rota === '/crm/api/bot') {
       const canalBot = new URL(req.url, 'http://x').searchParams.get('canal') === 'telegram' ? 'telegram' : 'whatsapp';
-      return json(res, 200, { canal: canalBot, ...bot.comCanal(canalBot, () => bot.painel()) });
+      return json(res, 200, { canal: canalBot, ...bot.comCanal(canalBot, () => bot.painel()), profissoes: profissoes.PROFISSOES, jeitos: profissoes.JEITOS });
     }
     /* Segurança de quem atende e de quem é atendido: config, responsáveis e
        o que aconteceu (auditoria). */
@@ -2358,6 +2360,41 @@ const server = createServer(async (req, res) => {
           break;
         }
         case '/crm/api/bot/config': r = bot.comCanal(d.canal, () => bot.salvarConfig(d)); break;
+        /* O atendente profissional pronto: o cliente escolhe nome, profissão e
+           jeito; os textos saem de engine/vsbot/profissoes. Sem `aplicar` só
+           mostra como fica (não mexe no atendimento no ar); com `aplicar` grava
+           no bot do canal.
+           O FLUXO pronto da profissão (com o Estoque da loja) entra sozinho só
+           onde NÃO há fluxo. Onde já há (a Micaela), fica o da loja — a menos
+           que venha `trocarFluxo: true`, e aí o velho vira cópia ao lado. */
+        case '/crm/api/bot/profissional': {
+          const loja = process.env.VITRINE_NOME;
+          const m = profissoes.montar({ nome: d.nome, profissao: d.profissao, jeito: d.jeito, loja });
+          if (!m.ok) { r = m; break; }
+          const produtos = estoque.doAtendimento();
+          const fx = profissoes.montarFluxo({ nome: d.nome, profissao: d.profissao, jeito: d.jeito, loja, produtos });
+          const atual = bot.comCanal(d.canal, () => bot.getFluxo());
+          /* Como o cliente vai ver: o "oi" e o galho de produtos, com os preços
+             de agora — o mesmo desenho que sai no WhatsApp. */
+          const vivo = comPrecosDoCatalogo({ inicio: 'inicio', passos: fx.passos }, produtos);
+          const ver = (id) => { const p = vivo.passos.find((x) => x.id === id); return p ? desenharPasso(p) : null; };
+          const idProdutos = ['produtos', 'cat-1', 'vitrine'].find((id) => vivo.passos.some((x) => x.id === id));
+          const fluxo = {
+            passos: fx.passos.length, categorias: fx.categorias, produtos: produtos.length,
+            inicio: ver('inicio'), vitrine: ver(idProdutos),
+            temFluxo: Boolean(atual), passosAtuais: atual?.passos?.length || 0,
+            vai: !atual ? 'entra' : (d.trocarFluxo === true ? 'troca' : 'fica'),
+          };
+          if (d.aplicar !== true) { r = { ok: true, previa: true, config: m.config, fluxo }; break; }
+          r = bot.comCanal(d.canal, () => bot.salvarConfig(m.config));
+          if (r?.ok !== false && fluxo.vai !== 'fica') {
+            const t = bot.comCanal(d.canal, () => bot.trocarFluxoPronto(fx.passos));
+            if (!t.ok) { r = { ok: false, erros: t.erros, motivo: 'os textos entraram, mas o fluxo pronto não' }; break; }
+            fluxo.copia = t.copia;
+          }
+          r = { ...r, config: m.config, fluxo };
+          break;
+        }
         case '/crm/api/seguranca/config': {
           /* Seguranca (socorro, moderacao) vale para OS DOIS bots: quem pede
              socorro no Telegram merece a mesma resposta que no WhatsApp. */
