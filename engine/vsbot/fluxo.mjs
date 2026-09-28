@@ -42,7 +42,7 @@ const SAUDACAO = /^(oi+|ola|eai+|e ai|eae|opa|opah|bom dia|boa tarde|boa noite|a
    demonstração" comeca com "ola", mas e um pedido: tratar como "oi" jogava o
    menu na cara de quem ja disse o que queria. */
 const PALAVRAS_OI = /\b(oi+|ola|eai+|e ai|eae|opa|opah|bom dia|boa tarde|boa noite|alo+|hey|hi|hello|tudo bem|tudo bom|td bem|blz|beleza|boa|bom|como vai|com|voce|vc|vcs|ai|ae|pessoal|gente|amigo|amiga)\b/g;
-const ehSaudacao = (t) => {
+export const ehSaudacao = (t) => {
   const n = norm(t);
   if (!SAUDACAO.test(n)) { return false; }
   return n.replace(PALAVRAS_OI, ' ').replace(/[^a-z0-9]+/g, ' ').trim().length < 4;

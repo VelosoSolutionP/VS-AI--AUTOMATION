@@ -8,7 +8,7 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, unlinkSy
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { responder, conversar, validarRegra, escolher, GATILHOS, pediuHumano, preencher } from './regras.mjs';
+import { responder, conversar, validarRegra, escolher, GATILHOS, pediuHumano, preencher, cumprimento } from './regras.mjs';
 import { validarFluxo, avancar, ACOES, comPrecosDoCatalogo, opcoesPendentes, emReais } from './fluxo.mjs';
 import * as moderacao from './moderacao.mjs';
 import * as emergencia from './emergencia.mjs';
@@ -43,7 +43,7 @@ function garantirCopia(n) {
 const load = (n, p = null) => { garantirCopia(n); try { return JSON.parse(readFileSync(arq(n), 'utf8')); } catch { return p; } };
 const save = (n, d) => { mkdirSync(dir(), { recursive: true, mode: 0o700 }); writeFileSync(arq(n), JSON.stringify(d, null, 2), { mode: 0o600 }); };
 
-export { responder, conversar, GATILHOS };
+export { responder, conversar, GATILHOS, cumprimento };
 
 import * as proto from '../vsprotocolo/index.mjs';
 
@@ -796,6 +796,7 @@ export function atender(texto, ctx = {}) {
       ...contexto,
       sinal: pctSinal ? emReais(Math.round((contexto.totalCentavos || 0) * pctSinal / 100)) : null,
       assistente: cfg.nome,
+      cumprimento: cumprimento(),
       nome: ctx.nome,
       empresa: ctx.empresa,
       pedido: resumoDoPedido(contexto.itens),

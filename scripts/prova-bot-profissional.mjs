@@ -71,7 +71,7 @@ try {
     await pg.click('.pz-nav .btn:has-text("Ver como fica")'); await espera(800);
     const conversa = await pg.locator('.pz-conversa').innerText();
     ok(`${nomeVp}: com fluxo, a prévia diz que a 1ª resposta é a do fluxo`, /a do seu fluxo de atendimento \(21 passos\)/.test(conversa));
-    ok(`${nomeVp}: prévia no jeito escolhido (passar pra gente)`, /Bora chamar reforço/.test(conversa));
+    ok(`${nomeVp}: prévia no jeito e na profissão escolhidos (vendedora brincalhona passa pra equipe de vendas)`, /Bora fechar esse pedido!.*equipe de vendas/.test(conversa));
     ok(`${nomeVp}: horário da prévia preenchido`, !/\{horario\}/.test(conversa));
     ok(`${nomeVp}: prévia NÃO mexe no bot no ar`, bot.getConfig().saudacao === (nomeVp === 'desktop' ? 'texto antigo' : bot.getConfig().saudacao));
     await tira('3-previa');
@@ -85,6 +85,31 @@ try {
       ok('ajuste fino continua lá, recolhido', (await pg.locator('details.pz-avancado').count()) === 1 && !(await pg.locator('details.pz-avancado').evaluate((d) => d.open)));
     }
   }
+  /* Loja SEM fluxo: aqui quem recebe o "oi" é o atendente — e ele tem de se
+     apresentar (antes caía no "não entendi… responda com o número de uma das
+     opções", que nem existiam), com bom dia/boa tarde/boa noite pela hora. */
+  bot.apagarFluxo();
+  const oiHora = /^(Bom dia|Boa tarde|Boa noite)! Eu sou Leo, do suporte da equipe Loja Prova\. Pode me contar o que aconteceu\?/;
+  const pg = await (await nav.newContext({ viewport: { width: 1366, height: 860 } })).newPage();
+  pg.on('pageerror', (e) => erros.push(`sem fluxo: ${e.message}`));
+  await pg.goto(`${base}/crm?t=${t}#wa-personalizar`, { waitUntil: 'load' }); await espera(2500);
+  await pg.fill('#pzwNome', 'Leo');
+  await pg.click('.pz-op:has-text("Suporte")');
+  await pg.click('.pz-nav .btn:has-text("Próximo")'); await espera(300);
+  await pg.click('.pz-op:has-text("Sério")');
+  await pg.click('.pz-nav .btn:has-text("Ver como fica")'); await espera(800);
+  const bolhas = await pg.locator('.pz-conversa .pz-bolha:not(.cli)').allInnerTexts();
+  await (TELAS ? pg.screenshot({ path: join(TELAS, 'sem-fluxo-previa.png'), fullPage: true }) : null);
+  ok('sem fluxo: a prévia mostra a saudação com o cumprimento da hora', oiHora.test(bolhas[0] || ''), bolhas[0]);
+  ok('sem fluxo: nenhuma variável crua na prévia', !bolhas.some((b) => /\{\w+\}/.test(b)));
+  ok('sem fluxo: o "não entendi" do suporte pede o problema, sem citar opções', /descrever o problema/.test(bolhas[1] || '') && !/uma das opções/.test(bolhas[1] || ''), bolhas[1]);
+  await pg.click('.pz-nav .btn:has-text("Ligar atendente")'); await espera(400);
+  await pg.locator('.modal .btn-p, [role=dialog] .btn-p').last().click(); await espera(2000);
+  const sim = await pg.evaluate(() => api('bot/simular', { canal: 'whatsapp', mensagens: ['oi'] }));
+  const resp = sim?.turnos?.[0]?.texto || '';
+  ok('sem fluxo, no ar: o simulador responde "oi" com a apresentação do Leo', oiHora.test(resp), resp);
+  const real = bot.atender('Olá!', { de: '5531900009999' });
+  ok('sem fluxo, no ar: o atendimento de verdade também se apresenta', real.tipo === 'saudacao' && oiHora.test(real.texto), real.texto);
   ok('nenhum erro de JavaScript', erros.length === 0, erros.join(' | '));
 } finally { await nav.close(); }
 const n = R.filter(Boolean).length;

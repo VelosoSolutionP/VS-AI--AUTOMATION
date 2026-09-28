@@ -1932,6 +1932,10 @@ let BOT_TG=null, BOT_CANAL='whatsapp';
 const naTelaTg=()=>typeof rota==='string'&&(rota==='tg'||rota.startsWith('tg-'));
 const botDaTela=()=>BOT_CANAL==='telegram'?BOT_TG:BOT;
 const nomeBot=()=>String((naTelaTg()?BOT_TG:BOT)?.config?.nome||'').trim()||'o atendimento';
+/* {cumprimento} e trocado pelo bot na hora do envio (bom dia/boa tarde/boa noite
+   em Brasilia); na tela mostramos o de agora, como o cliente veria. */
+const comCumprimento=(t)=>{ const h=Number(new Intl.DateTimeFormat('en-US',{timeZone:'America/Sao_Paulo',hour:'2-digit',hourCycle:'h23'}).format(new Date()));
+  return String(t??'').replace(/\{cumprimento\}/g,h>=5&&h<12?'Bom dia':h>=12&&h<18?'Boa tarde':'Boa noite'); };
 function canalTelegramSt(){ const on=TG?.estado==='conectado'; return {no_ar:on,via:'Telegram',numero:TG?.numero||null,rotulo:on?'no ar · Telegram':(TG?.estado||'desconectado'),telegram:true}; }
 /* Trocar de canal zera a conversa de teste: o teste de um bot nao e do outro. */
 function telaBotDo(canal){ if(BOT_CANAL!==canal){ BOT_CANAL=canal; if(typeof SIMULACAO!=='undefined') SIMULACAO=[]; EDITANDO_REGRA=null; } return S.bot(); }
@@ -3715,7 +3719,7 @@ function telaAtendentePronto(c){
       <div class="pz-nav">${botao({t:'Voltar',v:'s',on:'pzIr(1)'})}${botao({t:'Ver como fica',ic:'seta',v:'p',on:'pzIr(3)'})}</div>`;
   }else{
     const m=z.previa||{};
-    const bolha=(quando,txt)=>txt?`<div class="pz-quando">${esc(quando)}</div><div class="pz-bolha">${esc(txt).replace(/\n/g,'<br>')}</div>`:'';
+    const bolha=(quando,txt)=>txt?`<div class="pz-quando">${esc(quando)}</div><div class="pz-bolha">${esc(comCumprimento(txt)).replace(/\n/g,'<br>')}</div>`:'';
     corpo=`<div class="pz-conversa">
         <div class="pz-topo">${z.foto?`<img src="${z.foto}" alt="">`:`<span class="pz-av">${esc((z.nome||'?').slice(0,1).toUpperCase())}</span>`}
           <b>${esc(z.nome)}</b><small>${esc(PF[z.profissao]?.nome||'')} · ${esc(JT[z.jeito]?.nome||'')}</small></div>
@@ -5679,7 +5683,7 @@ const S={
           <div class="cel-id"><b id="pvNome">${esc(nomeBot())}</b><small id="pvRecado">online</small></div>
         </div>
         <div class="cel-conversa">
-          <div class="cel-bolha">${esc(BOT?.config?.saudacao||`Oi! Eu sou ${nomeBot()}, o atendimento automático.`)}</div>
+          <div class="cel-bolha">${esc(comCumprimento(BOT?.config?.saudacao)||`Oi! Eu sou ${nomeBot()}, o atendimento automático.`)}</div>
           <div class="cel-bolha cel-eu">oi</div>
         </div>
         <p class="hint" style="text-align:center;font-size:11px;margin-top:8px">é assim que ele vê no celular</p>

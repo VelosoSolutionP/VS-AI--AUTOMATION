@@ -7,6 +7,14 @@
  * Telegram não toca em uma linha de regra.
  */
 
+import { ehSaudacao } from './fluxo.mjs';
+
+/** "Bom dia" / "Boa tarde" / "Boa noite" pela hora de Brasília — é o {cumprimento}. */
+export function cumprimento(quando = new Date()) {
+  const h = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hourCycle: 'h23' }).format(quando));
+  return h >= 5 && h < 12 ? 'Bom dia' : h >= 12 && h < 18 ? 'Boa tarde' : 'Boa noite';
+}
+
 /** Tira acento e caixa: "Preço?" e "preco" têm que casar com a mesma regra. */
 export function normalizar(texto) {
   return String(texto ?? '')
@@ -72,7 +80,7 @@ export function responder(msg, cfg = {}, ctxCru = {}) {
      Sem ele, o unico jeito de a saudacao dizer o nome do bot era escrever o nome
      dentro do texto; ai trocar a persona no painel nao mudava a saudacao, e o
      cliente continuava sendo recebido pelo nome antigo. */
-  const ctx = { assistente: cfg.nome, ...ctxCru };
+  const ctx = { assistente: cfg.nome, cumprimento: cumprimento(), ...ctxCru };
 
   if (pediuHumano(texto)) {
     return {
@@ -96,6 +104,13 @@ export function responder(msg, cfg = {}, ctxCru = {}) {
       texto: preencher(cfg.mensagemCatalogo || 'Olha o que temos:', ctx),
       produtos: lista,
     };
+  }
+
+  /* "Oi" sem regra de "oi": quem responde é a SAUDAÇÃO do atendente. Antes caía
+     no "não entendi" — o atendente montado (nome, profissão, jeito) nunca se
+     apresentava. Regra da loja pra "oi" continua vencendo (está acima). */
+  if (cfg.saudacao && ehSaudacao(texto)) {
+    return { tipo: 'saudacao', texto: preencher(cfg.saudacao, ctx) };
   }
 
   return {
