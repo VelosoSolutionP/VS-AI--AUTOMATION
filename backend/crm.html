@@ -1494,6 +1494,27 @@ body.aud-apresentar main{margin:0!important;max-width:none!important} body.aud-a
 .prosp-fch a{flex:none;color:var(--ok);text-decoration:none;font-weight:600}.prosp-fch a:hover{text-decoration:underline}
 .prosp-fch-mais{cursor:help;color:var(--muted)}
 /* Nada rosa na Prospecção (dono, 28/09): o destaque aqui é verde. */
+.pz-passos{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.pz-passo{display:flex;align-items:center;gap:8px;padding:8px 14px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--muted);cursor:pointer;font:inherit}
+.pz-passo b{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--line);color:var(--fg);font-size:12px}
+.pz-passo.on{border-color:var(--ok);color:var(--fg)}.pz-passo.on b,.pz-passo.feito b{background:var(--ok);color:#fff}
+.pz-quem{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+.pz-foto{width:112px;height:112px;border-radius:50%;border:2px dashed var(--line);display:grid;place-items:center;cursor:pointer;overflow:hidden;flex:none}
+.pz-foto img{width:100%;height:100%;object-fit:cover}.pz-foto span{display:grid;place-items:center;color:var(--muted);gap:4px}
+.pz-opcoes{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+.pz-op{text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--fg);cursor:pointer;font:inherit;font-weight:600}
+.pz-op small{display:block;font-weight:400;color:var(--muted);margin-top:3px}
+.pz-op.on{border-color:var(--ok);box-shadow:0 0 0 1px var(--ok) inset}
+.pz-nav{display:flex;justify-content:space-between;gap:8px;margin-top:16px}
+.pz-conversa{max-width:460px;border:1px solid var(--line);border-radius:12px;padding:12px}
+.pz-topo{display:flex;align-items:center;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:6px;flex-wrap:wrap}
+.pz-topo img,.pz-av{width:36px;height:36px;border-radius:50%;object-fit:cover;display:grid;place-items:center;background:var(--ok);color:#fff;font-weight:700}
+.pz-topo small{color:var(--muted);width:100%;margin-left:46px;margin-top:-8px}
+.pz-quando{font-size:11px;color:var(--muted);margin:10px 0 3px}
+.pz-bolha{background:var(--raised);border-radius:10px 10px 10px 2px;padding:8px 11px;max-width:92%;line-height:1.4}
+.pz-bolha.pz-nota{font-style:italic;color:var(--muted);background:transparent;border:1px dashed var(--line-2)}
+.pz-bolha.cli{margin-left:auto;border-radius:10px 10px 2px 10px;width:max-content}
+.pz-avancado>summary{cursor:pointer;color:var(--muted);margin:4px 0 8px}
 body.rota-prosp .btn-p{background:linear-gradient(180deg,#1a9142,#15803d);border-color:#15803d;color:#fff;box-shadow:0 8px 20px -12px #15803d}
 body.rota-prosp .btn-p:hover{filter:brightness(1.08)}
 .prosp-tela .prosp-fechou{border-color:var(--ok-line);color:var(--ok)}
@@ -1667,9 +1688,6 @@ const GRUPOS=[
    /* Financeiro fica INVISIVEL: controle de caixa e algo que cada empresa faz do
       seu jeito, e entregar um generico e pior que nao entregar. Quando um cliente
       pedir, a gente faz focado nele. A tela continua no codigo, sem porta no menu. */
-   {id:'bot',nome:'Bot',icone:'bot',filhos:[
-     {id:'bot-regras',nome:'Regras e comportamento'},
-     {id:'wa-personalizar',nome:'Personalizar'}]},
    {id:'redes',nome:'Redes sociais',icone:'redes',filhos:[
      {id:'redes-canal',nome:'Conexões'},
      {id:'redes-planos',nome:'O que está incluso'},
@@ -1691,8 +1709,12 @@ const GRUPOS=[
       ali e o consumo. Antes "Canais de atendimento" e "Auditor" eram itens
       soltos no topo, servindo a todos e a nenhum — e com mais de um canal isso
       so piora. Personalizar foi pra dentro do Bot, que e de quem ela e. */
+   /* O Bot do WhatsApp mora DENTRO do WhatsApp (dono, 28/09: "ele pertence lá"),
+      como o Bot do Telegram mora no Telegram. */
    {id:'whats',nome:'WhatsApp',icone:'whats',filhos:[
      {id:'wa-atendimento',nome:'Atendimento'},
+     {id:'bot-regras',nome:'Bot — regras e comportamento'},
+     {id:'wa-personalizar',nome:'Bot — personalizar'},
      {id:'canais',nome:'Canal e conexão'},
      {id:'wa-auditor',nome:'Auditor'},
      {id:'wa-consumo',nome:'Consumo'},
@@ -1733,6 +1755,8 @@ MENU.forEach(m=>{TITULO[m.id]=[m.nome];(m.filhos||[]).forEach(f=>TITULO[f.id]=[m
 const PAI={}; MENU.forEach(m=>(m.filhos||[]).forEach(f=>PAI[f.id]=m.id));
 /* O checkout nao aparece no menu: chega-se nele pelo "Assinar". */
 TITULO['pl-checkout']=['Plano e acesso','Assinar']; PAI['pl-checkout']='plano';
+/* Endereço antigo do Bot (#bot) continua abrindo — agora dentro do WhatsApp. */
+TITULO['bot']=['WhatsApp','Bot — regras e comportamento']; PAI['bot']='whats';
 
 let CLIENTES=null,CLI_SEL=null,CLI_FORM=null;
 let TG=null,TG_TROCAR=false;
@@ -1855,7 +1879,7 @@ function toggleNav(v){document.getElementById('side').classList.toggle('open',v)
 /* Sobrancelha = a seção do menu em que a rota vive. Dita de graça em toda tela
    onde a pessoa está, sem ela ter que reler a barra lateral. */
 const SECAO={}; GRUPOS.forEach(g=>g.itens.forEach(m=>{SECAO[m.id]=g.secao;(m.filhos||[]).forEach(f=>SECAO[f.id]=g.secao);}));
-SECAO['pl-checkout']='Conta'; SECAO['prosp-balanco']='Crescimento';
+SECAO['pl-checkout']='Conta'; SECAO['prosp-balanco']='Crescimento'; SECAO['bot']='Operação';
 /**
  * UM lugar decide se o WhatsApp esta no ar — e por onde.
  * Sem isto, cada tela inventava a sua resposta a partir de `STATUS.whatsapp`,
@@ -3652,6 +3676,108 @@ function perguntarTrocaDeNome(antigo,novo,afetados){
       `<p class="hint" style="margin-top:8px">Sem trocar, o cliente continua sendo recebido por <b>${esc(antigo)}</b>.</p>`,
       `<button class="btn btn-s" onclick="window['${id}'](false)">${ico('salvar')}<span>Só o nome</span></button>`+
       `<button class="btn btn-p" onclick="window['${id}'](true)">${ico('atualizar')}<span>Trocar nos textos também</span></button>`);
+  });
+}
+
+/* O atendente profissional pronto (proposta do dono, 28/09): o cliente só escolhe
+   foto, nome, profissão e jeito; os textos vêm de engine/vsbot/profissoes. Três
+   passos: ① quem é, ② como fala, ③ pronto. NADA vai pro ar antes do "Ligar
+   atendente" — nem os textos, nem a foto no número. O fluxo de opções da loja
+   não é tocado. */
+let PZ=null;
+function pzEstado(c){
+  if(!PZ) PZ={passo:1,nome:c?.nome||'',profissao:c?.profissao||'',jeito:c?.jeito||'',foto:null,previa:null};
+  return PZ;
+}
+function telaAtendentePronto(c){
+  const z=pzEstado(c);
+  const PF=BOT?.profissoes||{}, JT=BOT?.jeitos||{};
+  const passos=['Quem é','Como fala','Pronto'].map((t,i)=>
+    `<button class="pz-passo${z.passo===i+1?' on':''}${z.passo>i+1?' feito':''}" onclick="pzIr(${i+1})">
+      <b>${i+1}</b><span>${t}</span></button>`).join('');
+  let corpo='';
+  if(z.passo===1){
+    corpo=`<div class="pz-quem">
+      <label class="pz-foto" title="Trocar a foto">
+        ${z.foto?`<img src="${z.foto}" alt="">`:`<span>${ico('person')}<small>foto</small></span>`}
+        <input type="file" id="pzFotoArq" accept="image/*" onchange="pzFoto(this)" hidden></label>
+      <div style="flex:1;min-width:220px">
+        <div class="field"><label>Nome do atendente</label>
+          <input id="pzwNome" value="${esc(z.nome)}" maxlength="40" placeholder="Ex.: Micaela" oninput="PZ.nome=this.value"></div>
+        <div class="field" style="margin-top:10px"><label>Profissão</label>
+          <div class="pz-opcoes">${Object.entries(PF).map(([id,p])=>
+            `<button class="pz-op${z.profissao===id?' on':''}" onclick="pzEscolher('profissao','${id}')">${esc(p.nome)}<small>${esc(p.foco)}</small></button>`).join('')}</div></div>
+      </div></div>
+      <div class="pz-nav"><span></span>${botao({t:'Próximo',ic:'seta',v:'p',on:'pzIr(2)'})}</div>`;
+  }else if(z.passo===2){
+    corpo=`<div class="pz-opcoes pz-jeitos">${Object.entries(JT).map(([id,j])=>
+      `<button class="pz-op${z.jeito===id?' on':''}" onclick="pzEscolher('jeito','${id}')">${esc(j.nome)}<small>${esc(j.descricao)}</small></button>`).join('')}</div>
+      <div class="pz-nav">${botao({t:'Voltar',v:'s',on:'pzIr(1)'})}${botao({t:'Ver como fica',ic:'seta',v:'p',on:'pzIr(3)'})}</div>`;
+  }else{
+    const m=z.previa||{};
+    const bolha=(quando,txt)=>txt?`<div class="pz-quando">${esc(quando)}</div><div class="pz-bolha">${esc(txt).replace(/\n/g,'<br>')}</div>`:'';
+    corpo=`<div class="pz-conversa">
+        <div class="pz-topo">${z.foto?`<img src="${z.foto}" alt="">`:`<span class="pz-av">${esc((z.nome||'?').slice(0,1).toUpperCase())}</span>`}
+          <b>${esc(z.nome)}</b><small>${esc(PF[z.profissao]?.nome||'')} · ${esc(JT[z.jeito]?.nome||'')}</small></div>
+        <div class="pz-quando">o cliente manda "oi"</div><div class="pz-bolha cli">oi</div>
+        ${/* Com fluxo, a primeira resposta e o "nao entendi" sao do fluxo da loja —
+             mostrar a saudacao gerada aqui seria prometer o que o cliente nao ve. */''}
+        ${BOT?.fluxo
+          ? `<div class="pz-quando">primeira resposta</div><div class="pz-bolha pz-nota">a do seu fluxo de atendimento (${BOT.fluxo.passos} passos) — continua a mesma, com as opções da loja</div>`
+          : bolha('primeira resposta',m.saudacao)+bolha('quando não entende',m.mensagemFallback)}
+        ${bolha('ao passar pra uma pessoa',m.mensagemHandoff)}
+        ${bolha('chegou áudio ou foto',m.mensagemSemTexto)}
+        ${bolha('fora do horário',(m.mensagemFechado||'').replace('{horario}','seg a sex, 8h às 18h'))}
+      </div>
+      <p class="hint" style="margin-top:10px">É uma prévia: nada disso está no ar ainda. As opções do atendimento (o fluxo da loja) continuam as mesmas.</p>
+      <div class="pz-nav">${botao({t:'Voltar',v:'s',on:'pzIr(2)'})}${botao({t:'Ligar atendente',ic:'salvar',v:'p',on:'pzLigar()'})}</div>`;
+  }
+  return `<div class="card pz-card" style="margin-bottom:16px">
+    <div class="pz-passos">${passos}</div>${corpo}</div>`;
+}
+function pzEscolher(campo,id){ PZ.nome=(document.getElementById('pzwNome')||{}).value??PZ.nome; PZ[campo]=id; render(); }
+async function pzFoto(inp){
+  const arq=inp.files?.[0]; if(!arq) return;
+  if(arq.size>15*1024*1024){ avisoErro('Foto grande demais','Essa imagem passa de 15 MB. Escolha outra.'); return; }
+  PZ.nome=(document.getElementById('pzwNome')||{}).value??PZ.nome;
+  try{ PZ.foto=await prepararFoto(arq); render(); }catch(e){ avisoErro('Não consegui ler a foto',e.message); }
+}
+async function pzIr(n){
+  const el=document.getElementById('pzwNome'); if(el) PZ.nome=el.value.trim();
+  if(n>=2){
+    if(!PZ.nome){ PZ.passo=1; render(); marcarCampo('pzwNome','Dê um nome ao atendente.'); return; }
+    if(!PZ.profissao){ PZ.passo=1; render(); avisoErro('Falta a profissão','Escolha o que o atendente faz.'); return; }
+  }
+  if(n>=3){
+    if(!PZ.jeito){ PZ.passo=2; render(); avisoErro('Falta o jeito','Escolha como ele fala: sério, meio a meio ou brincalhão.'); return; }
+    try{
+      const r=await api('bot/profissional',{canal:'whatsapp',nome:PZ.nome,profissao:PZ.profissao,jeito:PZ.jeito});
+      if(!r.ok){ avisoErro('Não deu pra montar',esc(r.motivo||'')); return; }
+      PZ.previa=r.config;
+    }catch(e){ avisoErro('Não consegui montar a prévia',e.message); return; }
+  }
+  PZ.passo=n; render();
+}
+function pzLigar(){
+  confirmar({
+    titulo:`Ligar ${esc(PZ.nome)} no WhatsApp?`,
+    texto:`Os textos de ${esc(PZ.nome)} passam a valer no atendimento${PZ.foto?' e a foto e o nome trocam no número':''}.`,
+    consequencia:'Vale para os próximos clientes que escreverem. O ajuste fino abaixo continua disponível.',
+    rotulo:'Ligar atendente', icone:'salvar', perigo:false,
+    aoConfirmar:async()=>{
+      const r=await api('bot/profissional',{canal:'whatsapp',nome:PZ.nome,profissao:PZ.profissao,jeito:PZ.jeito,aplicar:true});
+      if(!r.ok){ avisoErro('Não liguei',esc((r.erros||[r.motivo]).join('; '))); return; }
+      let extra='';
+      /* O número só muda aqui, no clique — e só se ele estiver no WhatsApp Web. */
+      if(PZ.foto||PZ.nome!==String(BOT?.config?.nome||'')){
+        try{
+          const p=await api('canais/personalizar',{canal:'whatsapp-web',foto:PZ.foto,nome:PZ.nome});
+          if((p.falhas||[]).length) extra=`<br><br>No número: ${esc((p.feito||[]).join(', ')||'nada entrou')}. Faltou: ${p.falhas.map(f=>esc(traduzirFalhaPerfil(f))).join('; ')}`;
+        }catch(e){ extra=`<br><br>Os textos já valem, mas a foto/nome do número não trocou: ${esc(e.message)}`; }
+      }
+      await carregar();
+      avisoOk(`${esc(PZ.nome)} está atendendo`,`Os próximos clientes já são atendidos assim.${extra}`);
+    },
   });
 }
 
@@ -7121,8 +7247,10 @@ const S2={
   const c=BOT?.config;
   if(!c) return head('WhatsApp · Personalizar','Nome, tom de voz e as mensagens do bot.')+
     vazio('person','Backend sem a rota do bot','Atualize o servidor.',['Subir o backend novo','Recarregar']);
-  return head('WhatsApp · Personalizar','Como o bot se apresenta e o que ele fala nas três horas que decidem tudo.')+
-  `<div class="card" style="margin-bottom:16px">
+  return head('WhatsApp · Bot — personalizar','Escolha quem atende e o jeito dele falar. O resto a gente monta pra ficar profissional.')+
+  telaAtendentePronto(c)+
+  `<details class="pz-avancado"><summary>Ajuste fino, texto por texto (avançado)</summary>
+  <div class="card" style="margin:12px 0 16px">
     ${cardH('whats',`Como ele se apresenta`,`Vale em qualquer canal — WhatsApp, site ou o simulador aqui do painel.`,2)}
     <div class="form-grid" style="margin-top:12px">
       <div class="field"><label>Nome do atendente</label><input id="pzNome" value="${esc(c.nome)}"></div>
@@ -7142,7 +7270,7 @@ const S2={
       <div class="field" style="grid-column:1/-1"><label>Quando chega áudio ou imagem <small>(ele não transcreve — precisa dizer isso)</small></label>
         <input id="pzSemTexto" value="${esc(c.mensagemSemTexto||'')}"></div>
       <button class="btn btn-p" onclick="salvarPersonalizacao()">${ico('salvar')}Salvar</button>
-      <button class="btn btn-s" onclick="ir('bot')">${ico('testar')}Testar no simulador</button>
+      <button class="btn btn-s" onclick="ir('bot-regras')">${ico('testar')}Testar no simulador</button>
     </div>
     <p class="hint" style="margin-top:10px">Use <code>{nome}</code> e <code>{empresa}</code> — são trocados pelo valor real.
       Variável sem valor aparece como está, em vez de sumir.</p></div>
@@ -7151,7 +7279,7 @@ const S2={
     ${cardH('whats',`Foto e nome do número`,`Depende do canal: na <b>API oficial da Meta</b> a foto e o nome vêm do WhatsApp Manager e nenhum código daqui muda. No canal por <b>WhatsApp Web</b> a sessão é a própria conta, então dá para trocar em <b>Canais → Perfil do assistente virtual</b>.`,2)}
     ${linha('Perfil do número',STATUS?.bot?.webhook?'API oficial: WhatsApp Manager da Meta':'canal WhatsApp Web: dá para trocar no painel',
       STATUS?.bot?.webhook?'fora daqui':'em Canais',STATUS?.bot?.webhook?'b-warn':'b-ok')}
-    ${linha('Nome do atendente','aparece nas respostas do bot',esc(c.nome),'b-ok')}</div>`;
+    ${linha('Nome do atendente','aparece nas respostas do bot',esc(c.nome),'b-ok')}</div></details>`;
  },
  'pl-consumo':()=>{
   if(!CTA) return head('Plano e acesso','Licença e validade.')+
@@ -7445,7 +7573,7 @@ function render(){
 }
 function ir(id){if(id==='clientes'){CLI_SEL=null;CLI_FORM=null;}rota=id;if(PAI[id])abertos.add(PAI[id]);location.hash=id;toggleNav(false);render();scrollTo(0,0);}
 function toggleSub(id){abertos.has(id)?abertos.delete(id):abertos.add(id);renderNav();}
-addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(document.body.classList.contains('sem-nav'))return;if(h&&h!==rota){rota=h;render();}});
+addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(document.body.classList.contains('sem-nav'))return;if(h&&h!==rota){rota=h;if(PAI[h])abertos.add(PAI[h]);render();}});
 
 /* ---------- ações ---------- */
 /**

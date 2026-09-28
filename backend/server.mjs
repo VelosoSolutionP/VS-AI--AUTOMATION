@@ -46,6 +46,7 @@ import * as planos from '../engine/vsplanos/index.mjs';
 import * as pagar from '../engine/vspagamentos/index.mjs';
 import * as fin from '../engine/vsfinanceiro/index.mjs';
 import * as bot from '../engine/vsbot/index.mjs';
+import * as profissoes from '../engine/vsbot/profissoes.mjs';
 import * as docs from '../engine/vsdocumentos/index.mjs';
 import * as clientes from '../engine/vsclientes/index.mjs';
 import * as clientesSrv from './clientes-servicos.mjs';
@@ -1803,7 +1804,7 @@ const server = createServer(async (req, res) => {
     // Um bot por canal: ?canal=telegram abre o bot do Telegram.
     if (req.method === 'GET' && rota === '/crm/api/bot') {
       const canalBot = new URL(req.url, 'http://x').searchParams.get('canal') === 'telegram' ? 'telegram' : 'whatsapp';
-      return json(res, 200, { canal: canalBot, ...bot.comCanal(canalBot, () => bot.painel()) });
+      return json(res, 200, { canal: canalBot, ...bot.comCanal(canalBot, () => bot.painel()), profissoes: profissoes.PROFISSOES, jeitos: profissoes.JEITOS });
     }
     /* Segurança de quem atende e de quem é atendido: config, responsáveis e
        o que aconteceu (auditoria). */
@@ -2358,6 +2359,18 @@ const server = createServer(async (req, res) => {
           break;
         }
         case '/crm/api/bot/config': r = bot.comCanal(d.canal, () => bot.salvarConfig(d)); break;
+        /* O atendente profissional pronto: o cliente escolhe nome, profissão e
+           jeito; os textos saem de engine/vsbot/profissoes. Sem `aplicar` só
+           mostra como fica (não mexe no atendimento no ar); com `aplicar` grava
+           no bot do canal. O fluxo (árvore de opções) não é tocado. */
+        case '/crm/api/bot/profissional': {
+          const m = profissoes.montar({ nome: d.nome, profissao: d.profissao, jeito: d.jeito, loja: process.env.VITRINE_NOME });
+          if (!m.ok) { r = m; break; }
+          r = d.aplicar === true
+            ? { ...bot.comCanal(d.canal, () => bot.salvarConfig(m.config)), config: m.config }
+            : { ok: true, previa: true, config: m.config };
+          break;
+        }
         case '/crm/api/seguranca/config': {
           /* Seguranca (socorro, moderacao) vale para OS DOIS bots: quem pede
              socorro no Telegram merece a mesma resposta que no WhatsApp. */
