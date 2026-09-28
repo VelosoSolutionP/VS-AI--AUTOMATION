@@ -1441,6 +1441,50 @@ td.num,th.num{text-align:right;white-space:nowrap}
 body.aud-apresentar aside,body.aud-apresentar .topbar,body.aud-apresentar header.top,body.aud-apresentar .tbl-bar,body.aud-apresentar .page-head .ph-acts{display:none!important}
 body.aud-apresentar main{margin:0!important;max-width:none!important} body.aud-apresentar .aud-kpi b{font-size:32px}
 @media print{aside,.topbar,header.top,.page-head .ph-acts,.tbl-bar,.aud-pag,.aud-dados,#toasts{display:none!important} main{margin:0!important} .card{break-inside:avoid;box-shadow:none} body{background:#fff}}
+
+/* ── Orçamento: janela larga, itens em tabela, total em destaque ── */
+.modal.modal-orc{max-width:900px}
+.orc-itens input,.orc-itens select{width:100%;min-width:0}
+.orc-pu{color:var(--muted)}
+.orc-regra{margin:0 0 10px}
+.orc-vazio{display:flex;gap:12px;align-items:flex-start;padding:16px;border:1px dashed var(--line-2);border-radius:12px}
+.orc-vazio svg{width:22px;height:22px;flex:none;color:var(--muted)}.orc-vazio p{margin:4px 0 0;color:var(--muted)}
+.orc-itens td{padding:6px 6px;vertical-align:middle}
+.orc-itens td:first-child{min-width:220px}
+.orc-n{text-align:right;white-space:nowrap}
+.orc-itens input.orc-n{width:96px;text-align:right}
+.orc-t{text-align:right;font-weight:650;white-space:nowrap;min-width:90px}
+.orc-grade{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}
+.orc-grade2{grid-template-columns:1fr 1fr}
+.orc-grade textarea{width:100%;resize:vertical}
+.orc-par{display:flex;gap:6px}.orc-par select{width:64px;flex:none}.orc-par input{flex:1;min-width:0}
+.orc-tot{margin:14px 0 0 auto;max-width:300px;border-top:1px solid var(--line);padding-top:8px}
+.orc-tot div{display:flex;justify-content:space-between;padding:3px 0;color:var(--muted)}
+.orc-tot .g{color:var(--fg);font-size:18px;border-top:2px solid var(--fg);margin-top:6px;padding-top:8px}
+.orc-ant{margin-bottom:14px;border:1px solid var(--line);border-radius:12px;padding:8px 12px;background:var(--panel-2)}
+.orc-ant summary{cursor:pointer;font-weight:600}
+.orc-ant-l{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:8px 0;border-top:1px solid var(--line)}
+.orc-ant-l:first-of-type{border-top:0}
+.orc-ant-l small{color:var(--muted)}
+.orc-num{font:650 12.5px ui-monospace,monospace;color:var(--ac)}
+.orc-sub{display:block;color:var(--muted);font-size:12px}
+.orc-acoes{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+.orc-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+.orc-chave{display:flex;gap:12px;align-items:center;padding:14px 16px;margin-bottom:14px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.orc-chave>svg{width:22px;height:22px;flex:none;color:var(--muted)}.orc-chave.on>svg{color:var(--ok)}
+.orc-chave>div{flex:1;min-width:0}.orc-chave p{margin:3px 0 0;color:var(--muted);font-size:13px}
+@media(max-width:760px){.orc-grade,.orc-grade2{grid-template-columns:1fr}.orc-kpis{grid-template-columns:1fr 1fr}.orc-acoes{justify-content:flex-start}}
+/* Celular: cada item vira um bloco (descrição em cima; qtd, valor e total embaixo) — tabela de 5 colunas não cabe em 375px. */
+@media(max-width:640px){
+  .modal-orc .tbl-wrap{overflow:visible}
+  .orc-itens thead{display:none}
+  .orc-itens,.orc-itens tbody{display:block}
+  .orc-itens tr{display:grid;grid-template-columns:1fr 1fr auto 34px;gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+  .orc-itens td{padding:0;border:0;min-width:0}
+  .orc-itens td:first-child{grid-column:1/-1;min-width:0}
+  .orc-itens input.orc-n{width:100%}
+  .orc-t{min-width:0}
+}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
@@ -1588,6 +1632,8 @@ const GRUPOS=[
      {id:'qg-painel',nome:'Painel'},
      {id:'qg-auditor',nome:'Auditor'}]},
    {id:'crm',nome:'Integração CRM',icone:'crm'},
+   /* Orçamento serve os DOIS canais, como a Qualificação: fica fora do submenu de cada um. */
+   {id:'orcamentos',nome:'Orçamentos',icone:'contrato'},
    /* Qualificacao e roteamento servem os DOIS canais: ficam fora do submenu de cada um. */
    {id:'qualificacao',nome:'Qualificação e equipes',icone:'usuario'},
    /* O submenu do WhatsApp tinha seis itens e QUATRO eram os mesmos de cima:
@@ -5998,6 +6044,7 @@ function telaAtendimento(canal){
             :botao({t:'Assumir atendimento',ic:'crm',v:'p',sz:'xs',on:`assumirAtendimento('${esc(sel.telefone)}')`,tit:'O bot para de responder esta pessoa até você devolver'})}
           ${/* Sempre: conversa na lista e atendimento vivo. Se o protocolo fechou
                sozinho por silencio (ou nunca existiu), o servidor abre na hora. */''}
+          ${ATEND?.orcamentoLigado?botao({t:'Orçamento',ic:'contrato',v:'s',sz:'xs',on:`abrirOrcamento('${esc(sel.telefone)}')`,tit:'Monta e manda um orçamento nesta conversa — o cliente aprova pelo link'}):''}
           ${botoesFechamento(sel,sSel)}
         </div>
       </div>
@@ -6120,6 +6167,7 @@ function telaFilaTelegram(){
       <div class="gv-acoes"><span class="cv-sit ${SITUACAO[sSel].cls}"><i></i>${SITUACAO[sSel].rot}</span>
         ${sSel==='com-vendedor'?botao({t:'Devolver pro bot',ic:'bot',v:'s',sz:'xs',on:`devolverAoBot('${esc(sel.telefone)}')`})
           :botao({t:'Assumir atendimento',ic:'crm',v:'p',sz:'xs',on:`assumirAtendimento('${esc(sel.telefone)}')`})}
+        ${ATEND?.orcamentoLigado?botao({t:'Orçamento',ic:'contrato',v:'s',sz:'xs',on:`abrirOrcamento('${esc(sel.telefone)}')`,tit:'Monta e manda um orçamento nesta conversa — o cliente aprova pelo link'}):''}
         ${botoesFechamento(sel,sSel)}</div>
       ${ped}${oportunidadeHtml(sel)}${ctx}
       <div class="conversa-fluxo">${linha}</div>
@@ -6197,6 +6245,191 @@ function eventoComercial(h,hora){
 async function trocarResponsavel(tel,operadorId){
   try{ await api('atendimentos/responsavel',{telefone:tel,operadorId:operadorId||null}); await recarregarAtendimento(true); flash(operadorId?'Responsável definido.':'Responsável removido.','ok'); }
   catch(e){ avisoErro('Não consegui trocar',esc(e.message)); }
+}
+
+/* ── Orçamentos (WhatsApp e Telegram) ─────────────────────────────────────────
+   O vendedor monta o orçamento SEM sair da conversa: abre por cima da tela, puxa
+   o catálogo, e o cliente recebe PDF + link pra aprovar na mesma conversa. A
+   tela "Orçamentos" é a lista de tudo que saiu, com o que foi aprovado. */
+let ORC=null, ORC_DIAS=30, ORC_ED=null, ORC_CLI=null, ORC_EM=0;
+const ORC_SIT={rascunho:['Rascunho',''],enviado:['Aguardando cliente','b-warn'],aprovado:['Aprovado','b-ok'],recusado:['Recusado','b-err'],vencido:['Vencido','b-err'],cancelado:['Cancelado','']};
+const orcCent=(v)=>{ if(v==null||String(v).trim()==='') return 0; let s=String(v).replace(/[R$\s]/g,''); if(s.includes(',')) s=s.replace(/\./g,'').replace(',','.'); const n=Number(s); return Number.isFinite(n)&&n>=0?Math.round(n*100):NaN; };
+const orcNum=(v)=>{ const n=Number(String(v??'').replace(',','.')); return Number.isFinite(n)?n:NaN; };
+const orcFmt=(c)=>c==null?'':(c/100).toFixed(2).replace('.',',');
+const orcData=(d)=>d?String(d).slice(0,10).split('-').reverse().join('/'):'—';
+
+async function carregarOrc(forcar){
+  if(ORC&&!forcar) return ORC;
+  try{ ORC=await api('orcamentos?dias='+ORC_DIAS); ORC_EM=Date.now(); }catch(e){ ORC={erro:e.message}; }
+  if(rota==='orcamentos') render();
+  return ORC;
+}
+function orcSelo(o){ const [t,c]=ORC_SIT[o.situacao]||[o.situacao,'']; return `<span class="badge ${c}" style="margin-left:0">${esc(t)}</span>`; }
+/* As ações de um orçamento — as mesmas na lista e na janela da conversa. */
+function orcAcoes(o){
+  const b=[];
+  if(o.situacao==='rascunho') b.push(botao({t:'Editar',ic:'editar',v:'s',sz:'xs',on:`abrirOrcamento('${esc(o.cliente.telefone)}','${esc(o.id)}')`}));
+  if(o.situacao==='rascunho') b.push(botao({t:'Enviar',ic:'enviar',v:'p',sz:'xs',on:`orcAcao('enviar','${esc(o.id)}')`}));
+  if(o.situacao==='enviado') b.push(botao({t:'Reenviar',ic:'enviar',v:'s',sz:'xs',on:`orcAcao('enviar','${esc(o.id)}')`,tit:'Manda de novo o mesmo orçamento na conversa'}));
+  if(o.situacao==='aprovado'&&!o.cobranca) b.push(botao({t:'Cobrar por Pix',ic:'financeiro',v:'p',sz:'xs',on:`orcAcao('cobrar','${esc(o.id)}')`,tit:'Gera o Pix e manda na conversa'}));
+  if(o.url) b.push(`<a class="btn btn-s btn-xs" href="${esc(o.url)}" target="_blank" rel="noopener">${ico('ver')}<span>Ver</span></a>`);
+  b.push(botao({t:'PDF',ic:'baixar',v:'s',sz:'xs',on:`orcPdf('${esc(o.id)}')`}));
+  if(o.situacao!=='rascunho') b.push(botao({t:'Duplicar',ic:'copiar',v:'g',sz:'xs',on:`orcAcao('duplicar','${esc(o.id)}')`,tit:'Novo rascunho com os mesmos itens — é assim que se muda um orçamento já enviado'}));
+  if(!['aprovado','cancelado'].includes(o.situacao)) b.push(botao({t:'Cancelar',ic:'fechar',v:'g',sz:'xs',on:`orcAcao('cancelar','${esc(o.id)}')`}));
+  return `<div class="orc-acoes">${b.join('')}</div>`;
+}
+async function orcAcao(acao,id){
+  const fazer=async()=>{
+    try{
+      const r=await api('orcamentos/'+acao,{id});
+      if(!r.ok) return avisoErro('Não consegui',esc(r.motivo||'o servidor recusou'));
+      if(acao==='enviar') avisoOk('Orçamento enviado',`${esc(r.orcamento.numero)} saiu na conversa${r.pdf?' com o PDF':''}. ${r.pdf?'':'O PDF não foi, mas o link com o orçamento completo foi.'}`);
+      if(acao==='cobrar') avisoOk('Pix enviado',`O Pix do ${esc(r.orcamento.numero)} está na conversa. Pagou, o funil fecha como Ganho.`);
+      if(acao==='cancelar') flash('Orçamento cancelado.','ok');
+      if(acao==='duplicar'){ flash(`Rascunho ${r.orcamento.numero} criado.`,'ok'); await carregarOrc(true); return abrirOrcamento(r.orcamento.cliente.telefone,r.orcamento.id); }
+      await carregarOrc(true);
+      if(document.getElementById('modalBg').classList.contains('show')&&ORC_CLI) abrirOrcamento(ORC_CLI.telefone);
+      if(/atendimento$/.test(rota)) recarregarAtendimento(true);
+    }catch(e){ avisoErro('Não consegui',esc(e.message)); }
+  };
+  if(acao==='cancelar') return confirmar({titulo:'Cancelar orçamento',texto:'O link para de aceitar aprovação.',consequencia:'O cliente continua vendo o orçamento, marcado como cancelado.',rotulo:'Cancelar orçamento',icone:'fechar',aoConfirmar:fazer});
+  if(acao==='cobrar') return confirmar({titulo:'Cobrar por Pix',texto:'Gera a cobrança Pix do valor aprovado e manda na conversa do cliente.',rotulo:'Gerar e enviar',icone:'financeiro',perigo:false,aoConfirmar:fazer});
+  return fazer();
+}
+async function orcLigar(v){
+  try{
+    const r=await api('orcamentos/config',{ligado:v});
+    if(!r.ok) return avisoErro('Não consegui',esc(r.motivo||''));
+    flash(v?'Orçamento ligado: o botão aparece nas conversas.':'Orçamento desligado.','ok');
+    if(ATEND) ATEND.orcamentoLigado=v;
+    await carregarOrc(true); renderNav();
+  }catch(e){ avisoErro('Não consegui',esc(e.message)); }
+}
+async function orcPdf(id){
+  try{
+    const res=await fetch('/crm/api/orcamentos/pdf?id='+encodeURIComponent(id),{headers:TOKEN?{'x-crm-token':TOKEN}:{}});
+    if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j.erro||'HTTP '+res.status); }
+    const url=URL.createObjectURL(await res.blob()); const a=document.createElement('a');
+    a.href=url; a.download=(res.headers.get('content-disposition')||'').match(/filename="([^"]+)"/)?.[1]||'orcamento.pdf'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),4000);
+  }catch(e){ avisoErro('Não consegui gerar o PDF',esc(e.message)); }
+}
+
+/* A janela: orçamentos anteriores do cliente + o formulário. */
+async function abrirOrcamento(tel,id){
+  let d; try{ d=await api('orcamentos?telefone='+encodeURIComponent(tel)); }catch(e){ return avisoErro('Não consegui abrir o orçamento',esc(e.message)); }
+  ORC_CAT=d.catalogo||[];
+  const conv=(ATEND?.conversas||[]).find(c=>c.telefone===tel);
+  ORC_CLI={telefone:tel,nome:conv?.nome||d.orcamentos.find(o=>o.cliente)?.cliente.nome||'Cliente',lista:d.orcamentos||[]};
+  const ed=id?d.orcamentos.find(o=>o.id===id):null;
+  ORC_ED=ed?{id:ed.id,numero:ed.numero,itens:ed.itens.map(i=>({descricao:i.descricao,quantidade:String(i.quantidade).replace('.',','),preco:orcFmt(i.precoCentavos),sku:i.sku,unidade:i.unidade})),
+      desconto:{tipo:ed.desconto?.tipo||'valor',valor:ed.desconto?.tipo==='percentual'?String(ed.desconto.valor).replace('.',','):orcFmt(ed.descontoCentavos)||''},
+      frete:ed.freteCentavos?orcFmt(ed.freteCentavos):'',validadeDias:ed.validadeDias||7,condicoes:ed.condicoes||'',observacoes:ed.observacoes||''}
+    :{itens:[{descricao:'',quantidade:'1',preco:''}],desconto:{tipo:'valor',valor:''},frete:'',validadeDias:7,condicoes:'',observacoes:''};
+  desenharOrcamento();
+}
+let ORC_CAT=[];
+function desenharOrcamento(){
+  const e=ORC_ED, outros=(ORC_CLI.lista||[]).filter(o=>o.id!==e.id);
+  const ant=outros.length?`<details class="orc-ant"${e.id?'':' open'}><summary>Orçamentos deste cliente (${outros.length})</summary>
+      ${outros.slice(0,6).map(o=>`<div class="orc-ant-l"><span class="orc-num">${esc(o.numero)}</span>${orcSelo(o)}<b>${reais(o.totalCentavos)}</b><small>${orcData(o.enviadoEm||o.criadoEm)}</small>${orcAcoes(o)}</div>`).join('')}</details>`:'';
+  const linha=(it,i)=>`<tr>
+      <td><select onchange="orcItem(${i},'sku',this.value)" aria-label="Produto do item ${i+1}"><option value="">Escolha do catálogo…</option>${ORC_CAT.map(p=>`<option value="${esc(p.sku)}" ${it.sku===p.sku?'selected':''}>${esc(p.nome)}</option>`).join('')}</select></td>
+      <td><input class="orc-n" inputmode="decimal" placeholder="Qtd." value="${esc(it.quantidade)}" oninput="orcItem(${i},'quantidade',this.value)" aria-label="Quantidade do item ${i+1}"></td>
+      <td class="orc-n orc-pu" id="orcP${i}">${it.sku?reais(orcCent(it.preco)):'—'}</td>
+      <td class="orc-t" id="orcT${i}"></td>
+      <td>${e.itens.length>1?`<button class="bi" title="Tirar item" onclick="orcTirar(${i})">${ico('excluir')}</button>`:''}</td></tr>`;
+  abrirModal(e.id?`Orçamento ${e.numero} · rascunho`:`Novo orçamento · ${ORC_CLI.nome}`,
+    !ORC_CAT.length?`${ant}<div class="orc-vazio">${ico('estoque')}<div><b>O catálogo está vazio.</b><p>O orçamento só usa produtos cadastrados no Estoque, com o preço de lá — é o que impede orçar o que a loja não vende.${ehVendedor()?' Peça ao administrador para cadastrar.':''}</p></div></div>`:
+    `${ant}<p class="hint orc-regra">Só entram produtos do catálogo da loja, com o preço cadastrado. Pra negociar, use o desconto.</p>
+    <div class="tbl-wrap"><table class="tbl orc-itens"><thead><tr><th>Item</th><th class="orc-n">Qtd.</th><th class="orc-n">Valor unit.</th><th class="orc-n">Total</th><th></th></tr></thead>
+      <tbody>${e.itens.map(linha).join('')}</tbody></table></div>
+    ${botao({t:'Adicionar item',ic:'mais',v:'g',sz:'xs',on:'orcMais()'})}
+    <div class="orc-grade">
+      <div class="field"><label>Desconto</label><div class="orc-par"><select onchange="ORC_ED.desconto.tipo=this.value;orcRecalc()" aria-label="Tipo de desconto"><option value="valor" ${e.desconto.tipo==='valor'?'selected':''}>R$</option><option value="percentual" ${e.desconto.tipo==='percentual'?'selected':''}>%</option></select>
+        <input inputmode="decimal" value="${esc(e.desconto.valor)}" placeholder="0" oninput="ORC_ED.desconto.valor=this.value;orcRecalc()" aria-label="Valor do desconto"></div></div>
+      <div class="field"><label>Frete (R$)</label><input inputmode="decimal" value="${esc(e.frete)}" placeholder="0,00" oninput="ORC_ED.frete=this.value;orcRecalc()"></div>
+      <div class="field"><label>Validade (dias)</label><input type="number" min="1" max="90" value="${esc(e.validadeDias)}" oninput="ORC_ED.validadeDias=this.value"></div>
+    </div>
+    <div class="orc-grade orc-grade2">
+      <div class="field"><label>Condições <small>(pagamento, prazo, entrega)</small></label><textarea rows="2" maxlength="600" placeholder="Ex.: 50% na aprovação, restante na entrega. Prazo de 5 dias úteis." oninput="ORC_ED.condicoes=this.value">${esc(e.condicoes)}</textarea></div>
+      <div class="field"><label>Observações</label><textarea rows="2" maxlength="600" oninput="ORC_ED.observacoes=this.value">${esc(e.observacoes)}</textarea></div>
+    </div>
+    <div class="orc-tot" id="orcTot"></div>
+    <p class="hint" id="orcErro" role="alert"></p>`,
+    BT.cancelar('Fechar')+(ORC_CAT.length?botao({t:'Salvar rascunho',ic:'salvar',v:'s',on:'salvarOrcamento(false)'})+botao({t:'Salvar e enviar ao cliente',ic:'enviar',v:'p',on:'salvarOrcamento(true)',id:'orcEnviarBt'}):(ehVendedor()?'':botao({t:'Ir pro Estoque',ic:'estoque',v:'p',on:"fecharModal();ir('estoque')"}))),
+    {classe:'modal-orc'});
+  orcRecalc();
+}
+function orcItem(i,k,v){
+  const it=ORC_ED.itens[i]; it[k]=v;
+  /* Produto do catálogo: nome e preço vêm de lá, sem digitar. */
+  if(k==='sku'){ const p=ORC_CAT.find(x=>x.sku===v); it.descricao=p?.nome||''; it.preco=p?orcFmt(p.precoCentavos):''; const el=document.getElementById('orcP'+i); if(el) el.textContent=p?reais(p.precoCentavos):'—'; }
+  orcRecalc();
+}
+function orcMais(){ ORC_ED.itens.push({descricao:'',quantidade:'1',preco:''}); desenharOrcamento(); setTimeout(()=>{ const l=[...document.querySelectorAll('.orc-itens tbody select')].pop(); l?.focus(); },80); }
+function orcTirar(i){ ORC_ED.itens.splice(i,1); desenharOrcamento(); }
+/* Conta na tela com a MESMA regra do servidor (centavos inteiros) — o que o vendedor vê é o que o cliente recebe. */
+function orcRecalc(){
+  const e=ORC_ED; let sub=0, erro='';
+  e.itens.forEach((it,i)=>{ const q=orcNum(it.quantidade), p=orcCent(it.preco); const t=Number.isFinite(q)&&q>0&&Number.isFinite(p)?Math.round(Math.round(q*1000)/1000*p):NaN;
+    const el=document.getElementById('orcT'+i); if(el) el.textContent=it.sku&&Number.isFinite(t)?reais(t):'—'; if(it.sku&&Number.isFinite(t)) sub+=t; else if(!erro&&it.sku) erro=`Confira a quantidade do item ${i+1}.`; });
+  const dv=e.desconto.tipo==='percentual'?orcNum(e.desconto.valor||0):orcCent(e.desconto.valor);
+  let desc=e.desconto.tipo==='percentual'?(Number.isFinite(dv)&&dv>=0&&dv<=100?Math.round(sub*dv/100):NaN):dv;
+  if(!Number.isFinite(desc)){ erro=erro||'Desconto inválido.'; desc=0; } if(desc>sub){ erro=erro||'O desconto é maior que o valor dos itens.'; desc=sub; }
+  const fr=orcCent(e.frete); if(!Number.isFinite(fr)) erro=erro||'Frete inválido.';
+  const tot=Math.max(0,sub-desc+(Number.isFinite(fr)?fr:0));
+  const el=document.getElementById('orcTot');
+  if(el) el.innerHTML=`<div><span>Subtotal</span><b>${reais(sub)}</b></div>${desc?`<div><span>Desconto</span><b>− ${reais(desc)}</b></div>`:''}${fr?`<div><span>Frete</span><b>${reais(fr)}</b></div>`:''}<div class="g"><span>Total</span><b>${reais(tot)}</b></div>`;
+  const er=document.getElementById('orcErro'); if(er) er.textContent=erro;
+}
+async function salvarOrcamento(enviar){
+  const e=ORC_ED;
+  const itens=e.itens.filter(it=>it.sku).map(it=>({sku:it.sku,quantidade:it.quantidade,unidade:it.unidade||null}));
+  try{
+    const r=await api('orcamentos/salvar',{id:e.id||undefined,cliente:{telefone:ORC_CLI.telefone,nome:ORC_CLI.nome},itens,desconto:e.desconto,frete:e.frete,
+      validadeDias:Number(e.validadeDias),condicoes:e.condicoes,observacoes:e.observacoes});
+    if(!r.ok){ const er=document.getElementById('orcErro'); if(er) er.textContent=r.motivo; return; }
+    e.id=r.orcamento.id; e.numero=r.orcamento.numero;
+    if(!enviar){ flash(`Rascunho ${r.orcamento.numero} salvo.`,'ok'); fecharModal(); await carregarOrc(true); return; }
+    const s=await api('orcamentos/enviar',{id:r.orcamento.id});
+    if(!s.ok){ const er=document.getElementById('orcErro'); if(er) er.textContent=`Salvei o rascunho ${r.orcamento.numero}, mas não enviei: ${s.motivo}`; return; }
+    fecharModal();
+    avisoOk('Orçamento enviado',`${esc(s.orcamento.numero)} (${reais(s.orcamento.totalCentavos)}) saiu na conversa${s.pdf?' com o PDF':''}. O cliente aprova pelo link.`);
+    await carregarOrc(true); if(/atendimento$/.test(rota)) recarregarAtendimento(true);
+  }catch(err){ const er=document.getElementById('orcErro'); if(er) er.textContent=err.message; }
+}
+
+function telaOrcamentos(){
+  const o=ORC; if(!o){ setTimeout(()=>carregarOrc(),0); return head('Orçamentos','Carregando…'); }
+  /* O cliente aprova pelo link, fora do painel: lista com mais de 5 s é
+     buscada de novo ao entrar na tela, senão mostraria "aguardando" de quem já aprovou. */
+  if(Date.now()-ORC_EM>5000){ ORC_EM=Date.now(); setTimeout(()=>carregarOrc(true),0); }
+  if(o.erro) return head('Orçamentos','')+`<p class="hint">Não consegui carregar: ${esc(o.erro)}</p>`;
+  const r=o.resumo, q=r.quantidade||{};
+  /* A chave do negócio: orçamento é de quem vende sob consulta ou presta serviço. */
+  const chave=o.config?.ligado
+    ?`<div class="orc-chave on">${ico('check')}<div><b>Orçamento ligado neste negócio.</b><p>O botão <b>Orçamento</b> aparece nas conversas do WhatsApp e do Telegram.</p></div>${ehVendedor()?'':botao({t:'Desligar',ic:'power',v:'g',sz:'xs',on:'orcLigar(false)'})}</div>`
+    :`<div class="orc-chave">${ico('contrato')}<div><b>Orçamento desligado.</b><p>É pra quem <b>vende sob consulta ou presta serviço</b> — evento, projeto, instalação, manutenção, B2B. Loja de pronta entrega (peças, lanche, delivery) vende por pedido direto no atendimento e não precisa disto.</p></div>${ehVendedor()?'':botao({t:'Ligar orçamento',ic:'power',v:'p',sz:'xs',on:'orcLigar(true)'})}</div>`;
+  if(!o.config?.ligado&&!(o.orcamentos||[]).length) return head('Orçamentos','Feitos dentro da conversa, aprovados pelo cliente num toque.')+chave;
+  const periodo=`<div class="seg seg-sm">${[7,30,90].map(d=>`<button class="${ORC_DIAS===d?'on':''}" onclick="ORC_DIAS=${d};carregarOrc(true)">${d} dias</button>`).join('')}</div>`;
+  const lista=o.orcamentos||[];
+  const linhas=lista.map(x=>`<tr>
+      <td><span class="orc-num">${esc(x.numero)}</span><small class="orc-sub">${orcData(x.enviadoEm||x.criadoEm)}</small></td>
+      <td><b>${esc(x.cliente.nome)}</b><small class="orc-sub">${x.cliente.canal==='telegram'?'Telegram':'WhatsApp'}</small></td>
+      <td>${esc(x.vendedor?.nome||'—')}</td>
+      <td class="orc-n"><b>${reais(x.totalCentavos)}</b></td>
+      <td>${orcSelo(x)}${x.cobranca?`<small class="orc-sub">Pix enviado</small>`:''}${x.situacao==='recusado'&&x.motivoRecusa?`<small class="orc-sub">"${esc(x.motivoRecusa)}"</small>`:''}</td>
+      <td>${x.validoAte?orcData(x.validoAte):'—'}</td>
+      <td>${orcAcoes(x)}</td></tr>`).join('');
+  return head('Orçamentos','Feitos dentro da conversa, aprovados pelo cliente num toque.',periodo)+
+    chave+`<div class="aud-kpis orc-kpis">
+      ${audKpi('Orçado',reais(r.orcadoCentavos),`${(q.enviado||0)+(q.aprovado||0)+(q.recusado||0)+(q.vencido||0)} enviado(s) no período`)}
+      ${audKpi('Aprovado',reais(r.aprovadoCentavos),`${q.aprovado||0} orçamento(s)`)}
+      ${audKpi('Taxa de aprovação',r.taxaAprovacao==null?'—':r.taxaAprovacao+'%','sobre os que o cliente já decidiu')}
+      ${audKpi('Aguardando cliente',String(q.enviado||0),'dentro da validade')}
+    </div>
+    <div class="card">${lista.length?`<div class="tbl-wrap"><table class="tbl orc-lista"><thead><tr><th>Número</th><th>Cliente</th><th>Vendedor</th><th class="orc-n">Total</th><th>Situação</th><th>Validade</th><th></th></tr></thead><tbody>${linhas}</tbody></table></div>`
+      :`<p class="hint" style="padding:18px">Nenhum orçamento no período. Pra fazer um, abra uma conversa no Atendimento e toque em <b>Orçamento</b>.</p>`}</div>`;
 }
 
 /* ── tela: Qualificação e equipes ── */
@@ -6318,12 +6551,12 @@ function qTirarAcesso(id){
 }
 
 /* ── modo vendedor: só o Atendimento ── */
-const GRUPOS_VENDEDOR=[{secao:'Atendimento',itens:[{id:'wa-atendimento',nome:'WhatsApp',icone:'whats'},{id:'tg-atendimento',nome:'Telegram',icone:'telegram'}]}];
+const GRUPOS_VENDEDOR=[{secao:'Atendimento',itens:[{id:'wa-atendimento',nome:'WhatsApp',icone:'whats'},{id:'tg-atendimento',nome:'Telegram',icone:'telegram'},{id:'orcamentos',nome:'Orçamentos',icone:'contrato'}]}];
 async function carregarVendedor(eu){
   EU=eu;
   try{ ATEND=await api('atendimentos'); CANAIS=ATEND?.canal||null; TG=await api('canais/telegram').catch(()=>null); }
   catch(e){ avisoErro('Não consegui carregar','Não consegui carregar: '+esc(e.message)); }
-  if(!['wa-atendimento','tg-atendimento'].includes(rota)) rota=(ATEND?.conversas||[]).some(c=>c.canal==='telegram')&&!(ATEND?.conversas||[]).some(c=>c.canal==='whatsapp')?'tg-atendimento':'wa-atendimento';
+  if(!['wa-atendimento','tg-atendimento','orcamentos'].includes(rota)) rota=(ATEND?.conversas||[]).some(c=>c.canal==='telegram')&&!(ATEND?.conversas||[]).some(c=>c.canal==='whatsapp')?'tg-atendimento':'wa-atendimento';
   document.getElementById('envDot').className='dot on';
   document.getElementById('envName').textContent=eu.nome||'Vendedor';
   document.getElementById('envSub').textContent=eu.equipe?'equipe '+eu.equipe:eu.email;
@@ -6808,11 +7041,12 @@ const TELAS={
   plano:S['pl-consumo'],
   ...S,
   'pl-planos':telaPlanos, 'pl-checkout':telaCheckout,
+  orcamentos:telaOrcamentos,
 };
 
 /* ---------- render ---------- */
 function renderNav(){
-  document.getElementById('nav').innerHTML=(ehVendedor()?GRUPOS_VENDEDOR:GRUPOS).map(g=>
+  document.getElementById('nav').innerHTML=(ehVendedor()?GRUPOS_VENDEDOR:GRUPOS).map(g=>({...g,itens:g.itens.filter(i=>i.id!=='orcamentos'||ATEND?.orcamentoLigado)})).map(g=>
    `<div class="sec-label">${esc(g.secao)}</div>`+g.itens.map(m=>{
     if(!m.filhos) return `<button class="nav-item${rota===m.id?' active':''}" onclick="ir('${m.id}')">${ico(m.icone)}<span>${esc(m.nome)}</span></button>`;
     const ab=abertos.has(m.id);

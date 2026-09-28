@@ -54,6 +54,8 @@ import { pagina as paginaVitrine, paginaProduto, paginaSumiu } from './vitrine.m
 import { lerCorpoLimitado, criarRateLimit, ipDe, segredoIgual, CORPO_MAX_BYTES } from './limites.mjs';
 import * as consumo from '../engine/vsconsumo/index.mjs';
 import * as integ from '../engine/vsintegracoes/index.mjs';
+import * as orc from '../engine/vsorcamentos/index.mjs';
+import * as orcSrv from './orcamentos.mjs';
 import { dentroDaCasa } from '../engine/casa.mjs';
 
 /* Pagamento confirmado por QUALQUER caminho → o lead do pedido vira Ganho no
@@ -388,6 +390,11 @@ const LIM_ISSUE = criarRateLimit({ max: Number(process.env.RATE_ISSUE || 60), ja
 const LIM_CRM = criarRateLimit({ max: Number(process.env.RATE_CRM || 300), janelaMs: 60000 });
 /* Pagina publica de assinatura. Iniciar gera contrato (abre o Chrome): teto
    baixo por IP. O resto e leve, mas publico — teto de qualquer jeito. */
+/* Link público do orçamento: quem tem o código vê e responde. O limite segura
+   quem tenta adivinhar código na força bruta. */
+/* O orçamento só usa o que a loja VENDE: produto ativo do Estoque, com preço. */
+const catalogoOrc = () => estoque.doAtendimento().filter((p) => p.precoCentavos > 0).map((p) => ({ sku: p.sku, nome: p.nome, precoCentavos: p.precoCentavos }));
+const LIM_ORCAMENTO = criarRateLimit({ max: Number(process.env.RATE_ORCAMENTO || 60), janelaMs: 10 * 60000 });
 const LIM_ASSINAR_INICIO = criarRateLimit({ max: Number(process.env.RATE_ASSINAR_INICIO || 8), janelaMs: 10 * 60000 });
 const LIM_REENVIAR = criarRateLimit({ max: Number(process.env.RATE_REENVIAR || 5), janelaMs: 10 * 60000 });
 const LIM_ASSINAR = criarRateLimit({ max: Number(process.env.RATE_ASSINAR || 90), janelaMs: 60000 });
@@ -1000,11 +1007,40 @@ const server = createServer(async (req, res) => {
      ativo aparece; esgotado aparece marcado, nao sumido — sumir da a impressao
      de que a loja e menor do que e. */
   const rotaV = req.url.split('?')[0];
+  /* Orçamento: a página que o cliente abre pelo link da conversa. Mostra,
+     aprova e recusa — sem login, porque o cliente não tem conta. O código no
+     link é o que autoriza (e o limite por IP segura quem tenta adivinhar). */
+  const mOrc = rotaV.match(/^\/orcamento\/([A-Za-z0-9_-]{16,64})(\/aprovar|\/recusar)?$/);
+  if (mOrc) {
+    if (barrado(res, LIM_ORCAMENTO, req, 'orçamento')) { return; }
+    const pagina = (code, corpo) => { res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex' }); return res.end(corpo); };
+    const naoAchei = '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Orçamento</title><body style="font:16px system-ui;padding:40px;text-align:center;color:#333"><h1>Orçamento não encontrado</h1><p>Confira o link que chegou na conversa ou fale com quem te atendeu.</p></body>';
+    if (req.method === 'GET' && !mOrc[2]) {
+      const o = orc.porToken(mOrc[1]);
+      if (!o || o.situacao === 'rascunho') { return pagina(404, naoAchei); }
+      const q = new URL(req.url, 'http://x').searchParams.get('r');
+      const aviso = q === 'aprovado' ? { texto: 'Orçamento aprovado. Obrigado! A equipe já vai te chamar na conversa.' }
+        : q === 'recusado' ? { texto: 'Anotado: você não vai seguir com este orçamento.', tipo: 'nao' }
+        : q === 'erro' ? { texto: 'Não deu pra registrar sua resposta — este orçamento pode ter vencido. Fale com quem te atendeu.', tipo: 'nao' } : null;
+      return pagina(200, orc.html(o, { loja: orcSrv.loja(), url: `/orcamento/${o.token}`, aviso }));
+    }
+    if (req.method === 'POST' && mOrc[2]) {
+      const b = await readBody(req);
+      if (corpoEstourou(res, b)) { return; }
+      const motivo = new URLSearchParams(b.toString('utf8')).get('motivo');
+      const r = orc.responder(mOrc[1], mOrc[2] === '/aprovar' ? 'aprovar' : 'recusar', { motivo });
+      if (r.ok && !r.jaEstava) { orcSrv.aoResponder(r.orcamento).catch((e) => console.error(`[orcamento] aviso da resposta falhou: ${e.message}`)); }
+      const dest = `/orcamento/${mOrc[1]}?r=${r.ok ? (mOrc[2] === '/aprovar' ? 'aprovado' : 'recusado') : 'erro'}`;
+      res.writeHead(303, { location: dest, 'cache-control': 'no-store' });
+      return res.end();
+    }
+    return pagina(405, naoAchei);
+  }
   /* Robô de busca: a vitrine é pra ser achada; o painel, o login e a API não. */
   if (req.method === 'GET' && rotaV === '/robots.txt') {
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=3600' });
     return res.end(['User-agent: *', 'Allow: /vitrine', 'Allow: /midia/', 'Disallow: /crm', 'Disallow: /api/', 'Disallow: /criar-acesso',
-      'Disallow: /redefinir-senha', 'Disallow: /ativar', 'Disallow: /assinar', `Sitemap: ${origemPublica()}/vitrine/sitemap.xml`, ''].join('\n'));
+      'Disallow: /redefinir-senha', 'Disallow: /ativar', 'Disallow: /orcamento/', 'Disallow: /assinar', `Sitemap: ${origemPublica()}/vitrine/sitemap.xml`, ''].join('\n'));
   }
   if (req.method === 'GET' && rotaV === '/vitrine/sitemap.xml') {
     const o = origemPublica();
@@ -1245,8 +1281,9 @@ const server = createServer(async (req, res) => {
        na tela nao protege nada. */
     if (quem.papel === 'vendedor') {
       if (req.method === 'GET' && rota === '/crm/api/minha-conta') { return json(res, 200, { papel: 'vendedor', email: quem.email, ...quemAtende(quem) }); }
-      const livre = (req.method === 'GET' && ['/crm/api/atendimentos', '/crm/api/atendimentos/historico', '/crm/api/atendimentos/historico/detalhe', '/crm/api/canais/telegram', '/crm/api/seguranca/pendentes'].includes(rota))
-        || (req.method === 'POST' && ['/crm/api/atendimentos/responder', '/crm/api/atendimentos/assumir', '/crm/api/atendimentos/devolver', '/crm/api/atendimentos/encerrar', '/crm/api/atendimentos/finalizar'].includes(rota));
+      const livre = (req.method === 'GET' && ['/crm/api/atendimentos', '/crm/api/atendimentos/historico', '/crm/api/atendimentos/historico/detalhe', '/crm/api/canais/telegram', '/crm/api/seguranca/pendentes', '/crm/api/orcamentos', '/crm/api/orcamentos/pdf'].includes(rota))
+        || (req.method === 'POST' && ['/crm/api/atendimentos/responder', '/crm/api/atendimentos/assumir', '/crm/api/atendimentos/devolver', '/crm/api/atendimentos/encerrar', '/crm/api/atendimentos/finalizar',
+          '/crm/api/orcamentos/salvar', '/crm/api/orcamentos/enviar', '/crm/api/orcamentos/cancelar', '/crm/api/orcamentos/duplicar', '/crm/api/orcamentos/cobrar'].includes(rota));
       if (!livre) { return json(res, 403, { erro: 'área restrita ao administrador', papel: 'vendedor' }); }
     }
     /* MODO CONSULTA: banda do mês esgotada. Leitura segue; escrita para. */
@@ -1552,6 +1589,28 @@ const server = createServer(async (req, res) => {
     }
     /* Campanhas do Telegram: as montadas no assistente (vscampanhas) mais os
        links antigos, criados so com nome, que aparecem como "Captar clientes". */
+    /* Orçamentos: a lista (o vendedor vê só os dele), os números do período e o
+       catálogo pra montar — o vendedor não tem acesso ao Estoque, e orçamento
+       sem catálogo seria digitar preço de cabeça. */
+    if (req.method === 'GET' && rota === '/crm/api/orcamentos') {
+      const u = new URL(req.url, 'http://x');
+      const dias = [7, 30, 90, 365].includes(Number(u.searchParams.get('dias'))) ? Number(u.searchParams.get('dias')) : 30;
+      const eu = quem.papel === 'vendedor' ? quem.email : null;
+      const tel = u.searchParams.get('telefone') || undefined;
+      const lista = orc.listar({ dias: tel ? undefined : dias, telefone: tel, vendedorEmail: eu || undefined })
+        .map((o) => ({ ...o, url: o.situacao === 'rascunho' ? null : orcSrv.urlPublica(o) }));
+      return json(res, 200, { orcamentos: lista, resumo: orc.resumo({ dias }), loja: orcSrv.loja(), config: orc.config(),
+        catalogo: catalogoOrc() });
+    }
+    if (req.method === 'GET' && rota === '/crm/api/orcamentos/pdf') {
+      const o = orc.obter(new URL(req.url, 'http://x').searchParams.get('id'));
+      if (!o || (quem.papel === 'vendedor' && o.vendedor?.email !== quem.email)) { return json(res, 404, { erro: 'orçamento não encontrado' }); }
+      try {
+        const buf = await clientesSrv.imprimirPdf(orc.html(o, { loja: orcSrv.loja(), publico: false }));
+        res.writeHead(200, { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="${o.numero}.pdf"`, 'cache-control': 'no-store' });
+        return res.end(buf);
+      } catch (e) { return json(res, 500, { erro: `não consegui gerar o PDF: ${e.message}` }); }
+    }
     if (req.method === 'GET' && rota === '/crm/api/campanhas') {
       const u = new URL(req.url, 'http://x');
       const dias = [7, 30, 90].includes(Number(u.searchParams.get('dias'))) ? Number(u.searchParams.get('dias')) : 30;
@@ -1712,7 +1771,9 @@ const server = createServer(async (req, res) => {
       const cfgTg = bot.comCanal('telegram', () => bot.getConfig());
       return json(res, 200, { conversas, esperando: esperando.length, canal: canais.estado(), equipe,
         bot: { ativo: cfgBot.ativo !== false, nome: cfgBot.nome || null },
-        botTelegram: { ativo: cfgTg.ativo !== false, nome: cfgTg.nome || null } });
+        botTelegram: { ativo: cfgTg.ativo !== false, nome: cfgTg.nome || null },
+        /* A conversa só mostra o botão Orçamento se o negócio trabalha com orçamento. */
+        orcamentoLigado: orc.config().ligado });
     }
     // Um bot por canal: ?canal=telegram abre o bot do Telegram.
     if (req.method === 'GET' && rota === '/crm/api/bot') {
@@ -2087,6 +2148,34 @@ const server = createServer(async (req, res) => {
           const lead = crm.listar().find((l) => l.telefone === String(d.telefone || '').replace(/\D/g, ''));
           if (lead) { crm.interagir(lead.id, { canal: ehTelegram(d.telefone) ? 'telegram' : 'whatsapp', direcao: 'saida', texto, autor: 'atendente' }); }
           r = { ok: true, enviado: true, id: envio.id || null };
+          break;
+        }
+        /* Ligar/desligar o orçamento do negócio: só o dono (vendedor não chega aqui). */
+        case '/crm/api/orcamentos/config': r = orc.configurar({ ligado: d.ligado === true }, { por: quem.email || null }); break;
+        /* Orçamento: o vendedor mexe no que é dele; o dono, em todos. */
+        case '/crm/api/orcamentos/salvar': {
+          const tel = String(d.cliente?.telefone || '').replace(/\D/g, '');
+          const pode = vendedorPode(quem, tel);
+          if (!pode.ok) { r = pode; break; }
+          const antes = d.id ? orc.obter(String(d.id)) : null;
+          if (antes && quem.papel === 'vendedor' && antes.vendedor?.email !== quem.email) { r = { ok: false, motivo: 'este orçamento é de outro vendedor' }; break; }
+          const qa = quemAtende(quem);
+          r = orc.salvar({ ...d, vendedor: antes?.vendedor || { nome: qa.nome, email: quem.email || null },
+            cliente: { ...(d.cliente || {}), canal: ehTelegram(tel) ? 'telegram' : 'whatsapp' } }, { por: quem.email || null, catalogo: catalogoOrc() });
+          break;
+        }
+        case '/crm/api/orcamentos/enviar':
+        case '/crm/api/orcamentos/cancelar':
+        case '/crm/api/orcamentos/duplicar':
+        case '/crm/api/orcamentos/cobrar': {
+          const o = orc.obter(String(d.id || ''));
+          if (!o) { r = { ok: false, motivo: 'orçamento não encontrado' }; break; }
+          if (quem.papel === 'vendedor' && o.vendedor?.email !== quem.email) { r = { ok: false, motivo: 'este orçamento é de outro vendedor' }; break; }
+          const acao = rota.split('/').pop();
+          r = acao === 'enviar' ? await orcSrv.enviar(o.id, { por: quem.email || null })
+            : acao === 'cobrar' ? await orcSrv.cobrar(o.id, { por: quem.email || null })
+            : acao === 'cancelar' ? orc.cancelar(o.id, { por: quem.email || null })
+            : orc.duplicar(o.id, { por: quem.email || null, catalogo: catalogoOrc() });
           break;
         }
         case '/crm/api/campanhas/salvar': r = campanhasTg.salvar(d, { canal: 'telegram' }); break;
