@@ -1069,6 +1069,9 @@ body.sem-nav main,body.sem-nav .main{margin-left:0!important}
 
 /* Resultados: receita com o dobro da largura; no celular volta a uma coluna */
 .kpis-res{grid-template-columns:2fr 1fr 1fr 1fr;gap:14px}
+.est-falta{color:var(--warn)!important}
+.gs-passos{grid-template-columns:1fr}.gs-passos .passo-t small b{display:inline;font-size:inherit;color:var(--fg)}
+.gs-verif{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center}.gs-verif input{flex:1 1 220px;min-width:0;height:32px}
 .vd-dia{display:flex;gap:6px;align-items:center;flex-wrap:nowrap}
 .vd-dia input[type=date]{width:auto;flex:none;height:32px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--fg);font:inherit;color-scheme:light dark}
 .vd-kpis{grid-template-columns:1.6fr 1fr 1fr 1fr}
@@ -5250,11 +5253,14 @@ const S={
    `<div class="card" style="margin-bottom:16px">
     ${cardH('publicar','Endereços','Copie e cole onde cada um pede.',3)}
     ${endereco('Sua loja','mande no WhatsApp, cole no Instagram',url)}
-    ${endereco('Feed do Google Shopping','Merchant Center → adicionar feed → busca programada diária',base+'/vitrine/google.xml')}
+    ${endereco('Feed do Google Shopping','Merchant Center → Produtos → Adicionar feed → busca programada diária',base+'/vitrine/google.xml')}
+    ${endereco('Feed da Meta (Facebook e Instagram)','Commerce Manager → Catálogo → Fontes de dados → Feed de dados programado',base+'/vitrine/meta.csv')}
+    ${endereco('Feed do TikTok','TikTok Catalog Manager → Adicionar produtos → Feed de dados → URL programada',base+'/vitrine/tiktok.csv')}
     ${endereco('Sitemap','Search Console → Sitemaps',base+'/vitrine/sitemap.xml')}
     ${LOTES&&LOTES.vitrineConfigurada?linha('Botão de compra','WhatsApp da loja','configurado','b-ok')
       :linha('Botão de compra','sem VITRINE_WHATSAPP usa o número do bot conectado','número do bot','')}
    </div>
+   ${cardGoogleShopping(base,naLoja)}
    <div class="card" style="margin-bottom:16px">
     ${cardH('estoque',`Produtos na loja (${naLoja.length})`,naLoja.length?'Cada um tem página própria — é ela que o Google mostra.'
       :'Nenhum produto na loja ainda. No <b>Estoque</b>, use o 🛒 <b>Vender</b> na linha do produto.',2,
@@ -5275,7 +5281,8 @@ const S={
      ['Subir o backend com o VSestoque','Recarregar esta página']);
   const p=EST;
   const canais=Object.entries(p.canais).map(([c,s])=>`<div class="stat-row">
-    <div class="lbl">${esc(s.nome)}<small>${s.prontos} de ${s.total} produto(s) prontos${s.faltando?` · ${s.faltando} incompleto(s)`:''}</small></div>
+    <div class="lbl">${esc(s.nome)}<small>${s.prontos} de ${s.total} produto(s) prontos${s.faltando?` · ${s.faltando} incompleto(s)`:''}</small>
+      ${s.faltando?`<small class="est-falta">Falta: ${Object.entries(s.motivos||{}).map(([m,n])=>`${esc(m)}${m==='link do produto'?' (ou pôr na vitrine 🛒)':''} em ${n}`).join(' · ')}</small>`:''}</div>
     <button class="btn ${s.prontos?'btn-p':''}" ${s.prontos?'':'disabled'} onclick="baixarFeed('${esc(c)}')">${ico('baixar')}Baixar</button></div>`).join('');
 
   return head('Estoque','Cadastro de produto, saldo com reserva e exportação para os canais de venda.')+
@@ -8992,6 +8999,41 @@ async function vdEnviar(canal,acao){
     else avisoOk(acao==='abrir'?'Caixa aberto':'Lançado',acao==='abrir'?`Troco inicial ${reais(r.caixa.trocoCentavos)}.`:`${acao==='sangria'?'Sangria':'Reforço'} de ${reais(r.movimento.valorCentavos)}.`);
     await carregarVendasDia(canal,true);
   }catch(e){ avisoErro('Não deu',esc(e.message)); }
+}
+
+/* Google Shopping sem token: 3 passos, cada um com o estado REAL. O feed é
+   buscado pelo Google todo dia; o que o dono faz uma vez é provar que o site é
+   dele (arquivo google….html) e colar o endereço do feed no Merchant Center. */
+function cardGoogleShopping(base,naLoja){
+  const g=EST?.canais?.google, v=EST?.googleVerificacao;
+  const prontos=g?g.prontos:0;
+  const passo=(n,feito,titulo,sub,extra)=>`<div class="passo${feito?' feito':''}"><div class="n">${feito?ico('check'):n}</div>
+    <div class="passo-t"><b>${titulo}</b><small>${sub}</small>${extra||''}</div></div>`;
+  return `<div class="card" style="margin-bottom:16px">
+    ${cardH('publicar','Aparecer no Google Shopping','Sem token nem app: o Google busca o seu catálogo sozinho, todo dia.',2)}
+    <div class="passos gs-passos">
+      ${passo(1,prontos>0,`Produtos prontos: ${prontos} de ${g?g.total:0}`,
+        prontos?'Entram no feed os da loja que têm descrição, foto, preço e marca.'
+          :`Precisa estar na loja (🛒 Vender no Estoque) e ter descrição.${g?.faltando?' Falta: '+Object.entries(g.motivos||{}).map(([m,n])=>`${esc(m)} em ${n}`).join(' · '):''}`,
+        prontos?'':`<div style="margin-top:6px">${botao({t:'Ir pro Estoque',ic:'estoque',v:'s',sz:'xs',on:"ir('estoque')"})}</div>`)}
+      ${passo(2,!!v?.arquivo,v?.arquivo?`Site verificado: ${esc(v.arquivo)}`:'Provar que o site é seu',
+        v?.arquivo?`O Google encontra o arquivo em <code>${esc(base+'/'+v.arquivo)}</code>. Agora clique em "Verificar" lá no Merchant Center.`
+          :'No Merchant Center: Configurações → Site → Verificar com <b>arquivo HTML</b>. Baixe o arquivo e cole aqui o <b>nome</b> dele.',
+        `<div class="gs-verif">${v?.arquivo
+          ?`<a class="btn btn-g btn-xs" href="${esc(base+'/'+v.arquivo)}" target="_blank" rel="noopener">${ico('ver')}<span>Conferir</span></a>${botao({t:'Trocar',ic:'editar',v:'g',sz:'xs',on:'gsLimpar()'})}`
+          :`<input id="gsCodigo" placeholder="google1a2b3c4d5e6f7a8b.html" autocomplete="off">${botao({t:'Salvar',ic:'salvar',v:'p',sz:'xs',on:'gsSalvar()'})}`}</div>`)}
+      ${passo(3,false,'Colar o feed no Merchant Center',`Produtos → Adicionar produtos → Feed → <b>Busca programada</b>, diária, com o endereço <code>${esc(base+'/vitrine/google.xml')}</code>. O Google revisa em até 3 dias úteis.`)}
+    </div></div>`;
+}
+async function gsSalvar(){
+  try{ const r=await api('google/verificacao',{colado:document.getElementById('gsCodigo')?.value||''});
+    avisoOk('Arquivo de verificação no ar',`O Google vai achar <code>${esc(r.arquivo)}</code> na raiz do site.`);
+    EST=await apiCru('estoque'); render(); }
+  catch(e){ avisoErro('Não deu pra salvar',esc(e.message)); }
+}
+async function gsLimpar(){
+  try{ await api('google/verificacao',{limpar:true}); EST=await apiCru('estoque'); render(); }
+  catch(e){ avisoErro('Não deu',esc(e.message)); }
 }
 
 function abrirRetomada(ref){

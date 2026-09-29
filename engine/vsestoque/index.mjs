@@ -277,7 +277,7 @@ export function painel(opcoes = {}) {
     valorCentavos: valor,
     valorFormatado: formatarBRL(valor),
     alertas: alertas(produtos),
-    canais: prontidao(produtos),
+    canais: prontidao(produtos, { linkDe: opcoes.linkDe }),
     produtos: produtos.map(resumir),
   };
 }

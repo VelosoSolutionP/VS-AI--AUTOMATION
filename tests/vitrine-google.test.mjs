@@ -11,7 +11,7 @@ import { exportar } from '../engine/vsestoque/exportar.mjs';
 import { pagina, paginaProduto } from '../backend/vitrine.mjs';
 
 const base = { sku: 'XT 1', nome: 'X-Tudo & Cia', descricao: 'Hambúrguer, ovo e bacon', marca: 'Juarez', categoria: 'Lanches',
-  precoCentavos: 2800, moeda: 'BRL', quantidade: 10, reservado: 0, imagens: ['https://x/xt.jpg'], ativo: true, condicao: 'novo' };
+  precoCentavos: 2800, moeda: 'BRL', quantidade: 10, reservado: 0, imagens: ['https://x/xt.jpg'], ativo: true, condicao: 'novo', naVitrine: true };
 const linkDe = (sku) => `https://loja.exemplo/vitrine/p/${encodeURIComponent(sku)}`;
 
 test('feed do Google: link da pagina entra sozinho; link manual e respeitado; sem descricao fica de fora', () => {
@@ -26,6 +26,11 @@ test('feed do Google: link da pagina entra sozinho; link manual e respeitado; se
 
 test('sem linkDe, produto sem link continua recusado (nao inventa URL)', () => {
   assert.deepEqual(exportar([base], 'google').recusados[0].faltando, ['link do produto']);
+});
+
+test('fora da vitrine nao ganha link automatico: a pagina dele nao existe (seria um 404 pro Google)', () => {
+  const r = exportar([{ ...base, naVitrine: false }], 'google', { linkDe });
+  assert.deepEqual(r.recusados[0].faltando, ['link do produto']);
 });
 
 const cliente = { sku: 'XT 1', nome: 'X-Tudo', descricao: 'Hambúrguer', marca: 'Juarez', categoria: 'Lanches',

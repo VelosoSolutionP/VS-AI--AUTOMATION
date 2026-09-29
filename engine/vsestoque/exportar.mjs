@@ -247,8 +247,7 @@ export function exportar(produtos = [], canal = 'json', opts = {}) {
      Link é o campo que mais derruba produto no Google e na Meta, e cobrar do
      dono uma URL que o próprio sistema tem é trabalho à toa. Link escrito à mão
      no produto continua valendo. */
-  const comLink = (p) => (!String(p.link || '').trim() && opts.linkDe ? { ...p, link: opts.linkDe(p.sku) } : p);
-  const candidatos = (opts.incluirInativos ? produtos : produtos.filter((p) => p.ativo !== false)).map(comLink);
+  const candidatos = (opts.incluirInativos ? produtos : produtos.filter((p) => p.ativo !== false)).map((p) => comLink(p, opts));
 
   const itens = [];
   const recusados = [];
@@ -271,17 +270,36 @@ export function exportar(produtos = [], canal = 'json', opts = {}) {
   };
 }
 
-/** Prévia pra tela: o que sai e o que fica de fora em CADA canal, sem gerar arquivo. */
-export function prontidao(produtos = []) {
+/* Link automático SÓ pra produto da vitrine: a página /vitrine/p/<sku> só
+   existe pra quem está nela. Dar o endereço de um produto fora da vitrine era
+   mandar o Google pra um 404 — e o item é reprovado do mesmo jeito. */
+function comLink(p, opts = {}) {
+  return !String(p.link || '').trim() && opts.linkDe && p.naVitrine === true ? { ...p, link: opts.linkDe(p.sku) } : p;
+}
+
+/**
+ * Prévia pra tela: o que sai e o que fica de fora em CADA canal, sem gerar
+ * arquivo — com o MESMO link automático do arquivo (senão a tela dizia "falta
+ * link" de um produto que sai com link). `motivos` = campo → quantos produtos
+ * esbarram nele, pra tela dizer o que preencher em vez de só "incompleto".
+ */
+export function prontidao(produtos = [], opts = {}) {
   const out = {};
+  const ativos = produtos.filter((p) => p.ativo !== false).map((p) => comLink(p, opts));
   for (const canal of FORMATOS) {
-    const ativos = produtos.filter((p) => p.ativo !== false);
-    const prontos = ativos.filter((p) => !faltaPara(p, canal).length);
+    const motivos = {};
+    let prontos = 0;
+    for (const p of ativos) {
+      const f = faltaPara(p, canal);
+      if (!f.length) { prontos += 1; continue; }
+      for (const campo of f) { motivos[campo] = (motivos[campo] || 0) + 1; }
+    }
     out[canal] = {
       nome: CANAIS[canal].nome,
-      prontos: prontos.length,
+      prontos,
       total: ativos.length,
-      faltando: ativos.length - prontos.length,
+      faltando: ativos.length - prontos,
+      motivos,
     };
   }
   return out;

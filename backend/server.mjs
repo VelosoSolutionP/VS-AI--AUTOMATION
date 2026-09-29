@@ -26,6 +26,7 @@ import { testarConexao, CREDENCIAL } from '../engine/vsinfluence/coletor.mjs';
 import { diagnostico as tiktokDiagnostico } from '../engine/vstiktok/index.mjs';
 import { testar as tiktokTestar } from '../engine/vstiktok/conectar.mjs';
 import * as estoque from '../engine/vsestoque/index.mjs';
+import * as googleVerif from '../engine/vsestoque/google.mjs';
 import * as vspainel from '../engine/vspainel/index.mjs';
 import { painelQuebraGalho, QG_URL } from './quebragalho.mjs';
 import * as tk from '../engine/vstiktok/index.mjs';
@@ -94,6 +95,8 @@ const limitesAtuais = () => { try { return planos.assinatura().limites; } catch 
 /* Carteira de clientes: onde o cliente confere a chave e pra onde o Mercado
    Pago avisa que pagaram. Os dois saem do endereco publico do console. */
 const origemPublica = () => process.env.PAINEL_URL || 'https://bolsocheio.velososolution.com.br';
+/** Endereço público da página de um produto da vitrine — o link que os feeds levam. */
+const linkDaVitrine = (sku) => `${origemPublica()}/vitrine/p/${encodeURIComponent(sku)}`;
 const urlAtivacao = () => `${origemPublica()}/ativar`;
 /* SEM notification_url por padrao. O webhook cadastrado no painel do Mercado
    Pago ja cobre todo pagamento da conta e a assinatura dele confere. O aviso
@@ -813,6 +816,12 @@ const server = createServer(async (req, res) => {
    * O `state` e conferido dentro de `concluirAutorizacao` — e o que impede alguem
    * mandar um `code` forjado.
    */
+  /* Verificacao do site no Google (Merchant Center): arquivo google<codigo>.html
+     na RAIZ. So responde o nome exatamente cadastrado no painel. */
+  if (req.method === 'GET' && /^\/google[0-9a-f]{8,32}\.html$/.test(req.url.split('?')[0])) {
+    const v = googleVerif.servirVerificacao(req.url);
+    if (v) { res.writeHead(200, { 'content-type': v.tipo }); return res.end(v.conteudo); }
+  }
   /* Arquivo de verificacao de dominio da TikTok. Fica na RAIZ porque e la que ela
      procura, e antes do resto do roteamento porque o nome vem deles — nao da pra
      reservar um prefixo nosso. So responde o arquivo exatamente cadastrado. */
@@ -1071,10 +1080,13 @@ const server = createServer(async (req, res) => {
       }
       /* FEED DO GOOGLE (Merchant Center busca sozinho, todo dia). Só produto da
          vitrine, e o link de cada um é a página dele aqui mesmo. */
-      if (rotaV === '/vitrine/google.xml') {
-        const f = estoque.exportarVitrine('google', { loja: lojaV.nome, site: `${lojaV.origem}/vitrine`,
+      /* Meta (Commerce Manager) e TikTok (Catalog Manager) buscam do MESMO jeito:
+         "feed de dados programado" por URL — sem token, sem app aprovado. */
+      const FEEDS = { '/vitrine/google.xml': 'google', '/vitrine/meta.csv': 'meta', '/vitrine/tiktok.csv': 'tiktok' };
+      if (FEEDS[rotaV]) {
+        const f = estoque.exportarVitrine(FEEDS[rotaV], { loja: lojaV.nome, site: `${lojaV.origem}/vitrine`,
           linkDe: (sku) => `${lojaV.origem}/vitrine/p/${encodeURIComponent(sku)}` });
-        res.writeHead(200, { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=300',
+        res.writeHead(200, { 'content-type': f.tipo, 'cache-control': 'public, max-age=300',
           'x-vs-incluidos': String(f.incluidos), 'x-vs-recusados': String((f.recusados || []).length) });
         return res.end(f.conteudo);
       }
@@ -1337,7 +1349,7 @@ const server = createServer(async (req, res) => {
     // guarda em ~/.qa-gate/vstiktok com arquivo 0600. O diagnostico ja sai mascarado.
     if (req.method === 'GET' && rota === '/crm/api/tiktok') { return json(res, 200, tiktokDiagnostico()); }
     if (req.method === 'GET' && rota === '/crm/api/estoque') {
-      return json(res, 200, estoque.painel({ limiteProdutos: limitesAtuais().produtos }));
+      return json(res, 200, { ...estoque.painel({ limiteProdutos: limitesAtuais().produtos, linkDe: linkDaVitrine }), googleVerificacao: googleVerif.getVerificacao() });
     }
     // Telas que eram casca: leem recibo do gate, dinheiro e cruzamento de dado real.
     /* Auditor de um canal no padrão de mercado: desempenho (TPR, TMA, SLA, CSAT,
@@ -1904,7 +1916,7 @@ const server = createServer(async (req, res) => {
     // consomem. Os recusados vao no header, pra tela poder avisar sem baixar duas vezes.
     if (req.method === 'GET' && rota === '/crm/api/estoque/exportar') {
       const canal = new URL(req.url, 'http://x').searchParams.get('canal') || 'json';
-      const r = estoque.exportar(canal, { loja: process.env.VSESTOQUE_LOJA, site: process.env.VSESTOQUE_SITE });
+      const r = estoque.exportar(canal, { loja: process.env.VSESTOQUE_LOJA, site: process.env.VSESTOQUE_SITE, linkDe: linkDaVitrine });
       if (!r.ok) { return json(res, 400, { erro: r.motivo }); }
       res.writeHead(200, {
         'content-type': r.tipo,
@@ -2455,6 +2467,7 @@ const server = createServer(async (req, res) => {
           break;
         }
         case '/crm/api/caixa': r = fin.criar(d); break;
+        case '/crm/api/google/verificacao': r = d.limpar ? googleVerif.limparVerificacao() : googleVerif.salvarVerificacao({ colado: d.colado }); break;
         /* Caixa do CANAL (abertura/fechamento), separado do livro-caixa acima.
            O fechamento grava o retrato das vendas desde a abertura. */
         case '/crm/api/caixa-canal/abrir': r = caixaCanal.abrir({ canal: d.canal, troco: d.troco, quem: quem.email }); break;
