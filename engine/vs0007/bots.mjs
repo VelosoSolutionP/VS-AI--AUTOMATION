@@ -810,7 +810,7 @@ function nosDoPerfil(perfil) {
  * expressa do criador: o 0007 propõe, o dono (criador) autoriza.
  * Retorna { bot, noId } ou { erro }.
  */
-export function criarBotComercial({ nome, finalidade, especialidade, profissao, empresaCnpj = '', empresaNome = '', empresaCpf = '', autorizado = false, atividades = [], ferramentas = [], falhas = [], lacunas = [], conhecimentos = [], preparacao = null, perfil = null, donoId = '0007', identificadorUnico = false } = {}) {
+export function criarBotComercial({ nome, finalidade, especialidade, profissao, empresaCnpj = '', empresaNome = '', empresaCpf = '', empresaSite = '', autorizado = false, atividades = [], ferramentas = [], falhas = [], lacunas = [], conhecimentos = [], preparacao = null, perfil = null, donoId = '0007', identificadorUnico = false } = {}) {
   const final = String(finalidade || '').trim();
   const esp = String(especialidade || '').trim();
   let nomeBot = String(nome || final).trim();
@@ -852,6 +852,7 @@ export function criarBotComercial({ nome, finalidade, especialidade, profissao, 
     ...(cnpj ? { empresaCnpj: cnpj.digitos } : {}),
     ...(empresaNome ? { empresaNome: String(empresaNome).trim().slice(0, 180) } : {}),
     ...(empresaCpf ? { empresaCpf: String(empresaCpf).replace(/\D/g, '') } : {}),
+    ...(empresaSite ? { empresaSite: String(empresaSite).trim().slice(0, 300) } : {}),
     tipo: R.TIPO_COMERCIALIZAVEL,
     estado: 'em_preparacao',
     autorizadoCriador: true,
@@ -1249,6 +1250,7 @@ export async function pesquisarERegistrarPreparacaoInicial({ agenteId, autorizad
   const pesquisa = await pesquisarPreparacaoNaWeb({
     especialidade: bot.especialidade,
     nicho: bot.preparacao?.nicho || '',
+    siteEmpresa: bot.empresaSite || '',
     finalidade: bot.finalidade,
     profissao: bot.perfil?.funcao || bot.profissao,
     empresaCnpj: cnpjPesquisa,
@@ -1628,7 +1630,7 @@ function botSemDocumentoPessoal(bot) {
  * baixo. Risco financeiro/jurídico/fiscal/saúde/direitos fica em validação,
  * aguardando uma pessoa.
  */
-export async function criarIAZestAutomatica({ nicho, empresaTipo = '', empresaIdentificador = '', aceite = false, autorizado = false, fetch: fetchFn, curl: curlFn, donoId = '0007' } = {}) {
+export async function criarIAZestAutomatica({ nicho, empresaTipo = '', empresaIdentificador = '', empresaSite = '', aceite = false, autorizado = false, fetch: fetchFn, curl: curlFn, donoId = '0007' } = {}) {
   const busca = String(nicho || '').trim();
   if (busca.length < 2) return { erro: 'informe o nicho com pelo menos 2 caracteres' };
   if (aceite !== true || autorizado !== true) {
@@ -1672,6 +1674,7 @@ export async function criarIAZestAutomatica({ nicho, empresaTipo = '', empresaId
     especialidade: preparacao.especialidade,
     profissao: preparacao.profissao.id,
     ...empresa,
+    empresaSite,
     autorizado: true,
     atividades: preparacao.atividades,
     ferramentas: (preparacao.ferramentas || []).map((item) => item.nome || String(item)),

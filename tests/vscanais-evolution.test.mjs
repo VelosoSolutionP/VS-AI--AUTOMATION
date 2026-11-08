@@ -474,3 +474,22 @@ test('o que ela sabe da empresa chega na resposta, sem os itens internos do mode
   assert.equal(r.some((l) => /^(fluxos|lacunas|responsabilidades):/.test(l)), false);
   assert.equal(canais.conhecimentoRelevante(linhas, 'como resolve chamados de suporte?')[0], 'conhecimento-básico: suporte técnico resolve chamados');
 });
+
+test('IA de vendas recebe roteiro; conversa de robô é pausada e frase repetida não sai', async () => {
+  await comEmpresa('44111222000155', async () => {
+    iaHomologada({ id: 'ia-venda', nome: 'Ivi', especialidade: 'Vendedora', conhecimento: 'produto: Dobrão vende pelo WhatsApp' });
+    const n = canais.cadastrar({ rotulo: 'Ivi', agenteId: 'ia-venda' }).numero;
+    await canais.conectar({ id: n.id }); estados.set(n.instancia, 'open');
+    await canais.receberWebhook(evento(n.instancia, '5531999990050', 'quero comprar', 'v0'), { segredo: 'segredo-123' });
+    const prompt = chamadas.filter((c) => c.caminho === '/api/chat').at(-1).corpo.messages[0].content;
+    assert.match(prompt, /recomende um produto/);
+    const envios = () => chamadas.filter((c) => c.caminho === `/message/sendText/${n.instancia}`).length;
+    const antes = envios();
+    const r2 = await canais.receberWebhook(evento(n.instancia, '5531999990050', 'de novo', 'v1'), { segredo: 'segredo-123' });
+    assert.equal(r2.resultados[0].envios.length, 0, 'mesma resposta não é enviada de novo');
+    assert.equal(envios(), antes);
+    for (let i = 2; i < 10; i++) await canais.receberWebhook(evento(n.instancia, '5531999990050', `msg ${i}`, `v${i}`), { segredo: 'segredo-123' });
+    const r = await canais.receberWebhook(evento(n.instancia, '5531999990050', 'mais uma', 'v99'), { segredo: 'segredo-123' });
+    assert.match(r.resultados[0].motivo, /possível robô/);
+  });
+});

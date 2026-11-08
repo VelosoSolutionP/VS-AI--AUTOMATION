@@ -274,6 +274,31 @@ const emIngles = (t) => (String(t).toLowerCase().match(/\b(the|what|how|should|y
 /* Frase de verdade termina com pontuação; título solto e menu, não. */
 const trechoBom = (f) => f.length >= 50 && f.length <= 280 && f.split(/\s+/).length >= 8 && /[.!]$/.test(f.trim()) && !TRECHO_LIXO.test(f) && !emIngles(f);
 
+/* Produtos do site: dados estruturados (schema.org) e, sem eles, linhas com preço. */
+export function extrairProdutos(html) {
+  const achados = [];
+  const visitar = (no) => {
+    if (Array.isArray(no)) { no.forEach(visitar); return; }
+    if (!no || typeof no !== 'object') return;
+    const tipos = [no['@type']].flat().map(String);
+    if (tipos.some((t) => /^(Product|Service|Offer)$/i.test(t)) && no.name) {
+      const oferta = [no.offers].flat()[0];
+      const preco = oferta?.price || oferta?.lowPrice;
+      const desc = decodificarEntidades(textoDoHtml(String(no.description || ''))).replace(/\s+/g, ' ').trim();
+      achados.push(`${decodificarEntidades(String(no.name)).trim()}${preco ? ` — R$ ${preco}` : ''}${desc ? `: ${desc.slice(0, 140)}` : ''}`);
+    }
+    Object.values(no).forEach(visitar);
+  };
+  for (const m of String(html).matchAll(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)) {
+    try { visitar(JSON.parse(m[1])); } catch { /* JSON ruim de um site não derruba a leitura */ }
+  }
+  if (!achados.length) {
+    achados.push(...decodificarEntidades(textoDoHtml(String(html))).split(/\n+/).map((l) => l.trim())
+      .filter((l) => l.length >= 8 && l.length <= 200 && /R\$\s?\d/.test(l) && !TRECHO_LIXO.test(l)));
+  }
+  return [...new Set(achados)].slice(0, 6);
+}
+
 function consultasDaEspecialidade({ especialidade, finalidade, profissao, empresa, nichoInformado = '' }) {
   const termo = [...new Set([nichoInformado, especialidade].map((t) => String(t || '').trim()).filter(Boolean))].join(' ').slice(0, 120);
   const foco = [termo, profissao, finalidade].filter(Boolean).join(' ').slice(0, 260);
@@ -446,7 +471,7 @@ function conhecimentoDaPagina(pagina, consulta, { escopo = 'profissao', nomes = 
 }
 
 export async function pesquisarPreparacaoNaWeb(
-  { especialidade, finalidade = '', profissao = '', empresaCnpj = '', empresaNome = '', nicho: nichoInformado = '' } = {},
+  { especialidade, finalidade = '', profissao = '', empresaCnpj = '', empresaNome = '', nicho: nichoInformado = '', siteEmpresa = '' } = {},
   { fetch: fetchFn = globalThis.fetch, curl: curlFn = buscarComCurl } = {},
 ) {
   const nicho = String(especialidade || '').trim();
@@ -602,9 +627,29 @@ export async function pesquisarPreparacaoNaWeb(
   const fontesProfissao = fontes.filter((fonte) => fonte.escopo === 'profissao');
   const fontesEmpresaWeb = fontes.filter((fonte) => fonte.escopo === 'empresa');
   const categorias = new Set(fontesProfissao.map((fonte) => fonte.tipo));
+  /* Produtos: o site informado na criação ou, sem ele, o site achado na pesquisa. */
+  const produtos = [];
+  const redes = /facebook|instagram|linkedin|youtube|tiktok/i;
+  const informado = String(siteEmpresa || '').trim();
+  const siteAlvo = informado ? (/^https?:\/\//i.test(informado) ? informado : `https://${informado}`) : fontesEmpresaWeb.find((f) => !redes.test(new URL(f.url).hostname))?.url;
+  if (siteAlvo && urlPermitida(siteAlvo)) {
+    try {
+      const inicio = await buscarHtml(siteAlvo, fetchFn);
+      const paginas = [inicio, ...(await Promise.all([...new Set([...String(inicio.html).matchAll(/href="([^"#]+)"/gi)].map((m) => { try { return new URL(m[1], siteAlvo); } catch { return null; } })
+        .filter((u) => u && u.hostname === new URL(siteAlvo).hostname && u.protocol === 'https:' && /produto|loja|catalogo|servi|planos|precos|shop/i.test(u.pathname)).map((u) => u.href))].slice(0, 3)
+        .map((u) => buscarHtml(u, fetchFn).catch(() => null)))).filter(Boolean)];
+      const lista = [...new Set(paginas.flatMap((p) => extrairProdutos(p.html)))].slice(0, 6);
+      let fonteSite = fontes.find((f) => f.url === siteAlvo) || fontesEmpresaWeb[0];
+      if (!fonteSite && lista.length && fontes.length < 8) {
+        fonteSite = { tipo: 'presenca-digital-empresa', escopo: 'empresa', titulo: new URL(siteAlvo).hostname, url: siteAlvo, resumo: 'Site da empresa consultado para os produtos.', conhecimentos: [] };
+        fontes.push(fonteSite);
+      }
+      if (fonteSite) produtos.push(...lista.map((conteudo) => ({ categoria: 'produto', conteudo: conteudo.slice(0, 300), fonteUrl: fonteSite.url })));
+    } catch (erro) { falhas.push(`site da empresa: ${String(erro.message || erro).slice(0, 120)}`); }
+  }
   /* Sem reserva, o nicho consumia as 10 vagas e o que a empresa faz ficava de fora. */
-  const daEmpresa = [...(cadastroEmpresa ? [cadastroEmpresa.conhecimento] : []), ...fontesEmpresaWeb.flatMap((fonte) => fonte.conhecimentos || [])].slice(0, 5);
-  const conhecimentos = [...daEmpresa, ...fontesProfissao.flatMap((fonte) => fonte.conhecimentos || [])].slice(0, 10);
+  const daEmpresa = [...(cadastroEmpresa ? [cadastroEmpresa.conhecimento] : []), ...fontesEmpresaWeb.flatMap((fonte) => fonte.conhecimentos || [])].slice(0, produtos.length ? 3 : 5);
+  const conhecimentos = [...produtos.slice(0, 4), ...daEmpresa, ...fontesProfissao.flatMap((fonte) => fonte.conhecimentos || [])].slice(0, 10);
   if (fontesProfissao.length < 3 || conhecimentos.length < (cadastroEmpresa ? 4 : 3)) {
     return {
       erro: `a pesquisa automática não conseguiu consultar três fontes relevantes sobre a profissão e registrar os conhecimentos mínimos; nenhuma preparação foi concluída e você pode tentar novamente. Impedimento: não achei conteúdo confiável sobre o nicho "${nichoInformado || nicho}"`,

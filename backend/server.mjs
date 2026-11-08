@@ -3247,6 +3247,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
             nicho: d.nicho,
             empresaTipo: d.empresaTipo,
             empresaIdentificador: d.empresaIdentificador,
+            empresaSite: typeof d.empresaSite === 'string' ? d.empresaSite : '',
             aceite: d.aceite === true,
             autorizado: d.autorizado === true,
           });

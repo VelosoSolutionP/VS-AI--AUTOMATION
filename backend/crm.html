@@ -4858,6 +4858,8 @@ function corpoWiz(){
       </select></div>
     <div class="field"><label for="wizEmpresaIdentificador">${WIZ.empresaTipo==='cnpj'?'CNPJ':WIZ.empresaTipo==='cpf'?'CPF':'Nome da empresa'} *</label>
       <input id="wizEmpresaIdentificador" value="${esc(WIZ.empresaIdentificador)}" ${WIZ.empresaTipo==='nome'?'':'inputmode="numeric"'} maxlength="${WIZ.empresaTipo==='nome'?'120':'18'}" placeholder="${WIZ.empresaTipo==='cnpj'?'00.000.000/0000-00':WIZ.empresaTipo==='cpf'?'000.000.000-00':'Razão social ou nome fantasia'}" oninput="WIZ.empresaIdentificador=this.value"></div>
+    <div class="field"><label for="wizSite">Site ou catálogo da empresa <small>(opcional; de onde a IA aprende os produtos)</small></label>
+      <input id="wizSite" value="${esc(WIZ.empresaSite||'')}" maxlength="300" placeholder="https://sualoja.com.br" oninput="WIZ.empresaSite=this.value"></div>
     <label class="dv-chk" style="margin-top:6px"><input type="checkbox" id="wizAceite" ${WIZ.aceite?'checked':''} onchange="WIZ.aceite=this.checked"> Autorizo o agente 0007 a pesquisar, criar, testar e homologar automaticamente esta IA-ZEST.</label>
     <p class="hint">CPF e nome não são enviados a buscadores; o CPF fica apenas no cadastro local. Assuntos financeiros, jurídicos, fiscais, de saúde ou que afetem direitos exigem aprovação humana antes da homologação.</p>`;
   const p=WIZ.preparacao||{};
@@ -4968,7 +4970,7 @@ async function wizCriarAutomatico(){
   if(wizEhSalao(nicho)&&(!cadevcUrl||!cadevcToken)) return avisoErro('Faltam os dados do Cadê Você','Nicho de salão precisa da URL da API e do token.');
   WIZ.nicho=nicho; WIZ.empresaIdentificador=empresaIdentificador; WIZ.aceite=aceite; WIZ.buscando=true; renderWiz();
   try{
-    const r=await api('hotel/criar-automatico',{nicho,empresaTipo,empresaIdentificador,aceite:true,autorizado:true,...(wizEhSalao(nicho)?{cadevcUrl,cadevcToken}:{})});
+    const r=await api('hotel/criar-automatico',{nicho,empresaTipo,empresaIdentificador,empresaSite:(WIZ.empresaSite||'').trim(),aceite:true,autorizado:true,...(wizEhSalao(nicho)?{cadevcUrl,cadevcToken}:{})});
     if(r.erro) throw new Error(r.erro);
     const id=r.bot?.agenteId;
     HOTEL_SELECIONADO=id||null;

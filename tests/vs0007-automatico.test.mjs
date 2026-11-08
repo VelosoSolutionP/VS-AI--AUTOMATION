@@ -301,3 +301,10 @@ test('empresa só conta com o nome inteiro', async () => {
   assert.equal(falaDoNicho('Teste Engenharia, ensaios de concreto', ['Salão da Glau Teste'], 1), false);
   assert.equal(falaDoNicho('Salão da Glau em Lagoa Santa', ['Salão da Glau'], 1), true);
 });
+
+test('produtos saem dos dados do site e, sem eles, das linhas com preço', async () => {
+  const { extrairProdutos } = await import('../engine/vs0007/pesquisa.mjs');
+  const ld = '<script type="application/ld+json">{"@type":"Product","name":"Dobrão","description":"Vende no WhatsApp","offers":{"price":"99.90"}}</script>';
+  assert.deepEqual(extrairProdutos(ld), ['Dobrão — R$ 99.90: Vende no WhatsApp']);
+  assert.deepEqual(extrairProdutos('<p>Plano Básico R$ 49,90 por mês</p><p>Sobre nós</p>'), ['Plano Básico R$ 49,90 por mês']);
+});
