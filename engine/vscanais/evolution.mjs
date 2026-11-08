@@ -438,11 +438,16 @@ function perfilPreenchido(ia) {
    levam ~6 s. Vai só o que mais tem a ver com a pergunta do cliente. */
 const LIMITE_CONHECIMENTO = 700;
 const termos = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/[^a-z0-9]+/).filter((x) => x.length > 2);
+/* Persona, regras e fluxo já vão nas instruções; repetir aqui só tomava o espaço
+   do que ela aprendeu. O que sabe da empresa vem antes do resto. */
+const ITEM_INTERNO = /^(lacunas|fluxos|atividades|etapas-do-fluxo|permissoes|horarios|autonomia|ferramentas-e-integracoes|responsabilidades|regras|regras-adicionais|limites|limites-de-atuacao|personalidade|funcao|objetivo-principal|mensagens|identidade|especialidade|profissao|orientacao-profissional)\s*:/;
+const ITEM_EMPRESA = /^(perfil-publico-da-empresa|o-que-a-empresa-faz|aprendizado-validado)\s*:/;
 export function conhecimentoRelevante(conhecimento, texto, limite = LIMITE_CONHECIMENTO) {
   const pergunta = new Set(termos(texto));
   const ordenado = [...new Set(conhecimento)]
-    .map((linha, i) => ({ linha, i, pontos: termos(linha).filter((x) => pergunta.has(x)).length }))
-    .sort((a, b) => b.pontos - a.pontos || a.i - b.i);
+    .filter((linha) => !ITEM_INTERNO.test(linha))
+    .map((linha, i) => ({ linha, i, pontos: termos(linha).filter((x) => pergunta.has(x)).length, empresa: ITEM_EMPRESA.test(linha) ? 1 : 0 }))
+    .sort((a, b) => b.pontos - a.pontos || b.empresa - a.empresa || a.i - b.i);
   const escolhidos = [];
   let total = 0;
   for (const { linha } of ordenado) {

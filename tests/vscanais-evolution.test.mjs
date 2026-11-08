@@ -466,3 +466,11 @@ test('o que a IA não soube vira aprendizado pendente e só vale depois de audit
     assert.match(canais.recusarAprendizado({ id: r.id }).erro, /já auditado/);
   });
 });
+
+test('o que ela sabe da empresa chega na resposta, sem os itens internos do modelo', () => {
+  const linhas = ['fluxos: endereco: Me passa o endereço', 'lacunas: Produtos e preços', 'responsabilidades: resolver problemas', 'o-que-a-empresa-faz: A Veloso desenvolve sistemas e plataformas', 'conhecimento-básico: suporte técnico resolve chamados'];
+  const r = canais.conhecimentoRelevante(linhas, 'oi, tudo bem?');
+  assert.equal(r[0], 'o-que-a-empresa-faz: A Veloso desenvolve sistemas e plataformas');
+  assert.equal(r.some((l) => /^(fluxos|lacunas|responsabilidades):/.test(l)), false);
+  assert.equal(canais.conhecimentoRelevante(linhas, 'como resolve chamados de suporte?')[0], 'conhecimento-básico: suporte técnico resolve chamados');
+});

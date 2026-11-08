@@ -261,7 +261,7 @@ export function falaDoNicho(texto, nomes, proporcao = 0.6) {
 const SITE_BUSCA = /(^|\.)google(\.[a-z.]+)?$|(^|\.)bing\.com$/i;
 const SITE_GENERICO = /(^|\.)google$|(^|\.)(google|apple|microsoft|amazon|mercadolivre|magazineluiza|americanas|shopee|aliexpress|facebook|instagram|tiktok|twitter|x|pinterest)\.[a-z.]+$/i;
 const CADASTRO_EMPRESA = /cnpj|serasa|econodata|casadosdados|consultas?ocio|advdinamico|informecadastral|receitaws|telelistas/i;
-const TRECHO_LIXO = /- youtube$|\?|cookie|javascript|inscrev|deixe seu like|clique|acesse o conte|fa[cç]a login|todos os direitos|my ad center|resultados da web|\]\(|##|fale com a gente|entrevista|\bvagas?\b|sal[aá]rio|curr[ií]culo|como se tornar|por que ser|aproveite v[ií]deos|»|\*\*|in[ií]cio \/|^\W/i;
+const TRECHO_LIXO = /- youtube$|\?|cookie|javascript|inscrev|deixe seu like|clique|acesse o conte|fa[cç]a login|todos os direitos|my ad center|resultados da web|\]\(|##|fale com a gente|entrevista|\bvagas?\b|sal[aá]rio|curr[ií]culo|como se tornar|por que ser|aproveite v[ií]deos|followers|following|seguidores|»|\*\*|in[ií]cio \/|^\W/i;
 const ENTIDADES = { nbsp: ' ', amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', ordm: 'º', ordf: 'ª' };
 const MARCAS = { acute: '\u0301', grave: '\u0300', tilde: '\u0303', circ: '\u0302', uml: '\u0308', cedil: '\u0327' };
 /* Algumas páginas chegam com acento em entidade HTML (op&ccedil;&otilde;es). */
