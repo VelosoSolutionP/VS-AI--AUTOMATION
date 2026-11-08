@@ -2425,7 +2425,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
       return json(res, 200, {
         ...hotel.painel(),
         salao: { bot0007Id: cadevcCfg.config().bot0007Id || null },
-        nichosSalao: salaoIas.SERVICOS_SALAO.map((x) => x.padrao.source),
+        nichosSalao: [...salaoIas.SERVICOS_SALAO.map((x) => x.padrao.source), salaoIas.PADRAO_SALAO_GERAL.source],
       });
     }
     if (req.method === 'GET' && rota === '/crm/api/bot') {

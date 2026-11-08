@@ -45,9 +45,10 @@ export function avaliarIA(bot) {
 }
 
 /** O nicho digitado é um dos 7, ou nome parecido? Então a IA precisa dos dados do Cadê Você. */
+export const PADRAO_SALAO_GERAL = /\bsalao\b(?! de (festa|jogo|evento))|\bbeleza\b/;
 export function exigeDadosSalao(texto) {
   const t = normalizar(texto);
-  return SERVICOS_SALAO.some((s) => s.padrao.test(t));
+  return PADRAO_SALAO_GERAL.test(t) || SERVICOS_SALAO.some((s) => s.padrao.test(t));
 }
 
 /* Credenciais do Cadê Você de cada IA: arquivo próprio, nunca no registro da IA,

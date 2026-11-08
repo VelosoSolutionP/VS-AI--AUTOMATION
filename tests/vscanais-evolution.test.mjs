@@ -349,8 +349,8 @@ test('Canais é de todo mundo: IA homologada de qualquer nicho entra', () => {
 });
 
 test('IA de salão precisa dos dados confirmados do Cadê Você', async () => {
-  for (const n of ['manicurista', 'Cabeleireira', 'barbeiro', 'design de sobrancelha', 'alongamento de unhas', 'esmalteria', 'bronzeamento natural']) assert.equal(salao.exigeDadosSalao(n), true, n);
-  for (const n of ['padaria', 'clínica médica', 'faxina']) assert.equal(salao.exigeDadosSalao(n), false, n);
+  for (const n of ['Salao', 'salão de beleza', 'manicurista', 'Cabeleireira', 'barbeiro', 'design de sobrancelha', 'alongamento de unhas', 'esmalteria', 'bronzeamento natural']) assert.equal(salao.exigeDadosSalao(n), true, n);
+  for (const n of ['padaria', 'clínica médica', 'faxina', 'salão de festas']) assert.equal(salao.exigeDadosSalao(n), false, n);
   assert.match((await salao.validarDadosSistema({ url: '', token: '' })).erro, /URL da API e do token/);
   const ok = async () => ({ ok: true, status: 200, json: async () => ({ cadevc: { nome: 'Studio Lu' } }) });
   assert.deepEqual(await salao.validarDadosSistema({ url: 'https://x/api', token: 'bom', fetchImpl: ok }), { ok: true, salao: 'Studio Lu' });
