@@ -419,7 +419,9 @@ export async function sincronizarIdentidade({ id } = {}) {
   const foto = String(ia.perfil?.foto || '');
   const m = /^data:image\/(?:jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(foto);
   const marcaFoto = m ? `${ia.agenteId}:${createHash('sha1').update(m[1]).digest('hex')}` : null;
-  if (!m) campos.foto = { ok: false, erro: foto ? 'foto da IA em formato não aceito' : 'a IA não tem foto no Hotel; o WhatsApp mantém a foto atual' };
+  /* TEMPORÁRIO: desligada para testar a sessão sem o conflito da foto. Ligar com CANAIS_TROCAR_FOTO=1. */
+  if (process.env.CANAIS_TROCAR_FOTO !== '1') campos.foto = { ok: false, erro: 'troca de foto desligada temporariamente para teste de estabilidade' };
+  else if (!m) campos.foto = { ok: false, erro: foto ? 'foto da IA em formato não aceito' : 'a IA não tem foto no Hotel; o WhatsApp mantém a foto atual' };
   else if (n.identidade?.marcaFoto === marcaFoto) campos.foto = { ok: true, aviso: 'já estava aplicada' };
   else {
     await tentar('foto', () => evo(`chat/updateProfilePicture/${inst}`, { method: 'POST', body: { picture: m[1] } }));

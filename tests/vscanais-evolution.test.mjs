@@ -66,6 +66,7 @@ canais._usarFetch(fetchFalso);
 let reinicios = 0;
 canais._usarReinicio(async () => { reinicios++; });
 process.env.CANAIS_ESPERA_REINICIO_MS = '0';
+process.env.CANAIS_TROCAR_FOTO = '1';
 
 /* ── IAs homologadas no Hotel (só montagem de dados de teste) ── */
 function iaHomologada({ id, nome, especialidade, profissao = 'atendente', conhecimento, foto = '' }) {
@@ -421,5 +422,19 @@ test('o 404 de antes de criar a instância não apaga o QR depois', async () => 
     assert.equal(st.estado, 'aguardando_qr');
     assert.equal(st.qr, 'data:image/png;base64,QRREAL');
     assert.equal(st.ultimoErro, null);
+  });
+});
+
+test('com a chave temporária desligada, a foto não é enviada', async () => {
+  await comEmpresa('77000111000199', async () => {
+    iaHomologada({ id: 'ia-chave', nome: 'Lia', especialidade: 'Manicure', conhecimento: 'x', foto: 'data:image/jpeg;base64,QUJD' });
+    const n = canais.cadastrar({ rotulo: 'Chave', agenteId: 'ia-chave' }).numero;
+    await canais.conectar({ id: n.id }); estados.set(n.instancia, 'open');
+    delete process.env.CANAIS_TROCAR_FOTO;
+    try {
+      const r = await canais.sincronizarIdentidade({ id: n.id });
+      assert.equal(r.identidade.campos.foto.ok, false);
+      assert.equal(chamadas.some((c) => c.caminho === `/chat/updateProfilePicture/${n.instancia}`), false);
+    } finally { process.env.CANAIS_TROCAR_FOTO = '1'; }
   });
 });
