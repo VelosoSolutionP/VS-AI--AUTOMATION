@@ -248,6 +248,32 @@ function resultadoRelevante(resultado, termosBusca, minimoEncontrado = 1) {
  * consulta técnica de normas/documentação. A empresa, quando informada, é um
  * parâmetro a mais: site, redes e avaliações dela entram como presença digital.
  */
+/* A página fala mesmo do nicho? Pelo menos 60% das palavras dele, em algum dos
+   nomes informados, com tolerância de radical. Um termo só ("assistente")
+   deixava entrar Google Assistant e previsão de pôr do sol. */
+export function falaDoNicho(texto, nomes, proporcao = 0.6) {
+  const alvo = String(texto || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return nomes.map(normalizarTermos).filter((t) => t.length).some((termos) => {
+    const achados = [...new Set(termos)].filter((t) => alvo.includes(t) || (t.length >= 6 && alvo.includes(t.slice(0, Math.max(5, t.length - 3))))).length;
+    return achados >= Math.ceil(new Set(termos).size * proporcao);
+  });
+}
+const SITE_BUSCA = /(^|\.)google(\.[a-z.]+)?$|(^|\.)bing\.com$/i;
+const SITE_GENERICO = /(^|\.)google$|(^|\.)(google|apple|microsoft|amazon|mercadolivre|magazineluiza|americanas|shopee|aliexpress|facebook|instagram|tiktok|twitter|x|pinterest)\.[a-z.]+$/i;
+const CADASTRO_EMPRESA = /cnpj|serasa|econodata|casadosdados|consultas?ocio|advdinamico|informecadastral|receitaws|telelistas/i;
+const TRECHO_LIXO = /- youtube$|\?|cookie|javascript|inscrev|deixe seu like|clique|acesse o conte|fa[cç]a login|todos os direitos|my ad center|resultados da web|\]\(|##|fale com a gente|entrevista|\bvagas?\b|sal[aá]rio|curr[ií]culo|como se tornar|por que ser|aproveite v[ií]deos|»|\*\*|in[ií]cio \/|^\W/i;
+const ENTIDADES = { nbsp: ' ', amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', ordm: 'º', ordf: 'ª' };
+const MARCAS = { acute: '\u0301', grave: '\u0300', tilde: '\u0303', circ: '\u0302', uml: '\u0308', cedil: '\u0327' };
+/* Algumas páginas chegam com acento em entidade HTML (op&ccedil;&otilde;es). */
+const decodificarEntidades = (t) => String(t || '')
+  .replace(/&([a-z])(acute|grave|tilde|circ|uml|cedil);/gi, (_, l, m) => l + MARCAS[m.toLowerCase()])
+  .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+  .replace(/&([a-z]+);/gi, (m, n) => ENTIDADES[n.toLowerCase()] ?? m)
+  .normalize('NFC');
+const emIngles = (t) => (String(t).toLowerCase().match(/\b(the|what|how|should|your|during|with|from|this|are)\b/g) || []).length >= 2;
+/* Frase de verdade termina com pontuação; título solto e menu, não. */
+const trechoBom = (f) => f.length >= 50 && f.length <= 280 && f.split(/\s+/).length >= 8 && /[.!]$/.test(f.trim()) && !TRECHO_LIXO.test(f) && !emIngles(f);
+
 function consultasDaEspecialidade({ especialidade, finalidade, profissao, empresa, nichoInformado = '' }) {
   const termo = [...new Set([nichoInformado, especialidade].map((t) => String(t || '').trim()).filter(Boolean))].join(' ').slice(0, 120);
   const foco = [termo, profissao, finalidade].filter(Boolean).join(' ').slice(0, 260);
@@ -396,22 +422,23 @@ async function pesquisarResultados(consulta, buscador, fetchFn, curlFn, falhas) 
   return [];
 }
 
-function conhecimentoDaPagina(pagina, consulta) {
+function conhecimentoDaPagina(pagina, consulta, { escopo = 'profissao', nomes = [] } = {}) {
   const estudo = estudarHtml(pagina.html, { url: pagina.url });
-  const linhasPagina = textoDoHtml(pagina.html).split(/\n+/);
-  const linhas = [...estudo.frases, ...linhasPagina]
+  const linhasPagina = decodificarEntidades(textoDoHtml(pagina.html)).split(/\n+/);
+  const linhas = [...estudo.frases.map(decodificarEntidades), ...linhasPagina]
     .map((frase) => frase.trim())
-    .filter((frase) => frase.length >= 35 && frase.length <= 280);
-  const trechos = [...new Set([...linhas, estudo.descricao].filter(Boolean))]
+    .filter(trechoBom)
+    .filter((frase) => escopo === 'empresa' || falaDoNicho(frase, nomes));
+  const trechos = [...new Set([...linhas, trechoBom(decodificarEntidades(estudo.descricao)) && (escopo === 'empresa' || falaDoNicho(decodificarEntidades(estudo.descricao), nomes)) ? decodificarEntidades(estudo.descricao) : ''].filter(Boolean))]
     .filter((trecho) => !/^(?:skip to|cookie|privacy policy|sign in|log in)\b/i.test(trecho))
-    .slice(0, 2);
+    .slice(0, escopo === 'empresa' ? 3 : 2);
   return {
     tipo: tipoFonte(pagina.url, consulta),
     titulo: estudo.titulo || pagina.resultado.titulo,
     url: pagina.url,
     resumo: estudo.descricao || 'Página externa consultada; revise o conteúdo completo antes de homologar.',
     conhecimentos: trechos.map((conteudo, indice) => ({
-      categoria: indice === 0 ? 'conhecimento-básico' : 'procedimento-e-limites',
+      categoria: escopo === 'empresa' ? 'o-que-a-empresa-faz' : (indice === 0 ? 'conhecimento-básico' : 'procedimento-e-limites'),
       conteudo,
       fonteUrl: pagina.url,
     })),
@@ -447,16 +474,20 @@ export async function pesquisarPreparacaoNaWeb(
     nichoInformado,
   });
   const resultadosPorUrl = new Map();
+  const bloqueados = new Set();
   for (const consulta of consultas) {
     for (const buscador of BUSCADORES) {
+      /* Buscador que bloqueou (403/429) sai da rodada: insistir só gasta tempo. */
+      if (bloqueados.has(buscador.nome)) continue;
+      const antes = falhas.length;
       const resultados = await pesquisarResultados(consulta.texto, buscador, fetchFn, curlFn, falhas);
-      const termosRelevantes = consulta.escopo === 'empresa'
-        ? consulta.termos
-        : [nicho, nichoInformado, profissao];
+      if (!resultados.length && falhas.slice(antes).some((f) => /respondeu 4(03|29)|Command failed/.test(f))) bloqueados.add(buscador.nome);
       /* Buscador sob bloqueio anti-robô às vezes responde 200 com resultados
          aleatórios: só conta como resposta o que é relevante ao nicho. */
       const relevantes = resultados.filter((resultado) =>
-        resultadoRelevante(resultado, termosRelevantes, consulta.escopo === 'empresa' ? 2 : 1)
+        (consulta.escopo === 'empresa'
+          ? falaDoNicho(`${resultado.titulo} ${resultado.resumo} ${resultado.url}`, consulta.termos, 1) && !CADASTRO_EMPRESA.test(new URL(resultado.url).hostname) && !SITE_BUSCA.test(new URL(resultado.url).hostname)
+          : falaDoNicho(`${resultado.titulo} ${resultado.resumo} ${resultado.url}`, [nicho, nichoInformado]) && !SITE_GENERICO.test(new URL(resultado.url).hostname))
         /* Página de verificação anti-robô (captcha) não é fonte. */
         && !/perfdrive\.com|captcha|challenge|cloudflare/i.test(new URL(resultado.url).hostname)
         /* Dicionário não é fonte do setor. */
@@ -522,8 +553,8 @@ export async function pesquisarPreparacaoNaWeb(
      buscador exibiu é usado como conhecimento, marcado como trecho do buscador
      — nada inventado, só o que a busca pública mostrou. */
   const fonteDoTrecho = (candidato, motivo) => {
-    const resumo = String(candidato.resumo || '').replace(/\s+/g, ' ').trim();
-    if (resumo.length < 35) return { falha: `${candidato.url}: ${motivo}` };
+    const resumo = decodificarEntidades(candidato.resumo).replace(/\s+/g, ' ').trim();
+    if (!trechoBom(resumo.slice(0, 280)) || (candidato.escopo !== 'empresa' && !falaDoNicho(resumo, [nicho, nichoInformado]))) return { falha: `${candidato.url}: ${motivo}` };
     return {
       fonte: {
         tipo: candidato.tipo,
@@ -532,7 +563,7 @@ export async function pesquisarPreparacaoNaWeb(
         url: candidato.url,
         resumo: resumo.slice(0, 1200),
         verificacao: 'trecho-do-buscador',
-        conhecimentos: [{ categoria: 'conhecimento-básico', conteudo: resumo.slice(0, 280), fonteUrl: candidato.url }],
+        conhecimentos: [{ categoria: candidato.escopo === 'empresa' ? 'o-que-a-empresa-faz' : 'conhecimento-básico', conteudo: resumo.slice(0, 280), fonteUrl: candidato.url }],
       },
       falha: `${candidato.url}: ${motivo} — usado o trecho exibido pelo buscador`,
     };
@@ -542,7 +573,19 @@ export async function pesquisarPreparacaoNaWeb(
     if (candidato.paginaRecusou) return fonteDoTrecho(candidato, 'a página recusou acesso automático');
     try {
       const pagina = await buscarHtml(candidato.url, fetchFn);
-      const fonte = conhecimentoDaPagina({ ...pagina, resultado: candidato }, candidato.consulta);
+      const fonte = conhecimentoDaPagina({ ...pagina, resultado: candidato }, candidato.consulta, { escopo: candidato.escopo, nomes: [nicho, nichoInformado] });
+      /* A fundo: no site da empresa, lê também as páginas de serviços, sobre e atendimento. */
+      if (candidato.escopo === 'empresa' && !/facebook|instagram|linkedin|youtube/i.test(new URL(candidato.url).hostname)) {
+        const internas = [...new Set([...String(pagina.html).matchAll(/href="([^"#]+)"/gi)].map((m) => { try { return new URL(m[1], candidato.url); } catch { return null; } })
+          .filter((u) => u && u.hostname === new URL(candidato.url).hostname && u.protocol === 'https:' && /servi|sobre|quem-somos|atendimento|precos|tratamentos|procedimentos|cardapio|produtos/i.test(u.pathname)).map((u) => u.href))].slice(0, 2);
+        for (const interna of internas) {
+          try {
+            const extra = conhecimentoDaPagina({ ...(await buscarHtml(interna, fetchFn)), resultado: candidato }, candidato.consulta, { escopo: 'empresa' });
+            fonte.conhecimentos.push(...extra.conhecimentos.map((k) => ({ ...k, fonteUrl: fonte.url })));
+          } catch { /* página interna é bônus */ }
+        }
+        fonte.conhecimentos = fonte.conhecimentos.filter((k, i, l) => l.findIndex((o) => o.conteudo === k.conteudo) === i).slice(0, 6);
+      }
       if (!fonte.conhecimentos.length) {
         return fonteDoTrecho(candidato, 'página abriu, mas não trouxe trechos úteis para conhecimento inicial');
       }
@@ -559,13 +602,12 @@ export async function pesquisarPreparacaoNaWeb(
   const fontesProfissao = fontes.filter((fonte) => fonte.escopo === 'profissao');
   const fontesEmpresaWeb = fontes.filter((fonte) => fonte.escopo === 'empresa');
   const categorias = new Set(fontesProfissao.map((fonte) => fonte.tipo));
-  const conhecimentos = [
-    ...(cadastroEmpresa ? [cadastroEmpresa.conhecimento] : []),
-    ...fontes.flatMap((fonte) => fonte.conhecimentos || []),
-  ].slice(0, 10);
+  /* Sem reserva, o nicho consumia as 10 vagas e o que a empresa faz ficava de fora. */
+  const daEmpresa = [...(cadastroEmpresa ? [cadastroEmpresa.conhecimento] : []), ...fontesEmpresaWeb.flatMap((fonte) => fonte.conhecimentos || [])].slice(0, 5);
+  const conhecimentos = [...daEmpresa, ...fontesProfissao.flatMap((fonte) => fonte.conhecimentos || [])].slice(0, 10);
   if (fontesProfissao.length < 3 || conhecimentos.length < (cadastroEmpresa ? 4 : 3)) {
     return {
-      erro: 'a pesquisa automática não conseguiu consultar três fontes relevantes sobre a profissão e registrar os conhecimentos mínimos; nenhuma preparação foi concluída e você pode tentar novamente',
+      erro: `a pesquisa automática não conseguiu consultar três fontes relevantes sobre a profissão e registrar os conhecimentos mínimos; nenhuma preparação foi concluída e você pode tentar novamente. Impedimento: não achei conteúdo confiável sobre o nicho "${nichoInformado || nicho}"`,
       buscador: buscadorUsado || 'indisponível',
       fontes,
       conhecimentos,
@@ -594,6 +636,7 @@ export async function pesquisarPreparacaoNaWeb(
     limitacoes: [
       'Pesquisa focada em fontes públicas indexadas; páginas protegidas, inacessíveis ou em formato não suportado podem ficar de fora.',
       'Trechos são extraídos das páginas consultadas e permanecem descobertos, não validados nem homologados.',
+      ...(cadastroEmpresa?.empresa?.situacao && !/ativa/i.test(cadastroEmpresa.empresa.situacao) ? [`Atenção: a empresa consta como ${cadastroEmpresa.empresa.situacao} no cadastro público.`] : []),
       ...(empresaConsulta ? [
         ...(cadastroEmpresa
           ? ['O CNPJ foi consultado em uma API pública de dados cadastrais; CPF pessoal, quadro societário, e-mail e telefone não são pesquisados nem incorporados.']

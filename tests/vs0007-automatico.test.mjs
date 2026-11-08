@@ -282,3 +282,22 @@ test('qualquer nicho fecha só com sites comuns do setor (sem gov, blog ou fóru
   assert.equal(r.homologado, true);
   assert.ok(r.bot.preparacao.pesquisaInicial.fontes.every((f) => ['site-do-setor', 'presenca-digital-empresa'].includes(f.tipo)));
 });
+
+test('sem modelo pronto a IA é do nicho, e não "Atendente de loja"', () => {
+  const p = bots.prepararNicho({ nicho: 'assistente executiva' });
+  assert.equal(JSON.stringify(p).includes('Atendente de loja'), false);
+  assert.equal(p.profissao.nome, 'Atendente de assistente executiva');
+});
+
+test('só conta como fonte a página que fala mesmo do nicho', async () => {
+  const { falaDoNicho } = await import('../engine/vs0007/pesquisa.mjs');
+  assert.equal(falaDoNicho('Que horas o Sol se põe? Assistente virtual do Google', ['Assistente executiva']), false);
+  assert.equal(falaDoNicho('A assistente executiva organiza a agenda da diretoria', ['Assistente executiva']), true);
+  assert.equal(falaDoNicho('Serviços de faxineira em Belo Horizonte', ['Faxineura']), true, 'tolera erro de grafia');
+});
+
+test('empresa só conta com o nome inteiro', async () => {
+  const { falaDoNicho } = await import('../engine/vs0007/pesquisa.mjs');
+  assert.equal(falaDoNicho('Teste Engenharia, ensaios de concreto', ['Salão da Glau Teste'], 1), false);
+  assert.equal(falaDoNicho('Salão da Glau em Lagoa Santa', ['Salão da Glau'], 1), true);
+});

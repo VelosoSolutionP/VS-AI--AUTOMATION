@@ -23,7 +23,7 @@ import { load, save } from '../vscrm/store.mjs';
 import * as modelosBot from '../vsbot/modelos.mjs';
 import * as profissoesBot from '../vsbot/profissoes.mjs';
 import { validarFluxo } from '../vsbot/fluxo.mjs';
-import { pesquisarPreparacaoNaWeb } from './pesquisa.mjs';
+import { pesquisarPreparacaoNaWeb, falaDoNicho } from './pesquisa.mjs';
 import { documento as validarDocumento } from '../vsclientes/ofertas.mjs';
 import * as R from './regras.mjs';
 import * as MAPA from './mapa.mjs';
@@ -686,8 +686,11 @@ export function prepararNicho({ nicho } = {}) {
     finalidade,
   });
   if (preparacao.erro) return preparacao;
+  /* Sem modelo pronto, a IA é do nicho que a pessoa pediu, não "Atendente de loja". */
+  const preparada = modelo ? preparacao
+    : JSON.parse(JSON.stringify(preparacao).replaceAll('Atendente de loja', JSON.stringify(`Atendente de ${especialidade}`).slice(1, -1)));
   return {
-    ...preparacao,
+    ...preparada,
     nicho: busca,
     nomeSugerido: `Atendente ${especialidade}`,
     pesquisaLocal: {
@@ -1399,7 +1402,7 @@ export function preverHomologacao(bot) {
 }
 
 /** Registra a revisão explícita do criador antes da homologação. */
-export function validarBot({ agenteId, autorizado = false, confirmado = false, lacunasConfirmadas = [], homologarAutomaticamente = true } = {}) {
+export function validarBot({ agenteId, autorizado = false, confirmado = false, lacunasConfirmadas = [], homologarAutomaticamente = true, automatico = false } = {}) {
   if (!autorizado) return { erro: 'a revisão do bot exige autorização do criador' };
   const bots = load(DATASET_BOTS, []);
   const bot = bots.find((item) => item.agenteId === agenteId);
@@ -1431,8 +1434,8 @@ export function validarBot({ agenteId, autorizado = false, confirmado = false, l
     estado: 'validado',
     validado: true,
     falhas: [],
-    runtime: 'revisao-manual',
-    revisadoPor: 'criador',
+    runtime: automatico ? 'verificacao-automatica' : 'revisao-manual',
+    revisadoPor: automatico ? '0007' : 'criador',
     revisadoEm: HOJE(),
     lacunasConfirmadas: confirmadas,
     homologacao: 'pendente',
@@ -1578,6 +1581,13 @@ function avaliarTestesAutomaticos(bot) {
       evidencia: `${conhecimentos.length} conhecimento(s)`,
     },
     {
+      id: 'conteudo-do-nicho',
+      nome: 'Conhecimento fala de fato sobre o nicho',
+      critico: true,
+      ok: conhecimentos.filter((c) => falaDoNicho(c.conteudo, [bot?.especialidade, bot?.preparacao?.nicho].filter(Boolean))).length >= 2,
+      evidencia: `${conhecimentos.filter((c) => falaDoNicho(c.conteudo, [bot?.especialidade, bot?.preparacao?.nicho].filter(Boolean))).length} trecho(s) sobre o nicho`,
+    },
+    {
       id: 'documento-pessoal',
       nome: 'Nenhum documento pessoal enviado a fonte pública',
       critico: true,
@@ -1676,7 +1686,7 @@ export async function criarIAZestAutomatica({ nicho, empresaTipo = '', empresaId
   if (criado.erro) return criado;
   const agenteId = criado.bot.agenteId;
   const resultado = await concluirPreparacaoAutomatica({ agenteId, empresa, risco, fetch: fetchFn, curl: curlFn });
-  if (resultado.pendencia) return resultado;
+  if (resultado.pendencia) { registrarTentativaPrazo(agenteId, resultado, new Date()); return { ...resultado, bot: botSemDocumentoPessoal(obterBot(agenteId)) }; }
   return {
     ...resultado,
     empresa: tipo === 'cpf'
@@ -1744,6 +1754,7 @@ export async function concluirPreparacaoAutomatica({ agenteId, empresa = {}, ris
       confirmado: true,
       lacunasConfirmadas: unicos([...(botPesquisado.lacunas || []), ...(botPesquisado.preparacao?.lacunas || [])]),
       homologarAutomaticamente: riscoBot.nivel === 'baixo',
+      automatico: true,
     });
   if (validacao.erro || (riscoBot.nivel === 'baixo' && validacao.homologado === false)) {
     return {
