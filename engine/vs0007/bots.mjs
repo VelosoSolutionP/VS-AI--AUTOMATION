@@ -41,6 +41,7 @@ const TIPOS_FONTE_EXTERNA = Object.freeze([
   'site-oficial',
   'documentacao',
   'blog-especializado',
+  'site-do-setor',
   'youtube',
   'comunidade-forum',
   'cadastro-publico-empresa',
@@ -52,6 +53,28 @@ const REGRAS_PERFIL_PADRAO = Object.freeze([
   'Informar quando não souber e encaminhar dúvidas fora do escopo para uma pessoa.',
   'Não executar ações nem solicitar dados além das permissões configuradas.',
 ]);
+
+/* Especialidades que não podem ser homologadas só por teste automático: a
+   missão 007 exige validação humana em risco financeiro, jurídico, fiscal ou
+   que afete direitos e saúde das pessoas. */
+const RISCO_FINANCEIRO = /financ|fiscal|tribut|contab|banc|investiment|cr[eé]dito|imposto|previden|empr[eé]stim|c[aâ]mbio/i;
+const RISCO_JURIDICO = /jur[ií]dic|advocacia|advogad|direito|trabalhista|contratual|contratos?\b|processual|peti[cç][aã]o/i;
+const RISCO_SAUDE = /sa[uú]de|m[eé]dic|cl[ií]nic|hospital|farm[aá]cia|diagn[oó]stic|terapia|psicolog|nutri|enfermag/i;
+const RISCO_DIREITOS = /seguro|direitos|lgpd|privacidade|biometr|reconhecimento facial/i;
+
+/**
+ * Classifica o risco da especialidade para decidir se a homologação pode ser
+ * automática (baixo risco) ou se precisa de aprovação humana (alto risco).
+ */
+export function classificarRisco({ especialidade = '', profissao = '', finalidade = '' } = {}) {
+  const texto = `${especialidade} ${profissao} ${finalidade}`;
+  const motivos = [];
+  if (RISCO_FINANCEIRO.test(texto)) motivos.push('tema financeiro, fiscal, tributário ou de crédito');
+  if (RISCO_JURIDICO.test(texto)) motivos.push('tema jurídico ou que envolve direitos');
+  if (RISCO_SAUDE.test(texto)) motivos.push('tema de saúde');
+  if (RISCO_DIREITOS.test(texto)) motivos.push('tema de dados pessoais, privacidade ou seguros');
+  return { nivel: motivos.length ? 'alto' : 'baixo', motivos };
+}
 
 function novoCicloVida(iniciadoEm = HOJE()) {
   const inicio = new Date(iniciadoEm);
@@ -105,7 +128,7 @@ function normalizarPesquisaExterna(fontesEntrada = [], conhecimentosEntrada = []
       ...(item.escopo === 'profissao' || item.escopo === 'empresa' || item.escopo === 'empresa-registro'
         ? { escopo: item.escopo } : {}),
       origem: item.origem === 'pesquisa-automatica-0007' ? item.origem : 'informada-pelo-responsavel',
-      verificacao: item.verificacao === 'pagina-consultada' ? item.verificacao : 'declarada',
+      verificacao: ['pagina-consultada', 'trecho-do-buscador'].includes(item.verificacao) ? item.verificacao : 'declarada',
     });
   }
 
@@ -137,12 +160,12 @@ function normalizarPesquisaExterna(fontesEntrada = [], conhecimentosEntrada = []
     });
   }
 
-  const categorias = new Set(fontes.map((fonte) => fonte.tipo));
-  const possuiFontePrimaria = categorias.has('site-oficial') || categorias.has('documentacao');
-  const possuiFonteEspecializada = ['blog-especializado', 'youtube', 'comunidade-forum'].some((tipo) => categorias.has(tipo));
-  if (fontes.length < 3 || !possuiFontePrimaria || !possuiFonteEspecializada || conhecimentos.length < 3) {
+  /* Qualquer nicho: fonte oficial/documentação é desejável, mas não existe
+     para todo ramo (faxina, açaí, oficina). Exigimos 3 fontes distintas e 3
+     conhecimentos vinculados; a ausência de fonte oficial fica nas limitações. */
+  if (fontes.length < 3 || conhecimentos.length < 3) {
     return {
-      erro: 'a preparação inicial exige 3 fontes distintas, incluindo uma fonte oficial/documentação e uma fonte especializada, além de 3 conhecimentos vinculados às fontes',
+      erro: 'a preparação inicial exige 3 fontes distintas e 3 conhecimentos vinculados às fontes',
     };
   }
 
@@ -159,6 +182,25 @@ const novoId = (especialidade = '') => {
 const normalizarBusca = (texto) => String(texto || '')
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
   .replace(/[^a-z0-9]+/g, ' ').trim();
+
+/* Nome é como a pessoa reconhece a IA no Hotel: dois bots com o mesmo nome
+   (ignorando maiúsculas, acentos e espaços) confundem quem contrata e quem
+   conecta ao Salão. */
+const chaveNome = (nome) => normalizarBusca(nome);
+export function nomeEmUso(nome, { excetoId = null, bots = null } = {}) {
+  const chave = chaveNome(nome);
+  if (!chave) return null;
+  return (bots || load(DATASET_BOTS, [])).find((b) => b.agenteId !== excetoId && chaveNome(b.nome) === chave) || null;
+}
+function nomeLivre(nome, bots) {
+  if (!nomeEmUso(nome, { bots })) return nome;
+  const base = nome.slice(0, 74).trim();
+  for (let n = 2; n < 1000; n++) {
+    const candidato = `${base} ${n}`;
+    if (!nomeEmUso(candidato, { bots })) return candidato;
+  }
+  return `${base} ${Date.now().toString(36)}`;
+}
 
 const STOPWORDS_NICHO = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'em', 'para', 'por', 'com', 'um', 'uma']);
 const PROFISSAO_POR_MODELO = Object.freeze({
@@ -207,7 +249,7 @@ function pontuarNicho(nicho, textos) {
   const exato = corpus.includes(consulta) ? 5 : 0;
   return exato + termos.reduce((total, termo) => {
     if (corpusTermos.includes(termo)) return total + (termo.length > 4 ? 2 : 1);
-    if (termo.length >= 5 && corpusTermos.some((t) => t.startsWith(termo) || termo.startsWith(t))) return total + 1;
+    if (termo.length >= 5 && corpusTermos.some((t) => t.length >= 4 && (t.startsWith(termo) || termo.startsWith(t)))) return total + 1;
     return total;
   }, 0);
 }
@@ -765,14 +807,20 @@ function nosDoPerfil(perfil) {
  * expressa do criador: o 0007 propõe, o dono (criador) autoriza.
  * Retorna { bot, noId } ou { erro }.
  */
-export function criarBotComercial({ nome, finalidade, especialidade, profissao, empresaCnpj = '', autorizado = false, atividades = [], ferramentas = [], falhas = [], lacunas = [], conhecimentos = [], preparacao = null, perfil = null, donoId = '0007' } = {}) {
+export function criarBotComercial({ nome, finalidade, especialidade, profissao, empresaCnpj = '', empresaNome = '', empresaCpf = '', autorizado = false, atividades = [], ferramentas = [], falhas = [], lacunas = [], conhecimentos = [], preparacao = null, perfil = null, donoId = '0007', identificadorUnico = false } = {}) {
   const final = String(finalidade || '').trim();
   const esp = String(especialidade || '').trim();
-  const nomeBot = String(nome || final).trim();
+  let nomeBot = String(nome || final).trim();
   if (!final) { return { erro: 'finalidade obrigatoria' }; }
   if (!esp) { return { erro: 'especialidade obrigatoria' }; }
   if (!nomeBot || nomeBot.length > 80) { return { erro: 'o nome deve ter entre 1 e 80 caracteres' }; }
   if (!autorizado) { return { erro: 'a criacao de um bot comercial exige autorizacao expressa do criador' }; }
+  const bots = load(DATASET_BOTS, []);
+  const repetido = nomeEmUso(nomeBot, { bots });
+  if (repetido) {
+    if (!identificadorUnico) { return { erro: `já existe uma IA-ZEST com o nome "${repetido.nome}"; escolha outro nome` }; }
+    nomeBot = nomeLivre(nomeBot, bots);
+  }
   const cnpj = empresaCnpj ? validarDocumento(empresaCnpj) : null;
   if (empresaCnpj && (!cnpj.ok || cnpj.tipo !== 'CNPJ')) {
     return { erro: 'a personalização exige um CNPJ válido da empresa; CPF pessoal não é enviado à pesquisa externa' };
@@ -784,17 +832,23 @@ export function criarBotComercial({ nome, finalidade, especialidade, profissao, 
   });
   if (perfilValidado.erro) return perfilValidado;
   const id = novoId(esp);
-  const bots = load(DATASET_BOTS, []);
-  if (bots.some((b) => b.agenteId === id)) { return { erro: `ja existe um bot com esse identificador: ${id}` }; }
+  let idFinal = id;
+  if (bots.some((b) => b.agenteId === idFinal)) {
+    if (!identificadorUnico) { return { erro: `ja existe um bot com esse identificador: ${idFinal}` }; }
+    let sequencia = 1;
+    while (bots.some((b) => b.agenteId === idFinal)) { idFinal = `${id}-${sequencia++}`; }
+  }
   const criadoEm = HOJE();
   const cicloVida = novoCicloVida(criadoEm);
   const bot = {
-    agenteId: id,
+    agenteId: idFinal,
     nome: nomeBot,
     perfil: perfilValidado.perfil,
     finalidade: final,
     especialidade: esp,
     ...(cnpj ? { empresaCnpj: cnpj.digitos } : {}),
+    ...(empresaNome ? { empresaNome: String(empresaNome).trim().slice(0, 180) } : {}),
+    ...(empresaCpf ? { empresaCpf: String(empresaCpf).replace(/\D/g, '') } : {}),
     tipo: R.TIPO_COMERCIALIZAVEL,
     estado: 'em_preparacao',
     autorizadoCriador: true,
@@ -862,7 +916,7 @@ export function criarBotComercial({ nome, finalidade, especialidade, profissao, 
     aprovadaPeloCriador: Boolean(preparacao),
   });
   const no = MAPA.adicionarNo({
-    agenteId: id,
+    agenteId: idFinal,
     categoria: 'especialidade',
     conteudo: final,
     estado: 'descoberto',
@@ -885,7 +939,7 @@ export function criarBotComercial({ nome, finalidade, especialidade, profissao, 
       aprovadaPeloCriador: Boolean(preparacao),
     });
     const noC = MAPA.adicionarNo({
-      agenteId: id,
+      agenteId: idFinal,
       categoria: String(c.categoria || 'conhecimento'),
       conteudo,
       estado: 'descoberto',
@@ -912,6 +966,8 @@ export function atualizarPerfilBot({ agenteId, nome, perfil, autorizado = false 
   if (bot.estado === 'bloqueado') return { erro: 'um bot bloqueado nao pode ser editado antes de ser desbloqueado' };
   const nomeNovo = String(nome || '').trim();
   if (!nomeNovo || nomeNovo.length > 80) return { erro: 'o nome deve ter entre 1 e 80 caracteres' };
+  const repetido = nomeEmUso(nomeNovo, { excetoId: agenteId, bots });
+  if (repetido) return { erro: `já existe outra IA-ZEST com o nome "${repetido.nome}"; escolha outro nome` };
   const contextoPerfil = {
     funcao: bot.perfil?.funcao || bot.profissao || bot.especialidade,
     finalidade: bot.finalidade,
@@ -1156,7 +1212,7 @@ function registrarPesquisaInicial({
   return { ok: true, bot, relatorio: relatorioPreparacao(bot) };
 }
 
-export async function pesquisarERegistrarPreparacaoInicial({ agenteId, autorizado = false, empresaCnpj = '', fetch: fetchFn, curl: curlFn } = {}) {
+export async function pesquisarERegistrarPreparacaoInicial({ agenteId, autorizado = false, empresaCnpj = '', empresaNome = '', empresaCpf = '', fetch: fetchFn, curl: curlFn } = {}) {
   if (!autorizado) return { erro: 'a pesquisa inicial exige autorização do criador' };
   const bot = obterBot(agenteId);
   if (!bot) return { erro: `bot nao encontrado: ${agenteId}` };
@@ -1165,6 +1221,8 @@ export async function pesquisarERegistrarPreparacaoInicial({ agenteId, autorizad
     return { erro: 'a preparação inicial já foi registrada; use o ciclo de evolução para novos conhecimentos' };
   }
   const cnpjPesquisa = empresaCnpj || bot.empresaCnpj || '';
+  const nomePesquisa = empresaNome || bot.empresaNome || '';
+  const cpfPesquisa = empresaCpf || bot.empresaCpf || '';
   if (cnpjPesquisa) {
     const validacaoCnpj = validarDocumento(cnpjPesquisa);
     if (!validacaoCnpj.ok || validacaoCnpj.tipo !== 'CNPJ') {
@@ -1172,15 +1230,26 @@ export async function pesquisarERegistrarPreparacaoInicial({ agenteId, autorizad
     }
     bot.empresaCnpj = validacaoCnpj.digitos;
   }
+  if (nomePesquisa) bot.empresaNome = String(nomePesquisa).trim().slice(0, 180);
+  if (cpfPesquisa) {
+    const validacaoCpf = validarDocumento(cpfPesquisa);
+    if (!validacaoCpf.ok || validacaoCpf.tipo !== 'CPF') {
+      return { erro: 'o CPF informado não é válido' };
+    }
+    /* CPF é documento pessoal: fica só no cadastro local e nunca vai a buscador. */
+    bot.empresaCpf = validacaoCpf.digitos;
+  }
 
   const dependenciasPesquisa = {};
   if (fetchFn) dependenciasPesquisa.fetch = fetchFn;
   if (curlFn) dependenciasPesquisa.curl = curlFn;
   const pesquisa = await pesquisarPreparacaoNaWeb({
     especialidade: bot.especialidade,
+    nicho: bot.preparacao?.nicho || '',
     finalidade: bot.finalidade,
     profissao: bot.perfil?.funcao || bot.profissao,
     empresaCnpj: cnpjPesquisa,
+    empresaNome: cnpjPesquisa ? '' : nomePesquisa,
   }, dependenciasPesquisa);
   if (pesquisa.erro) {
     return {
@@ -1195,7 +1264,7 @@ export async function pesquisarERegistrarPreparacaoInicial({ agenteId, autorizad
     fontes: pesquisa.fontes.map((fonte) => ({
       ...fonte,
       origem: 'pesquisa-automatica-0007',
-      verificacao: 'pagina-consultada',
+      verificacao: fonte.verificacao === 'trecho-do-buscador' ? 'trecho-do-buscador' : 'pagina-consultada',
     })),
     conhecimentos: pesquisa.conhecimentos,
     origemRegistro: 'pesquisa-automatica-0007',
@@ -1330,7 +1399,7 @@ export function preverHomologacao(bot) {
 }
 
 /** Registra a revisão explícita do criador antes da homologação. */
-export function validarBot({ agenteId, autorizado = false, confirmado = false, lacunasConfirmadas = [] } = {}) {
+export function validarBot({ agenteId, autorizado = false, confirmado = false, lacunasConfirmadas = [], homologarAutomaticamente = true } = {}) {
   if (!autorizado) return { erro: 'a revisão do bot exige autorização do criador' };
   const bots = load(DATASET_BOTS, []);
   const bot = bots.find((item) => item.agenteId === agenteId);
@@ -1376,6 +1445,19 @@ export function validarBot({ agenteId, autorizado = false, confirmado = false, l
   bot.validacao = validacao;
   bot.atualizadoEm = HOJE();
   save(DATASET_BOTS, bots);
+  if (homologarAutomaticamente === false) {
+    /* Risco alto: a revisão fica registrada, mas a homologação aguarda uma
+       pessoa. Nunca homologamos sozinhos tema financeiro, jurídico, fiscal,
+       de saúde ou que afete direitos. */
+    const emValidacao = obterBot(agenteId);
+    return {
+      ok: true,
+      bot: emValidacao,
+      homologado: false,
+      aguardandoAprovacao: true,
+      previsao: preverHomologacao(emValidacao),
+    };
+  }
   const homologacao = homologarBot({ agenteId, autorizado: true, aprovado: true });
   if (homologacao.erro) {
     return { erro: `a revisão foi registrada, mas a homologação automática falhou: ${homologacao.erro}`, bot: obterBot(agenteId) };
@@ -1439,6 +1521,315 @@ export function homologarBot({ agenteId, noId, autorizado = false, aprovado = fa
   }
   const homologado = obterBot(agenteId);
   return { ok: true, homologado: true, bot: homologado, no: MAPA.obterNos(agenteId).nos.at(-1) || no };
+}
+
+/* ═════════ 4.1 CRIAÇÃO AUTOMÁTICA (MISSÃO 007) ═════════ */
+
+/**
+ * Verificações objetivas feitas antes de homologar sem uma pessoa. Só reprova
+ * o que é estrutural e verificável: pesquisa concluída, fontes suficientes,
+ * limites definidos, fluxo sem falhas, conhecimento vinculado e nenhum CPF
+ * vazando para fonte pública.
+ */
+function avaliarTestesAutomaticos(bot) {
+  const pesquisa = bot?.preparacao?.pesquisaInicial || {};
+  const fontes = pesquisa.fontes || [];
+  const conhecimentos = pesquisa.conhecimentos || [];
+  const tipos = new Set(fontes.map((fonte) => fonte.tipo));
+  const temPrimaria = ['site-oficial', 'documentacao', 'cadastro-publico-empresa'].some((tipo) => tipos.has(tipo));
+  const temEspecializada = ['blog-especializado', 'youtube', 'comunidade-forum', 'site-do-setor'].some((tipo) => tipos.has(tipo));
+  const cpfNoBot = String(bot?.empresaCpf || '');
+  const cpfVazou = Boolean(cpfNoBot) && fontes.some((fonte) => JSON.stringify(fonte).includes(cpfNoBot));
+  const falhas = unicos(bot?.falhas || []);
+  const testes = [
+    {
+      id: 'pesquisa-concluida',
+      nome: 'Pesquisa do nicho concluída',
+      critico: true,
+      ok: pesquisa.estado === 'concluida',
+      evidencia: `${fontes.length} fonte(s), ${conhecimentos.length} conhecimento(s)`,
+    },
+    {
+      id: 'fontes-suficientes',
+      nome: 'Pelo menos 3 fontes públicas, com fonte primária ou especializada',
+      critico: true,
+      ok: fontes.length >= 3 && (temPrimaria || temEspecializada),
+      evidencia: `primária=${temPrimaria ? 'sim' : 'não'}, especializada=${temEspecializada ? 'sim' : 'não'}`,
+    },
+    {
+      id: 'limites-definidos',
+      nome: 'Permissões e autonomia definidas',
+      critico: true,
+      ok: (bot?.permissoes || []).length > 0 && (bot?.autonomia || []).length > 0,
+      evidencia: `${(bot?.permissoes || []).length} permissão(ões), ${(bot?.autonomia || []).length} limite(s)`,
+    },
+    {
+      id: 'fluxo-estrutural',
+      nome: 'Fluxo sem falhas estruturais',
+      critico: true,
+      ok: falhas.length === 0,
+      evidencia: falhas.length ? falhas.join('; ') : 'sem falhas',
+    },
+    {
+      id: 'conhecimento-vinculado',
+      nome: 'Conhecimento inicial vinculado a fontes',
+      critico: true,
+      ok: conhecimentos.length >= 3,
+      evidencia: `${conhecimentos.length} conhecimento(s)`,
+    },
+    {
+      id: 'documento-pessoal',
+      nome: 'Nenhum documento pessoal enviado a fonte pública',
+      critico: true,
+      ok: !cpfVazou,
+      evidencia: cpfVazou ? 'CPF apareceu em fonte pesquisada' : 'CPF mantido apenas no cadastro local',
+    },
+  ];
+  const criticos = testes.filter((teste) => teste.critico);
+  const aprovados = testes.filter((teste) => teste.ok).length;
+  return {
+    testes,
+    aprovados,
+    total: testes.length,
+    aproveitamento: Math.round((aprovados / testes.length) * 100),
+    criticosOk: criticos.every((teste) => teste.ok),
+    pendentes: criticos.filter((teste) => !teste.ok).map((teste) => teste.nome),
+  };
+}
+
+function mascararCpf(digitos) {
+  const d = String(digitos || '').replace(/\D/g, '');
+  return d.length === 11 ? `***.***.***-${d.slice(-2)}` : '';
+}
+
+/* Respostas de API nunca devolvem o CPF inteiro; o número completo fica só no
+   armazenamento local, para o cadastro da empresa. */
+function botSemDocumentoPessoal(bot) {
+  if (!bot) return bot;
+  const copia = { ...bot };
+  if (copia.empresaCpf) copia.empresaCpf = mascararCpf(copia.empresaCpf);
+  return copia;
+}
+
+/**
+ * MISSÃO 007 — o fluxo de um clique. A pessoa informa só o nicho, como a
+ * empresa se identifica (CNPJ, nome ou CPF) e aceita. O 0007 pesquisa, cria o
+ * perfil, registra fontes, roda os testes e homologa sozinho quando o risco é
+ * baixo. Risco financeiro/jurídico/fiscal/saúde/direitos fica em validação,
+ * aguardando uma pessoa.
+ */
+export async function criarIAZestAutomatica({ nicho, empresaTipo = '', empresaIdentificador = '', aceite = false, autorizado = false, fetch: fetchFn, curl: curlFn, donoId = '0007' } = {}) {
+  const busca = String(nicho || '').trim();
+  if (busca.length < 2) return { erro: 'informe o nicho com pelo menos 2 caracteres' };
+  if (aceite !== true || autorizado !== true) {
+    return { erro: 'é preciso aceitar a criação automática: pesquisar, criar, testar e homologar quando o risco for baixo' };
+  }
+  const identificador = String(empresaIdentificador || '').trim();
+  if (!identificador) return { erro: 'identifique a empresa com CNPJ, nome ou CPF' };
+
+  const digitos = identificador.replace(/\D/g, '');
+  let tipo = String(empresaTipo || '').trim().toLowerCase();
+  if (!['cnpj', 'cpf', 'nome'].includes(tipo)) {
+    tipo = digitos.length === 14 ? 'cnpj' : digitos.length === 11 ? 'cpf' : 'nome';
+  }
+  const empresa = { empresaCnpj: '', empresaNome: '', empresaCpf: '' };
+  if (tipo === 'nome') {
+    if (/^\d{11}$|^\d{14}$/.test(digitos)) {
+      return { erro: 'o identificador parece um documento; selecione CNPJ ou CPF para que ele não seja enviado à busca' };
+    }
+    if (identificador.length < 2) return { erro: 'informe o nome da empresa' };
+    empresa.empresaNome = identificador.slice(0, 180);
+  } else {
+    const doc = validarDocumento(identificador);
+    if (!doc.ok) return { erro: doc.motivo };
+    if (tipo === 'cnpj' && doc.tipo !== 'CNPJ') return { erro: 'o identificador informado não é um CNPJ' };
+    if (tipo === 'cpf' && doc.tipo !== 'CPF') return { erro: 'o identificador informado não é um CPF' };
+    if (doc.tipo === 'CNPJ') empresa.empresaCnpj = doc.digitos;
+    else empresa.empresaCpf = doc.digitos;
+  }
+
+  const preparacao = prepararNicho({ nicho: busca });
+  if (preparacao.erro) return preparacao;
+  const risco = classificarRisco({
+    especialidade: `${preparacao.especialidade} ${busca}`,
+    profissao: preparacao.profissao?.nome || '',
+    finalidade: preparacao.finalidade,
+  });
+
+  const criado = criarBotComercial({
+    nome: preparacao.nomeSugerido,
+    finalidade: preparacao.finalidade,
+    especialidade: preparacao.especialidade,
+    profissao: preparacao.profissao.id,
+    ...empresa,
+    autorizado: true,
+    atividades: preparacao.atividades,
+    ferramentas: (preparacao.ferramentas || []).map((item) => item.nome || String(item)),
+    falhas: preparacao.falhas,
+    lacunas: preparacao.lacunas,
+    conhecimentos: preparacao.conhecimentos,
+    preparacao,
+    perfil: preparacao.perfil,
+    donoId,
+    identificadorUnico: true,
+  });
+  if (criado.erro) return criado;
+  const agenteId = criado.bot.agenteId;
+  const resultado = await concluirPreparacaoAutomatica({ agenteId, empresa, risco, fetch: fetchFn, curl: curlFn });
+  if (resultado.pendencia) return resultado;
+  return {
+    ...resultado,
+    empresa: tipo === 'cpf'
+      ? { tipo, identificador: mascararCpf(empresa.empresaCpf) }
+      : { tipo, identificador: empresa.empresaCnpj || empresa.empresaNome },
+  };
+}
+
+/**
+ * Pesquisa (se faltar), testes automáticos, revisão e homologação. É o mesmo
+ * caminho da criação automática, reaproveitado pelo relógio do prazo de 12h.
+ * Risco alto fica validado, aguardando uma pessoa.
+ */
+export async function concluirPreparacaoAutomatica({ agenteId, empresa = {}, risco = null, fetch: fetchFn, curl: curlFn } = {}) {
+  const inicial = obterBot(agenteId);
+  if (!inicial) return { erro: `bot nao encontrado: ${agenteId}` };
+  const riscoBot = risco || classificarRisco({
+    especialidade: `${inicial.especialidade} ${inicial.preparacao?.nicho || ''}`,
+    profissao: inicial.preparacao?.profissao?.nome || inicial.profissao || '',
+    finalidade: inicial.finalidade,
+  });
+  if (inicial.preparacao?.pesquisaInicial?.estado !== 'concluida') {
+    const pesquisa = await pesquisarERegistrarPreparacaoInicial({
+      agenteId,
+      autorizado: true,
+      ...empresa,
+      fetch: fetchFn,
+      curl: curlFn,
+    });
+    if (pesquisa.erro) {
+      return {
+        ok: true,
+        pendencia: 'pesquisa',
+        erroPesquisa: pesquisa.erro,
+        mensagem: pesquisa.mensagem,
+        bot: botSemDocumentoPessoal(obterBot(agenteId)),
+        risco: riscoBot,
+        testes: null,
+        homologado: false,
+        aguardandoAprovacao: false,
+      };
+    }
+  }
+
+  const botPesquisado = obterBot(agenteId);
+  const testes = avaliarTestesAutomaticos(botPesquisado);
+  if (!testes.criticosOk) {
+    return {
+      ok: true,
+      pendencia: 'testes',
+      bot: botSemDocumentoPessoal(botPesquisado),
+      risco: riscoBot,
+      testes,
+      homologado: false,
+      aguardandoAprovacao: false,
+      mensagem: `a IA-ZEST foi criada, mas ainda tem pendências: ${testes.pendentes.join('; ')}`,
+    };
+  }
+
+  const validacao = botPesquisado.validacao?.validado === true && riscoBot.nivel === 'baixo'
+    ? homologarBot({ agenteId, autorizado: true, aprovado: true })
+    : validarBot({
+      agenteId,
+      autorizado: true,
+      confirmado: true,
+      lacunasConfirmadas: unicos([...(botPesquisado.lacunas || []), ...(botPesquisado.preparacao?.lacunas || [])]),
+      homologarAutomaticamente: riscoBot.nivel === 'baixo',
+    });
+  if (validacao.erro || (riscoBot.nivel === 'baixo' && validacao.homologado === false)) {
+    return {
+      ok: true,
+      pendencia: 'validacao',
+      bot: botSemDocumentoPessoal(obterBot(agenteId)),
+      risco: riscoBot,
+      testes,
+      homologado: false,
+      aguardandoAprovacao: false,
+      mensagem: validacao.erro || validacao.motivo || 'homologação pendente',
+    };
+  }
+
+  const botFinal = obterBot(agenteId);
+  return {
+    ok: true,
+    pendencia: null,
+    bot: botSemDocumentoPessoal(botFinal),
+    risco: riscoBot,
+    testes,
+    relatorio: relatorioPreparacao(botFinal),
+    homologado: botFinal.estado === 'homologado',
+    aguardandoAprovacao: botFinal.estado === 'em_validacao',
+  };
+}
+
+/* ═════════ 4.2 PRAZO DE 12H ═════════ */
+
+/** Intervalo mínimo entre duas tentativas automáticas no mesmo bot. */
+export const INTERVALO_TENTATIVA_MS = 30 * 60 * 1000;
+
+function registrarTentativaPrazo(agenteId, resultado, agora) {
+  const bots = load(DATASET_BOTS, []);
+  const bot = bots.find((item) => item.agenteId === agenteId);
+  if (!bot) return;
+  const ciclo = bot.cicloVida || bot.preparacao?.cicloVida || novoCicloVida(bot.criadoEm || agora.toISOString());
+  const prep = ciclo.preparacaoConhecimentoInicial || {};
+  ciclo.preparacaoConhecimentoInicial = {
+    ...prep,
+    tentativas: (prep.tentativas || 0) + 1,
+    ultimaTentativaEm: agora.toISOString(),
+    ultimoResultado: resultado.erro || resultado.pendencia || (resultado.homologado ? 'homologado' : 'aguardando-aprovacao-humana'),
+    ultimaMensagem: String(resultado.erro || resultado.erroPesquisa || resultado.mensagem || '').slice(0, 400) || null,
+    prazoIdealVencido: Boolean(prep.prazoIdealEm) && agora > new Date(prep.prazoIdealEm) && bot.estado !== 'homologado',
+    prazoMaximoVencido: Boolean(prep.prazoMaximoEm) && agora > new Date(prep.prazoMaximoEm) && bot.estado !== 'homologado',
+  };
+  bot.cicloVida = ciclo;
+  if (bot.preparacao) bot.preparacao = { ...bot.preparacao, cicloVida: ciclo };
+  save(DATASET_BOTS, bots);
+}
+
+/**
+ * Relógio do Hotel: todo bot ainda em preparação/validação é empurrado pelo
+ * 0007 até a homologação dentro do prazo ideal de 12h — sem esperar alguém
+ * clicar. Bots antigos sem ciclo de vida ganham um a partir de criadoEm.
+ * Risco alto termina validado e aguardando uma pessoa (nunca homologa sozinho).
+ */
+export async function processarPrazosHomologacao({ agora = new Date(), fetch: fetchFn, curl: curlFn, forcar = false } = {}) {
+  const resumo = { verificados: 0, homologados: 0, aguardandoAprovacao: 0, pendentes: 0, ignorados: 0, itens: [] };
+  for (const bot of load(DATASET_BOTS, [])) {
+    if (!ESTADOS_FLUXO_HOMOLOGACAO.includes(bot.estado)) continue;
+    const prep = (bot.cicloVida || bot.preparacao?.cicloVida)?.preparacaoConhecimentoInicial || {};
+    const risco = classificarRisco({
+      especialidade: `${bot.especialidade} ${bot.preparacao?.nicho || ''}`,
+      profissao: bot.preparacao?.profissao?.nome || bot.profissao || '',
+      finalidade: bot.finalidade,
+    });
+    const jaAguardaPessoa = risco.nivel !== 'baixo' && bot.validacao?.validado === true
+      && bot.preparacao?.pesquisaInicial?.estado === 'concluida';
+    const recente = prep.ultimaTentativaEm && agora - new Date(prep.ultimaTentativaEm) < INTERVALO_TENTATIVA_MS;
+    if (jaAguardaPessoa || (recente && !forcar)) { resumo.ignorados++; continue; }
+    resumo.verificados++;
+    let r;
+    try {
+      r = await concluirPreparacaoAutomatica({ agenteId: bot.agenteId, risco, fetch: fetchFn, curl: curlFn });
+    } catch (e) {
+      r = { erro: e.message };
+    }
+    registrarTentativaPrazo(bot.agenteId, r, agora);
+    if (r.homologado) resumo.homologados++;
+    else if (r.aguardandoAprovacao) resumo.aguardandoAprovacao++;
+    else resumo.pendentes++;
+    resumo.itens.push({ agenteId: bot.agenteId, nome: bot.nome, resultado: r.erro || r.pendencia || (r.homologado ? 'homologado' : 'aguardando-aprovacao-humana'), mensagem: r.erro || r.erroPesquisa || r.mensagem || null });
+  }
+  return resumo;
 }
 
 /* ═════════ 5. INSTÂNCIAS (CLIENTES) ═════════ */
@@ -1519,7 +1910,38 @@ export function painel() {
       disponiveis: disponiveis.filter((b) => !comContratado.has(b.agenteId)).length,
       contratados: ativas.length,
     },
-    bots: lista.map((b) => ({ ...b, nos: MAPA.obterNos(b.agenteId).nos })),
+    bots: lista.map((b) => ({ ...botSemDocumentoPessoal(b), nos: MAPA.obterNos(b.agenteId).nos })),
     instancias,
+  };
+}
+
+/**
+ * Exclui uma IA-ZEST do Hotel. Ação destrutiva: exige autorização explícita.
+ * Instâncias ativas impedem a exclusão (é preciso desativar antes) para não
+ * derrubar um atendimento em andamento. Instâncias inativas são removidas
+ * junto, e o mapa mental da agente é limpo para não deixar nó órfão.
+ */
+export function excluirBot({ agenteId, autorizado = false } = {}) {
+  if (!autorizado) return { erro: 'excluir uma IA-ZEST exige autorização do criador' };
+  const id = String(agenteId || '').trim();
+  if (!id) return { erro: 'agenteId obrigatorio' };
+  const bots = load(DATASET_BOTS, []);
+  const bot = bots.find((item) => item.agenteId === id);
+  if (!bot) return { erro: `bot nao encontrado: ${id}` };
+  const instancias = load(DATASET_INSTANCIAS, []);
+  const vinculadas = instancias.filter((item) => item.modeloId === id || item.botAgenteId === id);
+  const ativas = vinculadas.filter((item) => item.status === 'ativo');
+  if (ativas.length) {
+    return { erro: `esta IA-ZEST tem ${ativas.length} instância(s) ativa(s); desative antes de excluir` };
+  }
+  save(DATASET_BOTS, bots.filter((item) => item.agenteId !== id));
+  const mantidas = instancias.filter((item) => !vinculadas.includes(item));
+  save(DATASET_INSTANCIAS, mantidas);
+  const mapa = MAPA.removerAgente(id);
+  return {
+    ok: true,
+    excluido: { agenteId: id, nome: bot.nome, estado: bot.estado },
+    instanciasRemovidas: vinculadas.length,
+    nosRemovidos: mapa?.nosRemovidos || 0,
   };
 }

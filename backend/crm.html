@@ -4682,6 +4682,7 @@ function detalheBotHotel(b){
       return `<div class="hotel-instances"><b>Ciclo de vida</b><p class="hint">Configuração: ${esc(ciclo.criacaoConfiguracao?.estado||'concluída')} · preparação inicial: ${esc(estadoPreparacao)} · prazo esperado: 12–24 horas · evolução: contínua.</p>
         <p class="hint">Após pesquisa, revisão e verificações sem pendências, o bot é homologado automaticamente. O prazo, sozinho, não aprova; homologação também não ativa o atendimento.</p>
         <p class="hint">Prazo ideal: ${esc(etapa.prazoIdealEm?new Date(etapa.prazoIdealEm).toLocaleString('pt-BR'):'—')} · limite: ${esc(etapa.prazoMaximoEm?new Date(etapa.prazoMaximoEm).toLocaleString('pt-BR'):'—')}</p>
+        ${etapa.ultimaTentativaEm?`<p class="hint">Última rodada automática do 0007: ${esc(new Date(etapa.ultimaTentativaEm).toLocaleString('pt-BR'))} (${Number(etapa.tentativas||0)} tentativa(s)) · resultado: ${esc(etapa.ultimoResultado||'—')}${etapa.ultimaMensagem?` · ${esc(etapa.ultimaMensagem)}`:''}</p>`:''}
         ${empresa?`<b>Empresa pesquisada</b><p class="hint">${esc(empresa.nomeFantasia||empresa.razaoSocial||'Empresa')} · ${esc(empresa.atividadePrincipal||'atividade não informada')} · ${esc([empresa.municipio,empresa.uf].filter(Boolean).join('/'))} · situação: ${esc(empresa.situacao||'não informada')} · ${Number(empresa.fontesDigitaisConsultadas||0)} fonte(s) de presença digital consultada(s).</p>`:''}
         ${pesquisa.fontes?.length?`<b>Fontes externas pesquisadas</b><p class="hint">Busca: ${esc(pesquisa.buscador||'—')} · consultada em ${esc(pesquisa.pesquisadoEm?new Date(pesquisa.pesquisadoEm).toLocaleString('pt-BR'):'—')}</p><ul class="hotel-list">${pesquisa.fontes.map((f)=>`<li>${esc(f.escopo==='empresa'?'Empresa':f.escopo==='empresa-registro'?'Cadastro da empresa':'Profissão')} · ${esc(f.tipo)} · ${esc(f.titulo)} · <a href="${esc(f.url)}" target="_blank" rel="noopener noreferrer">${esc(f.url)}</a> · ${esc(f.verificacao||'declarada')}</li>`).join('')}</ul>`:''}
         ${pesquisa.conhecimentos?.length?`<b>Conhecimento inicial incorporado</b><ul class="hotel-list">${pesquisa.conhecimentos.map((item)=>`<li><b>${esc(item.categoria)}</b> · ${esc(item.conteudo)}</li>`).join('')}</ul>`:''}
@@ -4698,6 +4699,7 @@ function detalheBotHotel(b){
     <div>${conteudo}</div>
     <div class="hotel-actions">
       ${b.estado!=='bloqueado'?botao({t:'Editar perfil',ic:'config',v:'s',sz:'xs',on:`abrirEditarBotHotel('${esc(b.agenteId)}')` }):''}
+      ${botao({t:'Excluir IA-ZEST',ic:'excluir',v:'s',sz:'xs',extra:'btn-dan',on:`abrirExcluirBotHotel('${esc(b.agenteId)}')`})}
       ${b.estado!=='bloqueado'&&b.preparacao?.pesquisaInicial?.estado!=='concluida'?botao({t:'Pesquisar na internet',ic:'busca',v:'p',sz:'xs',on:'abrirPesquisaInicialBot()'}):''}
       ${['em_preparacao','em_validacao'].includes(b.estado)&&!validacaoPendente?botao({t:'Homologar',ic:'check',v:'p',sz:'xs',on:'homologarBotHotel()'}):''}
       ${validacaoPendente?botao({t:'Revisar e validar',ic:'check',v:'p',sz:'xs',on:'abrirRevisaoBotHotel()'}):''}
@@ -4779,7 +4781,7 @@ function filtrarHotel(){
 }
 
 /* ── Preparação inicial do bot pelo 0007 ────────────────────────────────── */
-let WIZ={passo:1,nicho:'',personalizado:false,empresaCnpj:'',preparacao:null,nome:'',perfil:{},editandoId:null,buscando:false};
+let WIZ={passo:1,nicho:'',empresaTipo:'cnpj',empresaIdentificador:'',aceite:false,personalizado:false,empresaCnpj:'',preparacao:null,nome:'',perfil:{},editandoId:null,buscando:false};
 const wizLinhas=(texto)=>String(texto||'').split('\n').map((item)=>item.trim()).filter(Boolean);
 const corpoWizOriginal=()=>{
   if(WIZ.passo===1) return `
@@ -4837,20 +4839,20 @@ const corpoWizOriginal=()=>{
   return '';
 };
 function corpoWiz(){
-  if(WIZ.passo===1) return `
-    <p class="hint">O 0007 fará duas pesquisas separadas: uma sobre o trabalho do bot e, se ele for personalizado, outra sobre a empresa que será atendida.</p>
-    <div class="field"><label for="wizNicho">Nicho do bot</label><input id="wizNicho" value="${esc(WIZ.nicho)}" placeholder="Ex.: hamburgueria, clínica, loja de roupas" oninput="WIZ.nicho=this.value" maxlength="100"></div>
-    <div class="field"><label for="wizPersonalizado">O bot será personalizado para uma empresa?</label>
-      <select id="wizPersonalizado" onchange="wizPersonalizacaoAlterada(this.value)">
-        <option value="nao"${WIZ.personalizado?'':' selected'}>Não, será um modelo geral do nicho</option>
-        <option value="sim"${WIZ.personalizado?' selected':''}>Sim, preparado para uma empresa específica</option>
-      </select>
-    </div>
-    ${WIZ.personalizado?`<div class="field"><label for="wizEmpresaCnpj">CNPJ da empresa *</label>
-      <input id="wizEmpresaCnpj" inputmode="numeric" autocomplete="off" maxlength="18" value="${esc(WIZ.empresaCnpj)}" placeholder="00.000.000/0000-00" oninput="WIZ.empresaCnpj=this.value.replace(/\\D/g,'').slice(0,14)">
-      <p class="hint">O 0007 consulta dados empresariais públicos e pesquisa a presença pública da empresa. Não informe CPF pessoal: ele não será enviado a buscadores.</p>
-    </div>`:''}
-    <p class="hint">Nesta etapa o 0007 monta a proposta pelo nicho. Ao criar, pesquisa a profissão e, se selecionada, também o perfil público da empresa; os resultados entram como descobertas para revisão.</p>`;
+  if(WIZ.passo===1&&!WIZ.editandoId) return `
+    <p class="hint">O 0007 faz o resto sozinho: pesquisa o nicho, monta o mapa mental, cria o perfil, roda os testes e entrega o relatório. Você informa apenas o nicho, como a empresa se identifica e aceita.</p>
+    <div class="field"><label for="wizNicho">Nicho da IA-ZEST *</label>
+      <input id="wizNicho" value="${esc(WIZ.nicho)}" placeholder="Ex.: hamburgueria, clínica, loja de roupas" oninput="WIZ.nicho=this.value" maxlength="100"></div>
+    <div class="field"><label for="wizEmpresaTipo">Identificação da empresa *</label>
+      <select id="wizEmpresaTipo" onchange="WIZ.empresaTipo=this.value;WIZ.empresaIdentificador='';renderWiz()">
+        <option value="cnpj"${WIZ.empresaTipo==='cnpj'?' selected':''}>CNPJ</option>
+        <option value="nome"${WIZ.empresaTipo==='nome'?' selected':''}>Nome da empresa</option>
+        <option value="cpf"${WIZ.empresaTipo==='cpf'?' selected':''}>CPF (autônomo/MEI)</option>
+      </select></div>
+    <div class="field"><label for="wizEmpresaIdentificador">${WIZ.empresaTipo==='cnpj'?'CNPJ':WIZ.empresaTipo==='cpf'?'CPF':'Nome da empresa'} *</label>
+      <input id="wizEmpresaIdentificador" value="${esc(WIZ.empresaIdentificador)}" ${WIZ.empresaTipo==='nome'?'':'inputmode="numeric"'} maxlength="${WIZ.empresaTipo==='nome'?'120':'18'}" placeholder="${WIZ.empresaTipo==='cnpj'?'00.000.000/0000-00':WIZ.empresaTipo==='cpf'?'000.000.000-00':'Razão social ou nome fantasia'}" oninput="WIZ.empresaIdentificador=this.value"></div>
+    <label class="dv-chk" style="margin-top:6px"><input type="checkbox" id="wizAceite" ${WIZ.aceite?'checked':''} onchange="WIZ.aceite=this.checked"> Autorizo o agente 0007 a pesquisar, criar, testar e homologar automaticamente esta IA-ZEST.</label>
+    <p class="hint">CPF e nome não são enviados a buscadores; o CPF fica apenas no cadastro local. Assuntos financeiros, jurídicos, fiscais, de saúde ou que afetem direitos exigem aprovação humana antes da homologação.</p>`;
   const p=WIZ.preparacao||{};
   const perfil=WIZ.perfil||{};
   const foto=perfil.foto?`<img src="${esc(perfil.foto)}" alt="">`:ico('bot');
@@ -4866,13 +4868,13 @@ function corpoWiz(){
         </div>
       </div>
       <div class="field"><label for="wizNome">Nome</label><input id="wizNome" value="${esc(WIZ.nome)}" maxlength="80" oninput="WIZ.nome=this.value"></div>
-      <div class="field"><label for="wizFuncao">Função e especialidade</label><input id="wizFuncao" value="${esc(perfil.funcao||p.profissao?.nome||HOTEL_BOT?.profissao||'Atendente')}"></div>
-      <div class="field"><label for="wizObjetivo">Objetivo principal</label><textarea id="wizObjetivo" rows="2" maxlength="600">${esc(perfil.objetivoPrincipal||p.finalidade||HOTEL_BOT?.finalidade||'')}</textarea></div>
-      <div class="field"><label for="wizLimites">Limites de atuação</label><textarea id="wizLimites" rows="3" maxlength="1200">${esc(perfil.limitesAtuacao||(p.autonomia||[]).join(' ')||HOTEL_BOT?.perfil?.limitesAtuacao||'')}</textarea></div>
+      <div class="field"><label for="wizFuncao">Função e especialidade</label><input id="wizFuncao" oninput="WIZ.perfil.funcao=this.value" value="${esc(perfil.funcao||p.profissao?.nome||HOTEL_BOT?.profissao||'Atendente')}"></div>
+      <div class="field"><label for="wizObjetivo">Objetivo principal</label><textarea id="wizObjetivo" rows="2" maxlength="600" oninput="WIZ.perfil.objetivoPrincipal=this.value">${esc(perfil.objetivoPrincipal||p.finalidade||HOTEL_BOT?.finalidade||'')}</textarea></div>
+      <div class="field"><label for="wizLimites">Limites de atuação</label><textarea id="wizLimites" rows="3" maxlength="1200" oninput="WIZ.perfil.limitesAtuacao=this.value">${esc(perfil.limitesAtuacao||(p.autonomia||[]).join(' ')||HOTEL_BOT?.perfil?.limitesAtuacao||'')}</textarea></div>
       <div class="field"><label for="wizPersona">Como ela vai se portar</label><textarea id="wizPersona" rows="3" maxlength="1200" oninput="WIZ.perfil.persona=this.value">${esc(perfil.persona||'')}</textarea></div>
       <div class="field"><label for="wizMensagemInicial">Primeira mensagem</label><textarea id="wizMensagemInicial" rows="2" maxlength="600" oninput="WIZ.perfil.mensagemInicial=this.value">${esc(perfil.mensagemInicial||'')}</textarea></div>
       <div class="field"><label for="wizMensagemFallback">Quando não souber responder</label><textarea id="wizMensagemFallback" rows="2" maxlength="600" oninput="WIZ.perfil.mensagemFallback=this.value">${esc(perfil.mensagemFallback||'')}</textarea></div>
-      <div class="field"><label for="wizRegrasAdicionais">Regras adicionais (uma por linha)</label><textarea id="wizRegrasAdicionais" rows="3" maxlength="3000" oninput="WIZ.perfil.regrasAdicionais=this.value">${esc((perfil.regrasAdicionais||[]).join('\n'))}</textarea></div>
+      <div class="field"><label for="wizRegrasAdicionais">Regras adicionais (uma por linha)</label><textarea id="wizRegrasAdicionais" rows="3" maxlength="3000" oninput="WIZ.perfil.regrasAdicionais=wizLinhas(this.value)">${esc(Array.isArray(perfil.regrasAdicionais)?perfil.regrasAdicionais.join('\n'):String(perfil.regrasAdicionais||''))}</textarea></div>
     </section>
     <div>
       <div class="hotel-new-preview"><div class="hotel-card-top"><div class="hotel-avatar">${foto}</div><div>
@@ -4890,10 +4892,10 @@ function corpoWiz(){
   </div>`;
 }
 function rodapeWiz(){
-  if(WIZ.passo===1) return `${botao({t:'Cancelar',ic:'fechar',v:'s',on:'fecharModal()'})}
-    ${botao({t:WIZ.buscando?'O 0007 está pesquisando…':'Pesquisar nicho',ic:'busca',v:'p',sz:'s',off:WIZ.buscando,on:'wizPreparar()'})}`;
-  return `${WIZ.editandoId?botao({t:'Cancelar',ic:'fechar',v:'s',on:'fecharModal()'}):botao({t:'Voltar',ic:'ant',v:'g',sz:'s',on:'wizVoltar()'})}
-    ${botao({t:WIZ.buscando?'O 0007 está criando e pesquisando…':WIZ.editandoId?'Salvar perfil':'Criar bot em preparação',ic:WIZ.editandoId?'check':'mais',v:'p',sz:'s',off:WIZ.buscando,on:'wizCriar()'})}`;
+  if(WIZ.editandoId) return `${botao({t:'Cancelar',ic:'fechar',v:'s',on:'fecharModal()'})}
+    ${botao({t:WIZ.buscando?'Salvando…':'Salvar perfil',ic:'check',v:'p',sz:'s',off:WIZ.buscando,on:'wizCriar()'})}`;
+  return `${botao({t:'Cancelar',ic:'fechar',v:'s',on:'fecharModal()'})}
+    ${botao({t:WIZ.buscando?'O 0007 está trabalhando…':'Criar IA-ZEST automática',ic:'bot',v:'p',sz:'s',off:WIZ.buscando,on:'wizCriarAutomatico()'})}`;
 }
 const rodapeWizOriginal=()=>{
   if(WIZ.passo===1) return `${botao({t:'Cancelar',ic:'fechar',v:'s',on:'fecharModal()'})}
@@ -4906,7 +4908,7 @@ function renderWiz(){
   document.getElementById('modalF').innerHTML=rodapeWiz();
 };
 function abrirWizardBot(){
-  WIZ={passo:1,nicho:'',personalizado:false,empresaCnpj:'',preparacao:null,nome:'',perfil:{},editandoId:null,buscando:false};
+  WIZ={passo:1,nicho:'',empresaTipo:'cnpj',empresaIdentificador:'',aceite:false,personalizado:false,empresaCnpj:'',preparacao:null,nome:'',perfil:{},editandoId:null,buscando:false};
   abrirModal('Novo bot — agente 0007',corpoWiz(),rodapeWiz());
   renderWiz();
   setTimeout(()=>document.getElementById('wizNicho')?.focus(),0);
@@ -4947,6 +4949,36 @@ async function wizPreparar(){
   finally{WIZ.buscando=false;renderWiz();}
 }
 function wizVoltar(){ if(!WIZ.editandoId){ WIZ.passo=1; renderWiz(); } }
+async function wizCriarAutomatico(){
+  const nicho=(document.getElementById('wizNicho')?.value||WIZ.nicho||'').trim();
+  const empresaTipo=WIZ.empresaTipo||'cnpj';
+  const empresaIdentificador=(document.getElementById('wizEmpresaIdentificador')?.value||WIZ.empresaIdentificador||'').trim();
+  const aceite=Boolean(document.getElementById('wizAceite')?.checked);
+  if(nicho.length<2) return avisoErro('Informe o nicho','Digite pelo menos 2 caracteres para o 0007 pesquisar.');
+  if(!empresaIdentificador) return avisoErro('Identifique a empresa','Informe o CNPJ, o nome da empresa ou o CPF para continuar.');
+  if(!aceite) return avisoErro('Aceite necessário','Marque a autorização para o 0007 criar, testar e homologar automaticamente.');
+  WIZ.nicho=nicho; WIZ.empresaIdentificador=empresaIdentificador; WIZ.aceite=aceite; WIZ.buscando=true; renderWiz();
+  try{
+    const r=await api('hotel/criar-automatico',{nicho,empresaTipo,empresaIdentificador,aceite:true,autorizado:true});
+    if(r.erro) throw new Error(r.erro);
+    const id=r.bot?.agenteId;
+    HOTEL_SELECIONADO=id||null;
+    fecharModal();
+    await carregarHotel();
+    const nome=r.bot?.nome||nicho;
+    const fontes=(r.bot?.preparacao?.pesquisaInicial?.fontes||[]).length;
+    if(r.pendencia){
+      flash(`IA-ZEST criada pelo 0007, mas ainda em preparação: ${r.erroPesquisa||r.mensagem||'há pendências nos testes'}. Abra o perfil para ver o relatório.`,'err');
+    }else if(r.homologado){
+      flash(`IA-ZEST homologada automaticamente: ${nome}. ${r.testes?.aprovados||0}/${r.testes?.total||0} verificações aprovadas e ${fontes} fonte(s) registradas.`,'ok');
+    }else if(r.aguardandoAprovacao){
+      flash(`IA-ZEST preparada e validada: ${nome}. Por ser de risco ${r.risco?.nivel||'alto'}, aguarda aprovação humana antes da homologação.`,'ok');
+    }else{
+      flash(`IA-ZEST criada em preparação: ${nome}. Abra o perfil para revisar o que falta.`,'err');
+    }
+  }catch(e){avisoErro('O 0007 não conseguiu criar a IA-ZEST',e.message);}
+  finally{WIZ.buscando=false;renderWiz();}
+}
 async function wizFotoSelecionada(input){
   const arquivo=input.files?.[0];
   if(!arquivo) return;
@@ -4984,9 +5016,9 @@ async function wizCriar(){
     regrasAdicionais:wizLinhas(document.getElementById('wizRegrasAdicionais')?.value||''),
   };
   if(!perfil.persona.trim()||!perfil.mensagemInicial.trim()||!perfil.mensagemFallback.trim()) return avisoErro('Perfil incompleto','Preencha comportamento e as duas mensagens.');
-  WIZ.buscando=true;renderWiz();
   let falha='';
   try{
+    WIZ.buscando=true;renderWiz();
     const editando=Boolean(WIZ.editandoId);
     const r=editando
       ? await api('hotel/editar-perfil',{agenteId:WIZ.editandoId,nome,perfil,autorizado:true})
@@ -5001,7 +5033,7 @@ async function wizCriar(){
     HOTEL_SELECIONADO=id;
     fecharModal();await carregarHotel();
     if(editando){
-      flash(r.alterado===false?'Nenhuma alteração para salvar.':`Perfil salvo. ${r.bot?.estado==='em_validacao'?'O comportamento mudou e voltou para validação.':'A foto foi atualizada.'}`, 'ok');
+      flash(r.alterado===false?'Nenhuma alteração para salvar.':`Perfil salvo. ${r.bot?.estado==='em_validacao'?'O comportamento mudou e voltou para validação — o 0007 homologa de novo sozinho dentro do prazo.':'Alterações gravadas.'}`, 'ok');
     }else if(r.pesquisa?.erro||!r.pesquisa?.ok){
       const detalhes=(r.pesquisa?.falhas||[]).slice(0,3).join(' · ');
       flash(`Bot criado, mas a pesquisa automática não terminou: ${r.pesquisa?.erro||'resultado da pesquisa não confirmado'}${detalhes?` · ${detalhes}`:''}. Abra o perfil e tente pesquisar novamente.`, 'err');
@@ -5018,6 +5050,25 @@ function abrirDetalheBotHotel(id){
   if(!b) return;
   HOTEL_BOT=b;
   selecionarBotHotel(id);
+}
+
+function abrirExcluirBotHotel(id){
+  const b=(HOTEL?.bots||[]).find(x=>x.agenteId===id);
+  if(!b) return;
+  confirmar({
+    titulo:'Excluir IA-ZEST',
+    texto:`Excluir <b>${esc(b.nome)}</b> do Hotel dos Bots?`,
+    consequencia:'O perfil, o mapa mental e as instâncias inativas desta IA-ZEST serão apagados. Instâncias ativas bloqueiam a exclusão. Esta ação não volta.',
+    rotulo:'Excluir IA-ZEST',
+    aoConfirmar:async()=>{
+      const r=await api('hotel/excluir',{agenteId:id,autorizado:true});
+      if(r.erro) return avisoErro('Não consegui excluir',r.erro);
+      if(HOTEL_SELECIONADO===id) HOTEL_SELECIONADO=null;
+      if(HOTEL_BOT?.agenteId===id) HOTEL_BOT=null;
+      await carregarHotel();
+      flash(`IA-ZEST excluída: ${b.nome}. ${r.instanciasRemovidas||0} instância(s) e ${r.nosRemovidos||0} nó(s) do mapa removidos.`,'ok');
+    },
+  });
 }
 
 function abrirPesquisaInicialBot(){

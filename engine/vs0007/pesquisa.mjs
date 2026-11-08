@@ -14,12 +14,19 @@ const BUSCADORES = [
     criarUrl: (consulta) => `https://www.bing.com/search?q=${encodeURIComponent(consulta)}`,
     extrair: extrairResultadosBing,
   },
+  /* Reserva: quando Google e Bing limitam por excesso de buscas (403/429), o
+     Yahoo costuma seguir respondendo. */
+  {
+    nome: 'Yahoo',
+    criarUrl: (consulta) => `https://search.yahoo.com/search?p=${encodeURIComponent(consulta)}`,
+    extrair: extrairResultadosYahoo,
+  },
 ];
 const executar = promisify(execFile);
 const MAX_HTML_BYTES = 1_500_000;
 const MAX_RESULTADOS = 8;
 const MAX_FONTES = 6;
-const MAX_FONTES_EMPRESA = 2;
+const MAX_FONTES_EMPRESA = 4;
 const USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36';
 
 function decodificarAtributo(texto) {
@@ -75,6 +82,26 @@ function extrairResultadosBing(html) {
     }
     const titulo = textoDoBloco(ancora[2]).slice(0, 180);
     const resumo = textoDoBloco(bloco).replace(titulo, '').slice(0, 900);
+    if (titulo && urlPermitida(url)) resultados.push({ url, titulo, resumo });
+    if (resultados.length >= MAX_RESULTADOS) break;
+  }
+  return resultados;
+}
+
+function extrairResultadosYahoo(html) {
+  const resultados = [];
+  for (const correspondencia of html.matchAll(/<div class="dd [^"]*algo-sr[^"]*"[\s\S]*?(?=<div class="dd |<\/ol>|$)/gi)) {
+    const bloco = correspondencia[0];
+    const link = bloco.match(/href="(https:\/\/r\.search\.yahoo\.com\/[^"]+)"/i);
+    const destino = link && link[1].match(/\/RU=([^/]+)\//);
+    if (!destino) continue;
+    let url;
+    try { url = decodeURIComponent(destino[1]); new URL(url); } catch { continue; }
+    if (/(^|\.)yahoo\.com$/i.test(new URL(url).hostname)) continue;
+    const tituloHtml = bloco.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i);
+    const titulo = textoDoBloco(decodificarAtributo(tituloHtml ? tituloHtml[1] : '')).slice(0, 180);
+    const trecho = bloco.match(/class="compText[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+    const resumo = textoDoBloco(decodificarAtributo(trecho ? trecho[1] : '')).slice(0, 900);
     if (titulo && urlPermitida(url)) resultados.push({ url, titulo, resumo });
     if (resultados.length >= MAX_RESULTADOS) break;
   }
@@ -188,7 +215,10 @@ function tipoFonte(url, consulta) {
   if (/(reddit\.com|stackexchange\.com|stackoverflow\.com|quora\.com|discourse|forum|community)/.test(host + caminho)) return 'comunidade-forum';
   if (/blog|medium\.com|substack\.com/.test(host + caminho) || /\/(r|resources?|guides?|articles?)\//.test(caminho)) return 'blog-especializado';
   if (/youtube/.test(consulta) && /youtube\.com|youtu\.be/.test(host)) return 'youtube';
-  return null;
+  /* Página relevante do setor que não é governo, documentação, fórum, blog
+     nem vídeo (portal, guia, marketplace, empresa do ramo): conta como fonte
+     do setor. Sem isso, nicho comum (faxina, açaí, oficina) nunca fechava. */
+  return 'site-do-setor';
 }
 
 function normalizarTermos(texto) {
@@ -205,23 +235,38 @@ function resultadoRelevante(resultado, termosBusca, minimoEncontrado = 1) {
   const texto = `${resultado.titulo} ${resultado.resumo} ${resultado.url}`.normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
-  const encontrados = termos.filter((termo) => texto.includes(termo)).length;
+  /* Radical tolera erro de digitação/flexão ("faxineura" acha "faxineira";
+     "advogado" acha "advogados"): o buscador já corrige a consulta. */
+  const casa = (termo) => texto.includes(termo) || (termo.length >= 6 && texto.includes(termo.slice(0, Math.max(5, termo.length - 3))));
+  const encontrados = termos.filter(casa).length;
   return encontrados >= Math.min(minimoEncontrado, termos.length);
 }
 
-function consultasDaEspecialidade({ especialidade, finalidade, profissao, empresa }) {
-  const foco = [especialidade, profissao, finalidade].filter(Boolean).join(' ').slice(0, 260);
-  const consultas = [{
-    escopo: 'profissao',
-    texto: `${foco} official standards government university documentation specialist blog community forum YouTube training video best practices`,
-  }];
+/*
+ * Qualquer nicho tem de render fontes: a busca é em português e em várias
+ * frentes (o que é, como funciona, dúvidas de clientes, guia do setor) antes da
+ * consulta técnica de normas/documentação. A empresa, quando informada, é um
+ * parâmetro a mais: site, redes e avaliações dela entram como presença digital.
+ */
+function consultasDaEspecialidade({ especialidade, finalidade, profissao, empresa, nichoInformado = '' }) {
+  const termo = [...new Set([nichoInformado, especialidade].map((t) => String(t || '').trim()).filter(Boolean))].join(' ').slice(0, 120);
+  const foco = [termo, profissao, finalidade].filter(Boolean).join(' ').slice(0, 260);
+  const consultas = [
+    { escopo: 'profissao', texto: `${termo} o que é como funciona atendimento ao cliente` },
+    { escopo: 'profissao', texto: `${termo} guia completo dicas blog` },
+    { escopo: 'profissao', texto: `${termo} perguntas frequentes dúvidas de clientes preços` },
+    { escopo: 'profissao', texto: `${termo} fórum comunidade profissionais` },
+    { escopo: 'profissao', texto: `${foco} official standards government university documentation specialist blog community forum YouTube training video best practices` },
+  ];
   if (empresa) {
     const nome = empresa.nomeFantasia || empresa.razaoSocial;
-    consultas.push({
-      escopo: 'empresa',
-      texto: `"${nome}" ${empresa.municipio || ''} ${empresa.uf || ''} site oficial produtos serviços atendimento`,
-      termos: [empresa.nomeFantasia, empresa.razaoSocial].filter(Boolean),
-    });
+    const local = `${empresa.municipio || ''} ${empresa.uf || ''}`.trim();
+    const termos = [empresa.nomeFantasia, empresa.razaoSocial].filter(Boolean);
+    consultas.push(
+      { escopo: 'empresa', texto: `"${nome}" ${local} site oficial produtos serviços atendimento`, termos },
+      { escopo: 'empresa', texto: `"${nome}" ${local} instagram facebook whatsapp`, termos },
+      { escopo: 'empresa', texto: `"${nome}" ${local} avaliações endereço horário ${termo}`, termos },
+    );
   }
   return consultas;
 }
@@ -316,8 +361,14 @@ async function resolverResultados(encontrados, buscador, fetchFn, falhas) {
     try {
       return { ...resultado, url: await resolverDestinoPesquisa(resultado.url, fetchFn) };
     } catch (erro) {
-      falhas.push(`${buscador.nome}: ${String(erro.message || erro).slice(0, 160)}`);
-      return null;
+      const motivo = String(erro.message || erro);
+      falhas.push(`${buscador.nome}: ${motivo.slice(0, 160)}`);
+      /* Site que recusa robô (403/429/5xx) ainda é um resultado real do
+         buscador: fica com a URL que o buscador deu e o trecho que ele mostrou.
+         Só o destino proibido (rede interna, não HTTPS) é descartado. */
+      if (/não permitido|redirecionamento/.test(motivo) || !/^https:\/\//.test(resultado.url)) return null;
+      if (/google\.com\/goto|bing\.com\/ck\//.test(resultado.url)) return null;
+      return { ...resultado, paginaRecusou: true };
     }
   }))).filter(Boolean);
 }
@@ -368,7 +419,7 @@ function conhecimentoDaPagina(pagina, consulta) {
 }
 
 export async function pesquisarPreparacaoNaWeb(
-  { especialidade, finalidade = '', profissao = '', empresaCnpj = '' } = {},
+  { especialidade, finalidade = '', profissao = '', empresaCnpj = '', empresaNome = '', nicho: nichoInformado = '' } = {},
   { fetch: fetchFn = globalThis.fetch, curl: curlFn = buscarComCurl } = {},
 ) {
   const nicho = String(especialidade || '').trim();
@@ -380,6 +431,11 @@ export async function pesquisarPreparacaoNaWeb(
     cadastroEmpresa = await consultarCadastroEmpresa(empresaCnpj, fetchFn);
     if (cadastroEmpresa.erro) return cadastroEmpresa;
   }
+  /* Sem CNPJ, o nome informado ainda permite pesquisar a presença pública da
+     empresa. É só um termo de busca: não há consulta cadastral nem envio de
+     documento pessoal. */
+  const empresaConsulta = cadastroEmpresa?.empresa
+    || (empresaNome ? { nomeFantasia: String(empresaNome).trim().slice(0, 180) } : null);
   const fontes = [];
   const falhas = [];
   let buscadorUsado = '';
@@ -387,32 +443,48 @@ export async function pesquisarPreparacaoNaWeb(
     especialidade: nicho,
     finalidade,
     profissao,
-    empresa: cadastroEmpresa?.empresa,
+    empresa: empresaConsulta,
+    nichoInformado,
   });
   const resultadosPorUrl = new Map();
   for (const consulta of consultas) {
     for (const buscador of BUSCADORES) {
       const resultados = await pesquisarResultados(consulta.texto, buscador, fetchFn, curlFn, falhas);
-      if (resultados.length) buscadorUsado ||= buscador.nome;
-      for (const resultado of resultados) {
-        const termosRelevantes = consulta.escopo === 'empresa'
-          ? consulta.termos
-          : [nicho, profissao];
-        if (!resultadoRelevante(resultado, termosRelevantes, consulta.escopo === 'empresa' ? 2 : 1)) continue;
-        const tipo = tipoFonte(resultado.url, consulta.texto)
-          || (consulta.escopo === 'empresa' ? 'presenca-digital-empresa' : null);
+      const termosRelevantes = consulta.escopo === 'empresa'
+        ? consulta.termos
+        : [nicho, nichoInformado, profissao];
+      /* Buscador sob bloqueio anti-robô às vezes responde 200 com resultados
+         aleatórios: só conta como resposta o que é relevante ao nicho. */
+      const relevantes = resultados.filter((resultado) =>
+        resultadoRelevante(resultado, termosRelevantes, consulta.escopo === 'empresa' ? 2 : 1)
+        /* Página de verificação anti-robô (captcha) não é fonte. */
+        && !/perfdrive\.com|captcha|challenge|cloudflare/i.test(new URL(resultado.url).hostname)
+        /* Dicionário não é fonte do setor. */
+        && !/(^|\.)(dicio|sinonimos|significados|priberam|dicionario|michaelis\.uol)\.com(\.br)?$|(^|\.)priberam\.org$|(^|\.)aulete\.com\.br$/i.test(new URL(resultado.url).hostname));
+      if (!relevantes.length) {
+        if (resultados.length) falhas.push(`${buscador.nome}: nenhum resultado relevante para "${consulta.texto.slice(0, 60)}"`);
+        continue;
+      }
+      buscadorUsado ||= buscador.nome;
+      for (const resultado of relevantes) {
+        const tipoBruto = tipoFonte(resultado.url, consulta.texto);
+        const tipo = consulta.escopo === 'empresa' && tipoBruto === 'site-do-setor' ? 'presenca-digital-empresa' : tipoBruto;
         const chave = `${consulta.escopo}:${resultado.url}`;
         if (tipo && !resultadosPorUrl.has(chave)) {
           resultadosPorUrl.set(chave, { ...resultado, tipo, consulta: consulta.texto, escopo: consulta.escopo });
         }
       }
+      /* Um buscador que respondeu basta para esta consulta: perguntar aos
+         três em toda consulta é o que fazia Google/Bing bloquearem (403/429). */
+      break;
     }
     const resultadosDaProfissao = [...resultadosPorUrl.values()].filter((item) => item.escopo === 'profissao');
     const categoriasResultados = new Set(resultadosDaProfissao.map((item) => item.tipo));
     const temFontePrimaria = categoriasResultados.has('site-oficial') || categoriasResultados.has('documentacao');
     const temFonteEspecializada = ['blog-especializado', 'comunidade-forum', 'youtube'].some((tipo) => categoriasResultados.has(tipo));
-    if (resultadosDaProfissao.length >= 3 && temFontePrimaria && temFonteEspecializada) {
-      if (!cadastroEmpresa || [...resultadosPorUrl.values()].some((item) => item.escopo === 'empresa')) break;
+    const suficientes = resultadosDaProfissao.length >= 6 || (resultadosDaProfissao.length >= 3 && temFontePrimaria && temFonteEspecializada);
+    if (suficientes) {
+      if (!empresaConsulta || [...resultadosPorUrl.values()].some((item) => item.escopo === 'empresa')) break;
     }
   }
 
@@ -423,9 +495,16 @@ export async function pesquisarPreparacaoNaWeb(
     if (!fonte || selecionados.length >= 8) return;
     selecionados.push({ ...fonte, escopo: 'empresa-registro' });
   };
+  /* Total cabe no registro (máx. 8): com empresa, a profissão fica com até 4
+     e a empresa com o restante. */
+  const maxProfissao = empresaConsulta ? 4 : MAX_FONTES;
   const incluir = (candidato) => {
-    const maximo = candidato?.escopo === 'empresa' ? MAX_FONTES_EMPRESA : MAX_FONTES;
-    if (!candidato || selecionados.filter((item) => item.escopo === candidato.escopo).length >= maximo) return;
+    const maximo = candidato?.escopo === 'empresa' ? MAX_FONTES_EMPRESA : maxProfissao;
+    if (!candidato || selecionados.length >= 8 || selecionados.filter((item) => item.escopo === candidato.escopo).length >= maximo) return;
+    /* A mesma página pode aparecer na busca do nicho e na busca da empresa.
+       Registrar duas vezes a mesma URL invalida a preparação, então cada
+       endereço entra uma única vez. */
+    if (selecionados.some((item) => item.url === candidato.url)) return;
     const host = new URL(candidato.url).hostname;
     const chaveHost = `${candidato.escopo}:${host}`;
     if (hostsUsados.has(chaveHost)) return;
@@ -433,23 +512,43 @@ export async function pesquisarPreparacaoNaWeb(
     selecionados.push(candidato);
   };
   incluirRegistro(cadastroEmpresa?.fonte);
-  for (const tipo of ['site-oficial', 'documentacao', 'blog-especializado', 'comunidade-forum', 'youtube']) {
+  for (const tipo of ['site-oficial', 'documentacao', 'blog-especializado', 'comunidade-forum', 'youtube', 'site-do-setor']) {
     incluir(candidatos.find((item) => item.escopo === 'profissao' && item.tipo === tipo));
   }
+  for (const candidato of candidatos.filter((item) => item.escopo === 'profissao')) incluir(candidato);
   for (const candidato of candidatos.filter((item) => item.escopo === 'empresa')) incluir(candidato);
-  for (const candidato of candidatos) incluir(candidato);
 
+  /* Página que não abre (anti-robô) ou não rende trecho: o resumo que o
+     buscador exibiu é usado como conhecimento, marcado como trecho do buscador
+     — nada inventado, só o que a busca pública mostrou. */
+  const fonteDoTrecho = (candidato, motivo) => {
+    const resumo = String(candidato.resumo || '').replace(/\s+/g, ' ').trim();
+    if (resumo.length < 35) return { falha: `${candidato.url}: ${motivo}` };
+    return {
+      fonte: {
+        tipo: candidato.tipo,
+        escopo: candidato.escopo,
+        titulo: String(candidato.titulo || new URL(candidato.url).hostname).slice(0, 160),
+        url: candidato.url,
+        resumo: resumo.slice(0, 1200),
+        verificacao: 'trecho-do-buscador',
+        conhecimentos: [{ categoria: 'conhecimento-básico', conteudo: resumo.slice(0, 280), fonteUrl: candidato.url }],
+      },
+      falha: `${candidato.url}: ${motivo} — usado o trecho exibido pelo buscador`,
+    };
+  };
   const fontesConsultadas = await Promise.all(selecionados.map(async (candidato) => {
     if (candidato.escopo === 'empresa-registro') return { fonte: candidato };
+    if (candidato.paginaRecusou) return fonteDoTrecho(candidato, 'a página recusou acesso automático');
     try {
       const pagina = await buscarHtml(candidato.url, fetchFn);
       const fonte = conhecimentoDaPagina({ ...pagina, resultado: candidato }, candidato.consulta);
       if (!fonte.conhecimentos.length) {
-        return { falha: `${fonte.url}: página abriu, mas não trouxe trechos úteis para conhecimento inicial` };
+        return fonteDoTrecho(candidato, 'página abriu, mas não trouxe trechos úteis para conhecimento inicial');
       }
       return { fonte: { ...fonte, tipo: candidato.tipo, escopo: candidato.escopo } };
     } catch (erro) {
-      return { falha: `${candidato.url}: ${String(erro.message || erro).slice(0, 160)}` };
+      return fonteDoTrecho(candidato, String(erro.message || erro).slice(0, 160));
     }
   }));
   for (const resultado of fontesConsultadas) {
@@ -479,18 +578,26 @@ export async function pesquisarPreparacaoNaWeb(
     buscador: buscadorUsado,
     pesquisadoEm: new Date().toISOString(),
     consultas: consultas.length,
-    empresa: cadastroEmpresa ? {
-      ...cadastroEmpresa.empresa,
-      fontesDigitaisConsultadas: fontesEmpresaWeb.length,
-    } : null,
+    empresa: cadastroEmpresa
+      ? {
+        ...cadastroEmpresa.empresa,
+        fontesDigitaisConsultadas: fontesEmpresaWeb.length,
+      }
+      : (empresaConsulta ? {
+        nomeFantasia: empresaConsulta.nomeFantasia,
+        fontesDigitaisConsultadas: fontesEmpresaWeb.length,
+        identificacao: 'nome-informado',
+      } : null),
     fontes,
     conhecimentos,
     falhas: falhas.slice(0, 12),
     limitacoes: [
       'Pesquisa focada em fontes públicas indexadas; páginas protegidas, inacessíveis ou em formato não suportado podem ficar de fora.',
       'Trechos são extraídos das páginas consultadas e permanecem descobertos, não validados nem homologados.',
-      ...(cadastroEmpresa ? [
-        'O CNPJ foi consultado em uma API pública de dados cadastrais; CPF pessoal, quadro societário, e-mail e telefone não são pesquisados nem incorporados.',
+      ...(empresaConsulta ? [
+        ...(cadastroEmpresa
+          ? ['O CNPJ foi consultado em uma API pública de dados cadastrais; CPF pessoal, quadro societário, e-mail e telefone não são pesquisados nem incorporados.']
+          : ['A empresa foi identificada apenas pelo nome informado; não houve consulta cadastral por CNPJ e nenhum documento pessoal foi enviado a buscadores.']),
         ...(fontesEmpresaWeb.length ? [] : ['Não foram localizadas páginas públicas da presença digital da empresa; o perfil cadastral consultado está registrado como conhecimento descoberto.']),
       ] : []),
       ...['site-oficial', 'documentacao'].filter((tipo) => !categorias.has(tipo)).map((tipo) =>

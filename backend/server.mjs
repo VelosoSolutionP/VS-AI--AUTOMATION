@@ -392,10 +392,10 @@ function agendadorCampanhas() {
 
 function contextoCampanha(extra = {}) {
   return {
-    produto: (sku) => {
-      const vivo = estoque.doAtendimento().find((p) => p.sku === sku);
+    produto: async (sku) => {
+      const vivo = (await estoque.doAtendimento()).find((p) => p.sku === sku);
       if (vivo) { return { ...vivo, ativo: true }; }
-      const cru = estoque.obter(sku);
+      const cru = await estoque.obter(sku);
       return cru && !cru.excluidoEm ? { sku, nome: cru.nome, ativo: false } : null;
     },
     imagem: (img) => {
@@ -508,7 +508,7 @@ const LIM_CRM = criarRateLimit({ max: Number(process.env.RATE_CRM || 300), janel
 /* Link público do orçamento: quem tem o código vê e responde. O limite segura
    quem tenta adivinhar código na força bruta. */
 /* O orçamento só usa o que a loja VENDE: produto ativo do Estoque, com preço. */
-const catalogoOrc = () => estoque.doAtendimento().filter((p) => p.precoCentavos > 0).map((p) => ({ sku: p.sku, nome: p.nome, precoCentavos: p.precoCentavos }));
+const catalogoOrc = async () => (await estoque.doAtendimento()).filter((p) => p.precoCentavos > 0).map((p) => ({ sku: p.sku, nome: p.nome, precoCentavos: p.precoCentavos }));
 const LIM_ORCAMENTO = criarRateLimit({ max: Number(process.env.RATE_ORCAMENTO || 60), janelaMs: 10 * 60000 });
 /* Tela do provador na vitrine: medir/avaliar a cada toque da cliente — teto folgado, mas teto. */
 const LIM_PROVADOR = criarRateLimit({ max: Number(process.env.RATE_PROVADOR || 240), janelaMs: 10 * 60000 });
@@ -612,7 +612,7 @@ async function estadoIntegracoes(forcar = false) {
     telegram: await tenta(() => canais.telegramInfo()),
     pagamento: await tenta(() => pagar.provedorAtual()),
     tiktok: await tenta(() => tiktokDiagnostico()),
-    loja: await tenta(() => ({ publicados: (estoque.publicados() || []).length })),
+    loja: await tenta(async () => ({ publicados: ((await estoque.publicados()) || []).length })),
     quebragalho: await tenta(() => painelQuebraGalho()),
     email: { configurado: email.configurado() },
     alertas: await tenta(() => ({ responsaveis: seguranca.responsaveis().length })),
@@ -1377,7 +1377,7 @@ const server = createServer(async (req, res) => {
   }
   if (req.method === 'GET' && rotaV === '/vitrine/sitemap.xml') {
     const o = origemPublica();
-    const urls = [`${o}/vitrine`, ...estoque.daVitrine().map((p) => `${o}/vitrine/p/${encodeURIComponent(p.sku)}`)];
+    const urls = [`${o}/vitrine`, ...(await estoque.daVitrine()).map((p) => `${o}/vitrine/p/${encodeURIComponent(p.sku)}`)];
     res.writeHead(200, { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=3600' });
     return res.end(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${u.replace(/&/g, '&amp;')}</loc></url>`).join('\n')}\n</urlset>\n`);
   }
@@ -1395,12 +1395,12 @@ const server = createServer(async (req, res) => {
     try {
       if (rotaV === '/vitrine') {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=60' });
-        return res.end(paginaVitrine(estoque.daVitrine(), lojaV));
+        return res.end(paginaVitrine(await estoque.daVitrine(), lojaV));
       }
       /* FEED DO GOOGLE (Merchant Center busca sozinho, todo dia). Só produto da
          vitrine, e o link de cada um é a página dele aqui mesmo. */
       if (rotaV === '/vitrine/google.xml') {
-        const f = estoque.exportarVitrine('google', {
+        const f = await estoque.exportarVitrine('google', {
           loja: lojaV.nome, site: `${lojaV.origem}/vitrine`,
           linkDe: (sku) => `${lojaV.origem}/vitrine/p/${encodeURIComponent(sku)}`
         });
@@ -1411,7 +1411,7 @@ const server = createServer(async (req, res) => {
         return res.end(f.conteudo);
       }
       if (rotaV.startsWith('/vitrine/p/')) {
-        const p = estoque.daVitrinePorSku(decodeURIComponent(rotaV.slice('/vitrine/p/'.length)));
+        const p = await estoque.daVitrinePorSku(decodeURIComponent(rotaV.slice('/vitrine/p/'.length)));
         if (!p) { res.writeHead(404, { 'content-type': 'text/html; charset=utf-8' }); return res.end(paginaSumiu(lojaV)); }
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=60' });
         return res.end(paginaProduto(p, lojaV));
@@ -1755,7 +1755,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
     // guarda em ~/.qa-gate/vstiktok com arquivo 0600. O diagnostico ja sai mascarado.
     if (req.method === 'GET' && rota === '/crm/api/tiktok') { return json(res, 200, tiktokDiagnostico()); }
     if (req.method === 'GET' && rota === '/crm/api/estoque') {
-      return json(res, 200, estoque.painel({ limiteProdutos: limitesAtuais().produtos }));
+      return json(res, 200, await estoque.painel({ limiteProdutos: limitesAtuais().produtos }));
     }
     // Telas que eram casca: leem recibo do gate, dinheiro e cruzamento de dado real.
     /* Auditor de um canal no padrão de mercado: desempenho (TPR, TMA, SLA, CSAT,
@@ -1884,7 +1884,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
         /* O estoque daqui, com a marca de quem ja foi pra la — e o que permite
            a tela mostrar "publicar" e "republicar" em vez de deixar o lojista
            adivinhar o que ja subiu. */
-        doEstoque: estoque.listar().slice(0, 200),
+        doEstoque: (await estoque.listar()).slice(0, 200),
         publicados: tk.publicados(),
       });
     }
@@ -2168,7 +2168,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
         .map((o) => ({ ...o, url: o.situacao === 'rascunho' ? null : orcSrv.urlPublica(o) }));
       return json(res, 200, {
         orcamentos: lista, resumo: orc.resumo({ dias }), loja: orcSrv.loja(), config: orc.config(),
-        catalogo: catalogoOrc()
+        catalogo: await catalogoOrc()
       });
     }
     if (req.method === 'GET' && rota === '/crm/api/orcamentos/pdf') {
@@ -2201,7 +2201,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
         dias, campanhas: lista, linkBot: canais.telegramInfo().link || null, botArroba: canais.telegramInfo().numero || null,
         destinos: campanhasTg.listarDestinos(), politica: campanhasTg.politica(),
         loja: process.env.VITRINE_NOME || 'nossa loja',
-        catalogo: estoque.doAtendimento().map((p) => ({ sku: p.sku, nome: p.nome, descricao: p.descricao, precoCentavos: p.precoCentavos, precoDeCentavos: p.precoDeCentavos, imagem: p.imagem, esgotado: p.esgotado })),
+        catalogo: (await estoque.doAtendimento()).map((p) => ({ sku: p.sku, nome: p.nome, descricao: p.descricao, precoCentavos: p.precoCentavos, precoDeCentavos: p.precoDeCentavos, imagem: p.imagem, esgotado: p.esgotado })),
         limites: campanhasTg.LIMITE,
       });
     }
@@ -2359,10 +2359,10 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
     if (req.method === 'GET' && rota === '/crm/api/lojas') { return json(res, 200, { ...lojas.estado(), atual: req.todasLojas ? 'todas' : lojaAtual() }); }
     if (req.method === 'GET' && rota === '/crm/api/lojas/unificado') {
       const pagamentos = pagar.listar();
-      const porLoja = (await lojas.emCadaLoja(() => {
+      const porLoja = (await lojas.emCadaLoja(async () => {
         const dia = resultados.doDia({ pagamentos });
         const cx = caixaLoja.estado();
-        const itens = estoque.listar().filter((p) => p.ativo !== false);
+        const itens = (await estoque.listar()).filter((p) => p.ativo !== false);
         return {
           vendidoCentavos: dia.vendidoCentavos + dia.naEntregaCentavos, pedidos: dia.pedidos, aguardandoCentavos: dia.aguardandoCentavos,
           semanaPassadaCentavos: (dia.semanaPassada?.vendidoCentavos || 0) + (dia.semanaPassada?.naEntregaCentavos || 0),
@@ -2451,21 +2451,21 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
     /* Um produto so — a tela de ver/editar nao deve baixar o catalogo inteiro. */
     if (req.method === 'GET' && rota === '/crm/api/estoque/produto') {
       const sku = new URL(req.url, 'http://x').searchParams.get('sku') || '';
-      const p = estoque.obter(sku);
+      const p = await estoque.obter(sku);
       if (!p) { return json(res, 404, { erro: `produto "${sku}" nao encontrado` }); }
-      return json(res, 200, { produto: p, historico: estoque.historico(sku, 20) });
+      return json(res, 200, { produto: p, historico: await estoque.historico(sku, 20) });
     }
     if (req.method === 'GET' && rota === '/crm/api/estoque/publicados') {
       const origem = process.env.PAINEL_URL || 'https://bolsocheio.velososolution.com.br';
-      return json(res, 200, { publicados: estoque.publicados(), urlVitrine: `${origem}/vitrine`, reservas: estoque.reservas().slice(0, 100) });
+      return json(res, 200, { publicados: await estoque.publicados(), urlVitrine: `${origem}/vitrine`, reservas: (await estoque.reservas()).slice(0, 100) });
     }
     if (req.method === 'GET' && rota === '/crm/api/estoque/reservas') {
-      return json(res, 200, { reservas: estoque.reservas(), excluidos: estoque.excluidos().map(estoque.resumir) });
+      return json(res, 200, { reservas: await estoque.reservas(), excluidos: (await estoque.excluidos()).map(estoque.resumir) });
     }
     if (req.method === 'GET' && rota === '/crm/api/estoque/lotes') {
       const origem = process.env.PAINEL_URL || 'https://bolsocheio.velososolution.com.br';
       return json(res, 200, {
-        lotes: estoque.lotes(),
+        lotes: await estoque.lotes(),
         canais: estoque.FORMATOS,
         urlVitrine: `${origem}/vitrine`,
         vitrineConfigurada: Boolean(process.env.VITRINE_WHATSAPP),
@@ -2476,7 +2476,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
        nao quer dizer mais nada. */
     if (req.method === 'GET' && rota === '/crm/api/estoque/lote') {
       const id = new URL(req.url, 'http://x').searchParams.get('id') || '';
-      const l = estoque.obterLote(id);
+      const l = await estoque.obterLote(id);
       if (!l) { return json(res, 404, { erro: `lote "${id}" nao encontrado` }); }
       res.writeHead(200, {
         'content-type': l.tipo,
@@ -2487,13 +2487,13 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
       return res.end(l.conteudo);
     }
     if (req.method === 'GET' && rota === '/crm/api/estoque/historico') {
-      return json(res, 200, { movimentos: estoque.historico(new URL(req.url, 'http://x').searchParams.get('sku')) });
+      return json(res, 200, { movimentos: await estoque.historico(new URL(req.url, 'http://x').searchParams.get('sku')) });
     }
     // Download do feed: sai como ARQUIVO, nao como JSON — e o que o Google e a Meta
     // consomem. Os recusados vao no header, pra tela poder avisar sem baixar duas vezes.
     if (req.method === 'GET' && rota === '/crm/api/estoque/exportar') {
       const canal = new URL(req.url, 'http://x').searchParams.get('canal') || 'json';
-      const r = estoque.exportar(canal, { loja: process.env.VSESTOQUE_LOJA, site: process.env.VSESTOQUE_SITE });
+      const r = await estoque.exportar(canal, { loja: process.env.VSESTOQUE_LOJA, site: process.env.VSESTOQUE_SITE });
       if (!r.ok) { return json(res, 400, { erro: r.motivo }); }
       res.writeHead(200, {
         'content-type': r.tipo,
@@ -2615,7 +2615,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
            As imagens sao baixadas do proprio painel e reenviadas pra TikTok, que
            so aceita URI dela. */
         case '/crm/api/tiktok/publicar-produto': {
-          const prod = estoque.obter(String(d.sku || ''));
+          const prod = await estoque.obter(String(d.sku || ''));
           if (!prod) { r = { ok: false, motivo: `produto "${d.sku}" nao existe no estoque` }; break; }
           r = await tk.publicarProdutoDoEstoque(prod, {
             /* Baixar a imagem e I/O, entao entra por injecao: o modulo continua
@@ -2893,7 +2893,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
           r = orc.salvar({
             ...d, vendedor: antes?.vendedor || { nome: qa.nome, email: quem.email || null },
             cliente: { ...(d.cliente || {}), canal: canalDe(tel) }
-          }, { por: quem.email || null, catalogo: catalogoOrc() });
+          }, { por: quem.email || null, catalogo: await catalogoOrc() });
           break;
         }
         case '/crm/api/orcamentos/enviar':
@@ -2907,7 +2907,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
           r = acao === 'enviar' ? await orcSrv.enviar(o.id, { por: quem.email || null })
             : acao === 'cobrar' ? await orcSrv.cobrar(o.id, { por: quem.email || null })
               : acao === 'cancelar' ? orc.cancelar(o.id, { por: quem.email || null })
-                : orc.duplicar(o.id, { por: quem.email || null, catalogo: catalogoOrc() });
+                : orc.duplicar(o.id, { por: quem.email || null, catalogo: await catalogoOrc() });
           break;
         }
         case '/crm/api/campanhas/salvar': r = campanhasTg.salvar(d, { canal: 'telegram' }); break;
@@ -2978,8 +2978,8 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
         case '/crm/api/campanhas/parceiro/pagar': r = campanhasTg.pagarComissao(String(d.id || ''), String(d.slug || ''), { valor: d.valor, por: quem.email || null, obs: d.obs });
           if (r.ok) { seguranca.auditar({ tipo: 'campanha:comissao-paga', detalhe: `${d.slug} R$ ${d.valor}`, cliente: quem.email || null, resultado: 'registrado' }); } break;
         case '/crm/api/campanhas/parceiro/remover': r = campanhasTg.removerParceiro(String(d.id || ''), String(d.slug || '')); break;
-        case '/crm/api/campanhas/auditar': r = campanhasTg.rodarAuditoria(String(d.id || ''), contextoCampanha({ forcar: d.forcar === true })); break;
-        case '/crm/api/campanhas/aprovar': r = campanhasTg.aprovar(String(d.id || ''), { ...contextoCampanha(), por: quem.email || null, aceitarRessalvas: d.aceitarRessalvas === true }); break;
+        case '/crm/api/campanhas/auditar': r = await campanhasTg.rodarAuditoria(String(d.id || ''), contextoCampanha({ forcar: d.forcar === true })); break;
+        case '/crm/api/campanhas/aprovar': r = await campanhasTg.aprovar(String(d.id || ''), { ...contextoCampanha(), por: quem.email || null, aceitarRessalvas: d.aceitarRessalvas === true }); break;
         case '/crm/api/campanhas/encerrar': r = campanhasTg.encerrar(String(d.id || '')); break;
         case '/crm/api/campanhas/reabrir': r = campanhasTg.reabrir(String(d.id || ''), quem.email || null); break;
         case '/crm/api/campanhas/excluir': r = campanhasTg.excluir(String(d.id || '')); break;
@@ -3001,7 +3001,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
         /* Publicar agora ou agendar. "Agora" entra na fila e o agendador manda
            na mesma hora — e o mesmo caminho, com as mesmas regras. */
         case '/crm/api/campanhas/publicar': {
-          r = campanhasTg.agendarPublicacao(String(d.id || ''), { destinos: Array.isArray(d.destinos) ? d.destinos : [], quando: d.quando || null, por: quem.email || null, ctx: contextoCampanha() });
+          r = await campanhasTg.agendarPublicacao(String(d.id || ''), { destinos: Array.isArray(d.destinos) ? d.destinos : [], quando: d.quando || null, por: quem.email || null, ctx: contextoCampanha() });
           if (r.ok && !d.quando) {
             // Duas voltas: se o relogio ja estava rodando, a 1a e a dele (anterior a este pedido).
             await agendadorCampanhas(); await agendadorCampanhas();
@@ -3066,7 +3066,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
           const msgs = (Array.isArray(d.mensagens) ? d.mensagens : [d.texto]).map((x) => String(x || '')).filter(Boolean).slice(0, 20);
           if (!msgs.length) { r = { ok: false, motivo: 'escreva ao menos uma mensagem do cliente' }; break; }
           let ficha = null;
-          const cat = estoque.doAtendimento().map((p) => ({ sku: p.sku, nome: p.nome }));
+          const cat = (await estoque.doAtendimento()).map((p) => ({ sku: p.sku, nome: p.nome }));
           for (const m of msgs) { ficha = qualif.qualificar(ficha, m, { produtos: cat }); }
           const ativosOps = operadores.ativos(operadores.listar());
           const dec = qualif.decidir(ficha, { texto: msgs.join(' '), equipesComGente: [...new Set(ativosOps.map((o) => qualif.normEquipe(o.setor)))], tiersComGente: qualif.tiersComGente(ativosOps), matriz: Array.isArray(d.matriz) ? d.matriz : undefined });
@@ -3202,6 +3202,30 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
             : hotel.pesquisarNicho({ nicho: d.nicho });
           break;
         case '/crm/api/hotel/preparar-nicho': r = hotel.prepararNicho({ nicho: d.nicho }); break;
+        /* Missão 007 — o fluxo automático: nicho + identificação da empresa +
+           aceite. O 0007 faz pesquisa, testes e homologação sozinho quando o
+           risco é baixo; em risco alto, deixa em validação para uma pessoa. */
+        case '/crm/api/hotel/criar-automatico':
+          r = await hotel.criarIAZestAutomatica({
+            nicho: d.nicho,
+            empresaTipo: d.empresaTipo,
+            empresaIdentificador: d.empresaIdentificador,
+            aceite: d.aceite === true,
+            autorizado: d.autorizado === true,
+          });
+          break;
+        case '/crm/api/hotel/excluir': {
+          const agenteExcluir = String(d.agenteId || '');
+          if (cadevcCfg.config().bot0007Id && cadevcCfg.config().bot0007Id === agenteExcluir) {
+            r = { erro: 'esta IA-ZEST está conectada ao Salão; desconecte antes de excluir' };
+            break;
+          }
+          r = hotel.excluirBot({
+            agenteId: agenteExcluir,
+            autorizado: d.autorizado === true,
+          });
+          break;
+        }
         case '/crm/api/hotel/novo-bot': {
           if (d.aprovacaoCriador !== true) {
             r = { erro: 'a proposta do 0007 precisa ser aprovada pelo criador' };
@@ -3298,6 +3322,12 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
           break;
         }
         case '/crm/api/hotel/homologar': r = hotel.homologarBot(d); break;
+        /* Força agora a rodada do prazo de 12h (a mesma do relógio). */
+        case '/crm/api/hotel/processar-prazos':
+          r = d.autorizado === true
+            ? { ok: true, ...(await hotel.processarPrazosHomologacao({ forcar: true })) }
+            : { erro: 'processar os prazos exige autorização do criador' };
+          break;
         case '/crm/api/hotel/salao': {
           if (d.autorizado !== true) { r = { erro: 'a alteração do atendimento do Salão exige autorização do criador' }; break; }
           const atual = cadevcCfg.config();
@@ -3341,10 +3371,11 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
         /* Simulador: o catalogo real entra como contexto, entao o teste mostra o
            que o cliente veria de verdade — nao um exemplo inventado. */
         case '/crm/api/bot/simular': {
+          const listaProdutos = await estoque.doAtendimento();
           const sim = bot.comCanal(d.canal, () => bot.simular(d.mensagens || [], {
             nome: d.nome || 'Cliente',
             empresa: process.env.VITRINE_NOME || 'nossa loja',
-            produtos: estoque.doAtendimento(),
+            produtos: listaProdutos,
           }));
           /* Cobranca no simulador e OPT-IN, e so no ambiente de teste. Simular
              uma conversa nao pode gerar cobranca por acidente — mas quem esta
@@ -3413,16 +3444,16 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
         case '/crm/api/caixa/editar': r = fin.editar(d.id, d.mudancas || {}); break;
         case '/crm/api/caixa/excluir': r = fin.excluir(d.id, { motivo: d.motivo }); break;
         case '/crm/api/caixa/restaurar': r = fin.restaurar(d.id); break;
-        case '/crm/api/estoque/produto': r = estoque.criar(d, { limiteProdutos: limitesAtuais().produtos }); break;
-        case '/crm/api/estoque/editar': r = estoque.editar(d.sku, d.mudancas || {}); break;
-        case '/crm/api/estoque/movimentar': r = estoque.movimentar(d.sku, d); break;
-        case '/crm/api/estoque/excluir': r = estoque.excluir(d.sku); break;
-        case '/crm/api/estoque/restaurar': r = estoque.restaurar(d.sku); break;
-        case '/crm/api/estoque/esquecer-canal': r = estoque.esquecerCanal(d.sku, d.canal); break;
+        case '/crm/api/estoque/produto': r = await estoque.criar(d, { limiteProdutos: limitesAtuais().produtos }); break;
+        case '/crm/api/estoque/editar': r = await estoque.editar(d.sku, d.mudancas || {}); break;
+        case '/crm/api/estoque/movimentar': r = await estoque.movimentar(d.sku, d); break;
+        case '/crm/api/estoque/excluir': r = await estoque.excluir(d.sku); break;
+        case '/crm/api/estoque/restaurar': r = await estoque.restaurar(d.sku); break;
+        case '/crm/api/estoque/esquecer-canal': r = await estoque.esquecerCanal(d.sku, d.canal); break;
         /* Comprar = entrada de mercadoria. Fica separado de `movimentar` porque
            carrega custo e fornecedor, que vao pro historico. */
         case '/crm/api/estoque/comprar': {
-          r = estoque.movimentar(d.sku, {
+          r = await estoque.movimentar(d.sku, {
             tipo: 'entrada',
             quantidade: Number(d.quantidade),
             motivo: d.fornecedor ? `compra — ${d.fornecedor}` : 'compra',
@@ -3430,10 +3461,10 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
           });
           break;
         }
-        case '/crm/api/estoque/reservar': r = estoque.reservar(d.sku, Number(d.quantidade), { chave: d.chave, canal: d.canal }); break;
-        case '/crm/api/estoque/confirmar': r = estoque.confirmarReserva(d.chave); break;
-        case '/crm/api/estoque/cancelar-reserva': r = estoque.cancelarReserva(d.chave); break;
-        case '/crm/api/estoque/vitrine': r = estoque.vitrine(d.sku, d.expor !== false); break;
+        case '/crm/api/estoque/reservar': r = await estoque.reservar(d.sku, Number(d.quantidade), { chave: d.chave, canal: d.canal }); break;
+        case '/crm/api/estoque/confirmar': r = await estoque.confirmarReserva(d.chave); break;
+        case '/crm/api/estoque/cancelar-reserva': r = await estoque.cancelarReserva(d.chave); break;
+        case '/crm/api/estoque/vitrine': r = await estoque.vitrine(d.sku, d.expor !== false); break;
         /* "Vender" = mandar pro TikTok Shop. Enquanto a loja nao esta ligada, a
            resposta diz O QUE falta em vez de um erro seco — o produto ja fica
            marcado pra vitrine, que e o canal que funciona sem aprovacao. */
@@ -3441,17 +3472,17 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
            -> encaminha pro canal. A baixa do saldo NAO acontece aqui; ela espera a
            confirmacao do canal (POST /crm/api/estoque/confirmar). */
         case '/crm/api/estoque/vender': {
-          const p = estoque.obter(d.sku);
+          const p = await estoque.obter(d.sku);
           if (!p) { r = { ok: false, motivo: `produto "${d.sku}" nao encontrado` }; break; }
           const qtd = Number(d.quantidade) || 1;
           // Chave estavel: o mesmo clique repetido nao reserva de novo.
           const chave = String(d.chave || `${d.sku}:${d.canal || 'tiktok'}:${qtd}:${new Date().toISOString().slice(0, 13)}`);
-          const res = estoque.reservar(d.sku, qtd, { chave, canal: d.canal || 'tiktok' });
+          const res = await estoque.reservar(d.sku, qtd, { chave, canal: d.canal || 'tiktok' });
           if (!res.ok) { r = { ok: false, motivo: res.erro || res.motivo }; break; }
 
           const shop = tk.diagnostico().familias.shop;
           if (!shop.autorizado) {
-            estoque.vitrine(d.sku, true);
+            await estoque.vitrine(d.sku, true);
             r = {
               ok: false,
               motivo: 'a loja do TikTok ainda não está conectada',
@@ -3470,8 +3501,8 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
           r = { ...env, reserva: res.reserva };
           break;
         }
-        case '/crm/api/estoque/lote': r = estoque.criarLote(d); break;
-        case '/crm/api/estoque/lote-excluir': r = estoque.excluirLote(d.id); break;
+        case '/crm/api/estoque/lote': r = await estoque.criarLote(d); break;
+        case '/crm/api/estoque/lote-excluir': r = await estoque.excluirLote(d.id); break;
         case '/crm/api/funil': r = crm.setFunil(d.etapas); break;
         case '/crm/api/funil/automacao': r = crm.setAutomacao(d); break;
         case '/crm/api/leads': r = crm.criar(d); break;
@@ -3656,4 +3687,20 @@ server.listen(...(process.env.HOST ? [PORT, process.env.HOST] : [PORT]), () => {
     }
   }, 10 * 60000);
   reentrega.unref?.();
+
+  /* Hotel dos Bots — prazo de 12h: o 0007 empurra sozinho cada IA-ZEST em
+     preparação até a homologação (pesquisa, testes, revisão). Risco alto fica
+     validado aguardando uma pessoa. Roda 1 min depois de subir e a cada 30 min,
+     na empresa dona e em cada empresa cliente. */
+  const prazoHotel = async () => {
+    if (emModoConsulta()) { return; }
+    const rodar = async () => {
+      const r = await hotel.processarPrazosHomologacao();
+      if (r.verificados) { console.log(`[hotel] prazo 12h: ${r.verificados} verificado(s), ${r.homologados} homologado(s), ${r.aguardandoAprovacao} aguardando pessoa, ${r.pendentes} pendente(s)`); }
+    };
+    await rodar().catch((e) => console.error(`[hotel] prazo 12h falhou: ${e.message}`));
+    await empresas.paraCada(rodar).catch((e) => console.error(`[hotel] prazo 12h (empresas) falhou: ${e.message}`));
+  };
+  setTimeout(prazoHotel, 60000).unref?.();
+  setInterval(prazoHotel, 30 * 60000).unref?.();
 });
