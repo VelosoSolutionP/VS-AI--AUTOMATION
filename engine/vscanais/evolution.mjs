@@ -17,8 +17,6 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { randomBytes, createHash } from 'node:crypto';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { dentroDaCasa, comEmpresa, comLoja, empresaAtual, lojaAtual, casa } from '../casa.mjs';
 import { criarWhatsAppEvolutionProvider } from '../canais/whatsapp-evolution/index.mjs';
 import * as hotel from '../vs0007/bots.mjs';
@@ -76,24 +74,6 @@ const providers = new Map();
 const coletores = new WeakMap();
 const qrAtual = new Map();
 let fetchTeste = null;
-let reiniciarTeste = null;
-/** Só para teste: troca o reinício do serviço da Evolution. */
-export function _usarReinicio(fn) { reiniciarTeste = fn; }
-let reiniciandoAte = 0;
-let reinicioEmCurso = null;
-
-/* Depois da troca de foto, só reiniciar o processo elimina a conexão duplicada
-   que a Evolution abre. A sessão fica salva: os números voltam sem novo QR. */
-function reiniciarEvolution() {
-  if (reinicioEmCurso) return reinicioEmCurso;
-  const arq = lerJson(join(casa(), 'console', 'canais.json'), {});
-  const container = process.env.CANAIS_EVOLUTION_CONTAINER || arq.evolutionContainer || 'zest-canais-evolution';
-  reiniciandoAte = Date.now() + 45000;
-  const rodar = reiniciarTeste ? reiniciarTeste() : promisify(execFile)('docker', ['restart', container], { timeout: 60000 });
-  reinicioEmCurso = Promise.resolve(rodar).finally(() => { reinicioEmCurso = null; });
-  return reinicioEmCurso;
-}
-
 /** Só para teste: troca o fetch usado na Evolution e no Ollama. */
 export function _usarFetch(f) { fetchTeste = f; providers.clear(); }
 const fetchAtual = () => fetchTeste || globalThis.fetch;
@@ -301,8 +281,6 @@ export async function estado({ id } = {}) {
     return { ok: true, ...st, estado: 'desconectado', ultimoErro: null, qr: null, aviso: 'ainda não conectado — clique em Conectar pelo QR' };
   }
   if (st.estado === 'conectado') { assumirNumeroPareado(id, st.numero); agendarIdentidade(n); }
-  /* Serviço reiniciando depois da foto: é passageiro, não é erro. */
-  if (Date.now() < reiniciandoAte && st.estado !== 'conectado' && !qrAtual.has(n.instancia)) return { ok: true, ...st, numero: null, estado: 'conectando', ultimoErro: null, qr: null };
   /* O número exibido é só o do celular conectado agora, nunca o de antes. */
   if (st.estado !== 'conectado') st.numero = null;
   /* NUNCA chamar instance/connect aqui: na passagem por "close" ele abre uma
@@ -412,26 +390,17 @@ export async function sincronizarIdentidade({ id } = {}) {
     await tentar('recado', () => evo(`chat/updateProfileStatus/${inst}`, { method: 'POST', body: { status: descricao.slice(0, LIMITE_RECADO) } }));
     if (descricao.length > LIMITE_RECADO) campos.recado = { ...campos.recado, aviso: `cortado em ${LIMITE_RECADO} caracteres (limite do WhatsApp)` };
   } else campos.recado = { ok: false, erro: 'a IA não tem função/especialidade para usar como recado' };
-  /* Foto por último: a rota da Evolution v2.3.7 chama reloadConnection() e nasce
-     uma segunda conexão, que derruba a primeira ("conflict: replaced") até o
-     WhatsApp remover o aparelho. Por isso, depois da foto, reinicia o serviço —
-     e só uma vez por foto, para uma nova tentativa de nome não reiniciar de novo. */
+  /* A rota de foto da Evolution v2.3.7 chamava reloadConnection() e abria uma
+     segunda conexão ("conflict: replaced"). A Evolution dos Canais roda com essa
+     chamada removida (<casa>/console/evolution-canais-main.js, montado em
+     dist/main.js); ao atualizar a imagem, é preciso refazer o ajuste. */
   const foto = String(ia.perfil?.foto || '');
   const m = /^data:image\/(?:jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(foto);
   const marcaFoto = m ? `${ia.agenteId}:${createHash('sha1').update(m[1]).digest('hex')}` : null;
-  /* TEMPORÁRIO: desligada para testar a sessão sem o conflito da foto. Ligar com CANAIS_TROCAR_FOTO=1. */
-  if (process.env.CANAIS_TROCAR_FOTO !== '1') campos.foto = { ok: false, erro: 'troca de foto desligada temporariamente para teste de estabilidade' };
-  else if (!m) campos.foto = { ok: false, erro: foto ? 'foto da IA em formato não aceito' : 'a IA não tem foto no Hotel; o WhatsApp mantém a foto atual' };
+  if (!m) campos.foto = { ok: false, erro: foto ? 'foto da IA em formato não aceito' : 'a IA não tem foto no Hotel; o WhatsApp mantém a foto atual' };
   else if (n.identidade?.marcaFoto === marcaFoto) campos.foto = { ok: true, aviso: 'já estava aplicada' };
   else {
     await tentar('foto', () => evo(`chat/updateProfilePicture/${inst}`, { method: 'POST', body: { picture: m[1] } }));
-    if (campos.foto.ok) {
-      await new Promise((ok) => { setTimeout(ok, Number(process.env.CANAIS_ESPERA_REINICIO_MS ?? 2500)); });
-      try { await reiniciarEvolution(); providers.delete(n.instancia); } catch (e) {
-        console.error(`[canais-evo] reinício após a foto falhou: ${e.message}`);
-        campos.foto.aviso = 'foto trocada, mas o serviço não reiniciou: a conexão pode cair';
-      }
-    }
   }
   campos.descricaoComercial = { ok: false, erro: 'a Evolution API não altera descrição/categoria do perfil comercial (WhatsApp Business); só nome, recado e foto' };
   /* Logo após reconectar o WhatsApp ainda não mandou as chaves do perfil: tenta de novo depois. */
