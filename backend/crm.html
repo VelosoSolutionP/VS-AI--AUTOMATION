@@ -9463,6 +9463,26 @@ async function cevoConversas(id,rotulo){
     abrirModal('Conversas — '+rotulo,corpo,BT.cancelar()); }
   catch(e){ avisoErro('Não consegui abrir as conversas',esc(e.message)); }
 }
+function cevoAuditoriaHtml(a){
+  if(!a||!a.pendentes.length) return '';
+  const data=a.proximaEm?new Date(a.proximaEm).toLocaleDateString('pt-BR'):'—';
+  return `<div class="card" style="margin-bottom:14px${a.vencida?';border-color:var(--warn)':''}">${cardH('alerta','Aprendizados das IAs',a.vencida?`Auditoria de ${a.dias} dias vencida: confira o que as IAs não souberam responder.`:`Situações que as IAs não souberam responder. Próxima auditoria: ${esc(data)}.`,a.vencida?5:2,`<span class="badge ${a.vencida?'b-warn':''}">${a.pendentes.length} pendente(s)</span>`)}
+    <p class="hint" style="margin-top:6px">Nada daqui é usado nas respostas até alguém validar.</p>
+    <div style="margin-top:10px">${botao({t:'Auditar agora',ic:'ver',v:a.vencida?'p':'s',sz:'xs',on:'cevoAuditar()'})}</div></div>`;
+}
+function cevoAuditar(){
+  const l=CEVO?.auditoria?.pendentes||[];
+  if(!l.length){ fecharModal(); return; }
+  abrirModal('Auditar aprendizados',`<p class="hint">Escreva a resposta correta para validar. Só o que for validado passa a valer.</p>`+l.map((x,i)=>`<div class="card" style="margin-bottom:10px"><small class="hint">${esc(x.ia)} · ${esc(String(x.em).slice(0,10))}</small><p style="margin:6px 0"><b>${esc(x.pergunta)}</b></p><div class="field"><label for="aprResp${i}">Resposta correta</label><textarea id="aprResp${i}" rows="2" maxlength="600"></textarea></div><div style="display:flex;gap:8px">${botao({t:'Validar',ic:'check',v:'p',sz:'xs',on:`cevoAprender(${i},true)`})}${botao({t:'Recusar',ic:'fechar',v:'g',sz:'xs',on:`cevoAprender(${i},false)`})}</div></div>`).join(''),BT.cancelar());
+}
+async function cevoAprender(i,validar){
+  const item=CEVO?.auditoria?.pendentes?.[i]; if(!item) return;
+  try{
+    if(validar) await api('canais/evolution/aprendizado/validar',{id:item.id,resposta:document.getElementById('aprResp'+i)?.value||''});
+    else await api('canais/evolution/aprendizado/recusar',{id:item.id});
+    await carregarCanaisEvo(); cevoAuditar(); flash(validar?'Aprendizado validado: a IA já pode usar.':'Aprendizado recusado.','ok');
+  }catch(e){ avisoErro('Não consegui concluir',esc(e.message)); }
+}
 function telaSalaoEvo(){
   const tela=telaCanaisEvo('salao');
   /* Salão já configurado no modelo antigo segue funcionando, recolhido aqui. */
@@ -9511,7 +9531,7 @@ function telaCanaisEvo(mod='canais'){
         ${botao({t:'Remover número',ic:'excluir',v:'s',sz:'xs',extra:'btn-dan',on:`cevoRemover('${esc(n.id)}','${esc(n.rotulo)}')`})}
       </div></div>`;
   };
-  return head(t,sub)+
+  return head(t,sub)+cevoAuditoriaHtml(CEVO.auditoria)+
     (ias.length?'':`<div class="card" style="margin-bottom:14px;border-style:dashed">${cardH('alerta','Nenhuma IA-ZEST homologada',mod==='salao'?'Crie no Hotel dos Bots uma IA de cabelo, barbearia, bronzeamento, manicure, pedicure, sobrancelhas ou unhas de gel, informando os dados do Cadê Você.':'Homologue uma IA no Hotel dos Bots para poder vinculá-la a um número.',5,botao({t:'Abrir Hotel dos Bots',ic:'bot',v:'s',on:"ir('hotel')"}))}</div>`)+
     (CEVO.numeros||[]).map(cartao).join('')+
     `<div class="card">${cardH('mais','Cadastrar número','Um nome para reconhecer (ex.: Vendas, Suporte). O número é o do celular que ler o QR.',2)}

@@ -35,6 +35,7 @@ async function fetchFalso(url, opts = {}) {
   if (u.host === '127.0.0.1:11434') {
     const sistema = corpo.messages[0].content;
     const nome = /Você é ([^,\n]+)/.exec(sistema)?.[1];
+    if (/desconhecida/.test(corpo.messages.at(-1).content)) return resposta(200, { message: { content: 'Vou chamar a equipe.' } });
     return resposta(200, { message: { content: `[${nome}] resposta com base no conhecimento` } });
   }
   if (u.host.startsWith('agenda')) return resposta(200, { cadevc: { nome: 'Studio' }, regras: {}, servicos: [{ id: 's1', nome: 'Manicure', duracao: 30, preco: 50 }], horarios: [], profissionais: [] });
@@ -435,5 +436,33 @@ test('saudação do salão sai com o cumprimento preenchido', async () => {
     const r = await canais.receberWebhook(evento(n.instancia, '5531999990030', 'oi', 'c1'), { segredo: 'segredo-123' });
     assert.equal(r.resultados[0].envios[0].texto.includes('{cumprimento}'), false, r.resultados[0].envios[0].texto);
     assert.match(r.resultados[0].envios[0].texto, /(Bom dia|Boa tarde|Boa noite)! Eu sou Ale/);
+  });
+});
+
+test('o que a IA não soube vira aprendizado pendente e só vale depois de auditado', async () => {
+  await comEmpresa('12312312000199', async () => {
+    iaHomologada({ id: 'ia-apr', nome: 'Duda', especialidade: 'Faxina', conhecimento: 'Faxina leva 4 horas' });
+    const n = canais.cadastrar({ rotulo: 'Duda', agenteId: 'ia-apr' }).numero;
+    await canais.conectar({ id: n.id }); estados.set(n.instancia, 'open');
+    await canais.receberWebhook(evento(n.instancia, '5531999990040', 'pergunta desconhecida, meu fone 31 99999-8888', 'ap1'), { segredo: 'segredo-123' });
+    await canais.receberWebhook(evento(n.instancia, '5531999990040', 'pergunta desconhecida, meu fone 31 99999-8888', 'ap2'), { segredo: 'segredo-123' });
+    await canais.receberWebhook(evento(n.instancia, '5531999990041', 'quanto tempo leva?', 'ap3'), { segredo: 'segredo-123' });
+    const est = canais.estadoAuditoria();
+    assert.equal(est.pendentes.length, 1, 'repetida não duplica; o que ela soube não entra');
+    assert.equal(est.pendentes[0].pergunta.includes('99999'), false, 'não guarda telefone');
+    assert.equal(est.vencida, false);
+    assert.equal(canais.estadoAuditoria({ agora: new Date(Date.now() + 16 * 864e5) }).vencida, true, 'vence em 15 dias');
+    const homologados = () => mapa.obterNos('ia-apr').nos.filter((x) => x.estado === 'homologado').map((x) => x.conteudo).join('|');
+    assert.equal(homologados().includes('desconhecida'), false, 'pendente não é usado nas respostas');
+    assert.match(canais.validarAprendizado({ id: est.pendentes[0].id, resposta: '' }).erro, /resposta correta/);
+    assert.equal(canais.validarAprendizado({ id: est.pendentes[0].id, resposta: 'Atendemos de segunda a sexta.', por: 'dono@x' }).ok, true);
+    assert.match(homologados(), /desconhecida.*segunda a sexta/);
+    const depois = canais.estadoAuditoria();
+    assert.equal(depois.pendentes.length, 0); assert.ok(depois.ultimaEm);
+    await canais.receberWebhook(evento(n.instancia, '5531999990042', 'outra desconhecida aqui', 'ap4'), { segredo: 'segredo-123' });
+    const r = canais.estadoAuditoria().pendentes[0];
+    assert.equal(canais.recusarAprendizado({ id: r.id }).ok, true);
+    assert.equal(homologados().includes('outra desconhecida'), false);
+    assert.match(canais.recusarAprendizado({ id: r.id }).erro, /já auditado/);
   });
 });

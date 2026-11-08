@@ -494,6 +494,68 @@ async function gerarResposta(ia, conhecimentoTodo, historico, texto) {
   } finally { clearTimeout(relogio); }
 }
 
+/* ───────── aprendizado com auditoria humana ─────────
+   Situação nova = a IA não soube responder. Entra no mapa como 'descoberto', que
+   não é usado nas respostas. Só depois que uma pessoa valida e escreve a resposta
+   correta é que vira conhecimento. Módulo salão fica de fora: é só agendamento. */
+export const DIAS_AUDITORIA = 15;
+const arqAuditoria = () => dentroDaCasa('canais', 'auditoria.json');
+const normalizarTexto = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+/* Só conta quando o modelo respondeu e disse que não sabe; lentidão e erro técnico não são situação nova. */
+function naoSoube(ia, resposta) {
+  if (resposta.origem !== 'ia') return false;
+  const fallback = normalizarTexto(perfilPreenchido(ia).mensagemFallback);
+  return Boolean(fallback) && normalizarTexto(resposta.texto).includes(fallback);
+}
+const semDadosPessoais = (t) => String(t).replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '[e-mail]').replace(/\d[\d\s().-]{7,}\d/g, '[número]');
+function registrarAprendizado(n, ia, texto) {
+  const pergunta = semDadosPessoais(texto).replace(/\s+/g, ' ').trim().slice(0, 300);
+  if (pergunta.length < 4) return;
+  comLoja(n.loja, () => {
+    const repetida = mapaHotel.obterNos(ia.agenteId).nos.some((no) => no.categoria === 'aprendizado' && no.estado === 'descoberto' && normalizarTexto(no.conteudo) === normalizarTexto(pergunta));
+    if (!repetida) mapaHotel.adicionarNo({ agenteId: ia.agenteId, categoria: 'aprendizado', conteudo: pergunta, estado: 'descoberto', origem: 'atendimento', evidencia: JSON.stringify({ numero: n.id, validado: false }) });
+  });
+}
+export function aprendizadosPendentes() {
+  return hotel.listarBots().flatMap((b) => mapaHotel.obterNos(b.agenteId).nos
+    .filter((no) => no.categoria === 'aprendizado' && no.estado === 'descoberto')
+    .map((no) => ({ id: no.id, agenteId: b.agenteId, ia: b.nome, pergunta: no.conteudo, em: no.criadoEm })))
+    .sort((a, b) => String(a.em).localeCompare(String(b.em)));
+}
+export function estadoAuditoria({ agora = new Date() } = {}) {
+  const pendentes = aprendizadosPendentes();
+  const ultimaEm = lerJson(arqAuditoria(), {}).ultimaEm || null;
+  const base = ultimaEm || pendentes[0]?.em || null;
+  const proximaEm = base ? new Date(new Date(base).getTime() + DIAS_AUDITORIA * 864e5).toISOString() : null;
+  return { dias: DIAS_AUDITORIA, pendentes, ultimaEm, proximaEm, vencida: Boolean(pendentes.length && proximaEm && agora >= new Date(proximaEm)) };
+}
+function acharAprendizado(id) {
+  const no = mapaHotel.lerMapa().nos.find((x) => x.id === id && x.categoria === 'aprendizado' && x.estado === 'descoberto');
+  return no && hotel.obterBot(no.agenteId) ? no : null;
+}
+const marcarAuditoria = (por) => gravarJson(arqAuditoria(), { ultimaEm: agora(), por: por || null });
+export function validarAprendizado({ id, resposta, por } = {}) {
+  const no = acharAprendizado(id);
+  if (!no) return { erro: 'aprendizado não encontrado ou já auditado' };
+  const texto = String(resposta || '').trim().slice(0, 600);
+  if (texto.length < 3) return { erro: 'escreva a resposta correta para esta situação' };
+  const novo = mapaHotel.adicionarNo({ agenteId: no.agenteId, categoria: 'aprendizado-validado', conteudo: `Quando perguntarem "${no.conteudo}": ${texto}`, estado: 'descoberto', origem: 'auditoria', evidencia: JSON.stringify({ validadoPor: por || null, aprendizado: no.id }) });
+  if (novo.erro) return novo;
+  const promovido = mapaHotel.transicionarNo(novo.no.id, 'homologado', { autorizado: true, origem: 'auditoria' });
+  if (promovido.erro) return promovido;
+  mapaHotel.transicionarNo(no.id, 'bloqueado', { autorizado: true, origem: 'auditoria' });
+  marcarAuditoria(por);
+  return { ok: true };
+}
+export function recusarAprendizado({ id, por } = {}) {
+  const no = acharAprendizado(id);
+  if (!no) return { erro: 'aprendizado não encontrado ou já auditado' };
+  const r = mapaHotel.transicionarNo(no.id, 'bloqueado', { autorizado: true, origem: 'auditoria' });
+  if (r.erro) return r;
+  marcarAuditoria(por);
+  return { ok: true };
+}
+
 /** Uma mensagem recebida no número → resposta da IA vinculada. Devolve o que foi enviado. */
 /* Número do módulo salão: quem responde é o bot de agendamento, com a agenda
    (Cadê Você) da IA vinculada a este número. Um bot por número + IA: trocar a
@@ -549,7 +611,9 @@ export async function atender(n, m) {
   const respostas = [];
   if (!daIA.length && ia.perfil?.mensagemInicial) respostas.push({ texto: preencher(ia, ia.perfil.mensagemInicial), origem: 'mensagem-inicial' });
   if (daIA.length || !SO_CUMPRIMENTO.test(m.texto)) {
-    respostas.push(await gerarResposta(ia, conhecimentoHomologado(n, ia), daIA, m.texto));
+    const resposta = await gerarResposta(ia, conhecimentoHomologado(n, ia), daIA, m.texto);
+    respostas.push(resposta);
+    if (naoSoube(ia, resposta)) registrarAprendizado(n, ia, m.texto);
   }
   const prov = providerDe(n.instancia);
   if (prov.status().estado !== 'conectado') await prov.sincronizar();
