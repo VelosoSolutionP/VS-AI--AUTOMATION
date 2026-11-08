@@ -25,6 +25,10 @@ import * as hotel from '../vs0007/bots.mjs';
 import * as mapaHotel from '../vs0007/mapa.mjs';
 import { PADRAO_CEREBRO } from '../vsbot/cerebro.mjs';
 import { cumprimento } from '../vsbot/regras.mjs';
+import { SERVICOS_SALAO, avaliarParaUso, dadosSistema, listarParaSalao } from '../vssalao/ias.mjs';
+import { criarCadevcClient } from '../vssalao/cadevc.mjs';
+import { criarBotcadevc } from '../vssalao/bot.mjs';
+import * as cfgSalao from '../vssalao/config.mjs';
 
 const agora = () => new Date().toISOString();
 const soDigitos = (s) => String(s || '').replace(/\D/g, '');
@@ -128,11 +132,23 @@ function conhecimentoHomologado(n, ia) {
     .map((no) => `${no.categoria}: ${no.conteudo}`);
 }
 /** IAs que podem atender em Canais: qualquer nicho, desde que homologada. */
-export function iasDisponiveis() {
+export function iasDisponiveis(modulo = 'canais') {
+  if (modulo === 'salao') {
+    return listarParaSalao().filter((b) => b.elegivel)
+      .map((b) => ({ agenteId: b.agenteId, nome: b.nome, especialidade: b.especialidade, funcao: b.funcao, foto: b.foto, nichos: b.servicos }));
+  }
   return hotel.listarBots().filter((b) => b.estado === 'homologado')
     .map((b) => ({ agenteId: b.agenteId, nome: b.nome, especialidade: b.especialidade, funcao: b.perfil?.funcao || '', foto: b.perfil?.foto || '' }));
 }
-function validarIA(ia) {
+export const NICHOS_SALAO = SERVICOS_SALAO.map((x) => ({ id: x.id, nome: x.nome }));
+function validarIA(ia, modulo = 'canais', nicho = '') {
+  if (modulo === 'salao') {
+    if (!ia) return 'IA-ZEST não encontrada no Hotel desta empresa';
+    const a = avaliarParaUso(ia);
+    if (!a.ok) return `esta IA não pode atender o salão: ${a.motivo}`;
+    if (nicho && !a.servicos.includes(nicho)) return `a IA-ZEST "${ia.nome}" não é do nicho escolhido`;
+    return null;
+  }
   if (!ia) return 'IA-ZEST não encontrada no Hotel desta empresa';
   if (ia.estado !== 'homologado') return `a IA-ZEST "${ia.nome}" ainda não está homologada (${ia.estado})`;
   return null;
@@ -142,14 +158,14 @@ function validarIA(ia) {
 function publico(n) {
   const ia = iaDoNumero(n);
   return {
-    id: n.id, rotulo: n.rotulo, numeroPrevisto: n.numeroPrevisto, instancia: n.instancia, loja: n.loja,
-    criadoEm: n.criadoEm, ia: ia ? { agenteId: ia.agenteId, nome: ia.nome, estado: ia.estado, especialidade: ia.especialidade } : (n.iaId ? { agenteId: n.iaId, ausente: true } : null),
+    id: n.id, modulo: n.modulo || 'canais', nicho: n.nicho || null, rotulo: n.rotulo, numeroPrevisto: n.numeroPrevisto, instancia: n.instancia, loja: n.loja,
+    criadoEm: n.criadoEm, ia: ia ? { agenteId: ia.agenteId, nome: ia.nome, estado: ia.estado, especialidade: ia.especialidade, elegivel: n.modulo !== 'salao' || comLoja(n.loja, () => avaliarParaUso(ia).ok), servicos: n.modulo === 'salao' ? comLoja(n.loja, () => avaliarParaUso(ia).servicos) : [] } : (n.iaId ? { agenteId: n.iaId, ausente: true } : null),
     vinculos: n.vinculos || [], identidade: n.identidade || null, webhook: n.webhook || null,
   };
 }
-export function listar() { return lerNumeros().map(publico); }
+export function listar(modulo = 'canais') { return lerNumeros().filter((n) => (n.modulo || 'canais') === modulo).map(publico); }
 
-export function cadastrar({ rotulo = '', numeroPrevisto = '', agenteId = '' } = {}) {
+export function cadastrar({ rotulo = '', numeroPrevisto = '', agenteId = '', modulo = 'canais', nicho = '' } = {}) {
   const nome = String(rotulo || '').trim().slice(0, 60);
   if (!nome) return { erro: 'dê um nome ao número (ex.: Vendas, Suporte)' };
   const num = soDigitos(numeroPrevisto);
@@ -158,15 +174,15 @@ export function cadastrar({ rotulo = '', numeroPrevisto = '', agenteId = '' } = 
   const repetido = num && lista.find((n) => n.numeroPrevisto === num);
   if (repetido) return { erro: `o número +${num} já está cadastrado como "${repetido.rotulo}" — use o cartão dele para vincular a IA e conectar` };
   if (agenteId) {
-    const erro = validarIA(hotel.obterBot(String(agenteId)));
+    const erro = validarIA(hotel.obterBot(String(agenteId)), modulo, nicho);
     if (erro) return { erro };
   }
   if (lista.some((n) => n.rotulo.toLowerCase() === nome.toLowerCase())) return { erro: `já existe um número chamado "${nome}"` };
   const id = randomBytes(6).toString('hex');
-  const n = { id, rotulo: nome, numeroPrevisto: num || null, instancia: nomeInstancia(empresaAtual(), id), loja: lojaAtual(), criadoEm: agora(), iaId: null, vinculos: [] };
+  const n = { id, rotulo: nome, numeroPrevisto: num || null, instancia: nomeInstancia(empresaAtual(), id), loja: lojaAtual(), criadoEm: agora(), iaId: null, vinculos: [], ...(modulo === 'salao' ? { modulo } : {}) };
   gravarNumeros([...lista, n]);
   if (agenteId) {
-    const v = vincularIA({ id, agenteId });
+    const v = vincularIA({ id, agenteId, nicho });
     if (v.erro) return v;
     return { ok: true, numero: v.numero };
   }
@@ -180,13 +196,14 @@ function achar(id) {
 }
 
 /** Vincula (ou troca) a IA do número. O histórico de conversas fica no número. */
-export function vincularIA({ id, agenteId } = {}) {
+export function vincularIA({ id, agenteId, nicho = '' } = {}) {
   const { lista, n } = achar(id);
   if (!n) return { erro: 'número não encontrado nesta empresa' };
   const ia = comLoja(n.loja, () => hotel.obterBot(String(agenteId || '')));
-  const erro = validarIA(ia);
+  const erro = comLoja(n.loja, () => validarIA(ia, n.modulo || 'canais', nicho));
   if (erro) return { erro };
-  if (n.iaId === ia.agenteId) return { ok: true, alterado: false, numero: publico(n) };
+  if (nicho) n.nicho = nicho;
+  if (n.iaId === ia.agenteId) { if (nicho) gravarNumeros(lista); return { ok: true, alterado: false, numero: publico(n) }; }
   const quando = agora();
   n.vinculos = [...(n.vinculos || []).map((v) => (v.ate ? v : { ...v, ate: quando })), { iaId: ia.agenteId, nome: ia.nome, de: quando, ate: null }].slice(-50);
   n.iaId = ia.agenteId;
@@ -504,7 +521,44 @@ async function gerarResposta(ia, conhecimentoTodo, historico, texto) {
 }
 
 /** Uma mensagem recebida no número → resposta da IA vinculada. Devolve o que foi enviado. */
+/* Número do módulo salão: quem responde é o bot de agendamento, com a agenda
+   (Cadê Você) da IA vinculada a este número. Um bot por número + IA: trocar a
+   IA recomeça a conversa. */
+const botsSalao = new Map();
+async function atenderSalao(n, m) {
+  const ia = iaDoNumero(n);
+  const contato = m.endereco || m.de;
+  const quem = n.instancia;
+  const apta = ia ? comLoja(n.loja, () => avaliarParaUso(ia)) : { ok: false, motivo: 'sem IA vinculada' };
+  const cfg = cfgSalao.config();
+  if (!apta.ok || cfg.ativo === false) {
+    const motivo = cfg.ativo === false ? 'bot do salão desligado' : apta.motivo;
+    console.error(`[canais-evo:${quem}] salão não respondeu ••••${String(m.de).slice(-4)}: ${motivo}`);
+    anotar(n.id, contato, { de: 'cliente', texto: m.texto, iaId: n.iaId || null });
+    return { ok: false, motivo };
+  }
+  const dados = comLoja(n.loja, () => dadosSistema(ia.agenteId));
+  const chave = `${n.instancia}:${ia.agenteId}:${dados.token}`;
+  if (!botsSalao.has(chave)) {
+    const cadevc = criarCadevcClient({ baseUrl: dados.url, token: dados.token, fetchImpl: fetchAtual() });
+    botsSalao.set(chave, { bot: criarBotcadevc({ cadevc, cerebro: { ligado: process.env.CANAIS_SALAO_CEREBRO !== '0' } }), estados: new Map() });
+  }
+  const { bot, estados } = botsSalao.get(chave);
+  anotar(n.id, contato, { de: 'cliente', texto: m.texto, iaId: ia.agenteId });
+  const r = await bot.responder(estados.get(contato) || null, m.texto, {
+    telefone: m.de, nomeBot: ia.nome, personalidade: cfg.personalidade, perfilBot: ia.perfil, contextoMapa: conhecimentoHomologado(n, ia).join('\n'),
+  });
+  estados.set(contato, r.estado);
+  const prov = providerDe(n.instancia);
+  if (prov.status().estado !== 'conectado') await prov.sincronizar();
+  const env = await prov.enviarTexto({ para: contato, texto: r.resposta });
+  anotar(n.id, contato, { de: 'ia', texto: r.resposta, iaId: ia.agenteId, origem: 'bot-agendamento', enviado: env.ok !== false, ...(env.ok === false ? { erro: env.erro } : {}) });
+  console.log(`[canais-evo:${quem}] → ••••${String(m.de).slice(-4)} [${ia.nome} · agendamento · passo=${r.estado?.passo || 'fim'}]${env.ok === false ? ` FALHOU: ${env.erro}` : ''}`);
+  return { ok: true, ia: ia.agenteId, envios: [{ texto: r.resposta, origem: 'bot-agendamento', ok: env.ok !== false, erro: env.erro }] };
+}
+
 export async function atender(n, m) {
+  if (n.modulo === 'salao') return atenderSalao(n, m);
   const ia = iaDoNumero(n);
   const quem = `${n.instancia}`;
   if (!ia || ia.estado !== 'homologado') {

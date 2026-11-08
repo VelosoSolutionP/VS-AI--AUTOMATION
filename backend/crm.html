@@ -9385,18 +9385,20 @@ function telaIgCanal(){
 }
 
 /* ---------- Canais universais: vários números pela Evolution, cada um com sua IA-ZEST ---------- */
-let CEVO=null, CEVO_EST={}, CEVO_TIMER=null, CEVO_IDENT={}, CEVO_SEL={}, CEVO_ROTULO='';
+let CEVO=null, CEVO_EST={}, CEVO_TIMER=null, CEVO_IDENT={}, CEVO_SEL={}, CEVO_ROTULO='', CEVO_MOD='canais', CEVO_NICHO={};
+const cevoNaTela=()=>['canais','cadevc','cadevc-conexao'].includes(rota);
 const cevoEscolhida=(k)=>CEVO_SEL[k]||'';
 function cevoSeletor(k,atual){
-  const lista=CEVO?.ias||[], marcada=CEVO_SEL[k]||atual||'';
-  return `<div class="field" style="grid-column:1/-1"><label>IA-ZEST homologada <small>(${lista.length} no Hotel)</small></label>${lista.map((ia)=>`<label style="display:flex;gap:10px;align-items:center;margin:8px 0;cursor:pointer"><input type="radio" style="width:18px;height:18px;flex:0 0 18px;margin:0;padding:0" name="cevoIa_${esc(k)}" value="${esc(ia.agenteId)}"${ia.agenteId===marcada?' checked':''} onchange="CEVO_SEL['${esc(k)}']=this.value"><span><b>${esc(ia.nome)}</b> · ${esc(ia.especialidade||'')}${ia.agenteId===atual?' <span class="badge b-ok">atende agora</span>':''}</span></label>`).join('')||'<p class="hint">Nenhuma IA homologada. Homologue uma no Hotel dos Bots.</p>'}</div>`;
+  const todas=CEVO?.ias||[], nichos=CEVO?.nichos||[], nicho=nichos.length?(CEVO_NICHO[k]??''):'', lista=nicho?todas.filter((x)=>(x.nichos||[]).includes(nicho)):todas, marcada=CEVO_SEL[k]||atual||'', nomeN=(id)=>nichos.find((x)=>x.id===id)?.nome||id;
+  return `${nichos.length?`<div class="field"><label for="cevoNicho_${esc(k)}">Nicho</label><select id="cevoNicho_${esc(k)}" onchange="CEVO_NICHO['${esc(k)}']=this.value;CEVO_SEL['${esc(k)}']='';render()"><option value="">Todos os 7 nichos</option>${nichos.map((x)=>`<option value="${esc(x.id)}"${x.id===nicho?' selected':''}>${esc(x.nome)}</option>`).join('')}</select></div>`:''}
+    <div class="field" style="grid-column:1/-1"><label>IA-ZEST homologada <small>(${lista.length}${nichos.length?' neste filtro':' no Hotel'})</small></label>${lista.map((ia)=>`<label style="display:flex;gap:10px;align-items:center;margin:8px 0;cursor:pointer"><input type="radio" style="width:18px;height:18px;flex:0 0 18px;margin:0;padding:0" name="cevoIa_${esc(k)}" value="${esc(ia.agenteId)}"${ia.agenteId===marcada?' checked':''} onchange="CEVO_SEL['${esc(k)}']=this.value"><span><b>${esc(ia.nome)}</b> · ${esc(nichos.length?(ia.nichos||[]).map(nomeN).join(', '):ia.especialidade||'')}${ia.agenteId===atual?' <span class="badge b-ok">atende agora</span>':''}</span></label>`).join('')||`<p class="hint">Nenhuma IA homologada${nichos.length?' nos nichos do salão com os dados do Cadê Você':''}. Crie e homologue no Hotel dos Bots.</p>`}</div>`;
 }
 async function carregarCanaisEvo(){
   try{
-    CEVO=await api('canais/evolution');
+    CEVO=await api('canais/evolution'+(CEVO_MOD==='salao'?'?modulo=salao':''));
     await Promise.all((CEVO.numeros||[]).map(async(n)=>{ try{ CEVO_EST[n.id]=await api('canais/evolution/estado',{id:n.id}); }catch(e){ CEVO_EST[n.id]={estado:'erro',ultimoErro:e.message}; } }));
   }catch(e){ CEVO={erro:e.message}; }
-  if(rota==='canais') render();
+  if(cevoNaTela()) render();
   acompanharCanaisEvo();
 }
 function acompanharCanaisEvo(){
@@ -9404,7 +9406,7 @@ function acompanharCanaisEvo(){
   const esperando=Object.values(CEVO_EST).some((x)=>['aguardando_qr','conectando'].includes(x?.estado));
   if(!esperando) return;
   CEVO_TIMER=setInterval(async()=>{
-    if(rota!=='canais'){ clearInterval(CEVO_TIMER); return; }
+    if(!cevoNaTela()){ clearInterval(CEVO_TIMER); return; }
     for(const n of (CEVO?.numeros||[])){
       if(!['aguardando_qr','conectando'].includes(CEVO_EST[n.id]?.estado)) continue;
       try{ const st=await api('canais/evolution/estado',{id:n.id}); CEVO_EST[n.id]={...st,qr:st.qr||CEVO_EST[n.id]?.qr}; if(st.estado==='conectado'){ CEVO_EST[n.id].qr=null; setTimeout(carregarCanaisEvo,14000); } }catch{}
@@ -9417,13 +9419,13 @@ async function cevoCadastrar(){
   const rotulo=(document.getElementById('cevoRotulo')?.value||'').trim();
   const agenteId=document.querySelector('input[name="cevoIa_novo"]:checked')?.value||'';
   if(!agenteId) return avisoErro('Escolha a IA','Marque qual IA-ZEST vai atender este número.');
-  try{ await api('canais/evolution/cadastrar',{rotulo,agenteId}); CEVO_ROTULO=''; CEVO_SEL.novo=''; flash(`Número "${rotulo}" cadastrado com a IA. Agora clique em Conectar pelo QR e leia com o celular que vai atender.`,'ok'); await carregarCanaisEvo(); }
+  try{ await api('canais/evolution/cadastrar',{rotulo,agenteId,modulo:CEVO_MOD,nicho:CEVO_NICHO.novo||''}); CEVO_ROTULO=''; CEVO_SEL.novo=''; flash(`Número "${rotulo}" cadastrado com a IA. Agora clique em Conectar pelo QR e leia com o celular que vai atender.`,'ok'); await carregarCanaisEvo(); }
   catch(e){ avisoErro('Não consegui cadastrar',esc(e.message)); }
 }
 async function cevoVincular(id){
   const agenteId=document.querySelector(`input[name="cevoIa_${id}"]:checked`)?.value||'';
   if(!agenteId) return avisoErro('Escolha a IA','Selecione uma IA-ZEST homologada para este número.');
-  try{ const r=await api('canais/evolution/vincular',{id,agenteId}); await carregarCanaisEvo();
+  try{ const r=await api('canais/evolution/vincular',{id,agenteId,nicho:CEVO_NICHO[id]||''}); await carregarCanaisEvo();
     flash(r.alterado===false?'Este número já usa essa IA.':`Agora quem atende é ${r.numero.ia.nome}${CEVO_EST[id]?.estado==='conectado'?'. Nome, foto e recado vão para o WhatsApp em alguns segundos; a conexão reinicia rapidinho':''}.`,'ok');
     if(r.alterado!==false){ setTimeout(carregarCanaisEvo,12000); setTimeout(carregarCanaisEvo,35000); } }
   catch(e){ avisoErro('Não consegui vincular',esc(e.message)); }
@@ -9460,12 +9462,19 @@ async function cevoConversas(id,rotulo){
     abrirModal('Conversas — '+rotulo,corpo,BT.cancelar()); }
   catch(e){ avisoErro('Não consegui abrir as conversas',esc(e.message)); }
 }
-function telaCanaisEvo(){
-  const t='Canais de atendimento';
+function telaSalaoEvo(){
+  const tela=telaCanaisEvo('salao');
+  /* Salão já configurado no modelo antigo segue funcionando, recolhido aqui. */
+  if(cadevcCarrega()||!cadevc?.config?.completo) return tela;
+  return tela+`<details class="pz-avancado" style="margin-top:18px"><summary>Conexão anterior do salão — continua funcionando</summary>${telacadevcConexao()}</details>`;
+}
+function telaCanaisEvo(mod='canais'){
+  if(CEVO_MOD!==mod){ CEVO_MOD=mod; CEVO=null; CEVO_EST={}; CEVO_SEL={}; CEVO_NICHO={}; clearInterval(CEVO_TIMER); }
+  const t=mod==='salao'?'Salão — Canal e conexão':'Canais de atendimento';
   if(CEVO===null){ CEVO='carregando'; setTimeout(carregarCanaisEvo,0); }
   if(CEVO==='carregando') return head(t,'Carregando os números…');
   if(CEVO.erro) return head(t,'')+`<div class="card">${cardH('alerta','Não consegui carregar os números',esc(CEVO.erro),5,botao({t:'Tentar de novo',ic:'atualizar',v:'s',on:'CEVO=null;render()'}))}</div>`;
-  const sub='Vários números de WhatsApp, cada um conectado por QR Code e atendido pela IA-ZEST homologada que você escolher, de qualquer nicho.';
+  const sub=mod==='salao'?'Vários números de WhatsApp, cada um conectado por QR Code e com a IA-ZEST de um dos 7 nichos do salão. A agenda vem dos dados do Cadê Você informados ao criar a IA.':'Vários números de WhatsApp, cada um conectado por QR Code e atendido pela IA-ZEST homologada que você escolher, de qualquer nicho.';
   if(!CEVO.configurado) return head(t,sub)+`<div class="card" style="border-style:dashed">${cardH('alerta','Evolution dos Canais não configurada no servidor','O administrador precisa configurar a URL, a API key e o segredo do webhook dos Canais no servidor (nunca no navegador).',5)}</div>`;
   const ias=CEVO.ias||[];
   const rot={desconectado:'Desconectado',aguardando_qr:'Leia o QR Code',conectando:'Conectando…',conectado:'Conectado',caido:'Caiu',erro:'Erro'};
@@ -9473,12 +9482,14 @@ function telaCanaisEvo(){
   const cartao=(n)=>{
     const st=CEVO_EST[n.id]||{}, est=st.estado||'desconectado', con=est==='conectado';
     const perfilIa=ias.find((x)=>x.agenteId===n.ia?.agenteId);
-    const atendendo=con&&n.ia&&!n.ia.ausente&&n.ia.estado==='homologado';
+    const atendendo=con&&n.ia&&!n.ia.ausente&&n.ia.estado==='homologado'&&n.ia.elegivel!==false;
+    const nomeNicho=(CEVO.nichos||[]).find((x)=>x.id===(n.nicho||n.ia?.servicos?.[0]))?.nome;
     const idt=n.identidade, campos=idt?.campos||{};
     return `<div class="card" style="margin-bottom:14px">
       ${cardH('whats',n.ia&&!n.ia.ausente?n.ia.nome:'Sem IA vinculada',`Cadastro: ${esc(n.rotulo)} · ${st.numero?'Número: +'+esc(st.numero):'nenhum celular conectado — o número vem do QR'}`,2,`<span class="badge ${cor[est]||''}">${esc(rot[est]||est)}</span>`)}
-      <p class="hint" style="margin-top:6px">Empresa: <b>${esc(CEVO.empresa||'Empresa principal')}</b> · Atendimento automático: <span class="badge ${atendendo?'b-ok':'b-warn'}">${atendendo?'ativo':'parado'}</span></p>
+      <p class="hint" style="margin-top:6px">Empresa: <b>${esc(CEVO.empresa||'Empresa principal')}</b>${nomeNicho?` · Nicho: <b>${esc(nomeNicho)}</b>`:''} · Atendimento automático: <span class="badge ${atendendo?'b-ok':'b-warn'}">${atendendo?'ativo':'parado'}</span></p>
       ${perfilIa?`<div class="hotel-profile-block" style="display:flex;gap:12px;align-items:center;margin-top:10px">${perfilIa.foto?`<img src="${esc(perfilIa.foto)}" alt="" style="width:52px;height:52px;border-radius:50%;object-fit:cover">`:''}<div><b>${esc(perfilIa.nome)}</b><br><small class="hint">${esc(perfilIa.funcao||perfilIa.especialidade||'')}</small></div></div>`:''}
+      ${n.ia&&n.ia.elegivel===false?`<p class="hint" style="color:var(--err)"><b>A IA ${esc(n.ia.nome)} não pode atender o salão:</b> este número não responde até você escolher outra.</p>`:''}
       ${!n.ia?`<p class="hint" style="color:var(--err)"><b>Sem IA vinculada:</b> este número não responde ninguém. Marque a IA abaixo e clique em Vincular IA.</p>`:''}
       ${n.ia?.ausente?`<p class="hint" style="color:var(--err)">A IA vinculada (${esc(n.ia.agenteId)}) não existe mais no Hotel. Escolha outra.</p>`:''}
       ${n.ia&&!n.ia.ausente&&n.ia.estado!=='homologado'?`<p class="hint" style="color:var(--err)">A IA ${esc(n.ia.nome)} saiu da homologação (${esc(n.ia.estado)}): o número não responde até ela voltar ou você trocar a IA.</p>`:''}
@@ -9500,7 +9511,7 @@ function telaCanaisEvo(){
       </div></div>`;
   };
   return head(t,sub)+
-    (ias.length?'':`<div class="card" style="margin-bottom:14px;border-style:dashed">${cardH('alerta','Nenhuma IA-ZEST homologada','Homologue uma IA no Hotel dos Bots para poder vinculá-la a um número.',5,botao({t:'Abrir Hotel dos Bots',ic:'bot',v:'s',on:"ir('hotel')"}))}</div>`)+
+    (ias.length?'':`<div class="card" style="margin-bottom:14px;border-style:dashed">${cardH('alerta','Nenhuma IA-ZEST homologada',mod==='salao'?'Crie no Hotel dos Bots uma IA de cabelo, barbearia, bronzeamento, manicure, pedicure, sobrancelhas ou unhas de gel, informando os dados do Cadê Você.':'Homologue uma IA no Hotel dos Bots para poder vinculá-la a um número.',5,botao({t:'Abrir Hotel dos Bots',ic:'bot',v:'s',on:"ir('hotel')"}))}</div>`)+
     (CEVO.numeros||[]).map(cartao).join('')+
     `<div class="card">${cardH('mais','Cadastrar número','Um nome para reconhecer (ex.: Vendas, Suporte). O número é o do celular que ler o QR.',2)}
       <div class="form-grid" style="margin-top:10px">
@@ -9697,8 +9708,8 @@ const TELAS={
   empresas:telaEmpresas,
   'ig-atendimento':()=>telaAtendimento('instagram'),
   'ig-canal':telaIgCanal,
-  cadevc:telacadevcConexao,
-  'cadevc-conexao':telacadevcConexao,
+  cadevc:telaSalaoEvo,
+  'cadevc-conexao':telaSalaoEvo,
   'cadevc-servicos':telacadevcServicos,
   'cadevc-atendimento':()=>telaAtendimento('cadevc'),
   'cadevc-vendas':()=>telaVendasDia('cadevc'),

@@ -31,12 +31,13 @@ function resposta(status, corpo) { return { ok: status < 400, status, json: asyn
 async function fetchFalso(url, opts = {}) {
   const u = new URL(url);
   const corpo = opts.body ? JSON.parse(opts.body) : null;
-  chamadas.push({ metodo: opts.method || 'GET', caminho: u.pathname, corpo, apikey: opts.headers?.apikey });
+  chamadas.push({ metodo: opts.method || 'GET', host: u.host, caminho: u.pathname, corpo, apikey: opts.headers?.apikey, auth: opts.headers?.authorization });
   if (u.host === '127.0.0.1:11434') {
     const sistema = corpo.messages[0].content;
     const nome = /Você é ([^,\n]+)/.exec(sistema)?.[1];
     return resposta(200, { message: { content: `[${nome}] resposta com base no conhecimento` } });
   }
+  if (u.host.startsWith('agenda')) return resposta(200, { cadevc: { nome: 'Studio' }, regras: {}, servicos: [{ id: 's1', nome: 'Manicure', duracao: 30, preco: 50 }], horarios: [], profissionais: [] });
   if (opts.headers?.apikey !== 'chave-canais') return resposta(401, { message: 'apikey errada' });
   const [, grupo, acao, inst] = u.pathname.split('/');
   if (grupo === 'instance' && acao === 'create') {
@@ -363,5 +364,39 @@ test('IA de salão precisa dos dados confirmados do Cadê Você', async () => {
     assert.equal(salao.dadosSistema('ia-lu').url, 'https://x/api');
     assert.equal(JSON.stringify(salao.listarParaSalao()).includes('segredo-do-salao'), false, 'token não vai à tela');
     assert.equal(JSON.stringify(hotel.painel()).includes('segredo-do-salao'), false);
+  });
+});
+
+test('módulo salão: vários números, só IA dos 7 nichos e bot de agendamento com a agenda da IA de cada número', async () => {
+  process.env.CANAIS_SALAO_CEREBRO = '0';
+  await comEmpresa('55666777000188', async () => {
+    iaHomologada({ id: 'ia-mani', nome: 'Nina', especialidade: 'Manicure', conhecimento: 'x' });
+    iaHomologada({ id: 'ia-barba', nome: 'Rui', especialidade: 'Barbearia', conhecimento: 'y' });
+    iaHomologada({ id: 'ia-doc', nome: 'Dra', especialidade: 'Clínica médica', conhecimento: 'z' });
+    iaHomologada({ id: 'ia-sem', nome: 'Sem', especialidade: 'Pedicure', conhecimento: 'w' });
+    salao.salvarDadosSistema('ia-mani', { url: 'http://agenda1.teste/api', token: 'tok-1' });
+    salao.salvarDadosSistema('ia-barba', { url: 'http://agenda2.teste/api', token: 'tok-2' });
+    assert.deepEqual(canais.iasDisponiveis('salao').map((x) => x.agenteId), ['ia-mani', 'ia-barba']);
+    assert.equal(canais.iasDisponiveis('canais').length, 4, 'Canais segue com todas');
+    assert.match(canais.cadastrar({ rotulo: 'X', agenteId: 'ia-doc', modulo: 'salao' }).erro, /não pode atender o salão/);
+    assert.match(canais.cadastrar({ rotulo: 'Y', agenteId: 'ia-sem', modulo: 'salao' }).erro, /sem os dados do Cadê Você/);
+    assert.match(canais.cadastrar({ rotulo: 'Z', agenteId: 'ia-mani', modulo: 'salao', nicho: 'barbearia' }).erro, /não é do nicho/);
+    const a = canais.cadastrar({ rotulo: 'Unhas', agenteId: 'ia-mani', modulo: 'salao', nicho: 'manicure' }).numero;
+    const b = canais.cadastrar({ rotulo: 'Barba', agenteId: 'ia-barba', modulo: 'salao', nicho: 'barbearia' }).numero;
+    assert.deepEqual(canais.listar('salao').map((x) => x.rotulo), ['Unhas', 'Barba']);
+    assert.equal(canais.listar('canais').length, 0, 'números do salão não aparecem em Canais');
+    for (const n of [a, b]) { await canais.conectar({ id: n.id }); estados.set(n.instancia, 'open'); }
+    const antes = chamadas.length;
+    const r1 = await canais.receberWebhook(evento(a.instancia, '5531999990020', 'oi', 'sa1'), { segredo: 'segredo-123' });
+    const r2 = await canais.receberWebhook(evento(b.instancia, '5531999990021', 'oi', 'sa2'), { segredo: 'segredo-123' });
+    assert.equal(r1.resultados[0].ok, true, JSON.stringify(r1)); assert.equal(r1.resultados[0].envios[0].origem, 'bot-agendamento');
+    assert.equal(r2.resultados[0].ia, 'ia-barba');
+    assert.match(r1.resultados[0].envios[0].texto, /Nina[\s\S]*Agendar horário/);
+    await canais.receberWebhook(evento(a.instancia, '5531999990020', '1', 'sa3'), { segredo: 'segredo-123' });
+    await canais.receberWebhook(evento(b.instancia, '5531999990021', '1', 'sa4'), { segredo: 'segredo-123' });
+    const agendas = chamadas.slice(antes).filter((c) => c.host.startsWith('agenda'));
+    assert.deepEqual([...new Set(agendas.map((c) => `${c.host} ${c.auth}`))].sort(), ['agenda1.teste Bearer tok-1', 'agenda2.teste Bearer tok-2'], 'cada número usa a agenda da sua IA');
+    assert.deepEqual([...new Set(chamadas.slice(antes).filter((c) => c.caminho.startsWith('/message/sendText/')).map((c) => c.caminho))].length, 2);
+    assert.equal(chamadas.slice(antes).some((c) => c.caminho === '/api/chat'), false, 'salão usa o bot de agendamento, não a resposta livre');
   });
 });
