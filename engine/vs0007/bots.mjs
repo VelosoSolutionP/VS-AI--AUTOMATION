@@ -24,6 +24,7 @@ import * as modelosBot from '../vsbot/modelos.mjs';
 import * as profissoesBot from '../vsbot/profissoes.mjs';
 import { validarFluxo } from '../vsbot/fluxo.mjs';
 import { pesquisarPreparacaoNaWeb, falaDoNicho } from './pesquisa.mjs';
+import { segmentoDoNicho, temasCobertos } from './segmentos.mjs';
 import { documento as validarDocumento } from '../vsclientes/ofertas.mjs';
 import * as R from './regras.mjs';
 import * as MAPA from './mapa.mjs';
@@ -92,12 +93,12 @@ function novoCicloVida(iniciadoEm = HOJE()) {
   };
 }
 
-function normalizarPesquisaExterna(fontesEntrada = [], conhecimentosEntrada = []) {
+function normalizarPesquisaExterna(fontesEntrada = [], conhecimentosEntrada = [], limites = { fontes: 8, conhecimentos: 10 }) {
   if (!Array.isArray(fontesEntrada) || !Array.isArray(conhecimentosEntrada)) {
     return { erro: 'fontes externas e conhecimentos devem ser listas' };
   }
-  if (fontesEntrada.length > 8 || conhecimentosEntrada.length > 10) {
-    return { erro: 'limite excedido: informe no máximo 8 fontes e 10 conhecimentos' };
+  if (fontesEntrada.length > limites.fontes || conhecimentosEntrada.length > limites.conhecimentos) {
+    return { erro: `limite excedido: informe no máximo ${limites.fontes} fontes e ${limites.conhecimentos} conhecimentos` };
   }
 
   const fontes = [];
@@ -671,6 +672,8 @@ export function prepararEspecialidade({ especialidadeId, especialidade, profissa
 export function prepararNicho({ nicho } = {}) {
   const busca = String(nicho || '').trim();
   if (busca.length < 2) return { erro: 'informe um nicho com pelo menos 2 caracteres' };
+  const segmento = segmentoDoNicho(busca);
+  if (segmento) return prepararSegmento(segmento, busca);
   const pesquisa = pesquisarNicho({ nicho: busca });
   if (pesquisa.erro) return pesquisa;
   const modelo = pesquisa.modelos[0] || null;
@@ -697,6 +700,29 @@ export function prepararNicho({ nicho } = {}) {
       fontes: ['catálogo de nichos', 'fluxos e dados do sistema', 'mapa mental do 0007'],
       internetConsultada: false,
       melhorCorrespondencia: modelo?.id || null,
+    },
+  };
+}
+
+/* O nicho é um ramo de negócio: não casa com modelo de comida nem vira profissão.
+   A profissão-base só dá o tom da conversa; a função mostrada é a do segmento. */
+function prepararSegmento(segmento, nicho) {
+  const base = prepararEspecialidade({ especialidade: segmento.nome, profissao: segmento.profissaoBase, finalidade: segmento.finalidade });
+  if (base.erro) return base;
+  const nomeProfissao = base.profissao.nome;
+  const preparacao = JSON.parse(JSON.stringify(base).replaceAll(nomeProfissao, segmento.funcao));
+  const operacoes = segmento.temas.map((tema) => `Conhecer e orientar sobre: ${tema.nome}`);
+  return {
+    ...preparacao,
+    atividades: unicos([...preparacao.atividades, ...operacoes]),
+    mapaMental: [...preparacao.mapaMental, ...operacoes.map((conteudo) => ({ categoria: 'atividades', conteudo, origem: `segmento:${segmento.id}` }))],
+    nicho,
+    segmento: { id: segmento.id, nome: segmento.nome, especialidade: segmento.especialidadeDigital, temas: segmento.temas.map((tema) => tema.nome), minimoTemas: segmento.minimoTemas },
+    nomeSugerido: segmento.nomeSugerido,
+    pesquisaLocal: {
+      fontes: ['perfil de segmento do 0007'],
+      internetConsultada: false,
+      melhorCorrespondencia: null,
     },
   };
 }
@@ -1102,7 +1128,7 @@ function registrarPesquisaInicial({
   if (bot.preparacao?.pesquisaInicial?.estado === 'concluida') {
     return { erro: 'a preparação inicial já foi registrada; use o ciclo de evolução para novos conhecimentos' };
   }
-  const pesquisa = normalizarPesquisaExterna(fontes, conhecimentos);
+  const pesquisa = normalizarPesquisaExterna(fontes, conhecimentos, segmentoDoNicho(bot.preparacao?.nicho)?.limites);
   if (pesquisa.erro) return pesquisa;
   const perfilNormalizado = normalizarPerfil(bot.perfil, bot.nome || bot.especialidade, {
     funcao: bot.profissao || bot.especialidade,
@@ -1546,6 +1572,7 @@ function avaliarTestesAutomaticos(bot) {
   const cpfNoBot = String(bot?.empresaCpf || '');
   const cpfVazou = Boolean(cpfNoBot) && fontes.some((fonte) => JSON.stringify(fonte).includes(cpfNoBot));
   const falhas = unicos(bot?.falhas || []);
+  const segmento = segmentoDoNicho(bot?.preparacao?.nicho);
   const testes = [
     {
       id: 'pesquisa-concluida',
@@ -1582,7 +1609,13 @@ function avaliarTestesAutomaticos(bot) {
       ok: conhecimentos.length >= 3,
       evidencia: `${conhecimentos.length} conhecimento(s)`,
     },
-    {
+    segmento ? {
+      id: 'temas-do-segmento',
+      nome: `Pelo menos ${segmento.minimoTemas} dos ${segmento.temas.length} temas do segmento com fonte registrada`,
+      critico: true,
+      ok: temasCobertos(segmento, conhecimentos).length >= segmento.minimoTemas,
+      evidencia: `${temasCobertos(segmento, conhecimentos).length} tema(s) coberto(s)`,
+    } : {
       id: 'conteudo-do-nicho',
       nome: 'Conhecimento fala de fato sobre o nicho',
       critico: true,
@@ -1688,6 +1721,10 @@ export async function criarIAZestAutomatica({ nicho, empresaTipo = '', empresaId
   });
   if (criado.erro) return criado;
   const agenteId = criado.bot.agenteId;
+  /* Onze temas com pausa entre as buscas passam dos 100 s do túnel: quem pesquisa é o relógio de 30 min. */
+  if (segmentoDoNicho(busca) && !fetchFn) {
+    return { ok: true, pendencia: 'pesquisa', bot: botSemDocumentoPessoal(obterBot(agenteId)), risco, testes: null, homologado: false, aguardandoAprovacao: false, mensagem: 'a pesquisa dos 11 temas do segmento roda em até 30 minutos e é refeita até cobrir o mínimo; o resultado aparece no perfil da IA' };
+  }
   const resultado = await concluirPreparacaoAutomatica({ agenteId, empresa, risco, fetch: fetchFn, curl: curlFn });
   if (resultado.pendencia) { registrarTentativaPrazo(agenteId, resultado, new Date()); return { ...resultado, bot: botSemDocumentoPessoal(obterBot(agenteId)) }; }
   return {

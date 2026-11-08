@@ -18,6 +18,7 @@ process.on('exit', () => { try { rmSync(casa, { recursive: true, force: true });
 
 const bots = await import('../engine/vs0007/bots.mjs');
 const mapa = await import('../engine/vs0007/mapa.mjs');
+const segmentos = await import('../engine/vs0007/segmentos.mjs');
 
 function respostaHtml(html) {
   return {
@@ -307,4 +308,63 @@ test('produtos saem dos dados do site e, sem eles, das linhas com preço', async
   const ld = '<script type="application/ld+json">{"@type":"Product","name":"Dobrão","description":"Vende no WhatsApp","offers":{"price":"99.90"}}</script>';
   assert.deepEqual(extrairProdutos(ld), ['Dobrão — R$ 99.90: Vende no WhatsApp']);
   assert.deepEqual(extrairProdutos('<p>Plano Básico R$ 49,90 por mês</p><p>Sobre nós</p>'), ['Plano Básico R$ 49,90 por mês']);
+});
+
+/* Cardápio Digital é segmento comercial: distribuidoras, por temas de operação. */
+function fetchDeSegmento(temasSemFonte = []) {
+  const { segmentoDoNicho } = segmentos;
+  const temas = segmentoDoNicho('cardapio digital').temas;
+  const frase = (t) => `Na operação diária, ${t.nome.toLowerCase()} organiza o trabalho e reduz erros em distribuidora de bebidas e pedidos.`;
+  const ampla = { 'pagamentos-pix': 'pagamentos', 'fiscal-nfe-sped': 'nota fiscal', 'whatsapp-automacao': 'whatsapp', 'precos-promocoes': 'tabela de preços', 'clientes-condicoes': 'atacado', 'compras-fornecedores': 'fornecedores', 'estoque-reposicao': 'estoque', 'catalogo-produtos': 'catálogo', 'cardapio-catalogo-digital': 'cardápio digital', distribuidoras: 'distribuidora de bebidas', 'pedidos-vendas-entregas': 'pedidos' };
+  const texto = (t) => `${frase(t)} O tema de ${ampla[t.id]} aparece em toda rotina do setor atendido hoje.`;
+  const fetch = async (url) => {
+    const u = new URL(url); const alvo = decodeURIComponent(url);
+    if (u.hostname === 'r.jina.ai') {
+      const t = temas.find((x) => alvo.includes(x.busca));
+      if (!t || temasSemFonte.includes(t.id)) return respostaHtml('# Search Results\n\n');
+      return respostaHtml(`# Search Results\n\n[${t.nome} ${ampla[t.id]} distribuidora de bebidas](https://www.google.com/goto?url=${t.id})\n\n${texto(t)}`);
+    }
+    if (u.hostname === 'www.bing.com' || u.hostname === 'search.yahoo.com') return respostaHtml('<html></html>');
+    if (u.pathname === '/goto') return respostaRedirecionada(`https://setor.example.com/${u.searchParams.get('url')}`);
+    const t = temas.find((x) => u.pathname === `/${x.id}`);
+    if (!t) return { ...respostaHtml(''), status: 404, ok: false };
+    return respostaHtml(`<html><head><title>${t.nome}</title></head><body><p>${texto(t)}</p></body></html>`);
+  };
+  return { fetch, curl: async () => '' };
+}
+
+test('Cardápio Digital é distribuição de alimentos e bebidas, não comida nem profissão', () => {
+  const p = bots.prepararNicho({ nicho: 'cardapio digital' });
+  assert.equal(p.especialidade, 'Distribuição e comércio de alimentos e bebidas');
+  assert.equal(p.segmento.especialidade, 'Catálogo e pedidos digitais');
+  assert.equal(p.perfil.funcao, 'Catálogo e pedidos digitais');
+  assert.equal(p.especialidadeId, null);
+  assert.equal(p.segmento.temas.length, 11);
+  assert.ok(p.atividades.some((a) => /SPED/.test(a)));
+  assert.doesNotMatch(JSON.stringify(p), /Vendedora|Comida japonesa/);
+});
+
+test('segmento registra um conhecimento por tema, vai para validação humana por ter tema fiscal', async () => {
+  const r = await bots.criarIAZestAutomatica({ nicho: 'Cardápio Digital', empresaTipo: 'nome', empresaIdentificador: 'Distribuidora Modelo', aceite: true, autorizado: true, ...fetchDeSegmento() });
+  assert.equal(r.pendencia, null, r.mensagem || r.erroPesquisa);
+  assert.equal(r.risco.nivel, 'alto');
+  assert.equal(r.bot.estado, 'em_validacao');
+  const t = r.testes.testes.find((x) => x.id === 'temas-do-segmento');
+  assert.equal(t.ok, true, t.evidencia);
+  const categorias = r.bot.preparacao.pesquisaInicial.conhecimentos.map((c) => c.categoria);
+  assert.ok(categorias.includes('fiscal-nfe-sped') && categorias.includes('estoque-reposicao'));
+});
+
+test('segmento abaixo do mínimo de temas não conclui e diz quais faltaram', async () => {
+  const r = await bots.criarIAZestAutomatica({ nicho: 'distribuidora de bebidas', empresaTipo: 'nome', empresaIdentificador: 'Outra Distribuidora', aceite: true, autorizado: true, ...fetchDeSegmento(['fiscal-nfe-sped', 'pagamentos-pix', 'estoque-reposicao']) });
+  assert.equal(r.pendencia, 'pesquisa');
+  assert.equal(r.homologado, false);
+  assert.match(r.erroPesquisa, /cobriu 8 de 11.*NF-e/);
+});
+
+test('na criação pela tela a pesquisa do segmento fica com o relógio, sem segurar a requisição', async () => {
+  const r = await bots.criarIAZestAutomatica({ nicho: 'cardapio digital', empresaTipo: 'nome', empresaIdentificador: 'Terceira Distribuidora', aceite: true, autorizado: true });
+  assert.equal(r.pendencia, 'pesquisa');
+  assert.equal(r.bot.estado, 'em_preparacao');
+  assert.equal(r.bot.preparacao.pesquisaInicial?.estado === 'concluida', false);
 });
