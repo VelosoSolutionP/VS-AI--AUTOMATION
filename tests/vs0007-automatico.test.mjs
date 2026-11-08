@@ -363,8 +363,33 @@ test('segmento abaixo do mínimo de temas não conclui e diz quais faltaram', as
 });
 
 test('na criação pela tela a pesquisa do segmento fica com o relógio, sem segurar a requisição', async () => {
-  const r = await bots.criarIAZestAutomatica({ nicho: 'cardapio digital', empresaTipo: 'nome', empresaIdentificador: 'Terceira Distribuidora', aceite: true, autorizado: true });
+  const r = await bots.criarIAZestAutomatica({ nicho: 'cardapio digital', empresaTipo: 'nome', empresaIdentificador: 'Terceira Distribuidora', aceite: true, autorizado: true, pesquisarAgora: false });
   assert.equal(r.pendencia, 'pesquisa');
   assert.equal(r.bot.estado, 'em_preparacao');
   assert.equal(r.bot.preparacao.pesquisaInicial?.estado === 'concluida', false);
+  assert.equal(r.pesquisando, true);
+});
+
+test('rodada seguinte guarda o que achou e busca só os temas que faltaram', async () => {
+  const faltando = ['fiscal-nfe-sped', 'pagamentos-pix', 'estoque-reposicao'];
+  const primeira = await bots.criarIAZestAutomatica({ nicho: 'distribuidora de alimentos', empresaTipo: 'nome', empresaIdentificador: 'Quarta Distribuidora', aceite: true, autorizado: true, ...fetchDeSegmento(faltando) });
+  assert.equal(primeira.pesquisando, true);
+  assert.match(primeira.erroPesquisa, /em andamento.*cobriu 8 de 11/);
+  const buscas = [];
+  const dep = fetchDeSegmento();
+  const fetch = (url) => { buscas.push(decodeURIComponent(url)); return dep.fetch(url); };
+  const segunda = await bots.concluirPreparacaoAutomatica({ agenteId: primeira.bot.agenteId, fetch, curl: dep.curl });
+  assert.equal(segunda.pendencia, null, segunda.mensagem || segunda.erroPesquisa);
+  assert.equal(buscas.some((u) => /tabela de pre/.test(u)), false);
+  assert.equal(buscas.some((u) => /SPED/.test(u)), true);
+  const categorias = segunda.bot.preparacao.pesquisaInicial.conhecimentos.map((c) => c.categoria);
+  assert.equal(new Set(categorias).size, 11);
+});
+
+test('rodada que não acha nada novo vira impedimento', async () => {
+  const dep = fetchDeSegmento(['fiscal-nfe-sped', 'pagamentos-pix', 'estoque-reposicao']);
+  const primeira = await bots.criarIAZestAutomatica({ nicho: 'distribuidora de bebidas', empresaTipo: 'nome', empresaIdentificador: 'Quinta Distribuidora', aceite: true, autorizado: true, ...dep });
+  const segunda = await bots.concluirPreparacaoAutomatica({ agenteId: primeira.bot.agenteId, ...dep });
+  assert.equal(segunda.pesquisando, false);
+  assert.match(segunda.erroPesquisa, /^Impedimento/);
 });

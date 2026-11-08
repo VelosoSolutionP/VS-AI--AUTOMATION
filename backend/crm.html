@@ -4978,7 +4978,9 @@ async function wizCriarAutomatico(){
     await carregarHotel();
     const nome=r.bot?.nome||nicho;
     const fontes=(r.bot?.preparacao?.pesquisaInicial?.fontes||[]).length;
-    if(r.pendencia){
+    if(r.pesquisando){
+      flash(`IA-ZEST criada: ${nome}. O 0007 está pesquisando o segmento e cobre os temas em rodadas; acompanhe no perfil da IA.`,'ok');
+    }else if(r.pendencia){
       flash(`IA-ZEST criada pelo 0007, mas ainda em preparação: ${r.erroPesquisa||r.mensagem||'há pendências nos testes'}. Abra o perfil para ver o relatório.`,'err');
     }else if(r.homologado){
       flash(`IA-ZEST homologada automaticamente: ${nome}. ${r.testes?.aprovados||0}/${r.testes?.total||0} verificações aprovadas e ${fontes} fonte(s) registradas.`,'ok');

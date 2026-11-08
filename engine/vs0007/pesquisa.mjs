@@ -34,6 +34,7 @@ const MAX_HTML_BYTES = 1_500_000;
 const MAX_RESULTADOS = 8;
 const MAX_FONTES = 6;
 const MAX_FONTES_EMPRESA = 4;
+const TEMAS_POR_RODADA = 5;
 const PAUSA_SEGMENTO_MS = Number(process.env.VS0007_PAUSA_SEGMENTO_MS || 8000);
 const USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36';
 
@@ -323,11 +324,10 @@ export function extrairProdutos(html) {
   return [...new Set(achados)].slice(0, 6);
 }
 
-function consultasDaEspecialidade({ especialidade, finalidade, profissao, empresa, nichoInformado = '' }) {
+function consultasDaEspecialidade({ especialidade, finalidade, profissao, empresa, nichoInformado = '', temas = null }) {
   const termo = [...new Set([nichoInformado, especialidade].map((t) => String(t || '').trim()).filter(Boolean))].join(' ').slice(0, 120);
   const foco = [termo, profissao, finalidade].filter(Boolean).join(' ').slice(0, 260);
-  const segmento = segmentoDoNicho(nichoInformado);
-  const consultas = segmento ? segmento.temas.map((tema) => ({ escopo: 'profissao', tema, texto: tema.busca })) : [
+  const consultas = temas ? temas.map((tema) => ({ escopo: 'profissao', tema, texto: tema.busca })) : [
     { escopo: 'profissao', texto: `${termo} o que é como funciona atendimento ao cliente` },
     { escopo: 'profissao', texto: `${termo} guia completo dicas blog` },
     { escopo: 'profissao', texto: `${termo} perguntas frequentes dúvidas de clientes preços` },
@@ -497,7 +497,7 @@ function conhecimentoDaPagina(pagina, consulta, { escopo = 'profissao', nomes = 
 }
 
 export async function pesquisarPreparacaoNaWeb(
-  { especialidade, finalidade = '', profissao = '', empresaCnpj = '', empresaNome = '', nicho: nichoInformado = '', siteEmpresa = '' } = {},
+  { especialidade, finalidade = '', profissao = '', empresaCnpj = '', empresaNome = '', nicho: nichoInformado = '', siteEmpresa = '', parcial = [] } = {},
   { fetch: fetchFn = globalThis.fetch, curl: curlFn = buscarComCurl } = {},
 ) {
   const nicho = String(especialidade || '').trim();
@@ -518,7 +518,12 @@ export async function pesquisarPreparacaoNaWeb(
   const falhas = [];
   let buscadorUsado = '';
   const segmento = segmentoDoNicho(nichoInformado);
+  /* Rodada curta e acumulativa: o que já foi achado fica, e só o que falta é buscado. */
+  const redeReal = fetchFn === globalThis.fetch;
+  const jaAchadas = segmento ? parcial.filter((fonte) => fonte.tema && fonte.conhecimentos?.length) : [];
+  const temasPendentes = segmento ? segmento.temas.filter((tema) => !jaAchadas.some((fonte) => fonte.tema === tema.id)) : null;
   const consultas = consultasDaEspecialidade({
+    temas: temasPendentes && (redeReal ? temasPendentes.slice(0, TEMAS_POR_RODADA) : temasPendentes),
     especialidade: nicho,
     finalidade,
     profissao,
@@ -529,7 +534,7 @@ export async function pesquisarPreparacaoNaWeb(
   const ordemBuscadores = segmento ? [...BUSCADORES].sort((a, b) => (b.nome === 'DuckDuckGo') - (a.nome === 'DuckDuckGo')) : BUSCADORES;
   const bloqueados = new Set();
   /* Onze buscas seguidas fazem o DuckDuckGo devolver desafio anti-robô; só a rede real espera. */
-  const pausaEntreBuscas = segmento && fetchFn === globalThis.fetch ? PAUSA_SEGMENTO_MS : 0;
+  const pausaEntreBuscas = segmento && redeReal ? PAUSA_SEGMENTO_MS : 0;
   for (const [indiceConsulta, consulta] of consultas.entries()) {
     if (indiceConsulta && pausaEntreBuscas) await new Promise((r) => setTimeout(r, pausaEntreBuscas));
     for (const buscador of ordemBuscadores) {
@@ -677,7 +682,7 @@ export async function pesquisarPreparacaoNaWeb(
       temasVistos.add(fonte.tema);
       return true;
     });
-    fontes.splice(0, fontes.length, ...uteis);
+    fontes.splice(0, fontes.length, ...jaAchadas, ...uteis.filter((fonte) => !jaAchadas.some((ja) => ja.url === fonte.url)));
   }
   const fontesProfissao = fontes.filter((fonte) => fonte.escopo === 'profissao');
   const fontesEmpresaWeb = fontes.filter((fonte) => fonte.escopo === 'empresa');
@@ -709,7 +714,8 @@ export async function pesquisarPreparacaoNaWeb(
   const temasFaltando = segmento ? segmento.temas.filter((tema) => !cobertos.includes(tema)) : [];
   if (segmento && cobertos.length < segmento.minimoTemas) {
     return {
-      erro: `Impedimento: a pesquisa do segmento "${segmento.nome}" cobriu ${cobertos.length} de ${segmento.temas.length} temas (mínimo ${segmento.minimoTemas}). Sem fonte confiável sobre: ${temasFaltando.map((tema) => tema.nome).join('; ')}`,
+      erro: `${cobertos.length > jaAchadas.length ? 'Pesquisa em andamento' : 'Impedimento'}: o segmento "${segmento.nome}" cobriu ${cobertos.length} de ${segmento.temas.length} temas (mínimo ${segmento.minimoTemas}). Faltam: ${temasFaltando.map((tema) => tema.nome).join('; ')}. Nova rodada em 30 minutos.`,
+      emAndamento: cobertos.length > jaAchadas.length,
       buscador: buscadorUsado || 'indisponível',
       fontes,
       conhecimentos,

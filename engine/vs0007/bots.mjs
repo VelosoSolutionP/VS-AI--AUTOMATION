@@ -1277,12 +1277,18 @@ export async function pesquisarERegistrarPreparacaoInicial({ agenteId, autorizad
     especialidade: bot.especialidade,
     nicho: bot.preparacao?.nicho || '',
     siteEmpresa: bot.empresaSite || '',
+    parcial: bot.preparacao?.pesquisaParcial || [],
     finalidade: bot.finalidade,
     profissao: bot.perfil?.funcao || bot.profissao,
     empresaCnpj: cnpjPesquisa,
     empresaNome: cnpjPesquisa ? '' : nomePesquisa,
   }, dependenciasPesquisa);
   if (pesquisa.erro) {
+    if (segmentoDoNicho(bot.preparacao?.nicho)) {
+      const todos = load(DATASET_BOTS, []);
+      const alvo = todos.find((item) => item.agenteId === agenteId);
+      if (alvo?.preparacao) { alvo.preparacao.pesquisaParcial = (pesquisa.fontes || []).filter((fonte) => fonte.tema); save(DATASET_BOTS, todos); }
+    }
     return {
       ...pesquisa,
       mensagem: 'O bot foi criado, mas a pesquisa externa ainda está pendente. Nenhuma fonte foi inventada; tente novamente quando a busca estiver disponível.',
@@ -1663,7 +1669,7 @@ function botSemDocumentoPessoal(bot) {
  * baixo. Risco financeiro/jurídico/fiscal/saúde/direitos fica em validação,
  * aguardando uma pessoa.
  */
-export async function criarIAZestAutomatica({ nicho, empresaTipo = '', empresaIdentificador = '', empresaSite = '', aceite = false, autorizado = false, fetch: fetchFn, curl: curlFn, donoId = '0007' } = {}) {
+export async function criarIAZestAutomatica({ nicho, empresaTipo = '', empresaIdentificador = '', empresaSite = '', aceite = false, autorizado = false, fetch: fetchFn, curl: curlFn, donoId = '0007', pesquisarAgora = true } = {}) {
   const busca = String(nicho || '').trim();
   if (busca.length < 2) return { erro: 'informe o nicho com pelo menos 2 caracteres' };
   if (aceite !== true || autorizado !== true) {
@@ -1721,9 +1727,17 @@ export async function criarIAZestAutomatica({ nicho, empresaTipo = '', empresaId
   });
   if (criado.erro) return criado;
   const agenteId = criado.bot.agenteId;
-  /* Onze temas com pausa entre as buscas passam dos 100 s do túnel: quem pesquisa é o relógio de 30 min. */
+  /* Onze temas com pausa entre as buscas passam dos 100 s do túnel: a pesquisa começa
+     agora, mas sem segurar a tela. A marca de tentativa evita o relógio rodar junto. */
   if (segmentoDoNicho(busca) && !fetchFn) {
-    return { ok: true, pendencia: 'pesquisa', bot: botSemDocumentoPessoal(obterBot(agenteId)), risco, testes: null, homologado: false, aguardandoAprovacao: false, mensagem: 'a pesquisa dos 11 temas do segmento roda em até 30 minutos e é refeita até cobrir o mínimo; o resultado aparece no perfil da IA' };
+    const andamento = { ok: true, pendencia: 'pesquisa', pesquisando: true, risco, testes: null, homologado: false, aguardandoAprovacao: false, mensagem: 'pesquisa dos 11 temas iniciada; o 0007 cobre até 5 por rodada, a cada 30 minutos' };
+    registrarTentativaPrazo(agenteId, andamento, new Date());
+    if (pesquisarAgora) {
+      concluirPreparacaoAutomatica({ agenteId, empresa, risco })
+        .then((r) => registrarTentativaPrazo(agenteId, r, new Date()))
+        .catch((e) => registrarTentativaPrazo(agenteId, { erro: e.message }, new Date()));
+    }
+    return { ...andamento, bot: botSemDocumentoPessoal(obterBot(agenteId)) };
   }
   const resultado = await concluirPreparacaoAutomatica({ agenteId, empresa, risco, fetch: fetchFn, curl: curlFn });
   if (resultado.pendencia) { registrarTentativaPrazo(agenteId, resultado, new Date()); return { ...resultado, bot: botSemDocumentoPessoal(obterBot(agenteId)) }; }
@@ -1760,6 +1774,7 @@ export async function concluirPreparacaoAutomatica({ agenteId, empresa = {}, ris
       return {
         ok: true,
         pendencia: 'pesquisa',
+        pesquisando: pesquisa.emAndamento === true,
         erroPesquisa: pesquisa.erro,
         mensagem: pesquisa.mensagem,
         bot: botSemDocumentoPessoal(obterBot(agenteId)),
@@ -1837,7 +1852,7 @@ function registrarTentativaPrazo(agenteId, resultado, agora) {
     ...prep,
     tentativas: (prep.tentativas || 0) + 1,
     ultimaTentativaEm: agora.toISOString(),
-    ultimoResultado: resultado.erro || resultado.pendencia || (resultado.homologado ? 'homologado' : 'aguardando-aprovacao-humana'),
+    ultimoResultado: resultado.erro || (resultado.pesquisando ? 'pesquisando' : resultado.pendencia) || (resultado.homologado ? 'homologado' : 'aguardando-aprovacao-humana'),
     ultimaMensagem: String(resultado.erro || resultado.erroPesquisa || resultado.mensagem || '').slice(0, 400) || null,
     prazoIdealVencido: Boolean(prep.prazoIdealEm) && agora > new Date(prep.prazoIdealEm) && bot.estado !== 'homologado',
     prazoMaximoVencido: Boolean(prep.prazoMaximoEm) && agora > new Date(prep.prazoMaximoEm) && bot.estado !== 'homologado',
