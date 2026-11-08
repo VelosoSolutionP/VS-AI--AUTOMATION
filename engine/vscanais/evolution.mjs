@@ -551,7 +551,7 @@ async function atenderSalao(n, m) {
   const { bot, estados } = botsSalao.get(chave);
   anotar(n.id, contato, { de: 'cliente', texto: m.texto, iaId: ia.agenteId });
   const r = await bot.responder(estados.get(contato) || null, m.texto, {
-    telefone: m.de, nomeBot: ia.nome, personalidade: cfg.personalidade, perfilBot: ia.perfil, contextoMapa: conhecimentoHomologado(n, ia).join('\n'),
+    telefone: m.de, nomeBot: ia.nome, personalidade: cfg.personalidade, perfilBot: perfilPreenchido(ia), contextoMapa: conhecimentoHomologado(n, ia).join('\n'),
   });
   estados.set(contato, r.estado);
   const prov = providerDe(n.instancia);

@@ -438,3 +438,19 @@ test('com a chave temporária desligada, a foto não é enviada', async () => {
     } finally { process.env.CANAIS_TROCAR_FOTO = '1'; }
   });
 });
+
+test('saudação do salão sai com o cumprimento preenchido', async () => {
+  process.env.CANAIS_SALAO_CEREBRO = '0';
+  await comEmpresa('77111222000133', async () => {
+    iaHomologada({ id: 'ia-oi', nome: 'Ale', especialidade: 'Manicure', conhecimento: 'x' });
+    const bots = load(hotel.DATASET_BOTS, []);
+    bots.find((b) => b.agenteId === 'ia-oi').perfil.mensagemInicial = '{cumprimento}! Eu sou {nome}.';
+    save(hotel.DATASET_BOTS, bots);
+    salao.salvarDadosSistema('ia-oi', { url: 'http://agenda9.teste/api', token: 't9' });
+    const n = canais.cadastrar({ rotulo: 'Oi', agenteId: 'ia-oi', modulo: 'salao' }).numero;
+    await canais.conectar({ id: n.id }); estados.set(n.instancia, 'open');
+    const r = await canais.receberWebhook(evento(n.instancia, '5531999990030', 'oi', 'c1'), { segredo: 'segredo-123' });
+    assert.equal(r.resultados[0].envios[0].texto.includes('{cumprimento}'), false, r.resultados[0].envios[0].texto);
+    assert.match(r.resultados[0].envios[0].texto, /(Bom dia|Boa tarde|Boa noite)! Eu sou Ale/);
+  });
+});
