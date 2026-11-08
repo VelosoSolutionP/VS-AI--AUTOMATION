@@ -411,3 +411,15 @@ test('nome vazio usa o da IA e nome repetido só vale dentro do mesmo módulo', 
     assert.match(canais.cadastrar({ rotulo: '' }).erro, /dê um nome/);
   });
 });
+
+test('o 404 de antes de criar a instância não apaga o QR depois', async () => {
+  await comEmpresa('88999000000166', async () => {
+    const n = canais.cadastrar({ rotulo: 'Antes' }).numero;
+    assert.equal((await canais.estado({ id: n.id })).estado, 'desconectado');
+    assert.ok((await canais.conectar({ id: n.id })).qr);
+    const st = await canais.estado({ id: n.id });
+    assert.equal(st.estado, 'aguardando_qr');
+    assert.equal(st.qr, 'data:image/png;base64,QRREAL');
+    assert.equal(st.ultimoErro, null);
+  });
+});

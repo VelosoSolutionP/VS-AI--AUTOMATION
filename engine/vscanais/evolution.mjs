@@ -291,8 +291,10 @@ export async function estado({ id } = {}) {
   const { n } = achar(id);
   if (!n) return { erro: 'número não encontrado nesta empresa' };
   const prov = providerDe(n.instancia);
-  await prov.sincronizar();
-  const st = prov.status();
+  const consulta = await prov.sincronizar();
+  /* sincronizar devolve null só quando ESTA consulta falhou; sem isso, o 404 de
+     antes de a instância existir ficava guardado e apagava o QR. */
+  const st = consulta === null ? prov.status() : { ...prov.status(), ultimoErro: null };
   /* Número recém-cadastrado: a instância só nasce na Evolution ao clicar em
      Conectar. Até lá o 404 é o estado normal, não erro. */
   if (/HTTP 404|does not exist|não encontrou/i.test(String(st.ultimoErro || ''))) {
