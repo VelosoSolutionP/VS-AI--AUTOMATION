@@ -81,10 +81,10 @@ const evento = (instancia, de, texto, id) => ({ event: 'messages.upsert', instan
 const EMPRESA_A = '11222333000181';
 const EMPRESA_B = '44555666000199';
 comEmpresa(EMPRESA_A, () => {
-  iaHomologada({ id: 'ia-faxina', nome: 'Clara', especialidade: 'Manicure', conhecimento: 'Faxina completa leva 4 horas', foto: 'data:image/jpeg;base64,QUJD' });
-  iaHomologada({ id: 'ia-pizza', nome: 'Beppe', especialidade: 'Barbearia', conhecimento: 'Entrega até 40 minutos' });
+  iaHomologada({ id: 'ia-faxina', nome: 'Clara', especialidade: 'Faxina', conhecimento: 'Faxina completa leva 4 horas', foto: 'data:image/jpeg;base64,QUJD' });
+  iaHomologada({ id: 'ia-pizza', nome: 'Beppe', especialidade: 'Pizzaria', conhecimento: 'Entrega até 40 minutos' });
 });
-comEmpresa(EMPRESA_B, () => iaHomologada({ id: 'ia-b', nome: 'Bia', especialidade: 'Sobrancelhas', conhecimento: 'Revisão em 1 dia' }));
+comEmpresa(EMPRESA_B, () => iaHomologada({ id: 'ia-b', nome: 'Bia', especialidade: 'Oficina', conhecimento: 'Revisão em 1 dia' }));
 
 test('cadastra vários números, vincula IAs diferentes e gera o QR de cada um pela Evolution', async () => {
   await comEmpresa(EMPRESA_A, async () => {
@@ -376,7 +376,8 @@ test('módulo salão: vários números, só IA dos 7 nichos e bot de agendamento
     salao.salvarDadosSistema('ia-mani', { url: 'http://agenda1.teste/api', token: 'tok-1' });
     salao.salvarDadosSistema('ia-barba', { url: 'http://agenda2.teste/api', token: 'tok-2' });
     assert.deepEqual(canais.iasDisponiveis('salao').map((x) => x.agenteId), ['ia-mani', 'ia-barba']);
-    assert.equal(canais.iasDisponiveis('canais').length, 4, 'Canais segue com todas');
+    assert.deepEqual(canais.iasDisponiveis('canais').map((x) => x.agenteId), ['ia-doc'], 'salão e afins não aparecem em Canais');
+    assert.match(canais.cadastrar({ rotulo: 'W', agenteId: 'ia-mani' }).erro, /use o menu Salão/);
     assert.match(canais.cadastrar({ rotulo: 'X', agenteId: 'ia-doc', modulo: 'salao' }).erro, /não pode atender o salão/);
     assert.match(canais.cadastrar({ rotulo: 'Y', agenteId: 'ia-sem', modulo: 'salao' }).erro, /sem os dados do Cadê Você/);
     assert.match(canais.cadastrar({ rotulo: 'Z', agenteId: 'ia-mani', modulo: 'salao', nicho: 'barbearia' }).erro, /não é do nicho/);
@@ -403,9 +404,10 @@ test('módulo salão: vários números, só IA dos 7 nichos e bot de agendamento
 test('nome vazio usa o da IA e nome repetido só vale dentro do mesmo módulo', () => {
   comEmpresa('66777888000177', () => {
     iaHomologada({ id: 'ia-nome', nome: 'Nina', especialidade: 'Manicure', conhecimento: 'x' });
+    iaHomologada({ id: 'ia-nome2', nome: 'Nina', especialidade: 'Faxina', conhecimento: 'x' });
     salao.salvarDadosSistema('ia-nome', { url: 'http://agenda.teste/api', token: 't' });
     assert.equal(canais.cadastrar({ rotulo: '', agenteId: 'ia-nome', modulo: 'salao' }).numero.rotulo, 'Nina');
-    assert.equal(canais.cadastrar({ rotulo: 'Nina', agenteId: 'ia-nome' }).ok, true, 'mesmo nome em Canais é permitido');
+    assert.equal(canais.cadastrar({ rotulo: 'Nina', agenteId: 'ia-nome2' }).ok, true, 'mesmo nome em Canais é permitido');
     assert.match(canais.cadastrar({ rotulo: 'nina', agenteId: 'ia-nome', modulo: 'salao' }).erro, /já existe/);
     assert.match(canais.cadastrar({ rotulo: '' }).erro, /dê um nome/);
   });

@@ -23,7 +23,7 @@ import * as hotel from '../vs0007/bots.mjs';
 import * as mapaHotel from '../vs0007/mapa.mjs';
 import { PADRAO_CEREBRO } from '../vsbot/cerebro.mjs';
 import { cumprimento } from '../vsbot/regras.mjs';
-import { SERVICOS_SALAO, avaliarParaUso, dadosSistema, listarParaSalao } from '../vssalao/ias.mjs';
+import { SERVICOS_SALAO, avaliarIA, avaliarParaUso, dadosSistema, listarParaSalao } from '../vssalao/ias.mjs';
 import { criarCadevcClient } from '../vssalao/cadevc.mjs';
 import { criarBotcadevc } from '../vssalao/bot.mjs';
 import * as cfgSalao from '../vssalao/config.mjs';
@@ -120,7 +120,8 @@ export function iasDisponiveis(modulo = 'canais') {
     return listarParaSalao().filter((b) => b.elegivel)
       .map((b) => ({ agenteId: b.agenteId, nome: b.nome, especialidade: b.especialidade, funcao: b.funcao, foto: b.foto, nichos: b.servicos }));
   }
-  return hotel.listarBots().filter((b) => b.estado === 'homologado')
+  /* Canais é de todo mundo, menos do salão e afins, que têm o menu próprio. */
+  return hotel.listarBots().filter((b) => b.estado === 'homologado' && !avaliarIA(b).servicos.length)
     .map((b) => ({ agenteId: b.agenteId, nome: b.nome, especialidade: b.especialidade, funcao: b.perfil?.funcao || '', foto: b.perfil?.foto || '' }));
 }
 export const NICHOS_SALAO = SERVICOS_SALAO.map((x) => ({ id: x.id, nome: x.nome }));
@@ -134,6 +135,7 @@ function validarIA(ia, modulo = 'canais', nicho = '') {
   }
   if (!ia) return 'IA-ZEST não encontrada no Hotel desta empresa';
   if (ia.estado !== 'homologado') return `a IA-ZEST "${ia.nome}" ainda não está homologada (${ia.estado})`;
+  if (avaliarIA(ia).servicos.length) return `a IA-ZEST "${ia.nome}" é do salão: use o menu Salão`;
   return null;
 }
 
