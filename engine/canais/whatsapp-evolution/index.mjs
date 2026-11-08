@@ -151,11 +151,13 @@ export function criarWhatsAppEvolutionProvider(opcoes = {}) {
     catch (e) { return { ok: false, detalhe: e.message }; }
   }
 
-  const destino = (para) => soDigitos(String(para || '').split('@')[0]);
+  /* Contato que o WhatsApp só identifica por LID (…@lid) não tem telefone:
+     responde-se ao próprio JID, que a Evolution v2.3 aceita no "number". */
+  const destino = (para) => (/^\d{6,20}@lid$/.test(String(para || '')) ? String(para) : soDigitos(String(para || '').split('@')[0]));
   async function mandar(caminho, corpo, para) {
     if (estado !== ESTADOS.CONECTADO) { return { ok: false, erro: `canal ${estado} — nada foi enviado` }; }
     const to = destino(para);
-    if (to.length < 10) { return { ok: false, erro: `"${para}" não é um telefone válido` }; }
+    if (!to.endsWith('@lid') && to.length < 10) { return { ok: false, erro: `"${para}" não é um telefone válido` }; }
     try {
       const j = await api(`${caminho}/${encodeURIComponent(instancia())}`, { method: 'POST', body: { number: to, ...corpo } });
       ultimaAtividade = agora();
@@ -210,8 +212,13 @@ export function criarWhatsAppEvolutionProvider(opcoes = {}) {
         if (quando && (agoraMs - quando) / 60000 > janelaMin) {
           console.log(`[whatsapp-evolution] ignorada (mensagem de ${Math.round((agoraMs - quando) / 60000)} min atrás)`); continue;
         }
-        const de = numeroDoJid(key.remoteJid);
-        const c = mensagem({ id, de, endereco: de, nome: d.pushName || null, tipo: tipoDe(d.message || {}),
+        /* WhatsApp novo endereça por LID (…@lid), que NÃO é telefone. A Evolution
+           manda o telefone em remoteJidAlt quando sabe; sem ele, o endereço é o
+           próprio JID @lid (dá pra responder, não dá pra tratar como telefone). */
+        const jidTelefone = [key.remoteJid, key.remoteJidAlt, key.senderPn].find((j) => /@s\.whatsapp\.net$/.test(String(j || '')));
+        const de = jidTelefone ? numeroDoJid(jidTelefone) : numeroDoJid(key.remoteJid);
+        const endereco = jidTelefone || !/@lid$/.test(String(key.remoteJid || '')) ? de : `${soDigitos(String(key.remoteJid).split('@')[0])}@lid`;
+        const c = mensagem({ id, de, endereco, nome: d.pushName || null, tipo: tipoDe(d.message || {}),
           texto: textoDe(d.message || {}), quando: new Date(quando || agoraMs).toISOString(), canal: nome });
         ultimaAtividade = agora(); n++;
         for (const fn of ouvintesMsg) { try { fn(c); } catch (e) { console.error('[whatsapp-evolution] ouvinte de mensagem quebrou:', e.message); } }

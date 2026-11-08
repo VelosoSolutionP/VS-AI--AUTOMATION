@@ -30,15 +30,15 @@ function respostaPesquisa(html, status = 200, location = '') {
 }
 function fetchPesquisaInicial() {
   const fontes = [
-    { url: 'https://barbearia.gov.br/padroes', titulo: 'Barbearia — orientação oficial' },
-    { url: 'https://blog.exemplo.com/barbearia/boas-praticas', titulo: 'Barbearia — boas práticas' },
-    { url: 'https://forum.exemplo.com/barbearia/duvidas', titulo: 'Barbearia — dúvidas da comunidade' },
+    { url: 'https://manicure.gov.br/padroes', titulo: 'Manicure — orientação oficial' },
+    { url: 'https://blog.exemplo.com/manicure/boas-praticas', titulo: 'Manicure — boas práticas' },
+    { url: 'https://forum.exemplo.com/manicure/duvidas', titulo: 'Manicure — dúvidas da comunidade' },
   ];
   return async (url) => {
     const pagina = new URL(url);
     if (pagina.hostname === 'r.jina.ai') {
       return respostaPesquisa(fontes.map((fonte, i) =>
-        `[${fonte.titulo}](https://www.google.com/goto?url=${i})\n\nOrientações úteis de barbearia e práticas recomendadas.`,
+        `[${fonte.titulo}](https://www.google.com/goto?url=${i})\n\nOrientações úteis de manicure e práticas recomendadas.`,
       ).join('\n\n'));
     }
     if (pagina.hostname === 'www.google.com' && pagina.pathname === '/goto') {
@@ -47,7 +47,7 @@ function fetchPesquisaInicial() {
     }
     const fonte = fontes.find((item) => new URL(item.url).hostname === pagina.hostname);
     if (!fonte) return respostaPesquisa('', 404);
-    const conteudo = 'Barbearia deve confirmar os horários e explicar os serviços conforme as orientações desta fonte.';
+    const conteudo = 'Manicure deve confirmar os horários e explicar os serviços conforme as orientações desta fonte.';
     return respostaPesquisa(`<html><head><title>${fonte.titulo}</title><meta name="description" content="${conteudo}"></head><body><p>${conteudo}</p></body></html>`);
   };
 }
@@ -170,7 +170,7 @@ test('perfil homologado do 0007 orienta o Salão e deixa de responder se voltar 
   const configPath = join(casa, 'empresas', cnpj, 'vscadevc', 'config.json');
   const configAnterior = readFileSync(configPath, 'utf8');
   const agenteId = await comEmpresa(cnpj, async () => {
-    const proposta = hotel.prepararNicho({ nicho: 'barbearia' });
+    const proposta = hotel.prepararNicho({ nicho: 'manicure' });
     const criado = hotel.criarBotComercial({
       nome: 'Nina',
       finalidade: proposta.finalidade,
@@ -194,6 +194,7 @@ test('perfil homologado do 0007 orienta o Salão e deixa de responder se voltar 
       fetch: fetchPesquisaInicial(),
       curl: async () => '',
     });
+    (await import('../engine/vssalao/ias.mjs')).salvarDadosSistema(criado.bot.agenteId, { url: 'http://x', token: 't' });
     assert.equal(pesquisa.erro, undefined);
     const validacao = hotel.validarBot({
       agenteId: criado.bot.agenteId,
@@ -229,7 +230,7 @@ test('perfil homologado do 0007 orienta o Salão e deixa de responder se voltar 
     const envio = net.log.find((item) => item.method === 'POST' && item.url.includes('/message/sendText/inst-A'));
     assert.match(JSON.parse(envio.body).text, /Oi! Sou Nina e vou ajudar com o salão/);
     assert.match(payload.messages[1].content, /Confirme o horário com o cliente antes de reservar/);
-    assert.match(payload.messages[1].content, /agenda conectada/);
+    assert.match(payload.messages[1].content, /manicure/);
 
     comEmpresa(cnpj, () => hotel.atualizarPerfilBot({
       agenteId,

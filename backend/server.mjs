@@ -32,6 +32,8 @@ import { criarCadevcClient } from '../engine/vssalao/cadevc.mjs';
 import { criarWhatsAppEvolutionProvider } from '../engine/canais/whatsapp-evolution/index.mjs';
 import * as cadevcCfg from '../engine/vssalao/config.mjs';
 import * as cadevcHub from '../engine/vssalao/hub.mjs';
+import * as salaoIas from '../engine/vssalao/ias.mjs';
+import * as canaisEvo from '../engine/vscanais/evolution.mjs';
 /* Canal do salão (Evolution): um provider por instância, criado quando as variáveis existem. */
 let _provcadevc = null; let _provcadevcKey = '';
 const _webhooksCadevc = new Map();
@@ -823,6 +825,19 @@ const server = createServer(async (req, res) => {
   /* Webhook do Evolution (salão). Público: o Evolution chama de fora. A gente
      acha o tenant pela `instance` e entrega pro bot do salão daquele cliente.
      Sempre 200, pra o Evolution não ficar reenviando. */
+  /* Webhook da Evolution dos CANAIS (universal). Segredo na query; a empresa sai
+     da instância e o número precisa existir nela. Sempre 200 para não reenviar. */
+  if (req.method === 'POST' && req.url.split('?')[0] === '/webhook/canais') {
+    const buf = await readBody(req);
+    if (corpoEstourou(res, buf)) { return; }
+    let body; try { body = JSON.parse(buf.toString('utf8')); } catch { return json(res, 400, { erro: 'payload invalido' }); }
+    const segredo = new URL(req.url, 'http://x').searchParams.get('k') || '';
+    json(res, 200, { ok: true });
+    canaisEvo.receberWebhook(body, { segredo })
+      .then((r) => { if (!r.ok) { console.log(`[canais-evo] webhook ignorado: ${r.motivo}`); } })
+      .catch((e) => console.error(`[canais-evo] webhook quebrou: ${e.message}`));
+    return;
+  }
   if (req.method === 'POST' && req.url.split('?')[0] === '/webhook/cadevc') {
     const buf = await readBody(req);
     if (corpoEstourou(res, buf)) { return; }
@@ -2131,6 +2146,11 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
     }
     /* Cadê Você e WhatsApp do salão (Evolution): configuração e estado do canal
        são carregados pelo cadastro isolado de cada salão. */
+    /* Canais universais (Evolution): números da empresa, IA de cada um e estado. */
+    if (req.method === 'GET' && rota === '/crm/api/canais/evolution') {
+      const empresaCanais = empresaAtual() ? empresas.obter(empresaAtual()) : null;
+      return json(res, 200, { ok: true, configurado: canaisEvo.configurado(), numeros: canaisEvo.listar(), ias: canaisEvo.iasDisponiveis(), empresa: empresaCanais?.nome || null });
+    }
     if (req.method === 'GET' && rota === '/crm/api/cadevc') {
       const cfgcadevc = cadevcCfg.config();
       let wa = { estado: 'nao-configurado', instancia: cfgcadevc.evolutionInstance || null };
@@ -2157,7 +2177,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
           cadevcInfo = { ligado: true, cadevc: sal.cadevc, regras: sal.regras, servicos: sal.servicos, horarios: sal.horarios };
         } catch (e) { cadevcInfo = { ligado: false, erro: e.message }; }
       }
-      return json(res, 200, { ok: true, cadevc: cadevcInfo, whatsapp: wa, config: cadevcCfg.paraTela() });
+      return json(res, 200, { ok: true, cadevc: cadevcInfo, whatsapp: wa, config: cadevcCfg.paraTela(), ia: { conectada: cfgcadevc.bot0007Id || null, opcoes: salaoIas.listarParaSalao(), servicos: salaoIas.SERVICOS_SALAO.map((x) => ({ id: x.id, nome: x.nome })) } });
     }
     if (req.method === 'GET' && rota === '/crm/api/orcamentos') {
       const u = new URL(req.url, 'http://x');
@@ -2404,6 +2424,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
       return json(res, 200, {
         ...hotel.painel(),
         salao: { bot0007Id: cadevcCfg.config().bot0007Id || null },
+        nichosSalao: salaoIas.SERVICOS_SALAO.map((x) => x.padrao.source),
       });
     }
     if (req.method === 'GET' && rota === '/crm/api/bot') {
@@ -2875,6 +2896,15 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
           r = hook.ok ? { ok: true } : { ok: false, erro: hook.erro };
           break;
         }
+        case '/crm/api/canais/evolution/cadastrar': r = canaisEvo.cadastrar({ rotulo: d.rotulo, numeroPrevisto: d.numeroPrevisto, agenteId: String(d.agenteId || '') }); break;
+        case '/crm/api/canais/evolution/vincular': r = canaisEvo.vincularIA({ id: String(d.id || ''), agenteId: String(d.agenteId || '') }); break;
+        case '/crm/api/canais/evolution/conectar': r = await canaisEvo.conectar({ id: String(d.id || '') }); break;
+        case '/crm/api/canais/evolution/estado': r = await canaisEvo.estado({ id: String(d.id || '') }); break;
+        case '/crm/api/canais/evolution/desconectar': r = await canaisEvo.desconectar({ id: String(d.id || '') }); break;
+        case '/crm/api/canais/evolution/apagar-sessao': r = await canaisEvo.apagarSessao({ id: String(d.id || '') }); break;
+        case '/crm/api/canais/evolution/remover': r = await canaisEvo.remover({ id: String(d.id || '') }); break;
+        case '/crm/api/canais/evolution/identidade': r = await canaisEvo.sincronizarIdentidade({ id: String(d.id || '') }); break;
+        case '/crm/api/canais/evolution/conversas': r = { ok: true, conversas: canaisEvo.conversas({ id: String(d.id || '') }) }; break;
         case '/crm/api/cadevc/desconectar': { const ps = provcadevc(); if (ps) { await ps.desconectar(); } r = { ok: true }; break; }
         case '/crm/api/provador/config': r = provador.configurar(d, { por: quem.email || null }); break;
         case '/crm/api/provador/peca': r = provador.salvarPeca(d, { por: quem.email || null }); break;
@@ -3205,7 +3235,11 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
         /* Missão 007 — o fluxo automático: nicho + identificação da empresa +
            aceite. O 0007 faz pesquisa, testes e homologação sozinho quando o
            risco é baixo; em risco alto, deixa em validação para uma pessoa. */
-        case '/crm/api/hotel/criar-automatico':
+        case '/crm/api/hotel/criar-automatico': {
+          /* IA de um dos 7 nichos do salão só nasce com o Cadê Você confirmado. */
+          const ehSalao = salaoIas.exigeDadosSalao(d.nicho);
+          const sistema = ehSalao ? await salaoIas.validarDadosSistema({ url: d.cadevcUrl, token: d.cadevcToken }) : null;
+          if (sistema?.erro) { r = sistema; break; }
           r = await hotel.criarIAZestAutomatica({
             nicho: d.nicho,
             empresaTipo: d.empresaTipo,
@@ -3213,7 +3247,9 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
             aceite: d.aceite === true,
             autorizado: d.autorizado === true,
           });
+          if (ehSalao && r.bot?.agenteId) { salaoIas.salvarDadosSistema(r.bot.agenteId, { url: d.cadevcUrl, token: d.cadevcToken, salao: sistema.salao }); }
           break;
+        }
         case '/crm/api/hotel/excluir': {
           const agenteExcluir = String(d.agenteId || '');
           if (cadevcCfg.config().bot0007Id && cadevcCfg.config().bot0007Id === agenteExcluir) {
@@ -3224,11 +3260,16 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
             agenteId: agenteExcluir,
             autorizado: d.autorizado === true,
           });
+          if (r.ok) { salaoIas.apagarDadosSistema(agenteExcluir); }
           break;
         }
         case '/crm/api/hotel/novo-bot': {
           if (d.aprovacaoCriador !== true) {
             r = { erro: 'a proposta do 0007 precisa ser aprovada pelo criador' };
+            break;
+          }
+          if (salaoIas.exigeDadosSalao([d.nome, d.especialidade, d.finalidade].join(' '))) {
+            r = { erro: 'IA de salão é criada pela criação automática, informando os dados do Cadê Você' };
             break;
           }
           const personalizado = d.personalizado === true;
@@ -3342,7 +3383,8 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
           const agenteId = String(d.agenteId || '').trim();
           const perfil = hotel.obterBot(agenteId);
           if (!perfil) { r = { erro: 'bot do 0007 não encontrado' }; break; }
-          if (perfil.profissao !== 'agenda') { r = { erro: 'somente um bot preparado para agenda pode atender pelo Salão' }; break; }
+          const avaliacaoSalao = salaoIas.avaliarParaUso(perfil);
+          if (!avaliacaoSalao.ok) { r = { erro: `esta IA não pode atender o Salão: ${avaliacaoSalao.motivo}` }; break; }
           if (perfil.preparacao?.pesquisaInicial?.estado !== 'concluida') {
             r = { erro: 'registre a preparação inicial antes de conectar o perfil ao Salão' };
             break;
@@ -3351,7 +3393,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
             r = { erro: 'homologue o perfil do 0007 e resolva as pendências antes de conectá-lo ao Salão' };
             break;
           }
-          if (!atual.evolutionKey || !atual.evolutionInstance || !atual.cadevcToken) {
+          if (!atual.evolutionKey || !atual.evolutionInstance) {
             r = { erro: 'configure a conexão do WhatsApp e a agenda Cadê Você antes de ativar o perfil' };
             break;
           }
@@ -3359,7 +3401,9 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
             r = { erro: 'já existe outro perfil do 0007 conectado; desconecte-o antes de trocar' };
             break;
           }
-          r = cadevcCfg.salvar({ bot0007Id: agenteId });
+          /* A agenda do salão passa a ser a dos dados informados na criação da IA. */
+          const dadosIa = salaoIas.dadosSistema(agenteId);
+          r = cadevcCfg.salvar({ bot0007Id: agenteId, cadevcUrl: dadosIa.url, cadevcToken: dadosIa.token });
           if (r.ok) {
             cadevcHub.esquecer(empresaAtual() || '');
             r = { ...r, conectado: true, bot0007Id: agenteId };

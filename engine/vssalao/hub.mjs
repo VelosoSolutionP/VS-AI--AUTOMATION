@@ -14,6 +14,7 @@ import * as cfgStore from './config.mjs';
 import { comEmpresa } from '../casa.mjs';
 import * as hotel from '../vs0007/bots.mjs';
 import * as mapaHotel from '../vs0007/mapa.mjs';
+import { avaliarParaUso } from './ias.mjs';
 
 /* Um conjunto (provider + bot + conversas) por tenant. A chave '' é a raiz. */
 const porTenant = new Map();
@@ -48,8 +49,9 @@ export function doTenant(cnpj, opts = {}) {
         const botHotel = perfil.bot0007Id
           ? comEmpresa(cnpj, () => hotel.obterBot(perfil.bot0007Id))
           : null;
-        if (perfil.bot0007Id && (!botHotel || botHotel.estado !== 'homologado' || botHotel.profissao !== 'agenda')) {
-          console.error(`[cadevc:${quem}] perfil 0007 ${perfil.bot0007Id} indisponível ou não homologado; mensagem não respondida`);
+        const avaliacao = perfil.bot0007Id ? comEmpresa(cnpj, () => (botHotel ? avaliarParaUso(botHotel) : { ok: false, motivo: 'IA não encontrada' })) : { ok: true };
+        if (perfil.bot0007Id && !avaliacao.ok) {
+          console.error(`[cadevc:${quem}] perfil 0007 ${perfil.bot0007Id} recusado no salão (${avaliacao.motivo}); mensagem não respondida`);
           return;
         }
         const nosHomologados = botHotel
@@ -65,7 +67,8 @@ export function doTenant(cnpj, opts = {}) {
           contextoMapa,
         });
         estados.set(m.de, r.estado);
-        const env = await prov.enviarTexto({ para: m.de, texto: r.resposta });
+        /* Contato só com LID (sem telefone visível): responde ao endereço @lid. */
+        const env = await prov.enviarTexto({ para: m.endereco || m.de, texto: r.resposta });
         console.log(`[cadevc:${quem}] → ${m.de} [passo=${r.estado?.passo || 'fim'}]: ${String(r.resposta).split('\n')[0]}${env && env.ok === false ? ` [FALHOU O ENVIO: ${env.erro}]` : ''}`);
       } catch (e) { console.error(`[cadevc:${quem}] bot QUEBROU ao responder ${m.de}: ${e.message}`); }
     });
