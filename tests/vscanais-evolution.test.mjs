@@ -400,3 +400,14 @@ test('módulo salão: vários números, só IA dos 7 nichos e bot de agendamento
     assert.equal(chamadas.slice(antes).some((c) => c.caminho === '/api/chat'), false, 'salão usa o bot de agendamento, não a resposta livre');
   });
 });
+
+test('nome vazio usa o da IA e nome repetido só vale dentro do mesmo módulo', () => {
+  comEmpresa('66777888000177', () => {
+    iaHomologada({ id: 'ia-nome', nome: 'Nina', especialidade: 'Manicure', conhecimento: 'x' });
+    salao.salvarDadosSistema('ia-nome', { url: 'http://agenda.teste/api', token: 't' });
+    assert.equal(canais.cadastrar({ rotulo: '', agenteId: 'ia-nome', modulo: 'salao' }).numero.rotulo, 'Nina');
+    assert.equal(canais.cadastrar({ rotulo: 'Nina', agenteId: 'ia-nome' }).ok, true, 'mesmo nome em Canais é permitido');
+    assert.match(canais.cadastrar({ rotulo: 'nina', agenteId: 'ia-nome', modulo: 'salao' }).erro, /já existe/);
+    assert.match(canais.cadastrar({ rotulo: '' }).erro, /dê um nome/);
+  });
+});

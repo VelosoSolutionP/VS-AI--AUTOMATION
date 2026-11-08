@@ -166,7 +166,8 @@ function publico(n) {
 export function listar(modulo = 'canais') { return lerNumeros().filter((n) => (n.modulo || 'canais') === modulo).map(publico); }
 
 export function cadastrar({ rotulo = '', numeroPrevisto = '', agenteId = '', modulo = 'canais', nicho = '' } = {}) {
-  const nome = String(rotulo || '').trim().slice(0, 60);
+  /* Sem nome digitado, o cadastro leva o nome da IA escolhida. */
+  const nome = (String(rotulo || '').trim() || String(hotel.obterBot(String(agenteId || ''))?.nome || '')).slice(0, 60);
   if (!nome) return { erro: 'dê um nome ao número (ex.: Vendas, Suporte)' };
   const num = soDigitos(numeroPrevisto);
   if (num && (num.length < 12 || num.length > 13)) return { erro: 'número com DDI e DDD, ex.: 5531988887777' };
@@ -177,7 +178,7 @@ export function cadastrar({ rotulo = '', numeroPrevisto = '', agenteId = '', mod
     const erro = validarIA(hotel.obterBot(String(agenteId)), modulo, nicho);
     if (erro) return { erro };
   }
-  if (lista.some((n) => n.rotulo.toLowerCase() === nome.toLowerCase())) return { erro: `já existe um número chamado "${nome}"` };
+  if (lista.some((n) => (n.modulo || 'canais') === modulo && n.rotulo.toLowerCase() === nome.toLowerCase())) return { erro: `já existe um número chamado "${nome}"` };
   const id = randomBytes(6).toString('hex');
   const n = { id, rotulo: nome, numeroPrevisto: num || null, instancia: nomeInstancia(empresaAtual(), id), loja: lojaAtual(), criadoEm: agora(), iaId: null, vinculos: [], ...(modulo === 'salao' ? { modulo } : {}) };
   gravarNumeros([...lista, n]);
