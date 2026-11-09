@@ -83,7 +83,7 @@ function abrirSessao(u) {
   const todas = ler('sessoes.json', {});
   const limpas = Object.fromEntries(Object.entries(todas).filter(([, s]) => s.expira > agora()));
   const expira = u.expiraDelegacao || new Date(Date.now() + SESSAO_HORAS * 3600000).toISOString();
-  limpas[sha(token)] = { email: u.email, papel: u.papel, clienteId: u.clienteId || null, operadorId: u.operadorId || null, nome: u.nome || null, empresa: u.empresa || null, delegada: u.delegada === true, criada: agora(), expira };
+  limpas[sha(token)] = { email: u.email, papel: u.papel, clienteId: u.clienteId || null, operadorId: u.operadorId || null, nome: u.nome || null, empresa: u.empresa || null, delegada: u.delegada === true, ...(u.velosoHandle ? { velosoHandle: u.velosoHandle } : {}), criada: agora(), expira };
   gravar('sessoes.json', limpas);
   return { token, papel: u.papel, nome: u.nome || null, email: u.email, clienteId: u.clienteId || null, operadorId: u.operadorId || null, empresa: u.empresa || null, delegada: u.delegada === true, expira };
 }
@@ -247,6 +247,23 @@ export function entrar(email, senha) {
   if (emailsDoDono().has(e)) { return { ok: true, ...abrirSessao({ email: e, papel: 'admin', nome: 'Administrador' }) }; }
   return { ok: true, ...abrirSessao(u) };
 }
+
+/**
+ * Entrada pelo Veloso ID: o Portal já confirmou a pessoa, o contrato e o
+ * financeiro. Só vale para cliente e empresa: o dono e a equipe seguem com senha,
+ * senão uma conta de cliente com o e-mail do dono abriria o painel da plataforma.
+ */
+export function entrarPeloVelosoId(email, handle) {
+  const e = normEmail(email);
+  const u = buscarPorEmail(e);
+  if (!u || emailsDoDono().has(e) || !['cliente', 'empresa'].includes(u.papel)) { return { ok: false, motivo: 'conta não encontrada no ZEST' }; }
+  if (travado(e, u.papel)) { return { ok: false, motivo: MSG_TRAVADO, travado: true }; }
+  gravar('usuarios.json', usuarios().map((x) => (x.email === e ? { ...x, ultimoLogin: agora() } : x)));
+  return { ok: true, ...abrirSessao({ ...u, velosoHandle: handle }) };
+}
+
+/** Com a senha desligada (VELOSO_ID_SENHA=0), quem é de cliente só entra pelo Portal. */
+export const entraSoPeloPortal = (email) => ['cliente', 'empresa'].includes(buscarPorEmail(email)?.papel) && !emailsDoDono().has(normEmail(email));
 
 /* ---------------- acesso de EMPRESA CLIENTE (18/10) ----------------
    Dono: "vendi, o cara ganhou login e senha, vem limpo o CRM, separa por CNPJ".

@@ -10540,8 +10540,43 @@ function telaEntrar(){
   emailCampo.focus();
 
   // Pergunta o estado antes de mostrar a tela errada por meio segundo.
-  fetch('/crm/api/auth').then(r=>r.json()).then(d=>{ if(d && d.precisaCriar){ virarCriacao(); } })
+  fetch('/crm/api/auth').then(r=>r.json()).then(d=>{
+    if(d && d.precisaCriar){ virarCriacao(); return; }
+    if(d && d.velosoId) montarVelosoId(d.senhaCliente!==false);
+  })
     .catch(()=>{});
+}
+
+/* Veloso ID: CPF/CNPJ e passkey no Portal. O documento vai no fragmento da URL,
+   que atravessa o redirecionamento sem chegar a servidor nem a log. */
+function montarVelosoId(senhaCliente){
+  const antes=document.getElementById('lgCampoEmail'), btnSenha=document.getElementById('lgBtn');
+  const antigos=['lgCampoEmail','lgCampoSenha','lgEsqueciLinha','lgEsqMsg','lgAjuda'].map(id=>document.getElementById(id)).filter(Boolean).concat(btnSenha?[btnSenha]:[]);
+  const exibicao=antigos.map(e=>e.style.display);
+  const caixa=document.createElement('div');
+  caixa.innerHTML=`<div class="field"><label for="lgDocumento">CPF ou CNPJ</label><input id="lgDocumento" inputmode="numeric" autocomplete="username" maxlength="18" placeholder="000.000.000-00 ou 00.000.000/0000-00"></div>
+    <p id="lgDocErro" class="hint" role="alert" style="color:var(--err);display:none">Informe um CPF ou CNPJ completo.</p>
+    <button type="button" class="btn btn-p" id="lgVeloso" style="width:100%;margin-top:6px">Continuar com o Veloso ID</button>
+    <p class="hint" style="text-align:center;margin-top:12px"><a href="#" id="lgUsarSenha">${senhaCliente?'Entrar com e-mail e senha':'Acesso da equipe'}</a></p>`;
+  antes.parentNode.insertBefore(caixa,antes);
+  antigos.forEach(e=>{e.style.display='none';});
+  const doc=document.getElementById('lgDocumento');
+  const seguir=()=>{
+    const d=doc.value.replace(/\D/g,'');
+    if(d.length!==11&&d.length!==14){document.getElementById('lgDocErro').style.display='';return doc.focus();}
+    location.assign('/crm/veloso-id/iniciar#d='+d);
+  };
+  document.getElementById('lgVeloso').onclick=seguir;
+  doc.onkeydown=(e)=>{if(e.key==='Enter')seguir();};
+  document.getElementById('lgUsarSenha').onclick=(e)=>{e.preventDefault();caixa.remove();antigos.forEach((el,i)=>{el.style.display=exibicao[i];});document.getElementById('lgEmail')?.focus();};
+  doc.focus();
+  const erro=new URLSearchParams(location.search).get('erro');
+  if(erro==='veloso'||erro==='veloso-conta'){
+    const a=document.getElementById('lgDocErro');
+    a.textContent=erro==='veloso'?'Não foi possível concluir o acesso. Tente de novo.':'Essa conta não tem acesso ao ZEST. Fale com o suporte da Veloso Solution.';
+    a.style.display='';
+    history.replaceState(null,'','/crm');
+  }
 }
 
 function abrirPortalContrato(){

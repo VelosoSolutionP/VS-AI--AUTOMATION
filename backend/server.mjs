@@ -20,6 +20,7 @@ import { issueLicense } from '../license/issue.mjs';
 import { sendLicense } from './whatsapp.mjs';
 import * as acesso from './acesso.mjs';
 import * as usuarios from './usuarios.mjs';
+import * as velosoId from './veloso-id.mjs';
 import * as email from './email.mjs';
 import * as backup from './backup.mjs';
 import * as empresaWa from './empresa-whatsapp.mjs';
@@ -1544,7 +1545,33 @@ self.addEventListener('fetch',()=>{});
 self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const alvo=e.notification.data?.url||'/crm#wa-atendimento';
   e.waitUntil(self.clients.matchAll({type:'window',includeUncontrolled:true}).then((cs)=>{ for(const c of cs){ if(c.url.includes('/crm')){ c.focus(); c.navigate?.(alvo); return; } } return self.clients.openWindow(alvo); })); });`);
     }
+    if (req.method === 'GET' && rota === '/crm/veloso-id/iniciar') {
+      if (!velosoId.ativo()) { res.writeHead(302, { location: '/crm' }); return res.end(); }
+      const { url, nonce } = velosoId.iniciar();
+      res.writeHead(302, {
+        location: url,
+        'cache-control': 'no-store',
+        'set-cookie': `${velosoId.NONCE_COOKIE}=${nonce}; Path=/crm; HttpOnly; SameSite=Lax; Max-Age=600${velosoId.retornoSeguro() ? '; Secure' : ''}`,
+      });
+      return res.end();
+    }
     if (req.method === 'GET' && rota === '/crm') {
+      /* Volta do Portal: a autorização é resgatada aqui, e o navegador só recebe a sessão. */
+      const retornoPortal = new URL(req.url, 'http://x').searchParams;
+      if (retornoPortal.get('code') && retornoPortal.get('state') && velosoId.ativo()) {
+        const nonce = (String(req.headers.cookie || '').match(new RegExp(`(?:^|;\\s*)${velosoId.NONCE_COOKIE}=([^;]+)`)) || [])[1] || '';
+        const limpar = `${velosoId.NONCE_COOKIE}=; Path=/crm; HttpOnly; SameSite=Lax; Max-Age=0${velosoId.retornoSeguro() ? '; Secure' : ''}`;
+        const pessoa = await velosoId.resgatar(retornoPortal.get('code'), retornoPortal.get('state'), nonce);
+        const sessao = pessoa ? usuarios.entrarPeloVelosoId(pessoa.email, pessoa.handle) : null;
+        if (!sessao?.ok) {
+          if (pessoa) { await velosoId.encerrar(pessoa.handle); console.error('[acesso] Veloso ID: conta sem acesso no ZEST'); }
+          res.writeHead(302, { location: `/crm?erro=${pessoa ? 'veloso-conta' : 'veloso'}`, 'set-cookie': limpar, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
+          return res.end();
+        }
+        console.log(`[acesso] login Veloso ID ${sessao.papel} ${sessao.email}`);
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'set-cookie': limpar, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
+        return res.end(`<!doctype html><meta charset="utf-8"><script>sessionStorage.setItem('crm_token',${JSON.stringify(sessao.token)});location.replace('/crm')</script>`);
+      }
       try {
         res.writeHead(200, {
           'content-type': 'text/html; charset=utf-8',
@@ -1573,7 +1600,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
      * CRM_TOKEN nao esta configurado em vez de deixar o painel aberto em silencio.
      */
     if (req.method === 'GET' && rota === '/crm/api/auth') {
-      return json(res, 200, { ...acesso.estado(), login: 'email' });
+      return json(res, 200, { ...acesso.estado(), login: 'email', velosoId: velosoId.ativo(), senhaCliente: velosoId.senhaAtiva() });
     }
 
     /* Primeiro acesso. Quem comprou a licenca abre o console e define a
@@ -1611,6 +1638,9 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
           ? (usuarios.emailPorDocumento(documento.digitos, clientes.listar()) || '')
           : '';
       }
+      if (!velosoId.senhaAtiva() && usuarios.entraSoPeloPortal(emailLogin)) {
+        return json(res, 401, { erro: 'Entre com o seu CPF ou CNPJ pelo Veloso ID.' });
+      }
       const r = emailLogin
         ? usuarios.entrar(emailLogin, d.senha)
         : { ok: false, motivo: 'e-mail ou senha incorretos' };
@@ -1644,7 +1674,9 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
       return json(res, 200, r);
     }
     if (req.method === 'POST' && rota === '/crm/api/sair') {
+      const handleSaindo = usuarios.autenticar(req.headers['x-crm-token'])?.velosoHandle;
       usuarios.sair(req.headers['x-crm-token']);
+      if (handleSaindo) { await velosoId.encerrar(handleSaindo); }
       return json(res, 200, { ok: true });
     }
 
@@ -1664,7 +1696,12 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
     /* Daqui para baixo e dado de cliente. Sem senha definida, o console fica
        fechado: antes, CRM_TOKEN vazio liberava o painel inteiro em silencio
        para quem tivesse a URL. */
-    const quem = usuarios.autenticar(req.headers['x-crm-token']);
+    let quem = usuarios.autenticar(req.headers['x-crm-token']);
+    /* Bloqueado ou revogado no Portal: a sessão daqui acaba junto. */
+    if (quem?.velosoHandle && !(await velosoId.sessaoValida(quem.velosoHandle))) {
+      usuarios.sair(req.headers['x-crm-token']);
+      quem = null;
+    }
     if (!quem) {
       return json(res, 403, acesso.precisaCriar()
         ? { erro: 'console sem senha definida', precisaCriar: true }
