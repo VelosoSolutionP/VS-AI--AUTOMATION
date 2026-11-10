@@ -68,6 +68,7 @@ export function criarWhatsAppEvolutionProvider(opcoes = {}) {
       r = await fetchImpl(`${baseUrl()}/${caminho}`, {
         method, headers: { apikey: apiKey(), ...(body ? { 'content-type': 'application/json' } : {}) },
         body: body ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(Number(process.env.EVOLUTION_TIMEOUT_MS ?? 25000)),
       });
     } catch (e) {
       const codigo = e?.cause?.code || e?.code;

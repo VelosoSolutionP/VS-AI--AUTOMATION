@@ -280,6 +280,31 @@ test('número conectado com IA recebe a identidade dela sozinho, uma vez', async
   });
 });
 
+test('trocar a IA de número conectado manda a nova identidade na hora, mesmo no meio de outra', async () => {
+  process.env.CANAIS_ESPERA_IDENTIDADE_MS = '0';
+  await comEmpresa(EMPRESA_B, async () => {
+    const r = canais.cadastrar({ rotulo: 'Troca', agenteId: 'ia-b' });
+    await canais.conectar({ id: r.numero.id });
+    estados.set(r.numero.instancia, 'open');
+    await canais.estado({ id: r.numero.id });
+    await new Promise((ok) => { setTimeout(ok, 50); });
+    const bots = load(hotel.DATASET_BOTS, []);
+    const outra = { ...structuredClone(bots.find((b) => b.agenteId === 'ia-b')), agenteId: 'ia-b2', nome: 'Duda' };
+    save(hotel.DATASET_BOTS, [...bots.filter((b) => b.agenteId !== 'ia-b2'), outra]);
+    const nomes = () => chamadas.filter((c) => c.caminho === `/chat/updateProfileName/${r.numero.instancia}`).map((c) => c.corpo.name);
+    const v1 = canais.vincularIA({ id: r.numero.id, agenteId: 'ia-b2' });
+    assert.equal(v1.erro, undefined, v1.erro);
+    const v2 = canais.vincularIA({ id: r.numero.id, agenteId: 'ia-b' });
+    assert.equal(v2.alterado, true);
+    await new Promise((ok) => { setTimeout(ok, 100); });
+    const final = canais.listar().find((x) => x.id === r.numero.id);
+    assert.equal(final.ia.agenteId, 'ia-b', 'a sincronização não desfaz a troca');
+    assert.equal(nomes().at(-1), 'Bia', 'o WhatsApp fica com a IA escolhida por último');
+    assert.equal(final.identidade.iaId, 'ia-b');
+    assert.equal(final.identidade.pendente, false);
+  });
+});
+
 test('saudação sai preenchida e só o conhecimento relevante vai ao modelo', async () => {
   const lista = Array.from({ length: 60 }, (_, i) => `assunto-${i}: ${'texto genérico sem relação '.repeat(4)}`);
   lista.push('prazo: a entrega de marmita leva 40 minutos');

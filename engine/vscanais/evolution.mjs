@@ -104,6 +104,8 @@ async function evo(caminho, { method = 'GET', body } = {}) {
   const r = await fetchAtual()(`${c.url}/${caminho}`, {
     method, headers: { apikey: c.key, ...(body ? { 'content-type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
+    /* Sem prazo, uma queda de internet prendia a troca de IA por minutos. */
+    signal: AbortSignal.timeout(Number(process.env.CANAIS_EVO_TIMEOUT_MS ?? 25000)),
   });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) {
@@ -233,6 +235,8 @@ export function vincularIA({ id, agenteId, nicho = '' } = {}) {
   n.iaId = ia.agenteId;
   n.identidade = { ...(n.identidade || {}), pendente: true };
   gravarNumeros(lista);
+  /* A troca vai para o WhatsApp na hora (nome, recado e foto), sem esperar a tela consultar o estado. */
+  if (providerDe(n.instancia).status().estado === 'conectado') agendarIdentidade(n, 0);
   return { ok: true, alterado: true, numero: publico(n) };
 }
 
@@ -397,24 +401,32 @@ export async function remover({ id } = {}) {
    vez por vínculo. Espera alguns segundos porque a sessão reinicia logo depois
    de ler o QR. O botão Sincronizar continua para repetir quando a IA mudar. */
 const sincronizando = new Set();
-function agendarIdentidade(n) {
+const repetirDepois = new Set();
+function agendarIdentidade(n, esperaMs) {
   const feita = n.identidade && !n.identidade.pendente && n.identidade.iaId === n.iaId;
-  if (!n.iaId || feita || sincronizando.has(n.instancia)) return;
+  if (!n.iaId || feita) return;
+  /* Trocou de IA no meio de uma sincronização: roda de novo quando ela terminar. */
+  if (sincronizando.has(n.instancia)) { repetirDepois.add(n.instancia); return; }
   sincronizando.add(n.instancia);
   const cnpj = empresaAtual();
-  const espera = Number(process.env.CANAIS_ESPERA_IDENTIDADE_MS ?? 8000);
+  const espera = Number(esperaMs ?? process.env.CANAIS_ESPERA_IDENTIDADE_MS ?? 8000);
   const t = setTimeout(() => {
     comEmpresa(cnpj, () => sincronizarIdentidade({ id: n.id }))
-      .then((r) => console.log(`[canais-evo] identidade ${n.instancia}: ${r.erro || JSON.stringify(Object.fromEntries(Object.entries(r.identidade.campos).map(([k, v]) => [k, v.ok])))}`))
+      .then((r) => console.log(`[canais-evo] identidade ${n.instancia}: ${r.erro || `${r.identidade.nome} ` + JSON.stringify(Object.fromEntries(Object.entries(r.identidade.campos).map(([k, v]) => [k, v.ok])))}`))
       .catch((e) => console.error(`[canais-evo] identidade ${n.instancia} falhou: ${e.message}`))
-      .finally(() => sincronizando.delete(n.instancia));
+      .finally(() => {
+        sincronizando.delete(n.instancia);
+        if (!repetirDepois.delete(n.instancia)) return;
+        const atual = comEmpresa(cnpj, () => achar(n.id).n);
+        if (atual) comEmpresa(cnpj, () => agendarIdentidade(atual, 0));
+      });
   }, espera);
   t.unref?.();
 }
 
 const LIMITE_RECADO = 139;   // o "recado" (about) do WhatsApp aceita até 139 caracteres
 export async function sincronizarIdentidade({ id } = {}) {
-  const { lista, n } = achar(id);
+  const { n } = achar(id);
   if (!n) return { erro: 'número não encontrado nesta empresa' };
   const ia = iaDoNumero(n);
   if (!ia) return { erro: 'vincule uma IA-ZEST homologada antes de sincronizar a identidade' };
@@ -448,9 +460,15 @@ export async function sincronizarIdentidade({ id } = {}) {
   campos.descricaoComercial = { ok: false, erro: 'a Evolution API não altera descrição/categoria do perfil comercial (WhatsApp Business); só nome, recado e foto' };
   /* Logo após reconectar o WhatsApp ainda não mandou as chaves do perfil: tenta de novo depois. */
   const repetir = /App state key/i.test(campos.nome.erro || '');
-  n.identidade = { iaId: ia.agenteId, nome: ia.nome, sincronizadaEm: agora(), campos, pendente: repetir, marcaFoto: campos.foto.ok ? marcaFoto : (n.identidade?.marcaFoto || null) };
-  gravarNumeros(lista);
-  return { ok: true, identidade: n.identidade };
+  /* Relê antes de gravar: durante a sincronização o dono pode ter trocado a IA,
+     e gravar a lista antiga desfazia a troca. */
+  const novaLista = lerNumeros();
+  const atual = novaLista.find((x) => x.id === id);
+  if (!atual) return { erro: 'número não encontrado nesta empresa' };
+  const trocou = atual.iaId !== ia.agenteId;
+  atual.identidade = { iaId: ia.agenteId, nome: ia.nome, sincronizadaEm: agora(), campos, pendente: repetir || trocou, marcaFoto: campos.foto.ok ? marcaFoto : (atual.identidade?.marcaFoto || null) };
+  gravarNumeros(novaLista);
+  return { ok: true, identidade: atual.identidade };
 }
 
 /* ───────── atendimento ───────── */
