@@ -4673,7 +4673,7 @@ function detalheBotHotel(b){
     ${(b.lacunas||[]).length?`<p class="hint" style="margin-top:6px;color:var(--warn)">Lacunas: ${b.lacunas.map(esc).join(', ')}</p>`:''}
     ${b.validacao?`<p class="hint" style="margin-top:8px">Validação: <b>${esc(b.validacao.estado||'pendente')}</b> · homologação: ${esc(b.validacao.homologacao||'pendente')} · execução: ${esc(b.validacao.runtime==='revisao-manual'?'revisão manual (sem teste ao vivo)':b.validacao.runtime||'não executada')}.</p>`:''}
     ${(b.fontes||[]).length?`<div class="hotel-instances"><b>Fontes da preparação</b><ul class="hotel-list">${b.fontes.map((f)=>`<li>${esc(f.titulo)} · ${esc(f.referencia)} · ${esc(f.validacao)}</li>`).join('')}</ul></div>`:''}
-    ${(b.descobertas||[]).length?`<p class="hint" style="margin-top:8px">${b.descobertas.length} descoberta(s) registrada(s), todas pendentes de validação.</p>`:''}
+    ${(()=>{const ds=b.descobertas||[]; if(!ds.length) return ''; const pend=ds.filter(d=>!d.validado&&d.estado!=='homologado'); return `<p class="hint" style="margin-top:8px">${pend.length?`${pend.length} descoberta(s) pendente(s) de validação.`:`${ds.length} conhecimento(s) revisado(s) e homologado(s) pelo 0007.`}</p>`;})()}
     ${b.preparacao?.notaPesquisa?`<p class="hint">${esc(b.preparacao.notaPesquisa)}</p>`:''}
     ${(()=>{
       const ciclo=b.cicloVida||b.preparacao?.cicloVida||{};
@@ -4702,6 +4702,7 @@ function detalheBotHotel(b){
     <div>${conteudo}</div>
     <div class="hotel-actions">
       ${b.estado!=='bloqueado'?botao({t:'Editar perfil',ic:'config',v:'s',sz:'xs',on:`abrirEditarBotHotel('${esc(b.agenteId)}')` }):''}
+      ${b.estado!=='bloqueado'?botao({t:'0007: Rever e refazer bot',ic:'atualizar',v:'s',sz:'xs',on:`cevoRevisarBot0007('${esc(b.agenteId)}')` }):''}
       ${botao({t:'Excluir IA-ZEST',ic:'excluir',v:'s',sz:'xs',extra:'btn-dan',on:`abrirExcluirBotHotel('${esc(b.agenteId)}')`})}
       ${b.estado!=='bloqueado'&&b.preparacao?.pesquisaInicial?.estado!=='concluida'?botao({t:'Pesquisar na internet',ic:'busca',v:'p',sz:'xs',on:'abrirPesquisaInicialBot()'}):''}
       ${['em_preparacao','em_validacao'].includes(b.estado)&&!validacaoPendente?botao({t:'Homologar',ic:'check',v:'p',sz:'xs',on:'homologarBotHotel()'}):''}
@@ -4751,6 +4752,7 @@ function telaHotel(){
   return head('Hotel dos Bots','O 0007 prepara e acompanha os perfis. Toque em um cartão para abrir o perfil, as regras e o histórico.')+hotelTreinoHtml(h)+
     `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
       ${botao({t:'Novo Bot',ic:'mais',v:'p',on:'abrirWizardBot()'})}
+      ${botao({t:'0007: Rever e refazer todos os bots',ic:'check',v:'s',on:'cevoRevisarTodosBots0007()'})}
       ${botao({t:'Atualizar',ic:'atualizar',v:'s',on:'carregarHotel()'})}
     </div>
     ${h?`<div class="hotel-kpis">
@@ -9461,15 +9463,22 @@ async function cevoConversas(id,rotulo){
 function hotelTreinoHtml(h){
   const l=(h?.treino||[]);
   const modelos=(h?.modelosFree0007||[]);
-  const cardModelos=modelos.length?`<div class="card" style="margin-bottom:14px">${cardH('cerebro','Mapa Mental 0007 — Modelos Free (Ollama Messenger)','Modelos gratuitos homologados no mapa mental do 0007 para atendimento humanizado e zero autonomia.',2,`<span class="badge b-ok">${modelos.filter(m=>m.instalado).length}/${modelos.length} ativos</span>`)}
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">${modelos.map(m=>`<span class="badge ${m.instalado?'b-ok':'b-warn'}" title="${esc(m.papel||'')}">${esc(m.nome)} · ${esc(m.tamanho||'')} (${m.instalado?'no mapa':'baixar'})</span>`).join('')}</div>
-    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">${botao({t:'Sincronizar modelos no Mapa 0007',ic:'atualizar',v:'s',sz:'xs',on:'cevoSincronizarModelos0007()'})}</div></div>`:'';
-  const comFalta=l.filter(x=>(x.parametros||x.faltam||[]).some(p=>!p.preenchido));
+  const ativos=modelos.filter(m=>m.instalado||m.registradoNoMapa).length;
+  const cardModelos=modelos.length?`<div class="card" style="margin-bottom:14px">${cardH('cerebro','Mapa Mental 0007 — Modelos Free & Revisão Geral','Modelos gratuitos homologados no mapa mental do 0007 e revisão completa dos bots (pesquisa básica, nicho, produtos, o que soma, frases e forma de agir).',2,`<span class="badge b-ok">${ativos}/${modelos.length} ativos</span>`)}
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">${modelos.map(m=>{const ok=m.instalado||m.registradoNoMapa; return `<span class="badge ${ok?'b-ok':'b-warn'}" title="${esc(m.papel||'')}">${esc(m.nome)} · ${esc(m.tamanho||'')} (${ok?'no mapa':'baixar'})</span>`;}).join('')}</div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">${botao({t:'Sincronizar modelos no Mapa 0007',ic:'atualizar',v:'s',sz:'xs',on:'cevoSincronizarModelos0007()'})}${botao({t:'0007: Rever e refazer todos os bots',ic:'check',v:'p',sz:'xs',on:'cevoRevisarTodosBots0007()'})}</div></div>`:'';
+  const comFalta=l.filter(x=>{
+    const ps=(x.parametros||[]);
+    if(ps.length) return ps.some(p=>p.ok===false);
+    return (x.faltam||[]).length>0;
+  });
   if(!comFalta.length && !cardModelos) return '';
-  const cardTreino=comFalta.length?`<div class="card" style="margin-bottom:14px">${cardH('alerta','Treino por Parâmetros (0007)','O 0007 treina cada IA por parâmetro (Nicho, Clientes, Produtos, Preços, Agenda, Horário, Contato, Passo a Passo e Limites). Zero autonomia.',2)}
+  const cardTreino=comFalta.length?`<div class="card" style="margin-bottom:14px">${cardH('alerta','Treino por Parâmetros (0007)','O 0007 treina cada IA por parâmetro (Nicho, Clientes, Produtos e o que soma, Preços, Agenda, Horário, Contato, Passo a Passo e Limites). Zero autonomia.',2)}
     ${comFalta.map(x=>{
-      const faltantes=(x.parametros||x.faltam||[]).filter(p=>p.preenchido===false||!('preenchido' in p));
-      return `<div style="margin-top:10px"><b>${esc(x.ia)}</b> <small class="hint">(${x.cobertura??0}% parametrizada)</small><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${faltantes.map(f=>botao({t:f.rotulo,ic:'mais',v:'s',sz:'xs',on:`cevoEnsinar('${esc(x.agenteId)}','${esc(f.chave)}','${esc(f.rotulo)}')`})).join('')}${botao({t:'Auto-treinar pelo 0007',ic:'check',v:'p',sz:'xs',on:`cevoAutoTreinar0007('${esc(x.agenteId)}')`})}</div></div>`;
+      const ps=(x.parametros||[]);
+      const faltantes=ps.length?ps.filter(p=>p.ok===false):(x.faltam||[]);
+      const cob=ps.length?Math.round((ps.filter(p=>p.ok).length/ps.length)*100):(x.cobertura??0);
+      return `<div style="margin-top:10px"><b>${esc(x.ia)}</b> <small class="hint">(${cob}% parametrizada)</small><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${faltantes.map(f=>botao({t:f.rotulo,ic:'mais',v:'s',sz:'xs',on:`cevoEnsinar('${esc(x.agenteId)}','${esc(f.chave)}','${esc(f.rotulo)}')`})).join('')}${botao({t:'Auto-treinar pelo 0007',ic:'check',v:'p',sz:'xs',on:`cevoAutoTreinar0007('${esc(x.agenteId)}')`})}${botao({t:'0007: Rever e refazer bot',ic:'atualizar',v:'s',sz:'xs',on:`cevoRevisarBot0007('${esc(x.agenteId)}')`})}</div></div>`;
     }).join('')}</div>`:'';
   return cardModelos+cardTreino;
 }
@@ -9481,9 +9490,21 @@ async function cevoSincronizarModelos0007(){
 }
 async function cevoAutoTreinar0007(agenteId){
   try{
-    await api('hotel/treinar-parametros',{id:agenteId,parametros:{}});
+    await api('hotel/treinar-parametros',{agenteId,usarSugestao0007:true,parametros:{}});
     await carregarHotel(); flash('0007 aplicou o treino parametrizado na IA.','ok');
   }catch(e){ avisoErro('Não consegui treinar a IA',esc(e.message)); }
+}
+async function cevoRevisarBot0007(agenteId){
+  try{
+    const r=await api('hotel/revisar-bot',{agenteId});
+    await carregarHotel(); flash(`0007 revisou e refez ${r.nome||agenteId} com sucesso.`,'ok');
+  }catch(e){ avisoErro('Não consegui revisar o bot',esc(e.message)); }
+}
+async function cevoRevisarTodosBots0007(){
+  try{
+    const r=await api('hotel/revisar-todos',{});
+    await carregarHotel(); flash(`0007 revisou e refez todos os ${r.total||''} bots do Hotel com sucesso.`,'ok');
+  }catch(e){ avisoErro('Não consegui revisar todos os bots',esc(e.message)); }
 }
 function cevoEnsinar(agenteId,requisito,rotulo){
   const bot=(HOTEL?.treino||[]).find(x=>x.agenteId===agenteId);

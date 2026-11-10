@@ -24,7 +24,7 @@ import * as modelosBot from '../vsbot/modelos.mjs';
 import * as profissoesBot from '../vsbot/profissoes.mjs';
 import { validarFluxo } from '../vsbot/fluxo.mjs';
 import { pesquisarPreparacaoNaWeb, falaDoNicho } from './pesquisa.mjs';
-import { selecionarBase, validarIdentidadeBase } from './base-empresa.mjs';
+import { selecionarBase, validarIdentidadeBase, obterBasePorId, baseParaPesquisa } from './base-empresa.mjs';
 import { segmentoDoNicho, temasCobertos } from './segmentos.mjs';
 import { documento as validarDocumento } from '../vsclientes/ofertas.mjs';
 import * as R from './regras.mjs';
@@ -289,11 +289,19 @@ export function pesquisarNicho({ nicho } = {}) {
   const busca = String(nicho || '').trim();
   if (busca.length < 2) return { erro: 'informe um nicho com pelo menos 2 caracteres' };
 
+  const consultaNorm = normalizarBusca(busca);
+  const ehMultifuncaoOuSoftware = /\b(vended\w*|comercial|secretar\w*|dono|sistema\w*|software|plataforma\w*|ia|zest|tecnologia)\b/.test(consultaNorm)
+    && !/\b(celular\w*|notebook\w*|aparelho\w*|conserto|eletrodomestico\w*|brastemp|electrolux)\b/.test(consultaNorm);
+
   const modelos = modelosBot.listar()
-    .map((modelo) => ({
-      ...modelo,
-      pontuacao: pontuarNicho(busca, [modelo.nome, modelo.descricao, ...(modelo.categorias || [])]),
-    }))
+    .map((modelo) => {
+      let pontuacao = pontuarNicho(busca, [modelo.nome, modelo.descricao, ...(modelo.categorias || [])]);
+      if (ehMultifuncaoOuSoftware && modelo.id === 'software-tecnologia') pontuacao += 5;
+      if (ehMultifuncaoOuSoftware && modelo.id === 'assistencia-tecnica' && /\b(vended\w*|comercial|secretar\w*|dono|sistema\w*|software)\b/.test(consultaNorm)) {
+        pontuacao = Math.max(0, pontuacao - 3);
+      }
+      return { ...modelo, pontuacao };
+    })
     .filter((modelo) => modelo.pontuacao > 0)
     .sort((a, b) => b.pontuacao - a.pontuacao || a.nome.localeCompare(b.nome, 'pt-BR'))
     .slice(0, 6);
@@ -2085,7 +2093,7 @@ export async function sincronizarModelosFree({ url = urlOllamaPadrao(), fetch: f
     const jaExiste = existentes.find((n) => String(n.conteudo || '').toLowerCase().startsWith(m.id.toLowerCase()));
     if (jaExiste) {
       if (jaExiste.estado !== 'homologado' && autorizado) {
-        MAPA.transicionarNo({ noId: jaExiste.id, para: 'homologado', autorizado: true, motivo: 'modelo free sincronizado no Ollama pelo 0007' });
+        MAPA.transicionarNo(jaExiste.id, 'homologado', { autorizado: true, origem: 'ollama-messenger-0007' });
       }
       registrados.push({ id: m.id, noId: jaExiste.id, instalado: true, novo: false });
       continue;
@@ -2190,10 +2198,10 @@ export function treinarIAPorParametros({ agenteId, parametros = {}, usarSugestao
   const existentes = MAPA.obterNos(agenteId).nos;
 
   if (LimparRuido) {
-    const padraoContaminado = /sal[aá]rio m[eé]dio|catho|gupy|querobolsa|o que faz um vendedor|itapeva|luiz carriel|dan[cç]a de sal[aã]o|ana botafogo|thank you for reading|don't forget to subscribe|shampoos da marca xyz|\bkbna\b|avalia[cç][aã]o neuropsicol[oó]gica|brastemp/i;
+    const padraoContaminado = /sal[aá]rio m[eé]dio|catho|gupy|querobolsa|o que faz um vendedor|itapeva|luiz carriel|dan[cç]a de sal[aã]o|ana botafogo|thank you for reading|don't forget to subscribe|shampoos da marca xyz|\bkbna\b|avalia[cç][aã]o neuropsicol[oó]gica|brastemp|oxefruit|trabajar con un distribuidor|sal[aã]o da glau|sal[aã]o miau|samsung a15|notebook dell|ordem de servi[cç]o|sua assist[eê]ncia/i;
     for (const no of existentes) {
       if (no.estado === 'homologado' && padraoContaminado.test(String(no.conteudo || ''))) {
-        MAPA.transicionarNo({ noId: no.id, para: 'bloqueado', autorizado: true, motivo: 'conteúdo contaminado removido pelo treino estruturado do 0007' });
+        MAPA.transicionarNo(no.id, 'bloqueado', { autorizado: true, origem: 'treino-estruturado-0007' });
       }
     }
   }
@@ -2244,6 +2252,715 @@ export function treinarIAPorParametros({ agenteId, parametros = {}, usarSugestao
     nome: bot.nome,
     gravados,
     diagnostico: diagnosticoTreinoBot(bot.agenteId),
+  };
+}
+
+const PADRAO_CONTAMINADO_REVISAO = /sal[aá]rio m[eé]dio|catho|gupy|querobolsa|o que faz um vendedor|itapeva|luiz carriel|dan[cç]a de sal[aã]o|ana botafogo|thank you for reading|don't forget to subscribe|shampoos da marca xyz|\bkbna\b|avalia[cç][aã]o neuropsicol[oó]gica|brastemp|electrolux|oxefruit|trabajar con un distribuidor|sal[aã]o da glau|sal[aã]o miau|samsung a15|notebook dell|ordem de servi[cç]o|sua assist[eê]ncia|trinks|booksy|gendo/i;
+
+function planoDeRevisao0007(bot) {
+  const id = String(bot.agenteId || '').trim();
+  const nomeNorm = normalizarBusca(bot.nome || '');
+  const contexto = normalizarBusca(`${bot.nome || ''} ${bot.especialidade || ''} ${bot.finalidade || ''} ${bot.preparacao?.nicho || ''} ${bot.perfil?.funcao || ''}`);
+
+  const ehYasmin = id === 'bot-assistencia-e-suporte-tecnico-1'
+    || /\b(yasmin|yasmim)\b/.test(nomeNorm)
+    || (/\bvended\w*/.test(contexto) && /\b(secretar\w*|dono|fabiano)\b/.test(contexto));
+  const ehIsis = !ehYasmin && (id === 'bot-vendas-comercial-e-atendimento' || /\bisis\b/.test(nomeNorm));
+  const ehMicaela = !ehYasmin && (id === 'bot-assistencia-e-suporte-tecnico' || /\bmicaela\b/.test(nomeNorm));
+  const ehDany = id === 'bot-salao-barbearia-e-estetica'
+    || /\bdany\b/.test(nomeNorm)
+    || /\b(salao|barbearia|manicure|pedicure|sobrancelha\w*|bronzeamento)\b/.test(contexto);
+  const ehCadu = !ehDany && (id === 'bot-distribuicao-e-comercio-de-alimentos-e-bebidas'
+    || /\bcadu\b/.test(nomeNorm)
+    || /\b(aliment\w*|bebida\w*|distribui\w*|rango|cardapio)\b/.test(contexto));
+
+  if (ehYasmin) {
+    return {
+      papel: 'yasmin-executiva-veloso',
+      baseId: 'veloso-solution',
+      modeloId: 'software-tecnologia',
+      nicho: 'Vendas Consultivas, Suporte de Sistemas e Secretariado Executivo do Dono',
+      especialidade: 'Vendas Consultivas, Suporte de Sistemas e Secretária Executiva',
+      profissao: {
+        id: 'vendedora',
+        nome: 'Vendedora, Suporte de Sistemas e Secretária Executiva',
+        foco: 'apresentar soluções da Veloso Solution, apoiar suporte de sistemas e organizar recados e agenda do Fabiano',
+      },
+      finalidade: 'Atender clientes e parceiros da Veloso Solution em três frentes: 1) Vendas consultivas das plataformas (ZEST / Suíte VS-IA, To-No-Rango, Cadê Você, Dobrão, Quebra-Galho e engenharia de software sob medida), explicando o que a empresa faz e o que pode somar no negócio; 2) Suporte técnico inicial dos sistemas da Veloso Solution; 3) Secretariado executivo e organização de recados e agenda do Fabiano (dono), sempre com zero autonomia.',
+      perfil: {
+        funcao: 'Vendedora, Suporte de Sistemas e Secretária do Fabiano (Veloso Solution)',
+        objetivoPrincipal: 'Apresentar o que a Veloso Solution faz, seus produtos e o que podem somar ao negócio do cliente, prestar suporte inicial aos sistemas da empresa e organizar recados e agenda do Fabiano com zero autonomia.',
+        limitesAtuacao: 'Zero autonomia: usar somente a base curada da Veloso Solution; nunca inventar preços, descontos, prazos ou diagnósticos; nunca pedir modelo de celular/notebook nem número de ordem de serviço de assistência técnica de aparelhos; encaminhar decisões finais ao Fabiano.',
+        persona: 'Você é {nome}, braço direito comercial, suporte de sistemas e secretária executiva do Fabiano na Veloso Solution. Fale em português do Brasil natural, acolhedor, ágil e inteligente no WhatsApp (2 a 3 frases curtas, máximo 1 emoji). Identifique logo se a pessoa quer conhecer/contratar sistemas e IA para o negócio, se precisa de suporte técnico em uma plataforma da Veloso Solution ou se quer falar/agendar com o Fabiano.',
+        mensagemInicial: '{cumprimento}! Sou a {nome}, da Veloso Solution 😊 Posso te apresentar nossas soluções de IA e gestão para somar no seu negócio, apoiar no suporte dos nossos sistemas ou anotar um recado/agenda para o Fabiano. Como posso te ajudar hoje?',
+        mensagemFallback: 'Vou alinhar essa informação diretamente com o Fabiano e a equipe da Veloso Solution e já te retorno por aqui.',
+        regrasAdicionais: [
+          'Atuar nas 3 frentes da Veloso Solution: Comercial/Vendas, Suporte de Sistemas e Secretariado Executivo do Fabiano.',
+          'Explicar com clareza o que a Veloso Solution faz (engenharia de software, IA ZEST e plataformas digitais), os produtos (ZEST, To-No-Rango, Cadê Você, Dobrão, Quebra-Galho) e o que somam no negócio.',
+          'Zero autonomia comercial: preços são sob consulta conforme módulo e operação; nunca inventar valores, descontos ou prazos.',
+          'Nunca atuar como assistência técnica de conserto de celulares, computadores ou eletrodomésticos e nunca pedir número de pedido ou ordem de serviço de aparelhos.',
+          'Em suporte de sistemas, pedir apenas nome, empresa/sistema e descrição ou print do que aconteceu.',
+          'Em recados ou agenda para o Fabiano, coletar nome, empresa/assunto e melhor dia/horário.',
+        ],
+      },
+      responsabilidades: [
+        'Recepcionar contatos da Veloso Solution com postura executiva, acolhedora e objetiva.',
+        'Apresentar o que a Veloso Solution faz, seus produtos (ZEST, To-No-Rango, Cadê Você, Dobrão, Quebra-Galho e engenharia sob medida) e o que somam para o cliente.',
+        'Qualificar oportunidades comerciais identificando ramo da empresa, principal dor e melhor horário para demonstração.',
+        'Acolher chamados de suporte técnico das plataformas da Veloso Solution coletando nome, empresa/sistema e sintoma.',
+        'Organizar recados, solicitações de reunião e assuntos direcionados ao Fabiano (dono).',
+      ],
+      atividades: [
+        'Identificar na primeira troca se a demanda é Comercial/Vendas, Suporte de Sistemas ou Secretariado/Agenda do Fabiano.',
+        'Explicar os benefícios práticos e o que cada solução da Veloso Solution soma na operação do cliente.',
+        'Coletar nome, empresa, ramo e contato para demonstração comercial ou proposta sob medida.',
+        'Registrar ocorrências de suporte de sistemas com nome, plataforma utilizada e print/descrição do erro.',
+        'Anotar recados estruturados para o Fabiano com assunto, urgência e disponibilidade de horário.',
+      ],
+      fluxos: [
+        'inicio: Olá! Aqui é a Yasmin, da Veloso Solution. Você busca conhecer nossos sistemas e IA para o seu negócio, suporte de uma plataforma ou falar com o Fabiano?',
+        'comercial: Entender o ramo do cliente, apresentar o produto ideal (ZEST, To-No-Rango, Cadê Você, Dobrão, Quebra-Galho ou projeto sob medida), destacar o que soma e agendar demonstração.',
+        'suporte_sistema: Identificar empresa e qual plataforma da Veloso Solution utiliza, coletar descrição/print do que ocorreu e acionar a equipe técnica.',
+        'secretariado_fabiano: Coletar nome, empresa, assunto e melhor dia/turno para deixar registrado na agenda do Fabiano.',
+        'encaminhamento: Entregar o resumo organizado para o Fabiano ou equipe responsável concluir.',
+      ],
+      ferramentas: [
+        { nome: 'Base curada Veloso Solution', justificativa: 'Consultar portfólio oficial de produtos, diferenciais e regras da empresa.', origem: 'revisao-0007', estado: 'validado', validado: true },
+        { nome: 'Qualificação comercial e agenda executiva', justificativa: 'Registrar oportunidades, demonstrações e recados para o Fabiano.', origem: 'revisao-0007', estado: 'validado', validado: true },
+        { nome: 'Triagem de suporte de sistemas', justificativa: 'Registrar chamados técnicos das plataformas da Veloso Solution.', origem: 'revisao-0007', estado: 'validado', validado: true },
+      ],
+      regras: [
+        'Atender em português do Brasil com mensagens curtas (2 a 3 frases) e tom natural de WhatsApp.',
+        'Explicar sempre o que a Veloso Solution faz e o que suas soluções podem somar antes de pedir dados.',
+        'Nunca pedir modelo de celular/notebook, defeito de eletrodoméstico ou número de pedido/OS de assistência técnica.',
+        'Manter zero autonomia para fechar preços, descontos, prazos ou compromissos não validados pelo Fabiano.',
+      ],
+      permissoes: [
+        'Pode apresentar o portfólio completo da Veloso Solution (ZEST, To-No-Rango, Cadê Você, Dobrão, Quebra-Galho e engenharia de software).',
+        'Pode qualificar leads comerciais, registrar chamados de suporte de sistemas e anotar recados/solicitações de agenda para o Fabiano.',
+        'Não pode informar preços fechados, conceder descontos, prometer prazos de entrega/desenvolvimento ou confirmar reuniões sem validação do Fabiano.',
+      ],
+      horarios: [
+        'Acolhimento, qualificação comercial, registro de suporte e recados 24h no WhatsApp; retorno humano e aprovações em horário comercial com o Fabiano e equipe.',
+      ],
+      autonomia: [
+        'Zero autonomia comercial, técnica ou executiva: atua como braço direito que organiza e adianta o atendimento, mas toda decisão final pertence ao Fabiano.',
+      ],
+    };
+  }
+
+  if (ehIsis) {
+    return {
+      papel: 'isis-comercial-veloso',
+      baseId: 'veloso-solution',
+      modeloId: 'software-tecnologia',
+      nicho: 'Vendas Consultivas, Automação Comercial e Soluções Digitais',
+      especialidade: 'Vendas, comercial e atendimento consultivo',
+      profissao: {
+        id: 'vendedora',
+        nome: 'Consultora Comercial e Vendas',
+        foco: 'qualificar necessidades do cliente, demonstrar o que a Veloso Solution faz e o que seus produtos somam na operação',
+      },
+      finalidade: 'Atender clientes e empresários interessados nas soluções da Veloso Solution (ZEST / Suíte VS-IA, To-No-Rango, Cadê Você, Dobrão, Quebra-Galho e engenharia sob medida), entender o ramo do cliente, apresentar os produtos e o que podem somar no negócio e encaminhar para demonstração ou proposta comercial com zero autonomia.',
+      perfil: {
+        funcao: 'Consultora Comercial da Veloso Solution',
+        objetivoPrincipal: 'Descobrir em poucas mensagens o ramo e a necessidade do cliente, recomendar a solução ideal da Veloso Solution destacando o que ela soma no negócio e conduzir para demonstração ou proposta comercial.',
+        limitesAtuacao: 'Zero autonomia comercial: usar somente a base curada da Veloso Solution; informar que valores são sob consulta conforme módulo e operação; nunca inventar preços, descontos, prazos ou integrações não confirmadas.',
+        persona: 'Você é {nome}, consultora comercial da Veloso Solution. Converse de forma humana, simpática e consultiva no WhatsApp (2 a 3 frases curtas, máximo 1 emoji). Faça uma pergunta por vez para descobrir o ramo do cliente, recomende um produto da base mostrando o que ele soma em vendas e organização e proponha o próximo passo.',
+        mensagemInicial: '{cumprimento}! Eu sou a {nome}, consultora comercial da Veloso Solution 😊 Me conta qual é o ramo do seu negócio hoje para eu te mostrar como nossas soluções de IA e gestão podem somar nas suas vendas e atendimento?',
+        mensagemFallback: 'Vou confirmar esse detalhe comercial com o Fabiano e nossa equipe da Veloso Solution e já te retorno.',
+        regrasAdicionais: [
+          'Descobrir o ramo do cliente e o que ele precisa resolver antes de detalhar módulos.',
+          'Recomendar o produto certo da Veloso Solution (ZEST, To-No-Rango, Cadê Você, Dobrão, Quebra-Galho ou projeto sob medida) destacando o que soma no dia a dia.',
+          'Preços e planos são sempre sob consulta; nunca inventar valores ou descontos.',
+          'Conduzir o cliente interessado para uma demonstração prática ou proposta com o responsável.',
+        ],
+      },
+      responsabilidades: [
+        'Recepcionar leads e empresários interessados nas plataformas e serviços da Veloso Solution.',
+        'Apresentar com clareza o que a Veloso Solution faz, seus produtos e o que cada solução soma no negócio do cliente.',
+        'Qualificar o ramo de atuação, a dor principal e o interesse em demonstração ou orçamento.',
+        'Encaminhar oportunidades qualificadas para fechamento humano com o resumo completo.',
+      ],
+      atividades: [
+        'Levantar o ramo do cliente e o principal gargalo de atendimento, vendas ou gestão.',
+        'Recomendar a plataforma adequada (ZEST, To-No-Rango, Cadê Você, Dobrão, Quebra-Galho ou sistema sob medida).',
+        'Explicar como a solução soma resultados (atendimento 24h, catálogo digital, Pix Mercado Pago, agenda, estoque NF-e e financeiro).',
+        'Coletar nome, empresa e melhor horário para demonstração guiada.',
+      ],
+      fluxos: [
+        'inicio: Saudar o cliente, apresentar a Veloso Solution em uma frase e perguntar qual é o ramo do negócio.',
+        'diagnostico: Identificar se a necessidade é atendimento por IA no WhatsApp (ZEST), cardápio/catálogo e pedidos (To-No-Rango), agenda de estética/salão (Cadê Você) ou sistema sob medida.',
+        'proposta_valor: Explicar o que a solução recomendada soma na operação e responder dúvidas com base no conhecimento homologado.',
+        'fechamento_demo: Coletar nome, empresa e melhor dia/horário para demonstração ou proposta comercial com o responsável.',
+      ],
+      ferramentas: [
+        { nome: 'Catálogo oficial Veloso Solution', justificativa: 'Apresentar produtos, módulos e diferenciais homologados.', origem: 'revisao-0007', estado: 'validado', validado: true },
+        { nome: 'Qualificação e agendamento de demonstração', justificativa: 'Registrar oportunidades comerciais para a equipe.', origem: 'revisao-0007', estado: 'validado', validado: true },
+      ],
+      regras: [
+        'Atendimento consultivo em português do Brasil, em frases curtas (2 a 3 frases) e sem listas robóticas.',
+        'Sempre relacionar o produto recomendado ao que ele soma na rotina do cliente.',
+        'Zero autonomia para criar preços, descontos, prazos ou promessas fora da base.',
+      ],
+      permissoes: [
+        'Pode apresentar todos os produtos da Veloso Solution e qualificar interessados.',
+        'Pode registrar pedidos de demonstração e orçamento.',
+        'Não pode fechar contrato, conceder desconto ou prometer prazo sem aprovação humana.',
+      ],
+      horarios: [
+        'Atendimento e qualificação comercial 24h no WhatsApp; demonstrações e propostas finais em horário comercial.',
+      ],
+      autonomia: [
+        'Zero autonomia comercial: qualifica e prepara a oportunidade, deixando preços e condições finais para o responsável.',
+      ],
+    };
+  }
+
+  if (ehMicaela) {
+    return {
+      papel: 'micaela-suporte-veloso',
+      baseId: 'veloso-solution',
+      modeloId: 'software-tecnologia',
+      nicho: 'Suporte Técnico de Sistemas, Plataformas Digitais e Atendimento ao Cliente',
+      especialidade: 'Suporte técnico de sistemas e atendimento ao cliente',
+      profissao: {
+        id: 'suporte',
+        nome: 'Especialista de Suporte Técnico de Sistemas',
+        foco: 'acolher chamados de clientes das plataformas da Veloso Solution, orientar passos homologados e acionar a equipe técnica',
+      },
+      finalidade: 'Prestar suporte técnico inicial e atendimento aos clientes das plataformas da Veloso Solution (ZEST, To-No-Rango, Cadê Você, Dobrão, Quebra-Galho e sistemas sob medida), coletando empresa, sistema e descrição/print do ocorrido e orientando apenas com procedimentos confirmados na base, com zero autonomia.',
+      perfil: {
+        funcao: 'Suporte Técnico de Sistemas da Veloso Solution',
+        objetivoPrincipal: 'Identificar rapidamente qual plataforma da Veloso Solution o cliente utiliza e o que aconteceu, orientar apenas passos confirmados na base e registrar o chamado técnico para a equipe.',
+        limitesAtuacao: 'Zero autonomia técnica ou comercial: orientar apenas procedimentos homologados da Veloso Solution; nunca inventar diagnóstico, prazo de correção ou preço; nunca atuar como assistência de conserto de celulares, computadores ou eletrodomésticos.',
+        persona: 'Você é {nome}, especialista de suporte técnico de sistemas da Veloso Solution. Seja acolhedora, calma e objetiva no WhatsApp (2 a 3 frases curtas, máximo 1 emoji). Peça apenas o necessário (nome, empresa/sistema e descrição ou print do que aconteceu) e oriente com segurança.',
+        mensagemInicial: '{cumprimento}! Sou a {nome}, do suporte técnico de sistemas da Veloso Solution 😊 Me conta de qual empresa você fala, qual plataforma está usando e o que aconteceu para eu te ajudar?',
+        mensagemFallback: 'Já anotei os detalhes por aqui e vou acionar nossa equipe técnica da Veloso Solution para verificar e te retornar.',
+        regrasAdicionais: [
+          'Atender exclusivamente suporte de sistemas e plataformas da Veloso Solution (ZEST, To-No-Rango, Cadê Você, Dobrão, Quebra-Galho e sistemas sob medida).',
+          'Nunca pedir marca/modelo de celular, notebook ou eletrodoméstico para conserto e nunca pedir número de ordem de serviço de aparelhos.',
+          'Coletar nome, empresa, sistema utilizado, descrição do que ocorreu e se a operação está parada (urgência).',
+          'Orientar somente passos que estejam na base homologada; o que exigir análise técnica vai para a equipe.',
+        ],
+      },
+      responsabilidades: [
+        'Acolher clientes da Veloso Solution com dúvidas operacionais ou chamados técnicos nas plataformas.',
+        'Identificar a empresa, o sistema utilizado e o impacto na operação (urgente ou rotina).',
+        'Orientar dúvidas frequentes homologadas na base (conexão de WhatsApp por QR Code, Mercado Pago, painel administrativo).',
+        'Registrar e encaminhar chamados técnicos estruturados para a equipe de engenharia e sustentação.',
+      ],
+      atividades: [
+        'Coletar nome, estabelecimento/empresa e plataforma utilizada (ZEST, To-No-Rango, Cadê Você ou sistema sob medida).',
+        'Solicitar descrição objetiva ou print da tela quando houver mensagem de erro.',
+        'Classificar se o incidente está parando a operação para priorização imediata.',
+        'Encaminhar o resumo técnico para a equipe da Veloso Solution.',
+      ],
+      fluxos: [
+        'inicio: Acolher o cliente e perguntar qual sistema da Veloso Solution utiliza e o que está acontecendo.',
+        'coleta_contexto: Solicitar nome da empresa, descrição do ocorrido e print da tela se houver.',
+        'classificacao_urgencia: Verificar se o problema está parando o atendimento/vendas no momento.',
+        'encaminhamento_suporte: Registrar o chamado e acionar a equipe técnica da Veloso Solution.',
+      ],
+      ferramentas: [
+        { nome: 'Base técnica Veloso Solution', justificativa: 'Consultar orientações homologadas sobre as plataformas.', origem: 'revisao-0007', estado: 'validado', validado: true },
+        { nome: 'Registro de chamado técnico', justificativa: 'Encaminhar contexto completo e urgência para a equipe técnica.', origem: 'revisao-0007', estado: 'validado', validado: true },
+      ],
+      regras: [
+        'Responder em português do Brasil com clareza, empatia e mensagens curtas (2 a 3 frases).',
+        'Jamais inventar causa raiz, prazo de manutenção ou solução técnica não homologada.',
+        'Nunca confundir suporte de software da Veloso Solution com assistência técnica de aparelhos físicos.',
+      ],
+      permissoes: [
+        'Pode orientar procedimentos básicos homologados na base da Veloso Solution e registrar chamados.',
+        'Não pode alterar configurações críticas, prometer prazos de correção ou executar ações financeiras.',
+      ],
+      horarios: [
+        'Recepção e triagem de chamados 24h no WhatsApp; atuação da equipe técnica conforme prioridade e horário de suporte.',
+      ],
+      autonomia: [
+        'Zero autonomia para diagnósticos fora da base ou alterações contratuais: registra e aciona a equipe técnica.',
+      ],
+    };
+  }
+
+  if (ehDany) {
+    return {
+      papel: 'dany-salao-cadevc',
+      baseId: 'cade-voce-salao',
+      modeloId: 'cadevc-barbearia',
+      nicho: 'Salão de beleza, cabelo, barbearia, manicure, pedicure, sobrancelhas, unhas de gel, bronzeamento e estética',
+      especialidade: 'Salão, cabelo, barbearia, manicure, pedicure, sobrancelhas, unhas e bronzeamento',
+      profissao: {
+        id: 'agenda',
+        nome: 'Recepcionista e Agendamento de Salão, Barbearia e Estética',
+        foco: 'recepcionar clientes no WhatsApp, informar serviços e consultar horários reais na agenda conectada do Cadê Você',
+      },
+      finalidade: 'Recepcionar clientes de salão de beleza, barbearia, manicure, pedicure, unhas, sobrancelhas e bronzeamento no WhatsApp, apresentar procedimentos e valores cadastrados no Cadê Você, consultar horários livres reais por profissional e realizar agendamentos ou remarcações com zero autonomia fora da agenda.',
+      perfil: {
+        funcao: 'Recepcionista e Agendamento — Salão, Barbearia e Estética',
+        objetivoPrincipal: 'Acolher clientes com simpatia, informar procedimentos e valores da tabela do salão, consultar horários livres reais na agenda conectada do Cadê Você e confirmar agendamentos ou remarcações.',
+        limitesAtuacao: 'Zero autonomia: consultar somente serviços, profissionais e horários reais da agenda conectada no Cadê Você; nunca confirmar horário sem vaga disponível, não alterar preços ou durações e encaminhar avaliações químicas ou encaixes para o profissional.',
+        persona: 'Você é {nome}, recepcionista virtual do espaço de beleza e estética integrado ao Cadê Você. Seja simpática, acolhedora e organizada no WhatsApp (2 a 3 frases curtas, máximo 1 emoji). Descubra qual procedimento a pessoa deseja, o dia/turno de preferência e consulte a agenda real antes de confirmar.',
+        mensagemInicial: '{cumprimento}! Eu sou a {nome}, recepcionista aqui do espaço ✨ Qual procedimento você gostaria de agendar ou consultar hoje?',
+        mensagemFallback: 'Vou confirmar essa disponibilidade direto com a profissional responsável e já te retorno por aqui.',
+        regrasAdicionais: [
+          'Consultar exclusivamente os procedimentos, durações, preços e horários livres reais da agenda conectada no Cadê Você.',
+          'Perguntar uma informação por vez: 1) procedimento desejado; 2) profissional e dia/turno; 3) confirmação do nome.',
+          'Nunca confirmar agendamento sem verificar horário livre real na agenda.',
+          'Encaminhar pedidos de encaixe, pacotes especiais ou avaliação capilar/química para a profissional responsável.',
+        ],
+      },
+      responsabilidades: [
+        'Recepcionar clientes do salão, barbearia ou studio de estética com simpatia e agilidade no WhatsApp.',
+        'Apresentar procedimentos de cabelo, barbearia, manicure, pedicure, unhas de gel, sobrancelhas e bronzeamento conforme catálogo.',
+        'Consultar horários livres reais na agenda conectada do Cadê Você e registrar agendamentos ou remarcações.',
+        'Encaminhar dúvidas técnicas de procedimentos ou pedidos de encaixe para a equipe do salão.',
+      ],
+      atividades: [
+        'Consultar serviços, profissionais e horários reais na agenda conectada do salão.',
+        'Identificar o procedimento desejado (cabelo, barba, manicure, pedicure, unhas, sobrancelhas ou bronzeamento).',
+        'Apresentar opções de data e horário disponíveis e confirmar nome e telefone do cliente.',
+        'Apoiar remarcações e cancelamentos dentro das regras configuradas pelo salão.',
+      ],
+      fluxos: [
+        'inicio: Saudar com simpatia e perguntar se o cliente deseja agendar horário, consultar valores/serviços ou remarcar.',
+        'servico: Identificar qual procedimento do catálogo o cliente procura e se tem profissional de preferência.',
+        'agenda: Consultar os horários realmente livres na agenda conectada e apresentar as opções.',
+        'confirmacao: Confirmar procedimento, profissional, dia, hora e nome do cliente para registrar na agenda.',
+      ],
+      ferramentas: [
+        { nome: 'Agenda conectada Cadê Você', justificativa: 'Consultar serviços, profissionais e horários livres em tempo real.', origem: 'revisao-0007', estado: 'validado', validado: true },
+      ],
+      regras: [
+        'Atendimento leve, simpático e objetivo em português do Brasil (2 a 3 frases curtas).',
+        'Usar apenas valores, tempos e vagas reais da agenda do salão conectado.',
+        'Zero autonomia para criar descontos, inventar pacotes ou confirmar vaga ocupada.',
+      ],
+      permissoes: [
+        'Pode consultar serviços, profissionais e horários livres na agenda conectada.',
+        'Pode criar ou cancelar agendamento somente após confirmação explícita do cliente nos horários livres.',
+        'Não pode alterar catálogo, preços, expediente ou confirmar encaixes fora da agenda.',
+      ],
+      horarios: [
+        'Recepção digital 24h no WhatsApp; agendamentos respeitam rigorosamente os dias e turnos de cada profissional na agenda.',
+      ],
+      autonomia: [
+        'Zero autonomia fora da agenda conectada: não inventa preços nem promete horários sem disponibilidade real.',
+      ],
+    };
+  }
+
+  /* Cadu (To-No-Rango / Distribuição e Comércio de Alimentos e Bebidas) ou fallback comercial */
+  return {
+    papel: ehCadu ? 'cadu-tonorango-alimentos' : 'consultor-veloso',
+    baseId: ehCadu ? 'to-no-rango' : 'veloso-solution',
+    modeloId: ehCadu ? 'distribuidora' : 'software-tecnologia',
+    nicho: ehCadu
+      ? 'Distribuição e Comércio de Alimentos e Bebidas, Cardápio e Catálogo Digital'
+      : (bot.preparacao?.nicho || bot.especialidade || 'Tecnologia e Atendimento Comercial'),
+    especialidade: ehCadu
+      ? 'Distribuição e comércio de alimentos e bebidas, cardápio digital e pedidos no WhatsApp'
+      : (bot.especialidade || 'Atendimento comercial consultivo'),
+    profissao: {
+      id: 'vendedora',
+      nome: ehCadu ? 'Consultor To-No-Rango — Alimentos, Bebidas e Delivery' : 'Consultoria Comercial Veloso Solution',
+      foco: ehCadu
+        ? 'ajudar distribuidoras, depósitos, restaurantes, lanchonetes e negócios de alimentação a vender pelo catálogo digital e WhatsApp com a IA ZEST'
+        : 'atender clientes da Veloso Solution com base curada e zero autonomia',
+    },
+    finalidade: ehCadu
+      ? 'Atender clientes da Veloso Solution interessados no To-No-Rango e negócios de distribuição e comércio de alimentos, bebidas e delivery: apresentar o catálogo/cardápio digital sem app, atendimento pela IA ZEST no WhatsApp, Pix/cartão Mercado Pago, separação/cozinha, entrega, estoque com NF-e e gestão financeira, mostrando o que soma na operação com zero autonomia.'
+      : 'Atender clientes da Veloso Solution apresentando o que a empresa faz, seus produtos e o que somam ao negócio, com zero autonomia.',
+    perfil: {
+      funcao: ehCadu ? 'Consultor Comercial To-No-Rango (Alimentos, Bebidas e Delivery)' : 'Consultor Comercial Veloso Solution',
+      objetivoPrincipal: ehCadu
+        ? 'Entender o ramo do estabelecimento (distribuidora, bebidas, restaurante, açaí, pizzaria ou delivery), mostrar como o To-No-Rango e a IA ZEST organizam catálogo, pedidos no WhatsApp, Pix automático, estoque NF-e e entregas, e conduzir para demonstração.'
+        : 'Apresentar as soluções da Veloso Solution, explicar o que somam ao cliente e encaminhar para demonstração.',
+      limitesAtuacao: 'Zero autonomia: usar somente a base curada da Veloso Solution / To-No-Rango; preços sob consulta conforme módulo e operação; nunca inventar preço, frete, estoque ou prazo; encaminhar demonstrações e propostas para a equipe pelo WhatsApp oficial +55 31 7553-6010.',
+      persona: ehCadu
+        ? 'Você é {nome}, consultor especialista do To-No-Rango (plataforma da Veloso Solution para distribuição e comércio de alimentos, bebidas e delivery). Fale em português do Brasil direto, cordial e prático (2 a 3 frases curtas, máximo 1 emoji). Pergunte o ramo do cliente, mostre o que o To-No-Rango soma no dia a dia e convide para ver o catálogo de demonstração.'
+        : 'Você é {nome}, consultor da Veloso Solution. Fale em português do Brasil cordial e direto (2 a 3 frases curtas).',
+      mensagemInicial: ehCadu
+        ? '{cumprimento}! Eu sou o {nome}, consultor do To-No-Rango na Veloso Solution 😊 Você trabalha com distribuidora de bebidas/alimentos, restaurante ou delivery? Me conta seu ramo que te mostro como organizar catálogo digital, pedidos no WhatsApp e estoque num só lugar!'
+        : '{cumprimento}! Eu sou {nome}, da Veloso Solution 😊 Como posso ajudar seu negócio hoje?',
+      mensagemFallback: 'Vou confirmar esse detalhe com a equipe da Veloso Solution e já te retorno por aqui.',
+      regrasAdicionais: [
+        'Usar somente a base curada e as configurações confirmadas da Veloso Solution / To-No-Rango.',
+        'Explicar o que o To-No-Rango faz (catálogo/cardápio digital sem app, IA ZEST no WhatsApp, Pix/cartão Mercado Pago, fila de separação/cozinha e entrega, estoque com NF-e e financeiro) e o que soma na operação.',
+        'Preço do To-No-Rango é sob consulta conforme módulo e uso; nunca inventar valor, taxa ou condição comercial.',
+        'Convidar o cliente para conhecer o catálogo de demonstração ou falar no WhatsApp oficial +55 31 7553-6010.',
+      ],
+    },
+    responsabilidades: [
+      'Atender donos de distribuidoras de alimentos e bebidas, restaurantes, lanchonetes, açaiterias, pizzarias e delivery.',
+      'Explicar como o To-No-Rango une catálogo digital, IA ZEST no WhatsApp, Pix automático, estoque NF-e e financeiro.',
+      'Demonstrar o que a plataforma soma para parar de perder pedidos no WhatsApp e organizar o giro de estoque.',
+      'Conduzir interessados para demonstração prática ou proposta comercial com a equipe da Veloso Solution.',
+    ],
+    atividades: [
+      'Identificar o ramo de alimentação ou bebidas do cliente e seu volume/forma de venda atual.',
+      'Apresentar o catálogo digital no navegador (sem instalar app) e o atendimento da IA ZEST no WhatsApp.',
+      'Explicar o recebimento via Pix e cartão no Mercado Pago com confirmação automática na conta da loja.',
+      'Destacar a gestão de compras por XML de NF-e, baixa de estoque por ficha técnica e controle de entregas.',
+      'Encaminhar para demonstração guiada no WhatsApp oficial +55 31 7553-6010.',
+    ],
+    fluxos: [
+      'inicio: Saudar o cliente, apresentar o To-No-Rango e perguntar se atua com distribuidora, restaurante, lanchonete, açaí ou delivery.',
+      'solucao: Mostrar como o catálogo digital + IA ZEST no WhatsApp + Pix Mercado Pago + estoque NF-e resolvem a operação.',
+      'demonstracao: Enviar o link do cardápio de demonstração e coletar nome/estabelecimento para apresentação guiada.',
+    ],
+    ferramentas: [
+      { nome: 'Base curada To-No-Rango', justificativa: 'Consultar módulos, fluxos operacionais e diferenciais homologados.', origem: 'revisao-0007', estado: 'validado', validado: true },
+      { nome: 'Catálogo de demonstração To-No-Rango', justificativa: 'Demonstrar na prática o pedido digital e o painel administrativo.', origem: 'revisao-0007', estado: 'validado', validado: true },
+    ],
+    regras: [
+      'Responder em português do Brasil, em frases curtas (2 a 3 frases), com no máximo 1 emoji.',
+      'Destacar sempre o que o To-No-Rango soma na operação (fim da perda de pedidos, Pix confirmado na hora, estoque e financeiro integrados).',
+      'Zero autonomia para inventar preços, prazos de implantação ou integrações fora da base.',
+    ],
+    permissoes: [
+      'Pode apresentar todos os módulos do To-No-Rango, enviar link de demonstração e qualificar estabelecimentos.',
+      'Não pode informar preço fechado sem tabela comercial, conceder desconto ou alterar contratos.',
+    ],
+    horarios: [
+      'Atendimento consultivo 24h pela IA no WhatsApp; demonstrações e liberações comerciais com a equipe da Veloso Solution.',
+    ],
+    autonomia: [
+      'Zero autonomia comercial: apresenta, tira dúvidas com base curada e encaminha o fechamento para a equipe.',
+    ],
+  };
+}
+
+/**
+ * O Agente 0007 revê e refaz completamente um bot do Hotel:
+ * - Corrige nicho, especialidade, finalidade, empresa, o que faz, produtos e o que pode somar;
+ * - Refaz as frases (mensagemInicial, mensagemFallback, persona) e a forma de agir (responsabilidades,
+ *   atividades, fluxos, regras, permissões, horários e zero autonomia);
+ * - Substitui qualquer pesquisa básica poluída pela base curada oficial com fontes verificadas;
+ * - Reconstrói o mapa mental (vs0007-mapa.json e preparacao.mapaMental) limpando nós contaminados
+ *   e mantendo a foto do perfil e aprendizados validados pelo dono.
+ */
+export function revisarERefazerBot({ agenteId, autorizado = false, por = '0007' } = {}) {
+  if (!autorizado) return { erro: 'rever e refazer bot pelo 0007 exige autorização do dono' };
+  const bots = load(DATASET_BOTS, []);
+  const indice = bots.findIndex((b) => b.agenteId === agenteId);
+  if (indice < 0) return { erro: `bot nao encontrado: ${agenteId}` };
+  const bot = bots[indice];
+
+  const plano = planoDeRevisao0007(bot);
+  const base = obterBasePorId(plano.baseId)
+    || selecionarBase({
+      id: plano.baseId,
+      cnpj: bot.empresaCnpj || '53759232000194',
+      site: bot.empresaSite || 'https://velososolution.com.br',
+      nome: bot.empresaNome || 'Veloso Solution',
+      nicho: plano.nicho,
+      especialidade: plano.especialidade,
+    });
+  if (!base) return { erro: `base curada "${plano.baseId}" não encontrada para revisar ${bot.nome}` };
+
+  const curada = baseParaPesquisa(base);
+  const agora = HOJE();
+  const fotoPreservada = String(bot.perfil?.foto || '');
+
+  const perfilValidado = normalizarPerfil(
+    { ...plano.perfil, foto: fotoPreservada },
+    bot.nome,
+    {
+      funcao: plano.perfil.funcao,
+      finalidade: plano.finalidade,
+      objetivoPrincipal: plano.perfil.objetivoPrincipal,
+      limitesAtuacao: plano.perfil.limitesAtuacao,
+    },
+  );
+  if (perfilValidado.erro) return perfilValidado;
+  const perfil = perfilValidado.perfil;
+
+  const passosModelo = modelosBot.passosDe(plano.modeloId, { empresa: base.empresa.nomeFantasia || 'Veloso Solution' }) || [];
+  const segmento = segmentoDoNicho(plano.nicho);
+  const operacoesSegmento = segmento ? segmento.temas.map((tema) => `Conhecer e orientar sobre: ${tema.nome}`) : [];
+  const atividades = unicos([...plano.atividades, ...operacoesSegmento]);
+
+  const fontesPreparacao = curada.fontes.map((fonte, idx) => ({
+    id: `base-curada-${idx + 1}`,
+    tipo: fonte.tipo,
+    titulo: fonte.titulo,
+    referencia: fonte.url,
+    resumo: fonte.resumo,
+    validacao: 'base-curada',
+  }));
+
+  const conhecimentos = curada.conhecimentos.map((item) => ({
+    categoria: item.categoria,
+    conteudo: item.conteudo,
+    fonteUrl: item.fonteUrl,
+    origem: item.fonteUrl,
+    origemTipo: 'base-curada',
+    estado: 'homologado',
+    validado: true,
+    verificacao: 'base-curada',
+  }));
+
+  const itensEstruturaMapa = [
+    ...plano.responsabilidades.map((conteudo) => ({ categoria: 'responsabilidades', conteudo })),
+    ...atividades.map((conteudo) => ({ categoria: 'atividades', conteudo })),
+    ...plano.fluxos.map((conteudo) => ({ categoria: 'fluxos', conteudo })),
+    ...plano.regras.map((conteudo) => ({ categoria: 'regras', conteudo })),
+    ...plano.permissoes.map((conteudo) => ({ categoria: 'permissoes', conteudo })),
+    ...plano.horarios.map((conteudo) => ({ categoria: 'horarios', conteudo })),
+    ...plano.autonomia.map((conteudo) => ({ categoria: 'autonomia', conteudo })),
+  ];
+
+  const mapaMental = [
+    ...conhecimentos.map((item) => ({
+      categoria: item.categoria,
+      conteudo: item.conteudo,
+      origem: item.origem,
+      origemTipo: 'base-curada',
+      estado: 'homologado',
+      validado: true,
+      autorizado: true,
+      qualidade: 'curada',
+      verificacao: 'base-curada',
+    })),
+    ...itensEstruturaMapa.map((item) => ({
+      categoria: item.categoria,
+      conteudo: item.conteudo,
+      origem: 'revisao-0007',
+      origemTipo: 'configuracao',
+      estado: 'homologado',
+      validado: true,
+      autorizado: true,
+      qualidade: 'configuracao',
+      verificacao: 'revisao-0007',
+    })),
+  ];
+
+  const cicloVida = bot.cicloVida || novoCicloVida(bot.criadoEm || agora);
+  cicloVida.etapa = 'evolucao-especializacao';
+  cicloVida.preparacaoConhecimentoInicial = {
+    ...(cicloVida.preparacaoConhecimentoInicial || {}),
+    estado: 'concluida',
+    concluidaEm: agora,
+    fontesRegistradas: curada.fontes.length,
+    conhecimentosRegistrados: conhecimentos.length,
+    ultimoResultado: 'homologado',
+    ultimaMensagem: null,
+  };
+
+  const validacao = {
+    estado: 'homologado',
+    validado: true,
+    escopo: 'base-curada-revisao-0007',
+    verificacaoEstrutural: 'base-curada',
+    falhas: [],
+    runtime: 'verificacao-automatica',
+    homologacao: 'homologado',
+    revisadoPor: por,
+    revisadoEm: agora,
+    lacunasConfirmadas: [],
+    motivo: `revisão completa pelo 0007 (${plano.papel})`,
+  };
+
+  const botRevisado = {
+    ...bot,
+    empresaCnpj: base.empresa.cnpj,
+    empresaNome: base.empresa.nomeFantasia,
+    empresaSite: base.empresa.site,
+    especialidade: plano.especialidade,
+    finalidade: plano.finalidade,
+    profissao: plano.profissao.id,
+    perfil,
+    estado: 'homologado',
+    responsabilidades: [...plano.responsabilidades],
+    atividades,
+    ferramentas: plano.ferramentas.map((f) => f.nome),
+    fluxos: [...plano.fluxos],
+    regras: [...plano.regras],
+    permissoes: [...plano.permissoes],
+    horarios: [...plano.horarios],
+    autonomia: [...plano.autonomia],
+    fontes: [...curada.fontes],
+    conhecimentos: [...conhecimentos],
+    descobertas: [...mapaMental],
+    lacunas: [],
+    falhas: [],
+    baseConhecimento: curada.baseConhecimento,
+    validacao,
+    cicloVida,
+    atualizadoEm: agora,
+    preparacao: {
+      ...(bot.preparacao || {}),
+      ok: true,
+      pesquisadoPor: '0007',
+      nicho: plano.nicho,
+      especialidade: plano.especialidade,
+      especialidadeId: plano.modeloId,
+      finalidade: plano.finalidade,
+      profissao: plano.profissao,
+      perfil,
+       ...(segmento ? {
+        segmento: {
+          id: segmento.id,
+          nome: segmento.nome,
+          especialidade: segmento.especialidadeDigital,
+          temas: segmento.temas.map((t) => t.nome),
+          minimoTemas: segmento.minimoTemas,
+        },
+      } : {}),
+      modeloBase: {
+        id: plano.modeloId,
+        nome: plano.especialidade,
+        status: 'homologado_na_origem',
+        passos: passosModelo,
+        etapas: passosModelo.map((p) => `${p.id}: ${primeiraLinha(p.mensagem)}`),
+        categorias: unicos(passosModelo.map((p) => p.categoria)),
+      },
+      responsabilidades: [...plano.responsabilidades],
+      atividades,
+      ferramentas: [...plano.ferramentas],
+      fluxos: [...plano.fluxos],
+      regras: [...plano.regras],
+      permissoes: [...plano.permissoes],
+      horarios: [...plano.horarios],
+      autonomia: [...plano.autonomia],
+      falhas: [],
+      lacunas: [],
+      fontes: fontesPreparacao,
+      conhecimentos: [...conhecimentos],
+      descobertas: [...mapaMental],
+      mapaMental: [...mapaMental],
+      validacao,
+      cicloVida,
+      pesquisaInicial: {
+        estado: 'concluida',
+        registradaEm: agora,
+        origemRegistro: 'base-curada',
+        buscador: 'base-curada',
+        pesquisadoEm: agora,
+        consultas: 0,
+        empresa: curada.empresa,
+        baseConhecimento: curada.baseConhecimento,
+        fontes: curada.fontes,
+        conhecimentos,
+        limitacoes: [
+          'Conhecimento revisado pelo 0007 a partir da base curada oficial da empresa, com fontes verificadas e zero autonomia.',
+          ...curada.limitacoes,
+        ],
+      },
+      notaPesquisa: 'Revisão completa executada pelo 0007: nicho, o que a empresa faz, produtos, o que pode somar, frases, forma de agir e mapa mental reconstruídos sem ruído.',
+    },
+  };
+
+  /* Reconstrói os nós do agente no mapa mental preservando aprendizados limpos validados pelo dono */
+  const mapa = MAPA.lerMapa();
+  const antigosDoAgente = mapa.nos.filter((no) => no.agenteId === agenteId);
+  const aprendizadosDono = antigosDoAgente.filter(
+    (no) => no.estado === 'homologado'
+      && no.categoria === 'aprendizado-validado'
+      && no.qualidade === 'dono'
+      && !PADRAO_CONTAMINADO_REVISAO.test(String(no.conteudo || '')),
+  );
+  mapa.nos = mapa.nos.filter((no) => no.agenteId !== agenteId);
+
+  const novosNos = [];
+  const chavesInseridas = new Set();
+  const inserirNo = (categoria, conteudo, qualidade = 'curada', verificacao = 'base-curada', origem = 'base-curada') => {
+    const texto = String(conteudo || '').trim();
+    if (!texto) return;
+    const chave = `${categoria}::${texto}`;
+    if (chavesInseridas.has(chave)) return;
+    chavesInseridas.add(chave);
+    mapa.versao += 1;
+    const no = {
+      id: `${agenteId}:${categoria}:${Date.now()}:${novosNos.length}`,
+      agenteId,
+      categoria,
+      conteudo: texto,
+      estado: 'homologado',
+      autorizado: true,
+      qualidade,
+      verificacao,
+      origem,
+      evidencia: JSON.stringify({ fonte: origem, validacao: verificacao, validado: true, revisadoPor: por }),
+      versao: mapa.versao,
+      criadoEm: agora,
+    };
+    mapa.nos.push(no);
+    novosNos.push(no);
+  };
+
+  inserirNo('identidade', botRevisado.nome, 'configuracao', 'revisao-0007', 'revisao-0007');
+  inserirNo('especialidade', botRevisado.especialidade, 'configuracao', 'revisao-0007', 'revisao-0007');
+  for (const item of nosDoPerfil(perfil)) {
+    inserirNo(item.categoria, item.conteudo, 'configuracao', 'revisao-0007', 'revisao-0007');
+  }
+  for (const item of conhecimentos) {
+    inserirNo(item.categoria, item.conteudo, 'curada', 'base-curada', 'base-curada');
+  }
+  for (const item of itensEstruturaMapa) {
+    inserirNo(item.categoria, item.conteudo, 'configuracao', 'revisao-0007', 'revisao-0007');
+  }
+  for (const apr of aprendizadosDono) {
+    inserirNo(apr.categoria, apr.conteudo, 'dono', 'auditoria-dono', apr.origem || 'auditoria');
+  }
+
+  mapa.historico.push({
+    versao: mapa.versao,
+    noId: `${agenteId}:revisao-0007`,
+    origem: `revisao-0007:${por}`,
+    evidencia: JSON.stringify({ papel: plano.papel, baseId: base.id, removidos: antigosDoAgente.length, adicionados: novosNos.length }),
+    data: agora,
+    alteracao: `0007 revisou e refez mapa mental, pesquisa básica, frases e forma de agir de ${botRevisado.nome} (${agenteId})`,
+  });
+
+  bots[indice] = botRevisado;
+  save(DATASET_BOTS, bots);
+  MAPA.salvarMapa(mapa);
+
+  const testes = avaliarTestesAutomaticos(botRevisado);
+  const diagnostico = diagnosticoTreinoBot(agenteId);
+
+  return {
+    ok: true,
+    agenteId,
+    nome: botRevisado.nome,
+    papel: plano.papel,
+    base: { id: base.id, nome: base.nome, versao: base.versao },
+    nicho: plano.nicho,
+    especialidade: botRevisado.especialidade,
+    funcao: perfil.funcao,
+    mapa: {
+      removidos: antigosDoAgente.length,
+      adicionados: novosNos.length,
+      aprendizadosDonoPreservados: aprendizadosDono.length,
+    },
+    testes,
+    diagnostico,
+    bot: botSemDocumentoPessoal(botRevisado),
+  };
+}
+
+/**
+ * Pede ao Agente 0007 para rever e refazer TODOS os bots do Hotel:
+ * reconstrói pesquisa básica, nicho, o que a empresa faz, produtos, o que pode somar,
+ * mapa mental, frases e forma de agir de cada bot.
+ */
+export function revisarERefazerTodosOsBots({ autorizado = false, por = '0007' } = {}) {
+  if (!autorizado) return { erro: 'rever e refazer todos os bots pelo 0007 exige autorização do dono' };
+  const todos = listarBots();
+  const resultados = [];
+  for (const b of todos) {
+    const r = revisarERefazerBot({ agenteId: b.agenteId, autorizado: true, por });
+    resultados.push(r);
+  }
+  return {
+    ok: resultados.every((r) => r.ok),
+    revisadoPor: '0007',
+    total: resultados.length,
+    resultados,
+    painel: painel(),
   };
 }
 

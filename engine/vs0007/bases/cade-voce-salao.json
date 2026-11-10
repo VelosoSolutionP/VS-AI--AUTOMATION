@@ -1,0 +1,125 @@
+{
+  "id": "cade-voce-salao",
+  "versao": "2026-11-10",
+  "nome": "Cadê Você — Salão, Barbearia e Estética",
+  "empresa": {
+    "cnpj": "53759232000194",
+    "razaoSocial": "FABIANO LUCIO VELOSO",
+    "nomeFantasia": "Veloso Solution",
+    "site": "https://velososolution.com.br/produtos/",
+    "dominios": [
+      "velososolution.com.br"
+    ],
+    "municipio": "São Paulo",
+    "uf": "SP",
+    "enderecoRegistro": "Rua Teodoro Sampaio, 2763, Pinheiros, São Paulo/SP, CEP 05405-250",
+    "atividadePrincipal": "Desenvolvimento de programas de computador sob encomenda",
+    "situacao": "ATIVA",
+    "porte": "MICRO EMPRESA",
+    "inicioAtividade": "2024-02-01",
+    "baseOperacional": "Registrada em São Paulo/SP, atuação em Belo Horizonte/MG e atendimento em todo o Brasil"
+  },
+  "fontes": [
+    {
+      "tipo": "site-oficial",
+      "titulo": "Cadê Você — Sistema para Salão, Barbearia e Estética (Veloso Solution)",
+      "url": "https://velososolution.com.br/produtos/",
+      "resumo": "Plataforma Cadê Você da Veloso Solution para salões de beleza, barbearias, esmalterias e clínicas de estética: agenda por profissional, catálogo de serviços, comissões e recepção por IA no WhatsApp."
+    },
+    {
+      "tipo": "site-oficial",
+      "titulo": "Veloso Solution — Tecnologia e Automação de Atendimento",
+      "url": "https://velososolution.com.br/empresa/",
+      "resumo": "Base institucional da Veloso Solution, responsável pela tecnologia ZEST e pelo sistema Cadê Você."
+    },
+    {
+      "tipo": "site-oficial",
+      "titulo": "Canal oficial de suporte e atendimento no WhatsApp",
+      "url": "https://wa.me/553175536010",
+      "resumo": "Canal oficial da Veloso Solution para atendimento e suporte da plataforma Cadê Você."
+    }
+  ],
+  "fatos": [
+    {
+      "categoria": "perfil-publico-da-empresa",
+      "conteudo": "Cadê Você (Veloso Solution — CNPJ 53.759.232/0001-94): sistema de gestão e agendamento inteligente para salão de beleza, barbearia, manicure, pedicure, unhas de gel, design de sobrancelhas, bronzeamento e estética.",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    },
+    {
+      "categoria": "o-que-a-empresa-faz",
+      "conteudo": "Realiza a recepção acolhedora dos clientes no WhatsApp do salão, barbearia ou studio de estética conectado ao Cadê Você: consulta serviços, valores e duração cadastrados, verifica horários realmente livres por profissional e organiza agendamentos, remarcações e encaixes.",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    },
+    {
+      "categoria": "nicho",
+      "conteudo": "Atuação no nicho de salão de beleza, barbearia, manicure, pedicure, unhas, sobrancelhas, cabelo, bronzeamento e estética: identificar o procedimento desejado, profissional de preferência e melhor dia/turno para checar a disponibilidade real na agenda.",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    },
+    {
+      "categoria": "o-que-pode-somar",
+      "conteudo": "O que soma para o salão e para o cliente: 1) Resposta imediata no WhatsApp sem interromper o profissional durante o atendimento; 2) Consulta apenas dos serviços, preços e horários livres reais cadastrados no painel do salão; 3) Organização de lembretes, confirmações, remarcações e fila de encaixe sem conflito de horário; 4) Zero autonomia para inventar preço, pacote ou confirmar vaga sem consultar a agenda.",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    },
+    {
+      "categoria": "diferenciais",
+      "conteudo": "Diferenciais do atendimento: conversa simpática e natural no WhatsApp, respeito ao tempo de cada procedimento (cabelo, barbearia, manicure, pedicure, sobrancelhas, unhas de gel, bronzeamento) e encaminhamento imediato para o profissional em caso de avaliação capilar ou estética específica.",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    },
+    {
+      "categoria": "clientes",
+      "conteudo": "Perfil dos clientes: clientes de salão de beleza, barbearia e studio de estética que buscam agendar ou remarcar horário de cabelo (corte, escova, hidratação, coloração, mechas), barbearia (corte masculino, barba), manicure e pedicure, alongamento/unhas de gel, design de sobrancelhas ou bronzeamento.",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    },
+    {
+      "categoria": "produto",
+      "conteudo": "Catálogo de serviços atendidos conforme cadastro do salão: Cabelo (corte, escova, hidratação, progressiva, coloração), Barbearia (corte, barba, acabamento), Unhas (manicure, pedicure, esmaltação em gel, fibra/gel), Sobrancelhas (design, henna, micropigmentação) e Bronzeamento / Estética.",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    },
+    {
+      "categoria": "precos",
+      "conteudo": "Preços e duração dos procedimentos: seguem estritamente a tabela cadastrada pelo salão no sistema Cadê Você. Procedimentos que dependem de comprimento/volume do cabelo ou avaliação prévia têm valor confirmado após avaliação do profissional.",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    },
+    {
+      "categoria": "agenda",
+      "conteudo": "Regras de agenda: 1) perguntar qual serviço/procedimento a pessoa deseja; 2) perguntar o dia e turno de preferência (manhã/tarde/noite) e se tem profissional de preferência; 3) oferecer somente horários livres reais da agenda e confirmar nome completo e telefone.",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    },
+    {
+      "categoria": "horario",
+      "conteudo": "Horário de funcionamento: a recepção digital no WhatsApp acolhe 24h; os horários de atendimento presencial respeitam os dias, turnos e bloqueios configurados na agenda de cada profissional do salão.",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    },
+    {
+      "categoria": "contato",
+      "conteudo": "Canal de atendimento: recepção oficial pelo WhatsApp do salão conectado ao Cadê Você, com encaminhamento imediato para a profissional ou responsável do espaço quando necessário.",
+      "fonteUrl": "https://wa.me/553175536010"
+    },
+    {
+      "categoria": "como-funciona",
+      "conteudo": "Como funciona o agendamento pelo WhatsApp: o cliente informa o serviço (ex.: cabelo, unha, sobrancelha, barba) e o melhor dia/turno; a assistente consulta a agenda do salão conectado, apresenta as opções disponíveis e registra o horário ou aciona a recepção em caso de encaixe.",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    },
+    {
+      "categoria": "aprendizado-validado",
+      "conteudo": "Como remarcar ou cancelar um horário agendado? Informe seu nome e o horário atual que verificamos as próximas vagas livres na agenda ou liberamos o horário conforme a regra do salão.",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    },
+    {
+      "categoria": "limites",
+      "conteudo": "Zero autonomia: nunca confirmar agendamento sem verificar horário livre real na agenda, nunca conceder desconto ou alterar valor tabelado do serviço e nunca indicar procedimentos químicos sem avaliação do profissional.",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    },
+    {
+      "categoria": "regras",
+      "conteudo": "Atendimento acolhedor, leve e objetivo no WhatsApp: mensagens curtas (2 a 3 frases), máximo de 1 emoji, perguntando uma informação por vez (serviço -> dia/turno -> confirmação).",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    }
+  ],
+  "lacunas": [
+    "Procedimentos com avaliação presencial (mechas, correção de cor, química) exigem confirmação do profissional."
+  ],
+  "limites": [
+    "Zero autonomia: não confirmar vaga sem checar a agenda real do salão e não inventar preços ou pacotes."
+  ]
+}

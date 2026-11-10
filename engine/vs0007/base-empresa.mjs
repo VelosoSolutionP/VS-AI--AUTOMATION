@@ -55,10 +55,21 @@ function lerBases(dir = DIR_BASES) {
   }
 }
 
-export function selecionarBase({ cnpj = '', site = '', nome = '', nicho = '', especialidade = '', dir = DIR_BASES } = {}) {
+export function obterBasePorId(id, dir = DIR_BASES) {
+  const alvo = String(id || '').trim().toLowerCase();
+  if (!alvo) return null;
+  return lerBases(dir).find((base) => String(base.id || '').toLowerCase() === alvo) || null;
+}
+
+export function selecionarBase({ id = '', cnpj = '', site = '', nome = '', nicho = '', especialidade = '', dir = DIR_BASES } = {}) {
+  if (id) {
+    const direta = obterBasePorId(id, dir);
+    if (direta) return direta;
+  }
   const alvoCnpj = digitos(cnpj);
   const alvoHost = host(site);
   const contexto = `${nome} ${nicho} ${especialidade} ${site}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const ehSalao = /salao|barbearia|estetica|manicure|pedicure|sobrancelha|cabelo|bronzeamento|cade-?voce/.test(contexto);
   const ehRango = /to-?no-?rango|cardapio|aliment|bebida|distribui|delivery|restaurante|lanchonete|acai|pizzaria|hamburgueria/.test(contexto);
   let melhor = null;
   let melhorPonto = 0;
@@ -68,8 +79,9 @@ export function selecionarBase({ cnpj = '', site = '', nome = '', nicho = '', es
     if (hostCombina(alvoHost, base)) ponto += 100;
     if (alvoHost && host(base?.empresa?.site) === alvoHost) ponto += 25;
     if (nome && nomeCombina(nome, base)) ponto += 40;
-    if (ponto > 0 && base.id === 'to-no-rango' && ehRango) ponto += 35;
-    if (ponto > 0 && base.id === 'veloso-solution' && !ehRango) ponto += 15;
+    if (ponto > 0 && base.id === 'cade-voce-salao' && ehSalao) ponto += 45;
+    if (ponto > 0 && base.id === 'to-no-rango' && ehRango && !ehSalao) ponto += 35;
+    if (ponto > 0 && base.id === 'veloso-solution' && !ehRango && !ehSalao) ponto += 20;
     if (ponto > melhorPonto) { melhor = base; melhorPonto = ponto; }
   }
   return melhor;

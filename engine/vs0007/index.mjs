@@ -19,6 +19,8 @@ import {
   baixarModeloFree,
   diagnosticoTreinoBot,
   treinarIAPorParametros,
+  revisarERefazerBot,
+  revisarERefazerTodosOsBots,
 } from './bots.mjs';
 
 export const DATASET_AGENTES = 'vs0007-agentes';
@@ -182,4 +184,6 @@ export {
   baixarModeloFree,
   diagnosticoTreinoBot,
   treinarIAPorParametros,
+  revisarERefazerBot,
+  revisarERefazerTodosOsBots,
 };

@@ -3283,13 +3283,28 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
         case '/crm/api/hotel/preparar-nicho': r = hotel.prepararNicho({ nicho: d.nicho }); break;
         case '/crm/api/hotel/modelos-free/sincronizar': r = await hotel.sincronizarModelosFree({ autorizado: true }); break;
         case '/crm/api/hotel/modelos-free/baixar': r = await hotel.baixarModeloFree({ modelo: d.modelo, autorizado: d.autorizado !== false }); break;
-        case '/crm/api/hotel/treinar-parametros':
+        case '/crm/api/hotel/treinar-parametros': {
+          const params = d.parametros && typeof d.parametros === 'object' ? d.parametros : {};
           r = hotel.treinarIAPorParametros({
-            agenteId: String(d.agenteId || ''),
-            parametros: d.parametros && typeof d.parametros === 'object' ? d.parametros : {},
-            usarSugestao0007: d.usarSugestao0007 === true,
+            agenteId: String(d.agenteId || d.id || ''),
+            parametros: params,
+            usarSugestao0007: d.usarSugestao0007 === true || Object.keys(params).length === 0,
             autorizado: d.autorizado !== false,
             por: quem.email || 'dono',
+          });
+          break;
+        }
+        case '/crm/api/hotel/revisar-bot':
+          r = hotel.revisarERefazerBot({
+            agenteId: String(d.agenteId || d.id || ''),
+            autorizado: d.autorizado !== false,
+            por: quem.email || '0007',
+          });
+          break;
+        case '/crm/api/hotel/revisar-todos':
+          r = hotel.revisarERefazerTodosOsBots({
+            autorizado: d.autorizado !== false,
+            por: quem.email || '0007',
           });
           break;
         /* Missão 007 — o fluxo automático: nicho + identificação da empresa +

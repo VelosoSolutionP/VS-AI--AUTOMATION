@@ -81,9 +81,9 @@ export const PARAMETROS_TREINO = [
   },
   {
     chave: 'produto',
-    rotulo: 'Produtos ou serviços',
-    categorias: ['produto', 'o-que-a-empresa-faz', 'catalogo-produtos'],
-    dica: 'Catálogo de produtos, serviços, módulos ou procedimentos que a empresa realmente oferece.',
+    rotulo: 'Produtos, serviços e o que pode somar',
+    categorias: ['produto', 'o-que-a-empresa-faz', 'o-que-pode-somar', 'diferenciais', 'catalogo-produtos'],
+    dica: 'O que a empresa faz, catálogo de produtos/serviços e o que eles podem somar no dia a dia do cliente.',
   },
   {
     chave: 'precos',
@@ -267,42 +267,49 @@ export function sugerirTreinoPorParametro({
   const ramo = String(especialidade || nicho || 'atendimento ao cliente').trim();
   const norm = normalizar(ramo);
   const listaProdutos = produtos.filter(Boolean).slice(0, 6).join('; ');
-  const ehSalao = /salao|barbearia|estetica|manicure|cabeleireir|cilios|sobrancelha|depilac/.test(norm);
+  const ehSalao = /salao|barbearia|estetica|manicure|cabeleireir|cilios|sobrancelha|depilac|bronzeamento/.test(norm);
   const ehAlimentos = /aliment|bebida|distribui|cardapio|rango|restaurante|lanchonete|acai|pizzaria|hamburgueria|delivery/.test(norm);
-  const ehSuporte = /suporte|assistencia|tecnic|manutencao|ti\b|help ?desk/.test(norm);
+  const ehMultifuncao = /secretari|dono|fabiano|yasmin/.test(`${norm} ${normalizar(nome)}`);
+  const ehSuporte = !ehMultifuncao && /suporte|assistencia|tecnic|manutencao|ti\b|help ?desk/.test(norm);
 
   return {
     nicho: ehSalao
       ? `Atuação em ${ramo}: recepcionar clientes de beleza e estética com simpatia, apresentar serviços e durações, consultar vagas reais na agenda e preparar o agendamento sem inventar procedimentos.`
       : ehAlimentos
         ? `Atuação em ${ramo}: atender pedidos e dúvidas de cardápio/catálogo digital com agilidade, informar itens, adicionais, entrega e pagamento Pix/cartão conforme cadastrado.`
-        : ehSuporte
-          ? `Atuação em ${ramo}: acolher o cliente com problema técnico ou dúvida operacional, coletar nome, sistema/equipamento e sintoma, orientar passos básicos confirmados e registrar chamado para a equipe.`
-          : `Atuação em ${ramo}: ser o braço direito comercial de ${empresaNome}, acolhendo o cliente de forma humanizada, entendendo a necessidade e apresentando a solução ideal sem autonomia para inventar condições.`,
+        : ehMultifuncao
+          ? `Atuação em ${ramo} da ${empresaNome}: atuar como vendedora consultiva, suporte técnico de plataformas e secretária executiva do Fabiano (dono), qualificando oportunidades, registrando chamados de sistemas e organizando recados/agenda com zero autonomia.`
+          : ehSuporte
+            ? `Atuação em ${ramo}: acolher o cliente com dúvida de uso ou chamado técnico nos sistemas da ${empresaNome}, coletar nome, empresa/plataforma e sintoma, orientar passos confirmados na base e acionar a equipe técnica.`
+            : `Atuação em ${ramo}: ser o braço direito comercial de ${empresaNome}, acolhendo o cliente de forma humanizada, entendendo a necessidade, apresentando os produtos e destacando o que podem somar no negócio com zero autonomia para inventar condições.`,
     clientes: ehSalao
-      ? 'Clientes que buscam agendar corte, barba, coloração, manicure, estética ou consultar valores e horários livres. Identificar qual serviço deseja, preferência de profissional e melhor dia/horário.'
+      ? 'Clientes que buscam agendar corte, barba, coloração, manicure, pedicure, sobrancelhas, unhas de gel ou bronzeamento e consultar valores e horários livres. Identificar qual procedimento deseja, preferência de profissional e melhor dia/turno.'
       : ehAlimentos
-        ? 'Clientes e estabelecimentos que buscam catálogo digital, preços, disponibilidade de entrega/retirada e pagamento rápido por Pix ou cartão. Identificar o pedido ou o ramo do cliente.'
-        : ehSuporte
-          ? 'Clientes que precisam resolver uma dúvida de uso, erro técnico, configuração ou acompanhamento de atendimento. Identificar quem fala, qual produto usa e o que está acontecendo.'
-          : 'Clientes e empresários que procuram atendimento rápido no WhatsApp, organização de vendas, catálogo digital, agenda ou sistemas. Descobrir em 1 ou 2 perguntas o que o cliente precisa resolver hoje.',
+        ? 'Donos de distribuidoras de alimentos e bebidas, restaurantes, lanchonetes, açaiterias e clientes que buscam catálogo digital sem app, pedido rápido no WhatsApp com Pix automático e controle de estoque/entrega.'
+        : ehMultifuncao
+          ? 'Empresários e clientes que entram em contato com a Veloso Solution para: 1) conhecer ou contratar sistemas e IA no WhatsApp; 2) pedir suporte técnico de uma plataforma ativa; 3) falar, deixar recado ou agendar horário com o Fabiano.'
+          : ehSuporte
+            ? 'Clientes e estabelecimentos parceiros que precisam resolver dúvidas de uso, configuração, conexão de WhatsApp ou instabilidade nas plataformas da empresa. Identificar quem fala, qual sistema utiliza e o que aconteceu.'
+            : 'Empresários e comércios que procuram organizar o atendimento no WhatsApp, vender com catálogo/cardápio digital, controlar agenda, estoque e financeiro. Descobrir em 1 ou 2 perguntas o ramo do cliente e o que ele precisa resolver.',
     produto: listaProdutos
       || (ehSalao
-        ? 'Serviços de salão, barbearia e estética conforme catálogo oficial conectado à agenda (cortes, químicas, manicure, estética facial/corporal).'
+        ? 'Serviços de salão, barbearia e estética conforme catálogo oficial conectado à agenda no Cadê Você (cabelo, barbearia, manicure, pedicure, unhas de gel, sobrancelhas e bronzeamento). Soma atendimento imediato no WhatsApp sem interromper o profissional.'
         : ehAlimentos
-          ? 'To-No-Rango e catálogo digital de alimentos e bebidas: cardápio no navegador sem app, pedidos no WhatsApp com IA ZEST, Pix/cartão via Mercado Pago, fila de preparo/entrega e controle de estoque.'
-          : 'Soluções da Veloso Solution: IA ZEST para WhatsApp, To-No-Rango (cardápio e pedidos digitais), Cadê Você (sistema e agenda para salão/barbearia/estética), Dobrão, Quebra-Galho e sistemas sob medida.'),
-    precos: 'Valores seguem estritamente a tabela comercial ou catálogo cadastrado. Quando o item ou plano depender de escopo/módulo, informar que é sob consulta e encaminhar para proposta oficial.',
+          ? 'To-No-Rango (da Veloso Solution): catálogo e cardápio digital no navegador sem app, atendimento com IA ZEST no WhatsApp, Pix/cartão via Mercado Pago com baixa automática, fila de separação/cozinha e entrega, estoque por XML de NF-e e financeiro.'
+          : 'Veloso Solution (engenharia de software e IA): 1) ZEST / Suíte VS-IA (assistentes humanizadas no WhatsApp com auditoria 0007 e zero autonomia); 2) To-No-Rango (cardápio/catálogo digital, pedidos, Pix Mercado Pago, estoque NF-e e financeiro); 3) Cadê Você (gestão e agenda inteligente para salão e estética); 4) Dobrão e Quebra-Galho; 5) Sistemas e integrações sob medida. Soma atendimento 24h, organização operacional e fim de vendas perdidas por demora.'),
+    precos: 'Valores seguem estritamente a tabela comercial ou catálogo cadastrado. Para planos das plataformas e projetos (ZEST, To-No-Rango, Cadê Você ou sob medida), informar que o investimento é sob consulta conforme módulos e operação, sem inventar preços ou descontos.',
     agenda: ehSalao
       ? 'Consultar apenas horários realmente livres na agenda conectada do salão, confirmar serviço, profissional, data e hora com o cliente antes de registrar.'
-      : 'Para demonstrações, reuniões ou atendimento com o responsável, anotar nome, empresa/assunto e preferência de dia/horário para confirmação na agenda.',
-    horario: horario || 'Atendimento inicial e tira-dúvidas 24h pela assistente virtual no WhatsApp; atendimento humano e confirmações finais em horário comercial.',
-    contato: contato || `Canal oficial de atendimento pelo WhatsApp e encaminhamento direto para o responsável de ${empresaNome}.`,
+      : 'Para demonstrações comerciais, reuniões ou falar com o Fabiano (responsável), anotar nome, empresa/ramo, assunto e melhor dia/horário para confirmação na agenda.',
+    horario: horario || 'Atendimento inicial, qualificação comercial, registro de suporte e recados 24h pela assistente virtual no WhatsApp; retorno humano, suporte de segundo nível e aprovação comercial com o Fabiano e equipe em horário comercial.',
+    contato: contato || `WhatsApp oficial +55 31 7553-6010 (wa.me/553175536010), sites velososolution.com.br e to-no-rango.velososolution.com.br. Empresa registrada em São Paulo/SP com atuação em Belo Horizonte/MG e encaminhamento direto para o Fabiano (${empresaNome}).`,
     'como-funciona': ehSalao
-      ? '1) O cliente diz o serviço que procura; 2) a IA consulta a agenda real e mostra os horários livres; 3) o cliente escolhe e confirma nome para concluir o agendamento.'
-      : ehSuporte
-        ? '1) O cliente relata a dúvida ou problema; 2) a IA verifica se há orientação homologada na base; 3) coleta os dados essenciais e encaminha o chamado organizado para a equipe técnica.'
-        : '1) Entendemos o que o cliente precisa; 2) mostramos o produto ou serviço indicado com base nos dados aprovados; 3) coletamos os dados e passamos para o responsável fechar ou confirmar.',
-    limites: `Zero autonomia: ${nome} é a peça de apoio que adianta o atendimento, mas nunca inventa preço, não concede desconto, não altera horário sem agenda, não promete prazo fora da base e submete qualquer exceção à palavra final do dono.`,
+      ? '1) O cliente diz o procedimento que procura; 2) a IA consulta a agenda real do salão e mostra os horários livres; 3) o cliente escolhe e confirma nome para concluir o agendamento.'
+      : ehMultifuncao
+        ? '1) Identificamos se o contato é Comercial/Vendas, Suporte de Sistemas ou Recado/Agenda para o Fabiano; 2) em Vendas, entendemos o ramo e mostramos o que a Veloso Solution soma; em Suporte, coletamos empresa/sistema e sintoma; em Secretariado, anotamos nome, assunto e horário; 3) encaminhamos tudo organizado para decisão final.'
+        : ehSuporte
+          ? '1) O cliente relata a dúvida ou ocorrência no sistema; 2) a IA verifica se há orientação homologada na base; 3) coleta nome, empresa/sistema e print/detalhe e encaminha o chamado organizado para a equipe técnica.'
+          : '1) Entendemos o ramo do cliente e o que ele precisa melhorar; 2) apresentamos a solução ideal da Veloso Solution e como ela soma na operação; 3) coletamos os dados básicos e passamos para o responsável demonstrar ou enviar proposta.',
+    limites: `Zero autonomia: ${nome} é o braço direito do atendimento, mas nunca inventa preço, não concede desconto, não altera horário sem agenda, não promete prazo fora da base, nunca atua como assistência de conserto de celulares/eletrodomésticos e submete qualquer decisão final ao dono.`,
   };
 }

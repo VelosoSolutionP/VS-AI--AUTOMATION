@@ -1,6 +1,6 @@
 {
   "id": "to-no-rango",
-  "versao": "2026-11-09",
+  "versao": "2026-11-10",
   "nome": "To-No-Rango",
   "empresa": {
     "cnpj": "53759232000194",
@@ -11,233 +11,206 @@
       "to-no-rango.velososolution.com.br",
       "velososolution.com.br"
     ],
-    "municipio": "Contagem",
-    "uf": "MG",
+    "municipio": "São Paulo",
+    "uf": "SP",
+    "enderecoRegistro": "Rua Teodoro Sampaio, 2763, Pinheiros, São Paulo/SP, CEP 05405-250",
     "atividadePrincipal": "Desenvolvimento de programas de computador sob encomenda",
     "situacao": "ATIVA",
     "porte": "MICRO EMPRESA",
     "inicioAtividade": "2024-02-01",
-    "baseOperacional": "Contagem/MG; cadastro do CNPJ em São Paulo/SP"
+    "baseOperacional": "Registrada em São Paulo/SP, atuação em Belo Horizonte/MG e atendimento em todo o Brasil"
   },
   "fontes": [
     {
       "tipo": "site-oficial",
-      "titulo": "To-No-Rango — cardápio digital, pedidos e ZEST no WhatsApp",
+      "titulo": "To-No-Rango — cardápio e catálogo digital, pedidos e ZEST no WhatsApp",
       "url": "https://to-no-rango.velososolution.com.br/",
-      "resumo": "Site oficial do To-No-Rango, produto da Veloso Solution: cardápio digital, pedidos, pagamentos, cozinha, entrega, estoque e gestão, com atendimento da IA ZEST no WhatsApp."
+      "resumo": "Site oficial do To-No-Rango, produto da Veloso Solution: cardápio e catálogo digital, pedidos, pagamentos Pix/cartão, cozinha, expedição/entrega, estoque com NF-e e gestão financeira com IA ZEST no WhatsApp."
     },
     {
       "tipo": "site-oficial",
       "titulo": "Veloso Solution — empresa",
       "url": "https://velososolution.com.br/empresa/",
-      "resumo": "Página oficial da Veloso Solution: empresa de engenharia de software com base em Contagem/MG, atendimento remoto no Brasil, serviços de desenvolvimento, modernização, sustentação, DevOps e IA."
+      "resumo": "Página oficial da Veloso Solution: empresa de engenharia de software registrada em São Paulo/SP com atuação em Belo Horizonte/MG e atendimento remoto no Brasil, serviços de desenvolvimento, modernização, sustentação, DevOps e IA."
     },
     {
       "tipo": "site-oficial",
       "titulo": "Veloso Solution — produtos",
       "url": "https://velososolution.com.br/produtos/",
-      "resumo": "Página oficial de produtos da Veloso Solution: suíte VS-IA, Dobrão, Sistema para Salão e Quebra-Galho."
+      "resumo": "Página oficial de produtos da Veloso Solution: suíte VS-IA (ZEST), To-No-Rango, Cadê Você, Dobrão e Quebra-Galho."
     },
     {
       "tipo": "site-oficial",
-      "titulo": "To-No-Rango — cardápio de demonstração",
+      "titulo": "To-No-Rango — catálogo e cardápio de demonstração",
       "url": "https://to-no-rango.velososolution.com.br/menu/acai-do-veloso",
-      "resumo": "Cardápio público de demonstração do To-No-Rango."
+      "resumo": "Cardápio e catálogo público de demonstração do To-No-Rango."
     },
     {
       "tipo": "site-oficial",
-      "titulo": "To-No-Rango — painel de demonstração",
+      "titulo": "To-No-Rango — painel administrativo de gestão",
       "url": "https://to-no-rango.velososolution.com.br/admin",
-      "resumo": "Painel administrativo do To-No-Rango para pedidos, cardápio, estoque, financeiro e atendimento."
+      "resumo": "Painel administrativo do To-No-Rango para pedidos, catálogo, estoque, compras NF-e, financeiro e atendimento no WhatsApp."
     },
     {
       "tipo": "cadastro-publico-empresa",
       "titulo": "Consulta cadastral pública do CNPJ da Veloso Solution",
       "url": "https://brasilapi.com.br/api/cnpj/v1/53759232000194",
-      "resumo": "Dados cadastrais públicos da Veloso Solution: CNPJ 53.759.232/0001-94, situação ativa, micro empresa, atividade principal de desenvolvimento de programas de computador sob encomenda."
+      "resumo": "Dados cadastrais públicos da Veloso Solution: CNPJ 53.759.232/0001-94, situação ativa, micro empresa, desenvolvimento de programas de computador sob encomenda."
     },
     {
       "tipo": "site-oficial",
       "titulo": "Contato oficial da Veloso Solution/To-No-Rango no WhatsApp",
       "url": "https://wa.me/553175536010",
-      "resumo": "Canal oficial de contato por WhatsApp informado no site do To-No-Rango."
+      "resumo": "Canal oficial de contato por WhatsApp para demonstração e contratação do To-No-Rango."
     }
   ],
   "fatos": [
     {
       "categoria": "perfil-publico-da-empresa",
-      "conteudo": "Veloso Solution — CNPJ 53.759.232/0001-94, situação ATIVA, micro empresa. Atividade principal: desenvolvimento de programas de computador sob encomenda. Base de atuação: Contagem/MG, com atendimento remoto no Brasil; o cadastro do CNPJ consta em São Paulo/SP.",
+      "conteudo": "Veloso Solution — CNPJ 53.759.232/0001-94, situação ATIVA. Desenvolvedora do To-No-Rango e da IA ZEST, registrada em São Paulo/SP com atuação em Belo Horizonte/MG e atendimento em todo o Brasil.",
       "fonteUrl": "https://brasilapi.com.br/api/cnpj/v1/53759232000194"
     },
     {
-      "categoria": "perfil-publico-da-empresa",
-      "conteudo": "A Veloso Solution é uma empresa de engenharia de software que atende empresas com desenvolvimento, modernização de sistemas, sustentação, DevOps, infraestrutura, inteligência artificial e produtos próprios, como a suíte VS-IA e o To-No-Rango.",
-      "fonteUrl": "https://velososolution.com.br/empresa/"
-    },
-    {
       "categoria": "o-que-a-empresa-faz",
-      "conteudo": "O To-No-Rango é a plataforma de cardápio digital, pedidos, pagamentos, atendimento automatizado, controle de estoque e gestão para negócios de alimentação, da Veloso Solution.",
-      "fonteUrl": "https://to-no-rango.velososolution.com.br/"
-    },
-    {
-      "categoria": "o-que-a-empresa-faz",
-      "conteudo": "A ZEST é a IA do To-No-Rango: atende no WhatsApp usando os produtos e preços cadastrados pela loja, monta o pedido, calcula a entrega e envia o Pix na conversa.",
+      "conteudo": "O To-No-Rango (da Veloso Solution) é a plataforma completa de catálogo e cardápio digital, pedidos no navegador, atendimento automatizado com IA ZEST no WhatsApp, pagamentos Pix/cartão via Mercado Pago, controle de estoque por NF-e e gestão financeira para comércio e distribuição de alimentos, bebidas e food service.",
       "fonteUrl": "https://to-no-rango.velososolution.com.br/"
     },
     {
       "categoria": "nicho",
-      "conteudo": "Atuação no nicho de distribuição e comércio de alimentos e bebidas, food service, delivery e cardápio digital: entender o ramo do estabelecimento, apresentar como o catálogo digital e a ZEST organizam pedidos, pagamentos Pix/cartão, estoque e entrega, e conduzir para demonstração.",
+      "conteudo": "Atuação no nicho de distribuição e comércio de alimentos e bebidas, depósitos, empórios, restaurantes e delivery: organizar catálogo digital, pedidos no atacado e varejo, pagamentos Pix/cartão, controle de giro de estoque e entregas sem perder vendas no WhatsApp.",
+      "fonteUrl": "https://to-no-rango.velososolution.com.br/"
+    },
+    {
+      "categoria": "o-que-pode-somar",
+      "conteudo": "O que o To-No-Rango pode somar na operação: 1) Vender mais pelo WhatsApp e link digital sem precisar de aplicativo e sem pagar comissão sobre vendas; 2) IA ZEST tirando dúvidas, montando o pedido, calculando taxa de entrega por bairro e enviando o Pix automático na conversa; 3) Controle real de estoque (ficha técnica, lotes, entrada por XML de NF-e) integrado ao financeiro e contas a pagar/receber; 4) Zero autonomia para inventar preço ou produto fora do catálogo cadastrado.",
+      "fonteUrl": "https://to-no-rango.velososolution.com.br/"
+    },
+    {
+      "categoria": "diferenciais",
+      "conteudo": "Diferenciais do To-No-Rango: tudo em um único sistema (catálogo digital + ZEST no WhatsApp + Mercado Pago + fila de separação/cozinha e entrega + estoque NF-e + financeiro), usando o próprio número de WhatsApp da loja e com zero autonomia para inventar condições.",
       "fonteUrl": "https://to-no-rango.velososolution.com.br/"
     },
     {
       "categoria": "clientes",
-      "conteudo": "Perfil do cliente e o que ele precisa: donos de distribuidoras de bebidas e alimentos, restaurantes, lanchonetes, açaiterias, pizzarias e hamburguerias que precisam parar de perder pedido no WhatsApp, ter catálogo digital sem app, receber Pix com confirmação automática e controlar estoque e caixa.",
+      "conteudo": "Perfil do cliente e o que precisa: donos de distribuidoras de bebidas e alimentos, depósitos, mercearias, restaurantes, lanchonetes, açaiterias e pizzarias que precisam agilizar pedidos recorrentes no WhatsApp, automatizar cobrança Pix e controlar estoque e caixa.",
       "fonteUrl": "https://to-no-rango.velososolution.com.br/"
     },
     {
       "categoria": "agenda",
-      "conteudo": "Agenda de demonstração e implantação: coletar nome do responsável, nome do estabelecimento/ramo e melhor dia/horário para apresentação guiada do painel e do cardápio digital pelo WhatsApp oficial +55 31 7553-6010.",
+      "conteudo": "Agenda de demonstração e implantação: coletar nome do responsável, nome da distribuidora ou estabelecimento, cidade e melhor horário para demonstração prática com a equipe da Veloso Solution.",
       "fonteUrl": "https://wa.me/553175536010"
     },
     {
       "categoria": "produto",
-      "conteudo": "To-No-Rango: cardápio digital + IA ZEST no WhatsApp + pedidos + Pix/cartão + cozinha/entrega + estoque/financeiro, para restaurantes, lanchonetes, açaí, pizzarias e delivery. Preço sob consulta; demonstração no WhatsApp +55 31 7553-6010.",
+      "conteudo": "To-No-Rango: catálogo/cardápio digital + IA ZEST no WhatsApp + pedidos + Pix/cartão Mercado Pago + separação/cozinha e entrega + estoque com XML de NF-e + financeiro completo.",
       "fonteUrl": "https://to-no-rango.velososolution.com.br/"
     },
     {
-      "categoria": "produto",
-      "conteudo": "Cardápio digital: fotos, categorias e adicionais em um link só da loja. O cliente monta o pedido em poucos toques, sem instalar aplicativo.",
+      "categoria": "distribuidoras",
+      "conteudo": "Operação para distribuidoras e comércio de alimentos e bebidas: atendimento ágil para atacado, varejo e food service, com organização de pedidos por rota, bairro, retirada no balcão ou entrega rápida.",
       "fonteUrl": "https://to-no-rango.velososolution.com.br/"
     },
     {
-      "categoria": "produto",
-      "conteudo": "Venda no WhatsApp: a ZEST responde o cliente, monta o pedido, calcula a entrega e envia o Pix dentro da conversa.",
+      "categoria": "catalogo-produtos",
+      "conteudo": "Mix e catálogo de produtos: organização por categorias (bebidas, refrigerantes, cervejas, águas, mercearia, laticínios, frios, embalagens e porções), unidades de venda (unidade, fardo, caixa, pack, kg) e adicionais.",
       "fonteUrl": "https://to-no-rango.velososolution.com.br/"
     },
     {
-      "categoria": "produto",
-      "conteudo": "Cozinha e entrega: cada pedido cai em uma fila ao vivo, muda de status e o cliente acompanha o preparo e a entrega por um link.",
+      "categoria": "estoque-reposicao",
+      "conteudo": "Estoque, validade e reposição: baixa automática por venda ou ficha técnica, controle de saldo mínimo para reposição de mercadorias de alto giro e rastreabilidade de entradas e saídas.",
       "fonteUrl": "https://to-no-rango.velososolution.com.br/"
     },
     {
-      "categoria": "produto",
-      "conteudo": "Gestão completa: estoque com ficha técnica, compras por XML da NF-e, financeiro, clientes, fornecedores e relatórios ligados aos pedidos.",
+      "categoria": "compras-fornecedores",
+      "conteudo": "Compras e fornecedores: importação de compras via XML de NF-e, cadastro de fornecedores, atualização de custo de reposição e integração direta com o contas a pagar.",
       "fonteUrl": "https://to-no-rango.velososolution.com.br/"
     },
     {
-      "categoria": "produto",
-      "conteudo": "Pagamentos: Pix e cartão pelo Mercado Pago, com confirmação automática na conta da loja.",
+      "categoria": "pedidos-vendas-entregas",
+      "conteudo": "Pedidos, separação e entregas: fila ao vivo para separação/preparo, mudança de status em tempo real, cálculo de taxa de entrega por bairro e link para o cliente acompanhar o pedido até a entrega.",
       "fonteUrl": "https://to-no-rango.velososolution.com.br/"
     },
     {
-      "categoria": "produto",
-      "conteudo": "Conexão do WhatsApp: a loja conecta o próprio número pelo painel, por QR Code, e pode desconectar quando quiser.",
+      "categoria": "clientes-condicoes",
+      "conteudo": "Clientes B2B e B2C: histórico de pedidos para recompra rápida no WhatsApp, cadastro de clientes e respeito estrito às condições comerciais cadastradas pelo estabelecimento.",
       "fonteUrl": "https://to-no-rango.velososolution.com.br/"
     },
     {
-      "categoria": "produto",
-      "conteudo": "Controle do atendimento: a resposta automática começa desligada e só é ativada pelo dono depois que a conexão e a IA estiverem prontas.",
+      "categoria": "precos-promocoes",
+      "conteudo": "Preços, margem e promoções: tabela de preços gerenciada no painel administrativo, combos e destaques no catálogo digital; a IA ZEST utiliza exclusivamente os preços ativos cadastrados pela loja.",
       "fonteUrl": "https://to-no-rango.velososolution.com.br/"
     },
     {
-      "categoria": "produto",
-      "conteudo": "Proteção contra loop: se outro robô responder sem parar, a ZEST identifica e pausa o atendimento.",
+      "categoria": "cardapio-catalogo-digital",
+      "conteudo": "Cardápio e catálogo digital: link próprio da loja que abre direto no navegador do celular sem instalar aplicativo, com fotos, busca rápida, categorias e carrinho integrado.",
+      "fonteUrl": "https://to-no-rango.velososolution.com.br/menu/acai-do-veloso"
+    },
+    {
+      "categoria": "whatsapp-automacao",
+      "conteudo": "Atendimento e automação no WhatsApp com a ZEST: conexão do próprio número por QR Code, proteção contra loop de outros robôs, ativação controlada pelo dono e montagem completa do pedido na conversa.",
       "fonteUrl": "https://to-no-rango.velososolution.com.br/"
+    },
+    {
+      "categoria": "pagamentos-pix",
+      "conteudo": "Pagamentos, Pix e conciliação: geração de Pix copia e cola / QR Code e pagamento por cartão via Mercado Pago na própria conta da loja, com confirmação automática no pedido e no caixa.",
+      "fonteUrl": "https://to-no-rango.velososolution.com.br/"
+    },
+    {
+      "categoria": "fiscal-nfe-sped",
+      "conteudo": "Entrada fiscal e gestão: leitura de XML de NF-e de compra para alimentar estoque e financeiro sem digitação manual, mantendo histórico organizado de custos e movimentações.",
+      "fonteUrl": "https://to-no-rango.velososolution.com.br/admin"
     },
     {
       "categoria": "como-funciona",
-      "conteudo": "Como funciona: 1) monte o cardápio com produtos, fotos, adicionais e taxas por bairro; 2) divulgue o link da loja; 3) receba Pix ou cartão pelo Mercado Pago; 4) a cozinha prepara e o cliente acompanha o status.",
+      "conteudo": "Como funciona na prática: 1) cadastre produtos, fotos e taxas de entrega por bairro; 2) conecte o WhatsApp e a conta do Mercado Pago; 3) divulgue o link do catálogo ou atenda com a ZEST no WhatsApp; 4) acompanhe pedidos, estoque e financeiro em tempo real.",
       "fonteUrl": "https://to-no-rango.velososolution.com.br/"
     },
     {
       "categoria": "aprendizado-validado",
-      "conteudo": "O cliente precisa instalar aplicativo? Não. O cardápio abre no navegador do celular pelo link da loja.",
+      "conteudo": "O cliente precisa baixar aplicativo para comprar? Não. O catálogo/cardápio digital abre direto no navegador do celular pelo link exclusivo do estabelecimento.",
       "fonteUrl": "https://to-no-rango.velososolution.com.br/"
     },
     {
       "categoria": "aprendizado-validado",
-      "conteudo": "Como a loja recebe o dinheiro? Ela conecta a própria conta do Mercado Pago no painel; Pix e cartão caem direto nela.",
-      "fonteUrl": "https://to-no-rango.velososolution.com.br/"
-    },
-    {
-      "categoria": "aprendizado-validado",
-      "conteudo": "A loja pode usar o próprio número de WhatsApp? Sim. Conecta pelo painel e pode desconectar quando quiser.",
-      "fonteUrl": "https://to-no-rango.velososolution.com.br/"
-    },
-    {
-      "categoria": "aprendizado-validado",
-      "conteudo": "A IA já sai respondendo sozinha? Não. O atendimento automático só começa depois que a conexão e a IA estiverem prontas e o dono ligar.",
-      "fonteUrl": "https://to-no-rango.velososolution.com.br/"
-    },
-    {
-      "categoria": "aprendizado-validado",
-      "conteudo": "Controla estoque e financeiro? Sim. Os pedidos alimentam o estoque pela ficha técnica, o financeiro e os relatórios.",
-      "fonteUrl": "https://to-no-rango.velososolution.com.br/"
-    },
-    {
-      "categoria": "publico-alvo",
-      "conteudo": "Para quem é: restaurantes, lanchonetes, açaiterias, pizzarias, hamburguerias, cafeterias, docerias e negócios de alimentação ou delivery.",
-      "fonteUrl": "https://to-no-rango.velososolution.com.br/"
-    },
-    {
-      "categoria": "diferenciais",
-      "conteudo": "Diferencial: tudo em um lugar — cardápio digital, ZEST no WhatsApp, Pix/cartão, cozinha e entrega, estoque, financeiro e relatórios.",
-      "fonteUrl": "https://to-no-rango.velososolution.com.br/"
-    },
-    {
-      "categoria": "diferenciais",
-      "conteudo": "Diferencial: a IA usa os produtos e preços da própria loja; ela não inventa preço, prazo ou promessa que a loja não cadastrou.",
+      "conteudo": "Como o estabelecimento recebe os pagamentos? Conectando a própria conta do Mercado Pago no painel; os valores de Pix e cartão caem direto na conta da loja com confirmação automática.",
       "fonteUrl": "https://to-no-rango.velososolution.com.br/"
     },
     {
       "categoria": "demonstracao",
-      "conteudo": "Demonstração: abra o cardápio de exemplo em to-no-rango.velososolution.com.br/menu/acai-do-veloso ou peça uma demonstração no WhatsApp oficial +55 31 7553-6010.",
+      "conteudo": "Demonstração: veja o catálogo de exemplo em to-no-rango.velososolution.com.br/menu/acai-do-veloso ou solicite uma apresentação guiada no WhatsApp oficial +55 31 7553-6010.",
       "fonteUrl": "https://to-no-rango.velososolution.com.br/menu/acai-do-veloso"
     },
     {
       "categoria": "contato",
-      "conteudo": "Contato oficial: WhatsApp +55 31 7553-6010 (wa.me/553175536010). Site: to-no-rango.velososolution.com.br. Empresa: Veloso Solution, Contagem/MG.",
+      "conteudo": "Contato oficial: WhatsApp +55 31 7553-6010 (wa.me/553175536010) e site to-no-rango.velososolution.com.br. Desenvolvido pela Veloso Solution (registrada em São Paulo/SP, atuação em Belo Horizonte/MG).",
       "fonteUrl": "https://wa.me/553175536010"
     },
     {
       "categoria": "precos",
-      "conteudo": "Preço: sob consulta. O To-No-Rango é cobrado por módulo e por banda de uso; não informe valores sem a tabela comercial confirmada.",
+      "conteudo": "Preço e contratação: sob consulta conforme módulos e volume de uso. Não informar valores fechados ou descontos sem tabela comercial validada pela equipe.",
       "fonteUrl": "https://to-no-rango.velososolution.com.br/"
     },
     {
       "categoria": "horario",
-      "conteudo": "Atendimento: a IA atende 24h no WhatsApp. O horário do atendimento humano não está publicado; confirme com a equipe.",
+      "conteudo": "Atendimento: a IA atende e qualifica 24h no WhatsApp; demonstrações e liberações comerciais são realizadas pela equipe da Veloso Solution.",
       "fonteUrl": "https://to-no-rango.velososolution.com.br/"
     },
     {
       "categoria": "limites",
-      "conteudo": "Não prometer prazo de implantação, preço fechado, integração ou resultado sem confirmação da equipe.",
-      "fonteUrl": "https://to-no-rango.velososolution.com.br/"
-    },
-    {
-      "categoria": "limites",
-      "conteudo": "Não pedir senha, cartão, código de acesso ou dados sensíveis do cliente.",
-      "fonteUrl": "https://to-no-rango.velososolution.com.br/"
-    },
-    {
-      "categoria": "limites",
-      "conteudo": "Não executar cobrança, cancelamento, reembolso ou alteração de contrato; encaminhar para a equipe.",
+      "conteudo": "Zero autonomia: não inventar preço, estoque, prazo de entrega, frete ou condição comercial fora do que está cadastrado na base homologada.",
       "fonteUrl": "https://to-no-rango.velososolution.com.br/"
     },
     {
       "categoria": "regras",
-      "conteudo": "Responder em português, em frases curtas, com no máximo um emoji por mensagem; conduzir para uma demonstração ou para o WhatsApp oficial quando o cliente demonstrar interesse.",
+      "conteudo": "Atendimento consultivo e direto no WhatsApp: mensagens curtas (2 a 3 frases), linguagem natural em português do Brasil, máximo de 1 emoji por resposta e condução para demonstração ou fechamento com o responsável.",
       "fonteUrl": "https://wa.me/553175536010"
     }
   ],
   "lacunas": [
-    "Tabela comercial do To-No-Rango (preços por módulo e banda) não publicada; usar 'sob consulta'.",
-    "Horário do atendimento humano não publicado; a IA atende 24h.",
-    "Endereço completo da Veloso Solution não publicado; base informada: Contagem/MG."
+    "Tabela comercial do To-No-Rango varia por módulo e operação; usar sempre 'sob consulta'."
   ],
   "limites": [
-    "Não inventar preço, prazo, disponibilidade ou política.",
-    "Não prometer integração ou resultado não confirmado.",
-    "Encaminhar para a equipe o que não estiver na base."
+    "Zero autonomia: não inventar preço, prazo, estoque ou política comercial.",
+    "Sempre encaminhar negociações e liberações para o responsável."
   ]
 }

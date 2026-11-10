@@ -669,3 +669,58 @@ test('o hotel conta totais, homologados, disponiveis e contratados', async () =>
   assert.ok(Array.isArray(p.bots));
   assert.ok(Array.isArray(p.instancias));
 });
+
+test('0007 revê e refaz Yasmin e todos os bots limpando conserto de telefone, pesquisa poluída e reconstruindo mapa mental e forma de agir', () => {
+  const yasminCriada = bots.criarBotComercial({
+    nome: 'Yasmin',
+    finalidade: 'Atender clientes de Assistência e suporte técnico',
+    especialidade: 'Assistência e suporte técnico',
+    profissao: 'suporte',
+    autorizado: true,
+    preparacao: {
+      ok: true,
+      nicho: 'Vendedora-Suporte-Secretaria do dono',
+      fluxos: ['aparelho: Qual é o aparelho (marca e modelo)? Ex.: Samsung A15, notebook Dell'],
+    },
+    perfil: {
+      funcao: 'Suporte técnico',
+      objetivoPrincipal: 'Atender ordem de serviço',
+      limitesAtuacao: 'Básico',
+      persona: 'Você é {nome}.',
+      mensagemInicial: 'Me manda o número do pedido.',
+      mensagemFallback: 'Com o número do pedido eu resolvo mais rápido.',
+      regrasAdicionais: [],
+    },
+  });
+  assert.equal(yasminCriada.ok, true);
+  mapa.adicionarNo({
+    agenteId: yasminCriada.bot.agenteId,
+    categoria: 'conhecimento-básico',
+    conteudo: 'Itapeva Rua Luiz Carriel 90 conserto de máquina de lavar Brastemp Samsung A15',
+    estado: 'homologado',
+    autorizado: true,
+  });
+
+  const rev = bots.revisarERefazerBot({ agenteId: yasminCriada.bot.agenteId, autorizado: true });
+  assert.equal(rev.ok, true);
+  assert.equal(rev.papel, 'yasmin-executiva-veloso');
+  assert.equal(rev.base.id, 'veloso-solution');
+  assert.equal(rev.testes.criticosOk, true);
+  assert.equal(rev.diagnostico.faltam.length, 0);
+
+  const botDepois = bots.obterBot(yasminCriada.bot.agenteId);
+  const jsonBot = JSON.stringify(botDepois);
+  assert.equal(/samsung a15|notebook dell|itapeva|brastemp|n[uú]mero do pedido/i.test(jsonBot), false);
+  assert.match(botDepois.perfil.funcao, /Vendedora, Suporte de Sistemas e Secretária do Fabiano/);
+  assert.ok(botDepois.conhecimentos.some((c) => c.categoria === 'o-que-pode-somar'));
+  assert.ok(botDepois.conhecimentos.some((c) => c.categoria === 'o-que-a-empresa-faz'));
+  assert.ok(botDepois.conhecimentos.some((c) => c.categoria === 'produto' && /To-No-Rango/.test(c.conteudo)));
+
+  const nosDepois = mapa.obterNos(yasminCriada.bot.agenteId).nos;
+  assert.equal(nosDepois.some((n) => /samsung a15|itapeva|brastemp/i.test(n.conteudo)), false);
+  assert.ok(nosDepois.some((n) => n.categoria === 'o-que-pode-somar' && n.estado === 'homologado'));
+
+  const todos = bots.revisarERefazerTodosOsBots({ autorizado: true });
+  assert.equal(todos.ok, true);
+  assert.ok(todos.total >= 1);
+});

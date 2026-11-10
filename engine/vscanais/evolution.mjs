@@ -118,7 +118,7 @@ function iaDoNumero(n) {
   if (!n?.iaId) return null;
   return comLoja(n.loja, () => hotel.obterBot(n.iaId));
 }
-const CONTEUDO_CONTAMINADO = /sal[aá]rio m[eé]dio|catho|gupy|querobolsa|o que faz um vendedor|itapeva|luiz carriel|dan[cç]a de sal[aã]o|ana botafogo|thank you for reading|don't forget to subscribe|shampoos da marca xyz|\bkbna\b|avalia[cç][aã]o neuropsicol[oó]gica|conserto de m[aá]quina de lavar brastemp/i;
+const CONTEUDO_CONTAMINADO = /sal[aá]rio m[eé]dio|catho|gupy|querobolsa|o que faz um vendedor|itapeva|luiz carriel|dan[cç]a de sal[aã]o|ana botafogo|thank you for reading|don't forget to subscribe|shampoos da marca xyz|\bkbna\b|avalia[cç][aã]o neuropsicol[oó]gica|conserto de m[aá]quina de lavar brastemp|oxefruit|trabajar con un distribuidor|sal[aã]o da glau|sal[aã]o miau|samsung a15|notebook dell|ordem de servi[cç]o|sua assist[eê]ncia|com o n[uú]mero do pedido eu resolvo|o n[uú]mero do pedido [eé]/i;
 
 function conhecimentoHomologado(n, ia) {
   const nos = comLoja(n.loja, () => mapaHotel.obterNos(ia.agenteId).nos)
@@ -484,13 +484,18 @@ const termos = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/
 /* Persona, regras e fluxo já vão nas instruções; repetir aqui só tomava o espaço
    do que ela aprendeu. O que sabe da empresa vem antes do resto. */
 const ITEM_INTERNO = /^(lacunas|fluxos|atividades|etapas-do-fluxo|permissoes|horarios|autonomia|ferramentas-e-integracoes|responsabilidades|regras|regras-adicionais|limites|limites-de-atuacao|personalidade|funcao|objetivo-principal|mensagens|identidade|especialidade|profissao|orientacao-profissional)\s*:/;
-const ITEM_EMPRESA = /^(produto|perfil-publico-da-empresa|o-que-a-empresa-faz|aprendizado-validado|como-funciona|faq|contato|publico-alvo|diferenciais|demonstracao|precos|preco|horario|horario-de-atendimento|nicho|clientes|agenda)\s*:/;
+const ITEM_EMPRESA = /^(produto|perfil-publico-da-empresa|o-que-a-empresa-faz|o-que-pode-somar|aprendizado-validado|como-funciona|faq|contato|publico-alvo|diferenciais|demonstracao|precos|preco|horario|horario-de-atendimento|nicho|clientes|agenda)\s*:/;
 
 /* Como agir conforme o tipo da IA: é o que faz ela vender e resolver, não só ecoar. */
 function roteiro(ia) {
-  const tipo = `${ia.profissao || ''} ${ia.especialidade || ''} ${ia.preparacao?.nicho || ''}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  if (/suporte|assist|tecnic/.test(tipo) && !/vend/.test(tipo)) return 'Você resolve problemas com empatia: entenda o que aconteceu e com qual produto/sistema, peça só o dado que falta e diga o próximo passo sem inventar diagnóstico.';
-  return 'Você vende de forma humanizada: nunca responda só "como posso ajudar". Diga em uma frase o que a empresa oferece, faça UMA pergunta para descobrir o que o cliente quer, recomende um produto do conhecimento pelo nome e benefício, responda objeção com benefício e proponha o próximo passo.';
+  const tipo = `${ia.profissao || ''} ${ia.especialidade || ''} ${ia.finalidade || ''} ${ia.preparacao?.nicho || ''} ${ia.perfil?.funcao || ''}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (/vended|comercial|prevendas/.test(tipo) && /secretari|dono|suporte/.test(tipo)) {
+    return 'Você atua em 3 frentes (Comercial, Suporte de Sistemas e Secretária Executiva do Dono): 1) se o cliente quiser conhecer a empresa ou contratar, explique em uma frase o que a empresa faz e o que pode somar, faça UMA pergunta sobre o ramo dele e recomende um produto do conhecimento pelo nome e benefício; 2) se for suporte técnico de plataforma da empresa, acolha e peça apenas nome, empresa/sistema e o que aconteceu (nunca peça modelo de celular ou número de ordem de serviço); 3) se quiser falar ou agendar com o dono (Fabiano), colete nome, assunto e disponibilidade de horário.';
+  }
+  if (/suporte|assist|tecnic/.test(tipo) && !/vend/.test(tipo)) {
+    return 'Você resolve dúvidas e chamados de sistemas com empatia: entenda o que aconteceu e em qual plataforma/sistema da empresa, oriente apenas com passos confirmados na base, peça só o dado que falta (nome, empresa e descrição/print) e encaminhe para a equipe técnica sem inventar diagnóstico nem pedir número de conserto de aparelho.';
+  }
+  return 'Você vende de forma humanizada: nunca responda só "como posso ajudar". Diga em uma frase o que a empresa oferece e o que pode somar, faça UMA pergunta para descobrir o que o cliente quer, recomende um produto do conhecimento pelo nome e benefício, responda objeção com benefício e proponha o próximo passo.';
 }
 function intencaoDaPergunta(linha, texto) {
   const categoria = String(linha).split(':')[0].trim();
@@ -506,7 +511,7 @@ function intencaoDaPergunta(linha, texto) {
     else if (/sob consulta/i.test(linha)) pontos += 10;
     else if (categoria === 'produto') pontos += 5;
   }
-  if (/agenda|marcar|agendar|horario livre|vaga|reuniao|demonstracao/.test(pergunta)) {
+  if (/agenda|marcar|agendar|horario livre|vaga|reuniao|demonstracao|fabiano|dono|recado/.test(pergunta)) {
     if (categoria === 'agenda') pontos += 22;
     else if (categoria === 'horario' || categoria === 'contato') pontos += 10;
   }
@@ -518,16 +523,21 @@ function intencaoDaPergunta(linha, texto) {
     if (categoria === 'horario' || categoria === 'horario-de-atendimento') pontos += 20;
     else if (categoria === 'como-funciona' || categoria === 'agenda') pontos += 5;
   }
-  if (/quem|empresa|voces|sobre|historia/.test(pergunta)) {
-    if (categoria === 'perfil-publico-da-empresa') pontos += 15;
+  if (/quem|empresa|voces|sobre|historia|cnpj/.test(pergunta)) {
+    if (categoria === 'perfil-publico-da-empresa' || categoria === 'o-que-a-empresa-faz') pontos += 18;
+    else if (categoria === 'nicho') pontos += 10;
+  }
+  if (/somar|soma|beneficio|vantagem|diferencial|ganho|agrega|por que escolher/.test(pergunta)) {
+    if (categoria === 'o-que-pode-somar' || categoria === 'diferenciais') pontos += 22;
+    else if (categoria === 'o-que-a-empresa-faz' || categoria === 'produto') pontos += 10;
   }
   if (/como|funciona|pedido|cardapio|pix|pagamento|entrega/.test(pergunta)) {
     if (categoria === 'como-funciona') pontos += 15;
     else if (categoria === 'produto' || categoria === 'aprendizado-validado') pontos += 5;
   }
-  if (/faz|oferece|servico|produto|solucao|preciso/.test(pergunta)) {
-    if (categoria === 'o-que-a-empresa-faz') pontos += 15;
-    else if (categoria === 'produto' || categoria === 'diferenciais' || categoria === 'clientes' || categoria === 'nicho') pontos += 8;
+  if (/faz|oferece|servico|produto|solucao|preciso|nicho|ramo|atua/.test(pergunta)) {
+    if (categoria === 'o-que-a-empresa-faz' || categoria === 'produto') pontos += 16;
+    else if (categoria === 'o-que-pode-somar' || categoria === 'diferenciais' || categoria === 'clientes' || categoria === 'nicho') pontos += 10;
   }
   return pontos;
 }
