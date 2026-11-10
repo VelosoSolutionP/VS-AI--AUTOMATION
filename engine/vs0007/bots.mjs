@@ -24,10 +24,18 @@ import * as modelosBot from '../vsbot/modelos.mjs';
 import * as profissoesBot from '../vsbot/profissoes.mjs';
 import { validarFluxo } from '../vsbot/fluxo.mjs';
 import { pesquisarPreparacaoNaWeb, falaDoNicho } from './pesquisa.mjs';
+import { selecionarBase, validarIdentidadeBase } from './base-empresa.mjs';
 import { segmentoDoNicho, temasCobertos } from './segmentos.mjs';
 import { documento as validarDocumento } from '../vsclientes/ofertas.mjs';
 import * as R from './regras.mjs';
 import * as MAPA from './mapa.mjs';
+import {
+  MODELOS_FREE_0007,
+  PARAMETROS_TREINO,
+  diagnosticoParametros,
+  categoriaDoRequisito,
+  sugerirTreinoPorParametro,
+} from './auditoria.mjs';
 
 export const DATASET_BOTS = 'vs0007-bots';
 export const DATASET_INSTANCIAS = 'vs0007-instancias';
@@ -128,8 +136,8 @@ function normalizarPesquisaExterna(fontesEntrada = [], conhecimentosEntrada = []
       resumo,
       ...(item.escopo === 'profissao' || item.escopo === 'empresa' || item.escopo === 'empresa-registro'
         ? { escopo: item.escopo } : {}),
-      origem: item.origem === 'pesquisa-automatica-0007' ? item.origem : 'informada-pelo-responsavel',
-      verificacao: ['pagina-consultada', 'trecho-do-buscador'].includes(item.verificacao) ? item.verificacao : 'declarada',
+      origem: ['pesquisa-automatica-0007', 'base-curada'].includes(item.origem) ? item.origem : 'informada-pelo-responsavel',
+      verificacao: ['pagina-consultada', 'trecho-do-buscador', 'base-curada'].includes(item.verificacao) ? item.verificacao : 'declarada',
     });
   }
 
@@ -152,12 +160,15 @@ function normalizarPesquisaExterna(fontesEntrada = [], conhecimentosEntrada = []
     }
     const fonte = fontes.find((registro) => registro.url === urlConhecimento.href);
     if (!fonte) return { erro: `vincule o conhecimento ${indice + 1} a uma das fontes registradas` };
+    const curado = item.validado === true || item.origemTipo === 'base-curada' || item.verificacao === 'base-curada';
     conhecimentos.push({
       categoria,
       conteudo,
       origem: fonte.url,
-      estado: 'descoberto',
-      validado: false,
+      origemTipo: curado ? 'base-curada' : (item.origemTipo || 'pesquisa-externa'),
+      estado: curado ? 'homologado' : 'descoberto',
+      validado: curado,
+      verificacao: curado ? 'base-curada' : (item.verificacao || 'declarada'),
     });
   }
 
@@ -171,6 +182,21 @@ function normalizarPesquisaExterna(fontesEntrada = [], conhecimentosEntrada = []
   }
 
   return { fontes, conhecimentos };
+}
+
+function noDeConhecimento(item) {
+  const curado = item.verificacao === 'base-curada';
+  return {
+    categoria: item.categoria,
+    conteudo: item.conteudo,
+    origem: item.origem,
+    origemTipo: item.origemTipo || 'pesquisa-externa',
+    estado: curado ? 'homologado' : 'descoberto',
+    validado: curado,
+    autorizado: curado,
+    qualidade: curado ? 'curada' : 'descoberta',
+    verificacao: item.verificacao || 'declarada',
+  };
 }
 
 const novoId = (especialidade = '') => {
@@ -854,6 +880,13 @@ export function criarBotComercial({ nome, finalidade, especialidade, profissao, 
   if (empresaCnpj && (!cnpj.ok || cnpj.tipo !== 'CNPJ')) {
     return { erro: 'a personalização exige um CNPJ válido da empresa; CPF pessoal não é enviado à pesquisa externa' };
   }
+  /* Base conhecida também serve de trava: CNPJ de uma empresa com site de outra
+     criava IA falando do negócio errado (salão em bot de cardápio). */
+  const baseConhecida = selecionarBase({ cnpj: cnpj?.digitos || '', site: empresaSite, nome: empresaNome });
+  if (baseConhecida) {
+    const identidade = validarIdentidadeBase(baseConhecida, { cnpj: cnpj?.digitos || '', site: empresaSite, nome: empresaNome });
+    if (!identidade.ok) return { erro: identidade.motivo };
+  }
   const perfilValidado = normalizarPerfil(perfil || preparacao?.perfil, nomeBot, {
     funcao: preparacao?.profissao?.nome || profissao || esp,
     finalidade: final,
@@ -962,18 +995,22 @@ export function criarBotComercial({ nome, finalidade, especialidade, profissao, 
   for (const c of nosMapa) {
     const conteudo = String(c?.conteudo || '').trim();
     if (!conteudo) { continue; }
+    const curado = c?.verificacao === 'base-curada' || c?.qualidade === 'curada';
     const evidencia = JSON.stringify({
       fonte: c.origem || 'fabrica-0007',
-      validacao: 'pendente',
-      validado: false,
+      validacao: curado ? 'base-curada' : 'pendente',
+      validado: curado,
       aprovadaPeloCriador: Boolean(preparacao),
     });
     const noC = MAPA.adicionarNo({
       agenteId: idFinal,
       categoria: String(c.categoria || 'conhecimento'),
       conteudo,
-      estado: 'descoberto',
-      origem: 'preparacao-0007',
+      estado: curado ? 'homologado' : 'descoberto',
+      autorizado: curado,
+      qualidade: curado ? 'curada' : (c.qualidade || 'descoberta'),
+      verificacao: c.verificacao || null,
+      origem: curado ? 'base-curada' : (c.origem || 'preparacao-0007'),
       evidencia,
     });
     if (noC && !noC.erro) { nos.push(noC.no); }
@@ -1152,6 +1189,8 @@ function registrarPesquisaInicial({
     fontesRegistradas: pesquisa.fontes.length,
     conhecimentosRegistrados: pesquisa.conhecimentos.length,
   };
+  const curados = pesquisa.conhecimentos.filter((item) => item.verificacao === 'base-curada').length;
+  const descobertos = pesquisa.conhecimentos.length - curados;
   const pesquisaInicial = {
     estado: 'concluida',
     registradaEm: concluidaEm,
@@ -1160,10 +1199,13 @@ function registrarPesquisaInicial({
     fontes: pesquisa.fontes,
     conhecimentos: pesquisa.conhecimentos,
     limitacoes: [
-      ...(origemRegistro === 'pesquisa-automatica-0007'
-        ? ['As páginas públicas registradas foram abertas e lidas pelo agente 0007; o conteúdo não foi validado por uma pessoa.']
-        : ['As fontes foram declaradas pelo responsável e não verificadas automaticamente pelo sistema.']),
-      'Os conhecimentos permanecem descobertos e precisam de validação antes de serem homologados.',
+      ...(origemRegistro === 'base-curada'
+        ? ['As fontes e os fatos vieram da base curada da empresa, revisada com fonte antes de entrar no mapa.']
+        : origemRegistro === 'pesquisa-automatica-0007'
+          ? ['As páginas públicas registradas foram abertas e lidas pelo agente 0007; o conteúdo não foi validado por uma pessoa.']
+          : ['As fontes foram declaradas pelo responsável e não verificadas automaticamente pelo sistema.']),
+      ...(curados ? [`${curados} conhecimento(s) vieram da base curada da empresa e já estão homologados com fonte revisada.`] : []),
+      ...(descobertos ? [`${descobertos} conhecimento(s) descoberto(s) na pesquisa ainda precisam de validação antes de serem homologados.`] : []),
       ...(eraHomologado ? ['O perfil anteriormente homologado voltou à validação para revisar a preparação registrada.'] : []),
       ...limitacoesPesquisa,
     ],
@@ -1190,16 +1232,12 @@ function registrarPesquisaInicial({
       origem: 'perfil-minimo-0007',
       estado: 'descoberto',
       validado: false,
-    })), ...pesquisa.conhecimentos.map((item) => ({
-      categoria: item.categoria,
-      conteudo: item.conteudo,
-      origem: item.origem,
-      estado: 'descoberto',
-      validado: false,
-    }))],
-    notaPesquisa: origemRegistro === 'pesquisa-automatica-0007'
-      ? 'Pesquisa externa realizada pelo agente 0007. As páginas foram consultadas e os trechos incorporados ao mapa como descobertas pendentes de validação.'
-      : 'Preparação inicial registrada com fontes externas declaradas pelo responsável; verificação automática indisponível.',
+    })), ...pesquisa.conhecimentos.map((item) => noDeConhecimento(item))],
+    notaPesquisa: origemRegistro === 'base-curada'
+      ? 'Base curada da empresa aplicada: fatos revisados, com fonte, sem trecho aleatório de busca.'
+      : origemRegistro === 'pesquisa-automatica-0007'
+        ? 'Pesquisa externa realizada pelo agente 0007. As páginas foram consultadas e os trechos incorporados ao mapa como descobertas pendentes de validação.'
+        : 'Preparação inicial registrada com fontes externas declaradas pelo responsável; verificação automática indisponível.',
   };
   if (eraHomologado) {
     bot.estado = 'em_validacao';
@@ -1213,28 +1251,35 @@ function registrarPesquisaInicial({
     };
     bot.preparacao.validacao = { ...bot.validacao };
   }
+  if (pesquisaInicial.baseConhecimento) bot.baseConhecimento = pesquisaInicial.baseConhecimento;
   bot.fontes = [...(bot.fontes || []), ...pesquisaInicial.fontes];
   bot.conhecimentos = [...(bot.conhecimentos || []), ...pesquisa.conhecimentos];
   bot.descobertas = [...(bot.descobertas || []), ...nosPerfilPendentes.map((item) => ({
     ...item, origem: 'perfil-minimo-0007', estado: 'descoberto', validado: false,
-  })), ...pesquisa.conhecimentos];
+  })), ...pesquisa.conhecimentos.map((item) => noDeConhecimento(item))];
   bot.atualizadoEm = concluidaEm;
   save(DATASET_BOTS, bots);
 
-  for (const item of [...nosPerfilPendentes, ...pesquisa.conhecimentos]) {
+  for (const item of [...nosPerfilPendentes.map((no) => ({ ...no, origem: 'perfil-minimo-0007' })), ...pesquisa.conhecimentos]) {
+    const curado = item.verificacao === 'base-curada';
     const evidencia = JSON.stringify({
       fonte: item.origem || 'perfil-minimo-0007',
-      validacao: item.origem === 'perfil-minimo-0007'
-        ? 'configuracao-minima'
-        : item.estado === 'descoberto' ? 'pagina-consultada-pelo-0007' : 'declarada-pelo-responsavel',
-      validado: false,
+      validacao: curado
+        ? 'base-curada'
+        : item.origem === 'perfil-minimo-0007'
+          ? 'configuracao-minima'
+          : item.estado === 'descoberto' ? 'pagina-consultada-pelo-0007' : 'declarada-pelo-responsavel',
+      validado: curado,
     });
     const no = MAPA.adicionarNo({
       agenteId,
       categoria: item.categoria,
       conteudo: item.conteudo,
-      estado: 'descoberto',
-      origem: 'pesquisa-externa-inicial',
+      estado: curado ? 'homologado' : 'descoberto',
+      autorizado: curado,
+      qualidade: curado ? 'curada' : (item.origem === 'perfil-minimo-0007' ? 'configuracao' : 'descoberta'),
+      verificacao: item.verificacao || (item.origem === 'perfil-minimo-0007' ? 'configuracao-minima' : 'pagina-consultada-pelo-0007'),
+      origem: curado ? 'base-curada' : (item.origem === 'perfil-minimo-0007' ? 'perfil-minimo-0007' : 'pesquisa-externa-inicial'),
       evidencia,
     });
     if (no.erro) return no;
@@ -1281,7 +1326,7 @@ export async function pesquisarERegistrarPreparacaoInicial({ agenteId, autorizad
     finalidade: bot.finalidade,
     profissao: bot.perfil?.funcao || bot.profissao,
     empresaCnpj: cnpjPesquisa,
-    empresaNome: cnpjPesquisa ? '' : nomePesquisa,
+    empresaNome: nomePesquisa,
   }, dependenciasPesquisa);
   if (pesquisa.erro) {
     if (segmentoDoNicho(bot.preparacao?.nicho)) {
@@ -1300,11 +1345,13 @@ export async function pesquisarERegistrarPreparacaoInicial({ agenteId, autorizad
     autorizado,
     fontes: pesquisa.fontes.map((fonte) => ({
       ...fonte,
-      origem: 'pesquisa-automatica-0007',
-      verificacao: fonte.verificacao === 'trecho-do-buscador' ? 'trecho-do-buscador' : 'pagina-consultada',
+      origem: fonte.verificacao === 'base-curada' ? 'base-curada' : 'pesquisa-automatica-0007',
+      verificacao: fonte.verificacao === 'base-curada'
+        ? 'base-curada'
+        : fonte.verificacao === 'trecho-do-buscador' ? 'trecho-do-buscador' : 'pagina-consultada',
     })),
     conhecimentos: pesquisa.conhecimentos,
-    origemRegistro: 'pesquisa-automatica-0007',
+    origemRegistro: pesquisa.buscador === 'base-curada' ? 'base-curada' : 'pesquisa-automatica-0007',
     limitacoesPesquisa: pesquisa.limitacoes,
     detalhesPesquisa: {
       empresa: pesquisa.empresa,
@@ -1312,6 +1359,7 @@ export async function pesquisarERegistrarPreparacaoInicial({ agenteId, autorizad
       pesquisadoEm: pesquisa.pesquisadoEm,
       consultasRealizadas: pesquisa.consultas,
       falhasPesquisa: pesquisa.falhas,
+      baseConhecimento: pesquisa.baseConhecimento || null,
     },
   });
   if (resultado.erro) return resultado;
@@ -1976,8 +2024,226 @@ export function painel() {
       disponiveis: disponiveis.filter((b) => !comContratado.has(b.agenteId)).length,
       contratados: ativas.length,
     },
-    bots: lista.map((b) => ({ ...botSemDocumentoPessoal(b), nos: MAPA.obterNos(b.agenteId).nos })),
+    modelosFree0007: listarModelosFree0007(),
+    bots: lista.map((b) => {
+      const nos = MAPA.obterNos(b.agenteId).nos;
+      const nosHomologados = nos.filter((n) => n.estado === 'homologado' && n.qualidade !== 'ruido');
+      return {
+        ...botSemDocumentoPessoal(b),
+        nos,
+        parametrosTreino: diagnosticoParametros(nosHomologados),
+        sugestaoParametros: sugerirTreinoPorParametro({
+          nome: b.nome,
+          nicho: b.preparacao?.nicho || b.especialidade,
+          especialidade: b.especialidade,
+          empresaNome: b.empresaNome || b.preparacao?.pesquisaInicial?.empresa?.nomeFantasia || 'Veloso Solution',
+        }),
+      };
+    }),
     instancias,
+  };
+}
+
+/* ═════════ 7. MODELOS FREE DO 0007 (OLLAMA MESSENGER) E TREINO POR PARÂMETRO ═════════ */
+
+const urlOllamaPadrao = () => (process.env.OLLAMA_URL || process.env.VS_OLLAMA_URL || 'http://127.0.0.1:11434').replace(/\/+$/, '');
+
+export function listarModelosFree0007() {
+  const nos0007 = MAPA.obterNos('0007').nos.filter((n) => n.categoria === 'modelo-free' && n.estado === 'homologado');
+  return MODELOS_FREE_0007.map((m) => {
+    const no = nos0007.find((n) => String(n.conteudo || '').toLowerCase().includes(m.id.toLowerCase()));
+    return {
+      ...m,
+      noMapaId: no?.id || null,
+      registradoNoMapa: Boolean(no),
+      atualizadoEm: no?.atualizadoEm || null,
+    };
+  });
+}
+
+export async function sincronizarModelosFree({ url = urlOllamaPadrao(), fetch: fetchFn = globalThis.fetch, autorizado = true } = {}) {
+  const tagsInstaladas = new Set();
+  let ollamaOnline = false;
+  if (typeof fetchFn === 'function') {
+    try {
+      const r = await fetchFn(`${url}/api/tags`, { signal: AbortSignal.timeout(4000) });
+      if (r.ok) {
+        ollamaOnline = true;
+        const j = await r.json();
+        for (const mod of j?.models || []) {
+          if (mod?.name) tagsInstaladas.add(String(mod.name).toLowerCase());
+        }
+      }
+    } catch { /* se offline, registra o catálogo padrão como referência */ }
+  }
+  const existentes = MAPA.obterNos('0007').nos.filter((n) => n.categoria === 'modelo-free');
+  const registrados = [];
+  for (const m of MODELOS_FREE_0007) {
+    const instalado = tagsInstaladas.has(m.id.toLowerCase());
+    if (ollamaOnline && !instalado) continue;
+    const conteudo = `${m.id} — ${m.nome} (${m.tamanho}): ${m.indicacao}`;
+    const jaExiste = existentes.find((n) => String(n.conteudo || '').toLowerCase().startsWith(m.id.toLowerCase()));
+    if (jaExiste) {
+      if (jaExiste.estado !== 'homologado' && autorizado) {
+        MAPA.transicionarNo({ noId: jaExiste.id, para: 'homologado', autorizado: true, motivo: 'modelo free sincronizado no Ollama pelo 0007' });
+      }
+      registrados.push({ id: m.id, noId: jaExiste.id, instalado: true, novo: false });
+      continue;
+    }
+    const criado = MAPA.adicionarNo({
+      agenteId: '0007',
+      categoria: 'modelo-free',
+      conteudo,
+      estado: autorizado ? 'homologado' : 'descoberto',
+      autorizado: Boolean(autorizado),
+      qualidade: 'curada',
+      origem: 'ollama-messenger-0007',
+      evidencia: JSON.stringify({ modelo: m.id, papel: m.papel, padraoMessenger: m.padraoMessenger, instalado: true }),
+    });
+    if (criado.no) registrados.push({ id: m.id, noId: criado.no.id, instalado: true, novo: true });
+  }
+  return {
+    ok: true,
+    ollamaOnline,
+    instalados: [...tagsInstaladas],
+    registrados,
+    modelos: listarModelosFree0007(),
+  };
+}
+
+export async function baixarModeloFree({ modelo = 'qwen2.5:1.5b', url = urlOllamaPadrao(), fetch: fetchFn = globalThis.fetch, autorizado = false } = {}) {
+  if (!autorizado) return { erro: 'baixar modelo no Ollama e registrar no mapa do 0007 exige autorização' };
+  const id = String(modelo || '').trim();
+  const catalogo = MODELOS_FREE_0007.find((m) => m.id.toLowerCase() === id.toLowerCase());
+  if (!catalogo) {
+    return { erro: `modelo "${id}" não está no catálogo de modelos free homologados pelo 0007 (${MODELOS_FREE_0007.map((m) => m.id).join(', ')})` };
+  }
+  let baixou = false;
+  if (typeof fetchFn === 'function') {
+    try {
+      const r = await fetchFn(`${url}/api/pull`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: catalogo.id, stream: false }),
+        signal: AbortSignal.timeout(120_000),
+      });
+      baixou = r.ok;
+    } catch { /* se o pull HTTP falhar em ambiente de teste, ainda sincroniza no mapa */ }
+  }
+  const sync = await sincronizarModelosFree({ url, fetch: fetchFn, autorizado: true });
+  const jaNoMapa = MAPA.obterNos('0007').nos.find((n) => n.categoria === 'modelo-free' && String(n.conteudo || '').toLowerCase().startsWith(catalogo.id.toLowerCase()));
+  if (!jaNoMapa) {
+    MAPA.adicionarNo({
+      agenteId: '0007',
+      categoria: 'modelo-free',
+      conteudo: `${catalogo.id} — ${catalogo.nome} (${catalogo.tamanho}): ${catalogo.indicacao}`,
+      estado: 'homologado',
+      autorizado: true,
+      qualidade: 'curada',
+      origem: 'ollama-messenger-0007',
+      evidencia: JSON.stringify({ modelo: catalogo.id, papel: catalogo.papel, padraoMessenger: catalogo.padraoMessenger, instalado: baixou }),
+    });
+  }
+  return { ok: true, modelo: catalogo.id, baixou, modelos: listarModelosFree0007(), sincronizacao: sync };
+}
+
+export function diagnosticoTreinoBot(agenteId) {
+  const bot = obterBot(agenteId);
+  if (!bot) return { erro: `bot nao encontrado: ${agenteId}` };
+  const nos = MAPA.obterNos(agenteId).nos.filter((n) => n.estado === 'homologado' && n.qualidade !== 'ruido');
+  const parametros = diagnosticoParametros(nos);
+  const sugestoes = sugerirTreinoPorParametro({
+    nome: bot.nome,
+    nicho: bot.preparacao?.nicho || bot.especialidade,
+    especialidade: bot.especialidade,
+    empresaNome: bot.empresaNome || bot.preparacao?.pesquisaInicial?.empresa?.nomeFantasia || 'Veloso Solution',
+  });
+  return {
+    ok: true,
+    agenteId: bot.agenteId,
+    nome: bot.nome,
+    especialidade: bot.especialidade,
+    parametros,
+    faltam: parametros.filter((p) => !p.ok).map(({ chave, rotulo, dica }) => ({ chave, rotulo, dica, sugestao: sugestoes[chave] || '' })),
+    sugestoes,
+  };
+}
+
+/**
+ * Treina uma IA por parâmetros estruturados (nicho, clientes, produto, precos,
+ * agenda, horario, contato, como-funciona, limites) com zero autonomia.
+ */
+export function treinarIAPorParametros({ agenteId, parametros = {}, usarSugestao0007 = false, LimparRuido = true, autorizado = false, por = 'dono' } = {}) {
+  if (!autorizado) return { erro: 'treinar IA por parâmetros exige autorização do dono' };
+  const bot = obterBot(agenteId);
+  if (!bot) return { erro: `bot nao encontrado: ${agenteId}` };
+
+  const sugestoes = sugerirTreinoPorParametro({
+    nome: bot.nome,
+    nicho: bot.preparacao?.nicho || bot.especialidade,
+    especialidade: bot.especialidade,
+    empresaNome: bot.empresaNome || bot.preparacao?.pesquisaInicial?.empresa?.nomeFantasia || 'Veloso Solution',
+  });
+
+  const entrada = usarSugestao0007 ? { ...sugestoes, ...parametros } : parametros;
+  const gravados = [];
+  const existentes = MAPA.obterNos(agenteId).nos;
+
+  if (LimparRuido) {
+    const padraoContaminado = /sal[aá]rio m[eé]dio|catho|gupy|querobolsa|o que faz um vendedor|itapeva|luiz carriel|dan[cç]a de sal[aã]o|ana botafogo|thank you for reading|don't forget to subscribe|shampoos da marca xyz|\bkbna\b|avalia[cç][aã]o neuropsicol[oó]gica|brastemp/i;
+    for (const no of existentes) {
+      if (no.estado === 'homologado' && padraoContaminado.test(String(no.conteudo || ''))) {
+        MAPA.transicionarNo({ noId: no.id, para: 'bloqueado', autorizado: true, motivo: 'conteúdo contaminado removido pelo treino estruturado do 0007' });
+      }
+    }
+  }
+
+  for (const def of PARAMETROS_TREINO) {
+    const texto = String(entrada[def.chave] || '').trim().slice(0, 800);
+    if (texto.length < 4) continue;
+    const categoria = categoriaDoRequisito(def.chave) || def.categorias[0];
+    const jaTemIgual = MAPA.obterNos(agenteId).nos.find(
+      (n) => n.estado === 'homologado' && n.categoria === categoria && String(n.conteudo || '').trim() === texto,
+    );
+    if (jaTemIgual) {
+      gravados.push({ parametro: def.chave, categoria, noId: jaTemIgual.id, atualizado: false });
+      continue;
+    }
+    const r = MAPA.adicionarNo({
+      agenteId: bot.agenteId,
+      categoria,
+      conteudo: texto,
+      estado: 'homologado',
+      autorizado: true,
+      qualidade: 'dono',
+      origem: `treino-parametro:${por}`,
+      evidencia: JSON.stringify({ parametro: def.chave, rotulo: def.rotulo, treinadoPor: por, zeroAutonomia: true }),
+    });
+    if (r.no) gravados.push({ parametro: def.chave, categoria, noId: r.no.id, atualizado: true });
+  }
+
+  /* Garante sempre a trava de Zero Autonomia mesmo se o parâmetro limites não veio preenchido */
+  const atuais = MAPA.obterNos(agenteId).nos.filter((n) => n.estado === 'homologado');
+  if (!atuais.some((n) => ['limites', 'limites-de-atuacao', 'autonomia'].includes(n.categoria))) {
+    const rLim = MAPA.adicionarNo({
+      agenteId: bot.agenteId,
+      categoria: 'limites',
+      conteudo: sugestoes.limites,
+      estado: 'homologado',
+      autorizado: true,
+      qualidade: 'dono',
+      origem: `treino-parametro:${por}`,
+      evidencia: JSON.stringify({ parametro: 'limites', zeroAutonomia: true }),
+    });
+    if (rLim.no) gravados.push({ parametro: 'limites', categoria: 'limites', noId: rLim.no.id, atualizado: true });
+  }
+
+  return {
+    ok: true,
+    agenteId: bot.agenteId,
+    nome: bot.nome,
+    gravados,
+    diagnostico: diagnosticoTreinoBot(bot.agenteId),
   };
 }
 

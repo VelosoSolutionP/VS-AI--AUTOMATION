@@ -1,0 +1,159 @@
+{
+  "id": "veloso-solution",
+  "versao": "2026-11-10",
+  "nome": "Veloso Solution",
+  "empresa": {
+    "cnpj": "53759232000194",
+    "razaoSocial": "FABIANO LUCIO VELOSO",
+    "nomeFantasia": "Veloso Solution",
+    "site": "https://velososolution.com.br",
+    "dominios": [
+      "velososolution.com.br",
+      "to-no-rango.velososolution.com.br"
+    ],
+    "municipio": "Contagem",
+    "uf": "MG",
+    "atividadePrincipal": "Desenvolvimento de programas de computador sob encomenda",
+    "situacao": "ATIVA",
+    "porte": "MICRO EMPRESA",
+    "inicioAtividade": "2024-02-01",
+    "baseOperacional": "Contagem/MG; atendimento remoto em todo o Brasil"
+  },
+  "fontes": [
+    {
+      "tipo": "site-oficial",
+      "titulo": "Veloso Solution — engenharia de software, IA ZEST e plataformas digitais",
+      "url": "https://velososolution.com.br/empresa/",
+      "resumo": "Site institucional da Veloso Solution: engenharia de software, modernização de sistemas, sustentação, DevOps, inteligência artificial aplicada ao atendimento e suíte de produtos próprios."
+    },
+    {
+      "tipo": "site-oficial",
+      "titulo": "Veloso Solution — produtos e soluções",
+      "url": "https://velososolution.com.br/produtos/",
+      "resumo": "Catálogo oficial de produtos da Veloso Solution: Suíte VS-IA (ZEST), To-No-Rango, Cadê Você (Sistema para Salão, Barbearia e Estética), Dobrão e Quebra-Galho."
+    },
+    {
+      "tipo": "site-oficial",
+      "titulo": "To-No-Rango — cardápio digital, pedidos e ZEST no WhatsApp",
+      "url": "https://to-no-rango.velososolution.com.br/",
+      "resumo": "Plataforma da Veloso Solution para cardápio digital, atendimento com IA ZEST no WhatsApp, pagamentos Pix/cartão, cozinha, entrega, estoque e gestão financeira."
+    },
+    {
+      "tipo": "cadastro-publico-empresa",
+      "titulo": "Consulta cadastral pública do CNPJ da Veloso Solution",
+      "url": "https://brasilapi.com.br/api/cnpj/v1/53759232000194",
+      "resumo": "Dados cadastrais públicos da Veloso Solution: CNPJ 53.759.232/0001-94, situação ativa, atividade principal de desenvolvimento de programas de computador sob encomenda."
+    },
+    {
+      "tipo": "site-oficial",
+      "titulo": "Canal oficial de atendimento da Veloso Solution no WhatsApp",
+      "url": "https://wa.me/553175536010",
+      "resumo": "Canal oficial da Veloso Solution para demonstrações comerciais, suporte técnico e agendamento com o responsável."
+    }
+  ],
+  "fatos": [
+    {
+      "categoria": "perfil-publico-da-empresa",
+      "conteudo": "Veloso Solution — CNPJ 53.759.232/0001-94, situação ATIVA. Engenharia de software, sistemas sob medida, sustentação, DevOps e plataformas com inteligência artificial. Base em Contagem/MG, com atendimento remoto em todo o Brasil.",
+      "fonteUrl": "https://velososolution.com.br/empresa/"
+    },
+    {
+      "categoria": "o-que-a-empresa-faz",
+      "conteudo": "A Veloso Solution desenvolve sistemas de gestão, plataformas de vendas e agendamento, e assistentes de IA (ZEST) para atendimento humanizado no WhatsApp, sem autonomia para inventar preços, prazos ou promessas fora da base.",
+      "fonteUrl": "https://velososolution.com.br/empresa/"
+    },
+    {
+      "categoria": "nicho",
+      "conteudo": "Atuação no nicho de tecnologia, automação comercial, atendimento ao cliente, suporte técnico e agendamento inteligente: entender a dor do cliente em poucas mensagens, orientar com clareza sobre o produto ou serviço certo e encaminhar o fechamento ou chamado para o responsável.",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    },
+    {
+      "categoria": "clientes",
+      "conteudo": "Perfil dos clientes e o que precisam: donos de comércio, distribuidoras, restaurantes, salões/barbearias/clínicas de estética, prestadores de serviço e empresas que precisam organizar atendimento no WhatsApp, vender com catálogo/cardápio digital, controlar agenda, estoque e financeiro ou ter suporte técnico ágil.",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    },
+    {
+      "categoria": "produto",
+      "conteudo": "ZEST (Suíte VS-IA): assistentes virtuais humanizadas para WhatsApp (vendas, suporte, recepção e agendamento), treinadas por parâmetros do negócio (nicho, perfil do cliente, produtos, agenda e limites) com auditoria do dono e zero autonomia para criar condições não autorizadas.",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    },
+    {
+      "categoria": "produto",
+      "conteudo": "To-No-Rango: plataforma completa de cardápio e catálogo digital, pedidos no navegador sem instalar app, atendimento com IA ZEST no WhatsApp, Pix/cartão via Mercado Pago, fila de cozinha/entrega, controle de estoque com NF-e e financeiro integrado.",
+      "fonteUrl": "https://to-no-rango.velososolution.com.br/"
+    },
+    {
+      "categoria": "produto",
+      "conteudo": "Cadê Você (Sistema para Salão, Barbearia e Estética): gestão de agenda por profissional e cadeira, catálogo de serviços com duração e preço, lembretes, comissões, financeiro e bot de agendamento no WhatsApp integrado em tempo real à agenda do salão.",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    },
+    {
+      "categoria": "produto",
+      "conteudo": "Dobrão e Quebra-Galho: soluções da Veloso Solution para vendas rápidas, catálogo comercial, organização operacional e atendimento direto pelo WhatsApp.",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    },
+    {
+      "categoria": "produto",
+      "conteudo": "Engenharia de Software e Suporte Técnico Veloso Solution: desenvolvimento de sistemas sob encomenda, modernização de legados, integrações via API, sustentação técnica e acompanhamento de chamados.",
+      "fonteUrl": "https://velososolution.com.br/empresa/"
+    },
+    {
+      "categoria": "precos",
+      "conteudo": "Preços e planos: sob consulta conforme o produto (ZEST, To-No-Rango, Cadê Você ou projeto sob medida), módulos escolhidos e volume de operação. Nunca informar valor fechado ou desconto sem tabela comercial aprovada pelo responsável.",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    },
+    {
+      "categoria": "agenda",
+      "conteudo": "Agenda e marcação: para demonstrações comerciais, reuniões ou visitas técnicas, coletar nome, empresa/ramo e melhor dia/turno de preferência e registrar para confirmação do responsável (Fabiano / equipe Veloso Solution). Para salões no Cadê Você, consultar apenas horários livres reais na agenda conectada.",
+      "fonteUrl": "https://wa.me/553175536010"
+    },
+    {
+      "categoria": "horario",
+      "conteudo": "Horário de atendimento: a IA ZEST realiza acolhimento, triagem e tira-dúvidas 24h no WhatsApp. O atendimento humano, suporte de segundo nível e aprovação comercial ocorrem em horário comercial com a equipe da Veloso Solution.",
+      "fonteUrl": "https://velososolution.com.br/empresa/"
+    },
+    {
+      "categoria": "contato",
+      "conteudo": "Contato oficial: WhatsApp +55 31 7553-6010 (wa.me/553175536010), site velososolution.com.br e to-no-rango.velososolution.com.br. Base operacional em Contagem/MG.",
+      "fonteUrl": "https://wa.me/553175536010"
+    },
+    {
+      "categoria": "como-funciona",
+      "conteudo": "Como funciona o atendimento e contratação: 1) identificamos o ramo do cliente e o que ele precisa (vendas, cardápio digital, agenda de salão, suporte ou sistema); 2) apresentamos a solução ideal e demonstramos na prática; 3) coletamos os dados básicos e encaminhamos para o responsável liberar a proposta ou agendamento.",
+      "fonteUrl": "https://velososolution.com.br/produtos/"
+    },
+    {
+      "categoria": "aprendizado-validado",
+      "conteudo": "Como abrir chamado ou pedir suporte técnico? Informe seu nome, empresa/sistema e descreva o que aconteceu (se puder, envie print ou mensagem de erro) que registramos e acionamos a equipe técnica.",
+      "fonteUrl": "https://velososolution.com.br/empresa/"
+    },
+    {
+      "categoria": "aprendizado-validado",
+      "conteudo": "Como falar ou agendar horário com o Fabiano (responsável)? Informe seu nome, assunto e disponibilidade de horário que deixamos o recado organizado na agenda para retorno e confirmação.",
+      "fonteUrl": "https://wa.me/553175536010"
+    },
+    {
+      "categoria": "limites",
+      "conteudo": "Zero autonomia comercial ou operacional: a IA é o braço direito do atendimento, mas nunca fecha contrato sozinha, não concede desconto, não altera preços, não confirma agendamento sem checar a agenda e não inventa informações fora do mapa mental homologado.",
+      "fonteUrl": "https://velososolution.com.br/empresa/"
+    },
+    {
+      "categoria": "limites",
+      "conteudo": "Se o cliente perguntar algo que não consta na base homologada, admitir com transparência que vai confirmar com o responsável e registrar a dúvida como pendente para auditoria do 0007.",
+      "fonteUrl": "https://velososolution.com.br/empresa/"
+    },
+    {
+      "categoria": "regras",
+      "conteudo": "Atendimento humanizado estilo Messenger/WhatsApp: respostas curtas (2 a 3 frases), acolhedoras, naturais em português do Brasil, sem listas robóticas e sem repetir a mesma frase na conversa.",
+      "fonteUrl": "https://wa.me/553175536010"
+    }
+  ],
+  "lacunas": [
+    "Valores comerciais dependem do módulo e porte do cliente; usar sempre 'sob consulta' e encaminhar para proposta.",
+    "Confirmação final de reuniões na agenda do responsável depende de validação humana."
+  ],
+  "limites": [
+    "Zero autonomia: não inventar preço, prazo, desconto, disponibilidade ou diagnóstico técnico.",
+    "Sempre encaminhar decisões finais e exceções para aprovação do dono."
+  ]
+}

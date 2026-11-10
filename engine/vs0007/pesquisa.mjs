@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 import { estudarHtml, textoDoHtml, urlPermitida } from '../vsmapa/estudar.mjs';
 import { documento as validarDocumento } from '../vsclientes/ofertas.mjs';
 import { segmentoDoNicho, falaDoTema, doRamo, temasCobertos } from './segmentos.mjs';
+import { baseParaPesquisa, selecionarBase, validarIdentidadeBase } from './base-empresa.mjs';
 
 const BUSCADORES = [
   {
@@ -254,6 +255,20 @@ function normalizarTermos(texto) {
     .filter((termo) => termo.length > 2 && !['empresa', 'comercio', 'comercial', 'ltda', 'me', 'epp'].includes(termo));
 }
 
+function compartilhaRadical(a, b) {
+  const ta = new Set(normalizarTermos(a));
+  const tb = new Set(normalizarTermos(b));
+  for (const x of ta) {
+    for (const y of tb) {
+      if (x === y) return true;
+      const menor = x.length <= y.length ? x : y;
+      const maior = x.length <= y.length ? y : x;
+      if (menor.length >= 5 && maior.includes(menor)) return true;
+    }
+  }
+  return false;
+}
+
 function resultadoRelevante(resultado, termosBusca, minimoEncontrado = 1) {
   const termos = [...new Set(termosBusca.flatMap(normalizarTermos))];
   if (!termos.length) return false;
@@ -285,8 +300,9 @@ export function falaDoNicho(texto, nomes, proporcao = 0.6) {
 }
 const SITE_BUSCA = /(^|\.)google(\.[a-z.]+)?$|(^|\.)bing\.com$/i;
 const SITE_GENERICO = /(^|\.)google$|(^|\.)(google|apple|microsoft|amazon|mercadolivre|magazineluiza|americanas|shopee|aliexpress|facebook|instagram|tiktok|twitter|x|pinterest)\.[a-z.]+$/i;
-const CADASTRO_EMPRESA = /cnpj|serasa|econodata|casadosdados|consultas?ocio|advdinamico|informecadastral|receitaws|telelistas/i;
-const TRECHO_LIXO = /\uFFFD|- youtube$|\?|cookie|javascript|inscrev|deixe seu like|clique|acesse o conte|fa[cç]a login|todos os direitos|my ad center|resultados da web|\]\(|##|fale com a gente|entrevista|\bvagas?\b|sal[aá]rio|curr[ií]culo|como se tornar|por que ser|aproveite v[ií]deos|followers|following|seguidores|»|\*\*|in[ií]cio \/|^\W/i;
+const SITE_EMPREGO_OU_GUIA = /(^|\.)(catho|gupy|querobolsa|vagas|glassdoor|infojobs|indeed|trabalhabrasil|salario|educamaisbrasil|guiadacarreira|telelistas|solutudo|apontador|guiafacil|guiamais|hagah|kekanto|pointdadanca)\.[a-z.]+$|^encontra[a-z0-9-]+\.com(\.br)?$/i;
+const CADASTRO_EMPRESA = /cnpj|serasa|econodata|casadosdados|consultas?ocio|advdinamico|informecadastral|receitaws|telelistas|solutudo|encontra[a-z]/i;
+const TRECHO_LIXO = /\uFFFD|- youtube$|\?|cookie|javascript|inscrev|deixe seu like|clique|acesse o conte|fa[cç]a login|todos os direitos|my ad center|resultados da web|\]\(|##|fale com a gente|entrevista|\bvagas?\b|sal[aá]rio|curr[ií]culo|como se tornar|por que ser|o que faz um|m[eé]dia salarial|mercado de trabalho|aproveite v[ií]deos|followers|following|seguidores|thank you for reading|don't forget to subscribe|dan[cç]a de sal[aã]o|»|\*\*|in[ií]cio \/|^\W/i;
 const ENTIDADES = { nbsp: ' ', amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', ordm: 'º', ordf: 'ª' };
 const MARCAS = { acute: '\u0301', grave: '\u0300', tilde: '\u0303', circ: '\u0302', uml: '\u0308', cedil: '\u0327' };
 /* Algumas páginas chegam com acento em entidade HTML (op&ccedil;&otilde;es). */
@@ -502,12 +518,46 @@ export async function pesquisarPreparacaoNaWeb(
 ) {
   const nicho = String(especialidade || '').trim();
   if (nicho.length < 2) return { erro: 'informe uma especialidade válida para pesquisar' };
+
+  const base = selecionarBase({ cnpj: empresaCnpj, site: siteEmpresa, nome: empresaNome, nicho: nichoInformado, especialidade: nicho });
+  if (base) {
+    const identidade = validarIdentidadeBase(base, { cnpj: empresaCnpj, site: siteEmpresa, nome: empresaNome });
+    if (!identidade.ok) return { erro: identidade.motivo, baseConhecimento: { id: base.id, nome: base.nome } };
+    const curada = baseParaPesquisa(base);
+    return {
+      ok: true,
+      buscador: 'base-curada',
+      pesquisadoEm: new Date().toISOString(),
+      consultas: 0,
+      ...curada,
+      falhas: [],
+      limitacoes: [
+        'Conhecimento inicial veio da base curada da empresa, revisada com fonte; não é trecho aleatório de busca.',
+        ...curada.limitacoes,
+      ],
+    };
+  }
+
   if (typeof fetchFn !== 'function') return { erro: 'a pesquisa na internet não está disponível neste servidor' };
 
   let cadastroEmpresa = null;
   if (empresaCnpj) {
     cadastroEmpresa = await consultarCadastroEmpresa(empresaCnpj, fetchFn);
     if (cadastroEmpresa.erro) return cadastroEmpresa;
+    /* CNPJ de uma empresa e site de outra era o que fazia a IA nascer falando
+       de salão de beleza em um bot de cardápio digital. */
+    if (siteEmpresa && cadastroEmpresa.empresa) {
+      const identidade = `${cadastroEmpresa.empresa.nomeFantasia || ''} ${cadastroEmpresa.empresa.razaoSocial || ''}`.trim();
+      let hostSite = '';
+      try {
+        hostSite = new URL(/^https?:\/\//i.test(siteEmpresa) ? siteEmpresa : `https://${siteEmpresa}`).hostname;
+      } catch { /* URL inválida é tratada mais adiante pela validação de fonte */ }
+      if (hostSite && identidade && !compartilhaRadical(hostSite, identidade) && !compartilhaRadical(empresaNome, identidade)) {
+        return {
+          erro: `o CNPJ ${empresaCnpj} (${identidade}) não corresponde ao site ${hostSite}; confirme a empresa e o CNPJ antes de criar a IA`,
+        };
+      }
+    }
   }
   /* Sem CNPJ, o nome informado ainda permite pesquisar a presença pública da
      empresa. É só um termo de busca: não há consulta cadastral nem envio de
@@ -547,8 +597,8 @@ export async function pesquisarPreparacaoNaWeb(
          aleatórios: só conta como resposta o que é relevante ao nicho. */
       const relevantes = resultados.filter((resultado) =>
         (consulta.escopo === 'empresa'
-          ? falaDoNicho(`${resultado.titulo} ${resultado.resumo} ${resultado.url}`, consulta.termos, 1) && !CADASTRO_EMPRESA.test(new URL(resultado.url).hostname) && !SITE_BUSCA.test(new URL(resultado.url).hostname)
-          : (consulta.tema ? falaDoTema(`${resultado.titulo} ${resultado.resumo} ${resultado.url}`, consulta.tema) && doRamo(`${resultado.titulo} ${resultado.resumo} ${resultado.url}`, segmento) : falaDoNicho(`${resultado.titulo} ${resultado.resumo} ${resultado.url}`, [nicho, nichoInformado])) && !SITE_GENERICO.test(new URL(resultado.url).hostname))
+          ? falaDoNicho(`${resultado.titulo} ${resultado.resumo} ${resultado.url}`, consulta.termos, 1) && !CADASTRO_EMPRESA.test(new URL(resultado.url).hostname) && !SITE_BUSCA.test(new URL(resultado.url).hostname) && !SITE_EMPREGO_OU_GUIA.test(new URL(resultado.url).hostname)
+          : (consulta.tema ? falaDoTema(`${resultado.titulo} ${resultado.resumo} ${resultado.url}`, consulta.tema) && doRamo(`${resultado.titulo} ${resultado.resumo} ${resultado.url}`, segmento) : falaDoNicho(`${resultado.titulo} ${resultado.resumo} ${resultado.url}`, [nicho, nichoInformado])) && !SITE_GENERICO.test(new URL(resultado.url).hostname) && !SITE_EMPREGO_OU_GUIA.test(new URL(resultado.url).hostname))
         /* Página de verificação anti-robô (captcha) não é fonte. */
         && !/perfdrive\.com|captcha|challenge|cloudflare/i.test(new URL(resultado.url).hostname)
         /* Dicionário não é fonte do setor. */
@@ -687,28 +737,47 @@ export async function pesquisarPreparacaoNaWeb(
   const fontesProfissao = fontes.filter((fonte) => fonte.escopo === 'profissao');
   const fontesEmpresaWeb = fontes.filter((fonte) => fonte.escopo === 'empresa');
   const categorias = new Set(fontesProfissao.map((fonte) => fonte.tipo));
-  /* Produtos: o site informado na criação ou, sem ele, o site achado na pesquisa. */
+  /* Produtos e fatos da empresa: o site informado na criação ou, sem ele, o
+     site achado na pesquisa. Antes o site só servia para preço; o "o que a
+     empresa faz" ficava refém da busca por nome e trazia blog aleatório. */
   const produtos = [];
+  const conhecimentosSite = [];
   const redes = /facebook|instagram|linkedin|youtube|tiktok/i;
   const informado = String(siteEmpresa || '').trim();
   const siteAlvo = informado ? (/^https?:\/\//i.test(informado) ? informado : `https://${informado}`) : fontesEmpresaWeb.find((f) => !redes.test(new URL(f.url).hostname))?.url;
   if (siteAlvo && urlPermitida(siteAlvo)) {
     try {
       const inicio = await buscarHtml(siteAlvo, fetchFn);
-      const paginas = [inicio, ...(await Promise.all([...new Set([...String(inicio.html).matchAll(/href="([^"#]+)"/gi)].map((m) => { try { return new URL(m[1], siteAlvo); } catch { return null; } })
-        .filter((u) => u && u.hostname === new URL(siteAlvo).hostname && u.protocol === 'https:' && /produto|loja|catalogo|servi|planos|precos|shop/i.test(u.pathname)).map((u) => u.href))].slice(0, 3)
-        .map((u) => buscarHtml(u, fetchFn).catch(() => null)))).filter(Boolean)];
+      const hostSite = new URL(siteAlvo).hostname;
+      const links = [...new Set([...String(inicio.html).matchAll(/href="([^"#]+)"/gi)].map((m) => { try { return new URL(m[1], siteAlvo); } catch { return null; } })
+        .filter((u) => u && u.hostname === hostSite && u.protocol === 'https:').map((u) => u.href))];
+      const linksProduto = links.filter((url) => /produto|loja|catalogo|servi|planos|precos|shop/i.test(new URL(url).pathname)).slice(0, 3);
+      const linksEmpresa = links.filter((url) => /sobre|empresa|quem-somos|institucional|solucoes|servicos|como-funciona|faq|duvidas|contato|atendimento/i.test(new URL(url).pathname)).slice(0, 4);
+      const paginas = [inicio, ...(await Promise.all(linksProduto.map((url) => buscarHtml(url, fetchFn).catch(() => null)))).filter(Boolean)];
       const lista = [...new Set(paginas.flatMap((p) => extrairProdutos(p.html)))].slice(0, 6);
-      let fonteSite = fontes.find((f) => f.url === siteAlvo) || fontesEmpresaWeb[0];
-      if (!fonteSite && lista.length && fontes.length < (segmento?.limites.fontes ?? 8)) {
-        fonteSite = { tipo: 'presenca-digital-empresa', escopo: 'empresa', titulo: new URL(siteAlvo).hostname, url: siteAlvo, resumo: 'Site da empresa consultado para os produtos.', conhecimentos: [] };
+      let fonteSite = fontes.find((f) => f.url === siteAlvo);
+      if (!fonteSite && (lista.length || linksEmpresa.length) && fontes.length < (segmento?.limites.fontes ?? 8)) {
+        fonteSite = { tipo: 'site-oficial', escopo: 'empresa', titulo: hostSite, url: siteAlvo, resumo: 'Site oficial da empresa consultado na preparação.', conhecimentos: [] };
         fontes.push(fonteSite);
+        categorias.add('site-oficial');
       }
-      if (fonteSite) produtos.push(...lista.map((conteudo) => ({ categoria: 'produto', conteudo: conteudo.slice(0, 300), fonteUrl: fonteSite.url })));
+      if (fonteSite) {
+        produtos.push(...lista.map((conteudo) => ({ categoria: 'produto', conteudo: conteudo.slice(0, 300), fonteUrl: fonteSite.url })));
+        const geral = conhecimentoDaPagina({ ...inicio, resultado: { titulo: hostSite } }, informado, { escopo: 'empresa', nomes: [nicho, nichoInformado] });
+        const extras = await Promise.all(linksEmpresa.map(async (url) => {
+          try {
+            return conhecimentoDaPagina({ ...(await buscarHtml(url, fetchFn)), resultado: { titulo: hostSite } }, informado, { escopo: 'empresa', nomes: [nicho, nichoInformado] });
+          } catch { return null; }
+        }));
+        const fatos = [...geral.conhecimentos, ...extras.filter(Boolean).flatMap((extra) => extra.conhecimentos)];
+        const unicos = [...new Map(fatos.map((fato) => [fato.conteudo, fato])).values()].slice(0, 8);
+        conhecimentosSite.push(...unicos.map((fato) => ({ ...fato, categoria: 'o-que-a-empresa-faz', fonteUrl: fonteSite.url })));
+        fonteSite.conhecimentos.push(...unicos);
+      }
     } catch (erro) { falhas.push(`site da empresa: ${String(erro.message || erro).slice(0, 120)}`); }
   }
   /* Sem reserva, o nicho consumia as 10 vagas e o que a empresa faz ficava de fora. */
-  const daEmpresa = [...(cadastroEmpresa ? [cadastroEmpresa.conhecimento] : []), ...fontesEmpresaWeb.flatMap((fonte) => fonte.conhecimentos || [])].slice(0, produtos.length ? 3 : 5);
+  const daEmpresa = [...(cadastroEmpresa ? [cadastroEmpresa.conhecimento] : []), ...conhecimentosSite, ...fontesEmpresaWeb.flatMap((fonte) => fonte.conhecimentos || [])].slice(0, produtos.length ? 5 : 7);
   const conhecimentos = [...produtos.slice(0, 4), ...daEmpresa, ...fontesProfissao.flatMap((fonte) => fonte.conhecimentos || [])].slice(0, segmento?.limites.conhecimentos ?? 10);
   const cobertos = segmento ? temasCobertos(segmento, conhecimentos) : [];
   const temasFaltando = segmento ? segmento.temas.filter((tema) => !cobertos.includes(tema)) : [];

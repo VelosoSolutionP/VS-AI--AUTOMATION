@@ -469,6 +469,63 @@ test('o que a IA não soube vira aprendizado pendente e só vale depois de audit
   });
 });
 
+test('o 0007 opina, o dono decide e o que ele aprova vale mesmo com base curada', async () => {
+  await comEmpresa('12312312000188', async () => {
+    iaHomologada({ id: 'ia-par', nome: 'Duda', especialidade: 'Faxina', conhecimento: 'Faxina leva 4 horas' });
+    const curada = mapa.adicionarNo({ agenteId: 'ia-par', categoria: 'produto', conteudo: 'Faxina completa', estado: 'homologado', autorizado: true, qualidade: 'curada' });
+    assert.ok(curada.no);
+    const n = canais.cadastrar({ rotulo: 'Par', agenteId: 'ia-par' }).numero;
+    await canais.conectar({ id: n.id }); estados.set(n.instancia, 'open');
+    await canais.receberWebhook(evento(n.instancia, '5531999990050', 'pergunta desconhecida sobre frete', 'pa1'), { segredo: 'segredo-123' });
+    await canais.receberWebhook(evento(n.instancia, '5531999990051', 'pergunta desconhecida sobre frete', 'pa2'), { segredo: 'segredo-123' });
+    const [p] = canais.estadoAuditoria().pendentes;
+    assert.equal(p.vezes, 2, 'repetida conta');
+    assert.equal(p.parecer.voto, 'aprovar');
+    assert.equal(canais.avisoDeAuditoria(), null, 'antes dos 15 dias não avisa');
+    const depois = new Date(Date.now() + 16 * 864e5);
+    assert.match(canais.avisoDeAuditoria({ agora: depois }), /sugiro aprovar 1/);
+    canais.marcarAvisoDeAuditoria();
+    assert.equal(canais.avisoDeAuditoria({ agora: depois }), null, 'avisa uma vez por ciclo');
+    assert.equal(mapa.obterNos('ia-par').nos.find((x) => x.id === p.id).estado, 'descoberto', 'parecer não aplica nada');
+    assert.equal(canais.validarAprendizado({ id: p.id, resposta: 'Frete grátis em BH.' }).ok, true);
+    assert.equal(mapa.obterNos('ia-par').nos.find((x) => x.categoria === 'aprendizado-validado').qualidade, 'dono');
+    assert.deepEqual(canais.treinoDasIAs().find((x) => x.agenteId === 'ia-par').faltam.map((f) => f.chave), ['precos', 'horario', 'contato', 'como-funciona']);
+    assert.match(canais.ensinarIA({ agenteId: 'ia-par', requisito: 'xx', texto: 'abc' }).erro, /escolha/);
+    assert.equal(canais.ensinarIA({ agenteId: 'ia-par', requisito: 'precos', texto: 'Faxina custa R$ 150' }).ok, true);
+    assert.equal(canais.treinoDasIAs().find((x) => x.agenteId === 'ia-par').faltam.some((f) => f.chave === 'precos'), false);
+  });
+});
+
+test('número conectado com IA conta como bot no ar; desconectado não', async () => {
+  await comEmpresa('12312312000166', async () => {
+    iaHomologada({ id: 'ia-ar', nome: 'Lia', especialidade: 'Faxina', conhecimento: 'x' });
+    const n = canais.cadastrar({ rotulo: 'Vendas', agenteId: 'ia-ar' }).numero;
+    assert.deepEqual((await canais.noAr()).canais, []);
+  });
+  await comEmpresa('12312312000155', async () => {
+    iaHomologada({ id: 'ia-ar2', nome: 'Lia', especialidade: 'Faxina', conhecimento: 'x' });
+    const n = canais.cadastrar({ rotulo: 'Vendas', agenteId: 'ia-ar2' }).numero;
+    await canais.conectar({ id: n.id }); estados.set(n.instancia, 'open');
+    assert.deepEqual((await canais.noAr()).canais, [{ rotulo: 'Vendas', ia: 'Lia' }]);
+  });
+});
+
+test('sem base sobre o tema ela não inventa, e nunca nega ser robô', async () => {
+  await comEmpresa('12312312000177', async () => {
+    iaHomologada({ id: 'ia-trava', nome: 'Duda', especialidade: 'Faxina', conhecimento: 'Faxina leva 4 horas' });
+    const n = canais.cadastrar({ rotulo: 'Trava', agenteId: 'ia-trava' }).numero;
+    await canais.conectar({ id: n.id }); estados.set(n.instancia, 'open');
+    const manda = async (texto, id, de = '5531999990060') => (await canais.receberWebhook(evento(n.instancia, de, texto, id), { segredo: 'segredo-123' })).resultados[0].envios.at(-1);
+    assert.equal((await manda('vocês entregam em Contagem?', 'tr1')).origem, 'sem-base');
+    assert.equal(canais.estadoAuditoria().pendentes.length, 1, 'virou pendente');
+    const robo = await manda('vc é robo?', 'tr2');
+    assert.equal(robo.origem, 'identidade');
+    assert.match(robo.texto, /assistente virtual/);
+    assert.equal((await manda('é uma ia?', 'tr3', '5531999990061')).origem, 'identidade');
+    assert.equal((await manda('quanto tempo leva?', 'tr4')).origem, 'ia');
+  });
+});
+
 test('o que ela sabe da empresa chega na resposta, sem os itens internos do modelo', () => {
   const linhas = ['fluxos: endereco: Me passa o endereço', 'lacunas: Produtos e preços', 'responsabilidades: resolver problemas', 'o-que-a-empresa-faz: A Veloso desenvolve sistemas e plataformas', 'conhecimento-básico: suporte técnico resolve chamados'];
   const r = canais.conhecimentoRelevante(linhas, 'oi, tudo bem?');

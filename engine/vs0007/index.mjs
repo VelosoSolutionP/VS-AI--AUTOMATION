@@ -12,6 +12,14 @@
 import { load, save } from '../vscrm/store.mjs';
 import * as R from './regras.mjs';
 import * as MAPA from './mapa.mjs';
+import { MODELOS_FREE_0007, PARAMETROS_TREINO } from './auditoria.mjs';
+import {
+  listarModelosFree0007,
+  sincronizarModelosFree,
+  baixarModeloFree,
+  diagnosticoTreinoBot,
+  treinarIAPorParametros,
+} from './bots.mjs';
 
 export const DATASET_AGENTES = 'vs0007-agentes';
 
@@ -166,3 +174,12 @@ export function agenteResponsavel(atividade) {
 /* --------------------------------------------------- mapa mental do 0007 */
 
 export const { mapaInicial, lerMapa, salvarMapa, obterNos, adicionarNo, atualizarNo, transicionarNo, pesquisar, historico } = MAPA;
+export {
+  MODELOS_FREE_0007,
+  PARAMETROS_TREINO,
+  listarModelosFree0007,
+  sincronizarModelosFree,
+  baixarModeloFree,
+  diagnosticoTreinoBot,
+  treinarIAPorParametros,
+};

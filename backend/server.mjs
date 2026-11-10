@@ -294,7 +294,7 @@ const CRM_ENABLED = process.env.CRM_ENABLED === '1';
 /* Quem esta logado, do jeito que a fila e a carteira gravam. */
 function quemAtende(quem) {
   if (quem?.papel === 'vendedor') {
-    const op = operadores.listar().find((o) => o.id === quem.operadorId);
+    const op = operadores.listarTodos().find((o) => o.id === quem.operadorId);
     return { operadorId: quem.operadorId, nome: op?.nome || quem.nome || quem.email, equipe: op ? operadores.norm(op.setor) : null };
   }
   return { operadorId: null, nome: 'Administrador', equipe: null };
@@ -1547,7 +1547,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
     }
     if (req.method === 'GET' && rota === '/crm/veloso-id/iniciar') {
       if (!velosoId.ativo()) { res.writeHead(302, { location: '/crm' }); return res.end(); }
-      const { url, nonce } = velosoId.iniciar();
+      const { url, nonce } = velosoId.iniciar(new URL(req.url, 'http://x').searchParams.get('silencioso') === '1');
       res.writeHead(302, {
         location: url,
         'cache-control': 'no-store',
@@ -1570,7 +1570,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
         }
         console.log(`[acesso] login Veloso ID ${sessao.papel} ${sessao.email}`);
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'set-cookie': limpar, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
-        return res.end(`<!doctype html><meta charset="utf-8"><script>sessionStorage.setItem('crm_token',${JSON.stringify(sessao.token)});location.replace('/crm')</script>`);
+        return res.end(`<!doctype html><meta charset="utf-8"><script>sessionStorage.setItem('crm_token',${JSON.stringify(sessao.token)});sessionStorage.removeItem('veloso_saiu');location.replace('/crm')</script>`);
       }
       try {
         res.writeHead(200, {
@@ -1758,7 +1758,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
     /* Qualificacao e roteamento: a matriz, as equipes (setores dos operadores) e
        quem tem acesso de vendedor. */
     if (req.method === 'GET' && rota === '/crm/api/qualificacao') {
-      const ops = operadores.listar();
+      const ops = operadores.listar(new URL(req.url, 'http://x').searchParams.get('modulo') === 'salao' ? 'salao' : undefined);
       const acessos = usuarios.acessosVendedores();
       const equipes = {};
       for (const o of operadores.ativos(ops)) { const e = operadores.norm(o.setor); (equipes[e] ||= []).push(o.nome); }
@@ -2027,6 +2027,9 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
     }
 
     if (req.method === 'GET' && rota === '/crm/api/operadores') {
+      if (new URL(req.url, 'http://x').searchParams.get('modulo') === 'salao') {
+        return json(res, 200, operadores.painel((canais.estado().config?.setoresSalao || []).map((x) => operadores.norm(x)), 'salao'));
+      }
       /* Os setores vem do FLUXO, nao de uma lista cravada: e o fluxo que decide
          pra onde o cliente e encaminhado, entao e ele que diz quais setores
          precisam de gente. Setor no fluxo sem operador = cliente transferido
@@ -2146,7 +2149,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
     /* Acessos (07/10, dono: "um menu pra eu travar acessos, só o dono"). Vendedor cai no 403 da lista. */
     if (req.method === 'GET' && rota === '/crm/api/acessos') {
       const t = usuarios.travas();
-      const ops = new Map(operadores.listar().map((o) => [o.id, o]));
+      const ops = new Map(operadores.listarTodos().map((o) => [o.id, o]));
       const pessoas = usuarios.acessosVendedores().map((a) => ({ email: a.email, nome: ops.get(a.operadorId)?.nome || a.nome || a.email, setor: ops.get(a.operadorId)?.setor || null, papel: 'atendente', travado: t.travados.includes(a.email) }));
       const clientesAcesso = usuarios.acessosClientes().map((c) => ({ ...c, papel: 'cliente', travado: t.travados.includes(c.email) }));
       return json(res, 200, { soDono: t.soDono, mudouPor: t.mudouPor || null, mudouEm: t.mudouEm || null, pessoas, clientes: clientesAcesso, delegacao: usuarios.statusDelegacao() });
@@ -2156,7 +2159,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
       const u = new URL(req.url, 'http://x');
       const per = rendimentoEq.periodo({ tipo: u.searchParams.get('tipo') === 'semana' ? 'semana' : 'mes', ref: u.searchParams.get('ref') || undefined });
       const r = rendimentoEq.rendimento({
-        periodo: per, operadores: operadores.listar(), acessos: usuarios.acessosVendedores(), leads: crm.listar(),
+        periodo: per, operadores: operadores.listarTodos(), acessos: usuarios.acessosVendedores(), leads: crm.listar(),
         protocolos: proto.listar(), orcamentos: orc.listar({}), pedidos: resultados.pedidos(), pagamentos: pagar.listar()
       });
       if (rota === '/crm/api/rendimento') { return json(res, 200, r); }
@@ -2399,11 +2402,13 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
          vazio: bot ligado, atendentes ativos e quem esta com o painel aberto. */
       const noPainel = usuarios.vendedoresNoPainel();
       const acessos = new Set(usuarios.acessosVendedores().map((a) => a.operadorId));
-      const equipe = operadores.ativos(operadores.listar()).map((o) => ({ nome: o.nome, setor: o.setor, temAcesso: acessos.has(o.id), noPainel: noPainel.has(o.id) }));
+      const equipeDe = (modulo) => operadores.ativos(operadores.listar(modulo)).map((o) => ({ nome: o.nome, setor: o.setor, temAcesso: acessos.has(o.id), noPainel: noPainel.has(o.id) }));
+      const equipe = equipeDe();
       const cfgBot = bot.getConfig();
       const cfgTg = bot.comCanal('telegram', () => bot.getConfig());
       return json(res, 200, {
-        conversas, esperando: esperando.length, canal: estadoDoCanal(), equipe,
+        conversas, esperando: esperando.length, canal: estadoDoCanal(), equipe, equipeSalao: equipeDe('salao'),
+        iaNoAr: await canaisEvo.noAr().catch(() => ({ canais: [], salao: [] })),
         /* 17/10: o card dizia "atende 24 h" com horário configurado — fora dele o bot só avisa que está fechado. */
         bot: { ativo: cfgBot.ativo !== false, nome: cfgBot.nome || null, temHorario: !!cfgBot.horario, aberto: bot.estaAberto(cfgBot.horario), hoje: bot.horarioDeHoje(cfgBot.horario) },
         botTelegram: { ativo: cfgTg.ativo !== false, nome: cfgTg.nome || null },
@@ -2461,6 +2466,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
     if (req.method === 'GET' && rota === '/crm/api/hotel') {
       return json(res, 200, {
         ...hotel.painel(),
+        treino: canaisEvo.treinoDasIAs(),
         salao: { bot0007Id: cadevcCfg.config().bot0007Id || null },
         nichosSalao: [...salaoIas.SERVICOS_SALAO.map((x) => x.padrao.source), salaoIas.PADRAO_SALAO_GERAL.source],
       });
@@ -2726,6 +2732,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
         case '/crm/api/canais/aplicar-nome': r = await canais.aplicarNomeAprovado({ pin: d.pin }); seguranca.auditar({ tipo: 'canal:nome', detalhe: r.ok ? 'nome aprovado colocado no ar' : `nome aprovado não entrou: ${r.erro}`, cliente: quem.email || null, resultado: r.ok ? 'salvo' : 'erro' }); break;
         case '/crm/api/canais/restaurar-perfil': r = await canais.restaurarPerfil({ canal: d.canal }); break;
         case '/crm/api/canais/config': r = canais.salvarConfigCanal(d); break;
+        case '/crm/api/canais/setores': r = canais.salvarSetores(d.setores, d.modulo === 'salao' ? 'salao' : undefined); break;
         case '/crm/api/empresas/criar': r = empresas.criar(d);
           /* Nasce com o funil da plataforma (sem funil o CRM não registra a conversa e ela some do Atendimento). */
           if (r.ok) { const fun = crm.getFunil()?.funil?.length ? crm.getFunil().funil : ['Novo lead', 'Em atendimento', 'Proposta', 'Fechado']; comEmpresa(r.empresa.cnpj, () => crm.setFunil(fun)); }
@@ -2759,8 +2766,8 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
             : usuarios.configurarDelegacao(String(d.email || ''), { por: quem.email || null });
           if (r.ok) { seguranca.auditar({ tipo: 'acessos:delegacao', detalhe: r.delegacao.email ? `delegado: ${r.delegacao.email}` : 'delegação removida', cliente: quem.email || null, resultado: 'salvo' }); }
           break;
-        case '/crm/api/operadores/salvar': r = operadores.salvar(d); break;
-        case '/crm/api/operadores/remover': r = operadores.remover(d.id); break;
+        case '/crm/api/operadores/salvar': r = operadores.salvar(d, d.modulo === 'salao' ? 'salao' : undefined); break;
+        case '/crm/api/operadores/remover': r = operadores.remover(d.id, d.modulo === 'salao' ? 'salao' : undefined); break;
         case '/crm/api/checkout/modo-teste':
           r = d.ligar ? clientes.ligarModoTeste({ minutos: d.minutos }) : clientes.desligarModoTeste();
           console.log(`[checkout] modo teste ${r.ativo ? 'LIGADO ate ' + r.ate + ' — cobrancas por R$ 0,50' : 'desligado'}`);
@@ -2934,8 +2941,10 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
           r = hook.ok ? { ok: true } : { ok: false, erro: hook.erro };
           break;
         }
-        case '/crm/api/canais/evolution/aprendizado/validar': r = canaisEvo.validarAprendizado({ id: String(d.id || ''), resposta: d.resposta, por: quem.email || null }); break;
+        case '/crm/api/canais/evolution/aprendizado/validar': r = canaisEvo.validarAprendizado({ id: String(d.id || ''), resposta: d.resposta, parametro: d.parametro, por: quem.email || null }); break;
+        case '/crm/api/canais/evolution/aprendizado/ensinar': r = canaisEvo.ensinarIA({ agenteId: String(d.agenteId || ''), requisito: String(d.requisito || ''), texto: d.texto, por: quem.email || null }); break;
         case '/crm/api/canais/evolution/aprendizado/recusar': r = canaisEvo.recusarAprendizado({ id: String(d.id || ''), por: quem.email || null }); break;
+        case '/crm/api/canais/evolution/aprendizado/liberar': r = canaisEvo.aplicarLiberacoesAuditoria({ decisoes: Array.isArray(d.decisoes) ? d.decisoes : [], por: quem.email || 'dono' }); break;
         case '/crm/api/canais/evolution/cadastrar': r = canaisEvo.cadastrar({ rotulo: d.rotulo, numeroPrevisto: d.numeroPrevisto, agenteId: String(d.agenteId || ''), modulo: d.modulo === 'salao' ? 'salao' : 'canais', nicho: String(d.nicho || '') }); break;
         case '/crm/api/canais/evolution/vincular': r = canaisEvo.vincularIA({ id: String(d.id || ''), agenteId: String(d.agenteId || ''), nicho: String(d.nicho || '') }); break;
         case '/crm/api/canais/evolution/conectar': r = await canaisEvo.conectar({ id: String(d.id || '') }); break;
@@ -3145,7 +3154,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
           break;
         }
         case '/crm/api/vendedores/acesso': {
-          const op = operadores.listar().find((o) => o.id === d.operadorId);
+          const op = operadores.listarTodos().find((o) => o.id === d.operadorId);
           if (!op) { r = { ok: false, motivo: 'operador não encontrado' }; break; }
           r = usuarios.criarAcessoVendedor({ email: d.email || op.email, nome: op.nome, senha: d.senha, operadorId: op.id });
           break;
@@ -3272,6 +3281,17 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
             : hotel.pesquisarNicho({ nicho: d.nicho });
           break;
         case '/crm/api/hotel/preparar-nicho': r = hotel.prepararNicho({ nicho: d.nicho }); break;
+        case '/crm/api/hotel/modelos-free/sincronizar': r = await hotel.sincronizarModelosFree({ autorizado: true }); break;
+        case '/crm/api/hotel/modelos-free/baixar': r = await hotel.baixarModeloFree({ modelo: d.modelo, autorizado: d.autorizado !== false }); break;
+        case '/crm/api/hotel/treinar-parametros':
+          r = hotel.treinarIAPorParametros({
+            agenteId: String(d.agenteId || ''),
+            parametros: d.parametros && typeof d.parametros === 'object' ? d.parametros : {},
+            usarSugestao0007: d.usarSugestao0007 === true,
+            autorizado: d.autorizado !== false,
+            por: quem.email || 'dono',
+          });
+          break;
         /* Missão 007 — o fluxo automático: nicho + identificação da empresa +
            aceite. O 0007 faz pesquisa, testes e homologação sozinho quando o
            risco é baixo; em risco alto, deixa em validação para uma pessoa. */
@@ -3785,6 +3805,9 @@ server.listen(...(process.env.HOST ? [PORT, process.env.HOST] : [PORT]), () => {
     };
     await rodar().catch((e) => console.error(`[hotel] prazo 12h falhou: ${e.message}`));
     await empresas.paraCada(rodar).catch((e) => console.error(`[hotel] prazo 12h (empresas) falhou: ${e.message}`));
+    /* Só o que é do dono vai para o e-mail dele; empresa cliente vê a auditoria na própria tela. */
+    const aviso = canaisEvo.avisoDeAuditoria();
+    if (aviso && (await avisarDono(aviso)).ok) { canaisEvo.marcarAvisoDeAuditoria(); }
   };
   setTimeout(prazoHotel, 60000).unref?.();
   setInterval(prazoHotel, 30 * 60000).unref?.();

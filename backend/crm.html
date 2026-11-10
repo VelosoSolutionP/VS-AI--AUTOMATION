@@ -2368,7 +2368,7 @@ let TG=null,TG_TROCAR=false;
 /* Resultados por canal e periodo. Carrega sob demanda: e a tela que mais soma
    dados, e nao faz sentido pesar a abertura do painel com ela. */
 let RES={},RES_DIAS=30;
-let CANAIS=null,ATEND=null,CONVERSA=null,PLANOS_CAT=null,CICLO='mensal',OPERADORES=null,OP_EDIT=null,TKLOJA=null,TKADS=null,TKSHOP=null;
+let CANAIS=null,ATEND=null,CONVERSA=null,PLANOS_CAT=null,CICLO='mensal',OPERADORES=null,OPERADORES_SALAO=null,OP_EDIT=null,TKLOJA=null,TKADS=null,TKSHOP=null;
 let ST={funil:[],leads:[],resumo:{etapas:[],abertos:0,ganhos:0,perdidos:0,conversao:null}},STATUS=null,IND=null,REDES=null,TK=null,EST=null,AUD=null,FIN=null,REL=null,CTA=null,QG=null,TKAPP=null,PAG=null,LOTES=null,CAIXA=null,BOT=null,DOCS=null,PUB=null;
 const TESTE={}; // resultado do ultimo teste por rede (so em memoria)
 const PROVA={}; // ultimo teste real das APIs do TikTok, por familia
@@ -2580,6 +2580,8 @@ function canalWhatsApp(){
      Micaela conversando. */
   if(STATUS?.whatsapp?.canal) { const o=STATUS.whatsapp.oficial===true; return {no_ar:true,via:o?'API oficial':'WhatsApp Web',numero:STATUS.whatsapp.numero||null,rotulo:o?'no ar · API oficial':'no ar · WhatsApp Web',oficial:o}; }
   if(STATUS?.whatsapp?.envia) return {no_ar:true,via:'API oficial',numero:null,rotulo:'no ar · API oficial',oficial:true};
+  /* Número da Evolution com IA vinculada é canal no ar, igual aos outros dois caminhos. */
+  if((ATEND?.iaNoAr?.canais||[]).length||(ATEND?.iaNoAr?.salao||[]).length) return {no_ar:true,via:'Canais',numero:null,rotulo:'no ar',oficial:false};
   if(web?.estado==='aguardando_qr') return {no_ar:false,via:null,numero:null,rotulo:'esperando o QR',oficial:false};
   if(web?.estado==='caido') return {no_ar:false,via:null,numero:null,rotulo:'sessão caiu',oficial:false};
   return {no_ar:false,via:null,numero:null,rotulo:'desligado',oficial:false};
@@ -4746,7 +4748,7 @@ function telaHotel(){
         <b>${esc(b.nome)}</b><small>${esc(b.especialidade||'')}</small></div></div>
       <div class="hotel-card-status"><span class="badge ${ESTADO_CLASS[b.estado]||'b-warn'}">${esc(ESTADO_LABEL[b.estado]||'Em preparação')}</span><span class="hotel-card-open">${b.agenteId===HOTEL_SELECIONADO?'Ocultar detalhes':'Abrir detalhes'}</span></div>
     </button>`).join('');
-  return head('Hotel dos Bots','O 0007 prepara e acompanha os perfis. Toque em um cartão para abrir o perfil, as regras e o histórico.')+
+  return head('Hotel dos Bots','O 0007 prepara e acompanha os perfis. Toque em um cartão para abrir o perfil, as regras e o histórico.')+hotelTreinoHtml(h)+
     `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
       ${botao({t:'Novo Bot',ic:'mais',v:'p',on:'abrirWizardBot()'})}
       ${botao({t:'Atualizar',ic:'atualizar',v:'s',on:'carregarHotel()'})}
@@ -7106,22 +7108,6 @@ const S={
       ? `<p class="hint" style="margin-top:10px;color:var(--err)">O número pareado (<b>+${esc(c.numero)}</b>) é diferente do previsto no contrato (<b>${esc(CANAIS.config.numero)}</b>). Confira antes de atender cliente.</p>`:''}
   </div>
 
-  <div class="card" style="margin-bottom:16px">
-    ${cardH('crm',`Atendentes e setores`,`Quantas pessoas podem atender e em que setores. O limite vem do contrato — ampliar é adendo, não configuração.`,1,
-      `<span class="badge ${(CANAIS?.plano?.atendentes||0)>0?'b-ok':'b-warn'}">${CANAIS?.plano?.atendentes??'—'} atendente(s)</span>`)}
-    ${linha('Atendentes contratados','quantas pessoas podem responder',String(CANAIS?.plano?.atendentes??'—'),'b-ok')}
-    ${linha('Em uso agora','operadores ativos cadastrados',esc(OPERADORES?.uso?.texto||'—'),
-      OPERADORES?.uso?.alerta==='cheio'?'b-err':(OPERADORES?.uso?.alerta?'b-warn':'b-ok'))}
-    <div class="form-grid" style="margin-top:12px">
-      <div class="field" style="grid-column:1/-1"><label>Setores <small>(um por linha — viram as filas do encaminhamento)</small></label>
-        <textarea id="cnSetores" rows="3" placeholder="Suporte&#10;Comercial&#10;Financeiro">${esc((CANAIS?.config?.setores||[]).join('\n'))}</textarea></div>
-      ${botao({t:'Salvar setores',ic:'salvar',v:'s',on:'salvarCanalConfig()'})}
-      ${botao({t:'Ampliar no contrato',ic:'seta',v:'g',on:"ir('pl-comprar')"})}
-    </div>
-    <p class="hint" style="margin-top:10px">Os setores aqui são os mesmos que o fluxo usa em <code>encaminhar_&lt;setor&gt;</code>.</p>
-  </div>
-
-  ${operadoresHtml()}
 
 
   ${oficial?'':`  <div class="card" style="border-style:dashed">
@@ -7559,8 +7545,9 @@ function telaAtendimento(canal){
   const q=BUSCA_CONV.trim().toLowerCase();
   const lista=todas.filter(passa).filter(c=>!q||[c.nome,c.telefone,c.protocolo].some(x=>String(x||'').toLowerCase().includes(q)));
   const sel=todas.find(c=>c.telefone===CONVERSA)||lista[0]||null;
-  const online=tg?TG?.estado==='conectado':ig?!!IGINFO?.ligado:sala?cadevc?.whatsapp?.estado==='conectado':(CANAIS?.canais||[])[0]?.estado==='conectado';
-  const botLigado=sala?cadevc?.config?.ativo!==false:BOT?.config?.ativo!==false;
+  const online=tg?TG?.estado==='conectado':ig?!!IGINFO?.ligado:sala?(cadevc?.whatsapp?.estado==='conectado'||(ATEND?.iaNoAr?.salao||[]).length>0):((CANAIS?.canais||[])[0]?.estado==='conectado'||(ATEND?.iaNoAr?.canais||[]).length>0);
+  /* Número conectado com IA vinculada é bot atendendo, mesmo com o bot antigo desligado. */
+  const botLigado=sala?cadevc?.config?.ativo!==false:(BOT?.config?.ativo!==false||(ATEND?.iaNoAr?.canais||[]).length>0);
   const contato=(c)=>tg?'Telegram':ig?'Instagram':contatoLegivel(c.telefone);
   /* Hora e dia no fuso de QUEM ESTA OLHANDO. Cortar o texto ISO dava a hora UTC:
      tres horas adiantada no Brasil, e "ontem" em cima de mensagem de 23:55 que
@@ -7618,7 +7605,7 @@ function telaAtendimento(canal){
       <b>${reais(sel.pedido.valorCentavos)}</b><small>${esc(itensTxt(sel.pedido.itens))} · ${est}</small></div></div>`; })():'';
 
   const cabecalho=head(`${nomeCanal} · Atendimento`,
-      cont.agora?`<b>${cont.agora}</b> pessoa(s) esperando você.`:`Ninguém esperando — ${nomeBot()} está dando conta.`,
+      cont.agora?`<b>${cont.agora}</b> pessoa(s) esperando você.`:`Ninguém esperando — ${esc((sala?ATEND?.iaNoAr?.salao:ATEND?.iaNoAr?.canais)?.[0]?.ia||nomeBot())} está dando conta.`,
       `<span class="badge ${botLigado?'b-ok':'b-warn'}" title="${botLigado?'O bot responde sozinho até alguém assumir':'Bot desligado: ninguém recebe resposta automática'}">${ico('bot')}${botLigado?'Bot ativo':'Bot desligado'}</span>`+
       botao({t:'Histórico',ic:'relogio',v:'s',on:`abrirHistorico('${canal}')`,tit:'Atendimentos encerrados, com avaliação e conversa'})+
       (online?botao({t:'Atualizar',ic:'atualizar',v:'s',on:'recarregarAtendimento(true)'})
@@ -8575,13 +8562,15 @@ async function prospSalvarRegiao(){
 }
 
 /* ── tela: Qualificação e equipes ── */
+let QUALI_MOD=null;
 async function carregarQuali(forcar){
   if(QUALI&&!forcar) return QUALI;
-  try{ QUALI=await apiCru('qualificacao'); QUALI_ED=QUALI.matriz.map(r=>({...r})); QUALI_TIERS=(QUALI.tiers||[]).map(t=>({...t})); }catch(e){ QUALI={erro:e.message}; }
+  try{ QUALI=await apiCru('qualificacao'+(moduloEquipe()==='salao'?'?modulo=salao':'')); QUALI_ED=QUALI.matriz.map(r=>({...r})); QUALI_TIERS=(QUALI.tiers||[]).map(t=>({...t})); }catch(e){ QUALI={erro:e.message}; }
   if(/qualificacao$/.test(rota)) render();
   return QUALI;
 }
 function telaQualificacao(){
+  if(QUALI_MOD!==moduloEquipe()){ QUALI_MOD=moduloEquipe(); QUALI=null; }
   const q=QUALI; if(!q){ setTimeout(()=>carregarQuali(),0); return head('Qualificação e equipes','Carregando…'); }
   if(q.erro) return head('Qualificação e equipes','')+`<p class="hint">Não consegui carregar: ${esc(q.erro)}</p>`;
   const equipes=Object.keys(q.equipes||{}).sort();
@@ -8827,12 +8816,14 @@ function painelTranquilo(canal,online){
   if(canal==='telegram') return painelTranquiloTelegram(online);
   const tg=canal==='telegram', ig=canal==='instagram', sala=canal==='cadevc';
   setTimeout(()=>carregarHoje(canal),0);
-  const b=sala?{ativo:cadevc?.config?.ativo!==false,nome:'Bot do salão'}:ATEND?.bot||{ativo:BOT?.config?.ativo!==false,nome:BOT?.config?.nome};
+  const iaNoAr=ig?[]:(sala?ATEND?.iaNoAr?.salao:ATEND?.iaNoAr?.canais)||[];
+  const bBase=sala?{ativo:cadevc?.config?.ativo!==false,nome:'Bot do salão'}:ATEND?.bot||{ativo:BOT?.config?.ativo!==false,nome:BOT?.config?.nome};
+  const b=!iaNoAr.length?bBase:sala?{...bBase,nome:iaNoAr[0].ia}:{ativo:true,nome:iaNoAr[0].ia,temHorario:false};
   const nomeB=b.nome||(sala?'bot do salão':nomeBot());
-  const equipe=ATEND?.equipe||(OPERADORES?.operadores||[]).filter(o=>o.ativo!==false).map(o=>({nome:o.nome,setor:o.setor}));
+  const equipe=sala?(ATEND?.equipeSalao||[]):(ATEND?.equipe||(OPERADORES?.operadores||[]).filter(o=>o.ativo!==false).map(o=>({nome:o.nome,setor:o.setor})));
   const noPainel=equipe.filter(o=>o.noPainel).length;
   const h=HOJE[canal]?.r, s=h?.resumo||{};
-  const canalTxt=tg?(online?`<b>${esc(TG?.numero||'bot')}</b> no ar`:'bot desconectado')
+  const canalTxt=iaNoAr.length?`<b>${esc(iaNoAr.map(x=>x.rotulo).join(', '))}</b> no ar`:tg?(online?`<b>${esc(TG?.numero||'bot')}</b> no ar`:'bot desconectado')
     :ig?(online?`<b>${esc(IGINFO?.conta||'Instagram')}</b> no ar`:'Instagram desconectado')
       :sala?(online?`<b>+${esc(cadevc?.whatsapp?.numero||'')}</b> no ar`:'WhatsApp do salão desconectado')
         :(online?`<b>+${esc((CANAIS?.canais||[])[0]?.numero||'')}</b> no ar`:'WhatsApp desconectado');
@@ -9467,28 +9458,111 @@ async function cevoConversas(id,rotulo){
     abrirModal('Conversas — '+rotulo,corpo,BT.cancelar()); }
   catch(e){ avisoErro('Não consegui abrir as conversas',esc(e.message)); }
 }
+function hotelTreinoHtml(h){
+  const l=(h?.treino||[]);
+  const modelos=(h?.modelosFree0007||[]);
+  const cardModelos=modelos.length?`<div class="card" style="margin-bottom:14px">${cardH('cerebro','Mapa Mental 0007 — Modelos Free (Ollama Messenger)','Modelos gratuitos homologados no mapa mental do 0007 para atendimento humanizado e zero autonomia.',2,`<span class="badge b-ok">${modelos.filter(m=>m.instalado).length}/${modelos.length} ativos</span>`)}
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">${modelos.map(m=>`<span class="badge ${m.instalado?'b-ok':'b-warn'}" title="${esc(m.papel||'')}">${esc(m.nome)} · ${esc(m.tamanho||'')} (${m.instalado?'no mapa':'baixar'})</span>`).join('')}</div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">${botao({t:'Sincronizar modelos no Mapa 0007',ic:'atualizar',v:'s',sz:'xs',on:'cevoSincronizarModelos0007()'})}</div></div>`:'';
+  const comFalta=l.filter(x=>(x.parametros||x.faltam||[]).some(p=>!p.preenchido));
+  if(!comFalta.length && !cardModelos) return '';
+  const cardTreino=comFalta.length?`<div class="card" style="margin-bottom:14px">${cardH('alerta','Treino por Parâmetros (0007)','O 0007 treina cada IA por parâmetro (Nicho, Clientes, Produtos, Preços, Agenda, Horário, Contato, Passo a Passo e Limites). Zero autonomia.',2)}
+    ${comFalta.map(x=>{
+      const faltantes=(x.parametros||x.faltam||[]).filter(p=>p.preenchido===false||!('preenchido' in p));
+      return `<div style="margin-top:10px"><b>${esc(x.ia)}</b> <small class="hint">(${x.cobertura??0}% parametrizada)</small><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${faltantes.map(f=>botao({t:f.rotulo,ic:'mais',v:'s',sz:'xs',on:`cevoEnsinar('${esc(x.agenteId)}','${esc(f.chave)}','${esc(f.rotulo)}')`})).join('')}${botao({t:'Auto-treinar pelo 0007',ic:'check',v:'p',sz:'xs',on:`cevoAutoTreinar0007('${esc(x.agenteId)}')`})}</div></div>`;
+    }).join('')}</div>`:'';
+  return cardModelos+cardTreino;
+}
+async function cevoSincronizarModelos0007(){
+  try{
+    await api('hotel/modelos-free/sincronizar',{});
+    await carregarHotel(); flash('Modelos free sincronizados no Mapa Mental do 0007.','ok');
+  }catch(e){ avisoErro('Não consegui sincronizar modelos',esc(e.message)); }
+}
+async function cevoAutoTreinar0007(agenteId){
+  try{
+    await api('hotel/treinar-parametros',{id:agenteId,parametros:{}});
+    await carregarHotel(); flash('0007 aplicou o treino parametrizado na IA.','ok');
+  }catch(e){ avisoErro('Não consegui treinar a IA',esc(e.message)); }
+}
+function cevoEnsinar(agenteId,requisito,rotulo){
+  const bot=(HOTEL?.treino||[]).find(x=>x.agenteId===agenteId);
+  const sugestao=bot?.sugestoes?.[requisito]||'';
+  abrirModal('Ensinar parâmetro: '+rotulo,`<p class="hint">O que você homologar entra no Mapa Mental da IA com zero autonomia (ela só responde dentro deste parâmetro).</p><div class="field"><label for="ensinoTxt">${esc(rotulo)}</label><textarea id="ensinoTxt" rows="4" maxlength="600">${esc(sugestao)}</textarea></div><div>${botao({t:'Homologar no Mapa',ic:'check',v:'p',sz:'xs',on:`cevoSalvarEnsino('${esc(agenteId)}','${esc(requisito)}')`})}</div>`,BT.cancelar());
+}
+async function cevoSalvarEnsino(agenteId,requisito){
+  try{
+    await api('canais/evolution/aprendizado/ensinar',{agenteId,requisito,texto:document.getElementById('ensinoTxt')?.value||''});
+    fecharModal(); await carregarHotel(); flash('Parâmetro homologado: a IA já pode usar.','ok');
+  }catch(e){ avisoErro('Não consegui salvar',esc(e.message)); }
+}
 function cevoAuditoriaHtml(a){
   if(!a||!a.pendentes.length) return '';
   const data=a.proximaEm?new Date(a.proximaEm).toLocaleDateString('pt-BR'):'—';
-  return `<div class="card" style="margin-bottom:14px${a.vencida?';border-color:var(--warn)':''}">${cardH('alerta','Aprendizados das IAs',a.vencida?`Auditoria de ${a.dias} dias vencida: confira o que as IAs não souberam responder.`:`Situações que as IAs não souberam responder. Próxima auditoria: ${esc(data)}.`,a.vencida?5:2,`<span class="badge ${a.vencida?'b-warn':''}">${a.pendentes.length} pendente(s)</span>`)}
-    <p class="hint" style="margin-top:6px">Nada daqui é usado nas respostas até alguém validar.</p>
-    <div style="margin-top:10px">${botao({t:'Auditar agora',ic:'ver',v:a.vencida?'p':'s',sz:'xs',on:'cevoAuditar()'})}</div></div>`;
+  const r=a.resumo0007||{};
+  return `<div class="card" style="margin-bottom:14px${a.vencida?';border-color:var(--warn)':''}">${cardH('alerta','Mapa Pendente & Auditoria de 15 dias (0007)',a.vencida?`Auditoria de ${a.dias} dias vencida: o 0007 preparou o parecer do que acha que deve ficar ou sair. Palavra final é sua.`:`Perguntas que as IAs não souberam responder foram para o mapa pendente. Próxima auditoria de ${a.dias} dias: ${esc(data)}.`,a.vencida?5:2,`<span class="badge ${a.vencida?'b-warn':''}">${a.pendentes.length} pendente(s)</span>`)}
+    <p class="hint" style="margin-top:6px">Parecer do 0007: <b>${r.sugereAprovar||0}</b> para aprovar · <b>${r.sugereRecusar||0}</b> para descartar · <b>${r.sugereRevisar||0}</b> para você decidir. Nada entra na IA sem sua palavra final.</p>
+    <div style="margin-top:10px">${botao({t:'Revisar Auditoria do 0007',ic:'ver',v:a.vencida?'p':'s',sz:'xs',on:'cevoAuditar()'})}</div></div>`;
 }
 function cevoAuditar(){
   const l=CEVO?.auditoria?.pendentes||[];
   if(!l.length){ fecharModal(); return; }
-  abrirModal('Auditar aprendizados',`<p class="hint">Escreva a resposta correta para validar. Só o que for validado passa a valer.</p>`+l.map((x,i)=>`<div class="card" style="margin-bottom:10px"><small class="hint">${esc(x.ia)} · ${esc(String(x.em).slice(0,10))}</small><p style="margin:6px 0"><b>${esc(x.pergunta)}</b></p><div class="field"><label for="aprResp${i}">Resposta correta</label><textarea id="aprResp${i}" rows="2" maxlength="600"></textarea></div><div style="display:flex;gap:8px">${botao({t:'Validar',ic:'check',v:'p',sz:'xs',on:`cevoAprender(${i},true)`})}${botao({t:'Recusar',ic:'fechar',v:'g',sz:'xs',on:`cevoAprender(${i},false)`})}</div></div>`).join(''),BT.cancelar());
+  abrirModal('Auditoria de 15 dias do 0007 — Palavra Final Sua',`<p class="hint">O 0007 classificou cada dúvida por parâmetro e deu o parecer dele. Você dá a palavra final e o 0007 aplica as liberações.</p><div style="margin-bottom:10px">${botao({t:'Aplicar todas as liberações revisadas',ic:'check',v:'p',sz:'xs',on:'cevoAplicarLiberacoes0007()'})}</div>`+l.map((x,i)=>`<div class="card" style="margin-bottom:10px"><small class="hint">${esc(x.ia)} · Parâmetro: <b>${esc(x.parametro?.rotulo||'Passo a passo')}</b> · ${esc(String(x.em).slice(0,10))}${x.vezes>1?` · ${x.vezes} vezes`:''}</small><p style="margin:6px 0"><b>${esc(x.pergunta)}</b></p><p class="hint" style="margin:6px 0"><b>Parecer do 0007 (${esc({aprovar:'manter / aprovar',recusar:'descartar / recusar',revisar:'aguarda sua decisão'}[x.parecer?.voto]||'aguarda sua decisão')}):</b> ${esc(x.parecer?.motivo||'')}</p><div class="field"><label for="aprResp${i}">Resposta oficial para liberar no parâmetro (${esc(x.parametro?.rotulo||'regras')})</label><textarea id="aprResp${i}" rows="2" maxlength="600">${esc(x.parecer?.sugestao||'')}</textarea></div><div style="display:flex;gap:8px">${botao({t:'Aprovar e Liberar',ic:'check',v:'p',sz:'xs',on:`cevoAprender(${i},true)`})}${botao({t:'Recusar e Bloquear',ic:'fechar',v:'g',sz:'xs',on:`cevoAprender(${i},false)`})}</div></div>`).join(''),BT.cancelar());
+}
+async function cevoAplicarLiberacoes0007(){
+  const l=CEVO?.auditoria?.pendentes||[];
+  if(!l.length) return;
+  const decisoes=[];
+  l.forEach((x,i)=>{
+    const txt=(document.getElementById('aprResp'+i)?.value||'').trim();
+    if(x.parecer?.voto==='recusar' && !txt) decisoes.push({id:x.id,acao:'recusar',parametro:x.parametro?.chave});
+    else if(txt.length>=3) decisoes.push({id:x.id,acao:'aprovar',resposta:txt,parametro:x.parametro?.chave});
+  });
+  if(!decisoes.length){ avisoErro('Nada pronto para liberar','Preencha a resposta oficial nos itens que deseja aprovar ou use os botões individuais.'); return; }
+  try{
+    const r=await api('canais/evolution/aprendizado/liberar',{decisoes});
+    await carregarCanaisEvo(); fecharModal();
+    flash(`0007 aplicou as liberações: ${r.aprovados} aprovado(s) e ${r.recusados} recusado(s).`,'ok');
+  }catch(e){ avisoErro('Não consegui aplicar liberações',esc(e.message)); }
 }
 async function cevoAprender(i,validar){
   const item=CEVO?.auditoria?.pendentes?.[i]; if(!item) return;
   try{
-    if(validar) await api('canais/evolution/aprendizado/validar',{id:item.id,resposta:document.getElementById('aprResp'+i)?.value||''});
+    if(validar) await api('canais/evolution/aprendizado/validar',{id:item.id,resposta:document.getElementById('aprResp'+i)?.value||'',parametro:item.parametro?.chave});
     else await api('canais/evolution/aprendizado/recusar',{id:item.id});
-    await carregarCanaisEvo(); cevoAuditar(); flash(validar?'Aprendizado validado: a IA já pode usar.':'Aprendizado recusado.','ok');
+    await carregarCanaisEvo(); cevoAuditar(); flash(validar?'Palavra final aplicada: 0007 liberou no mapa da IA.':'Aprendizado descartado e bloqueado pelo 0007.','ok');
   }catch(e){ avisoErro('Não consegui concluir',esc(e.message)); }
 }
+const moduloEquipe=()=>rota.startsWith('cadevc')?'salao':'canais';
+const equipeDaTela=()=>moduloEquipe()==='salao'?OPERADORES_SALAO:OPERADORES;
+const setoresDaTela=()=>(moduloEquipe()==='salao'?CANAIS?.config?.setoresSalao:CANAIS?.config?.setores)||[];
+function equipeAtendimentoHtml(){
+  const OPS=equipeDaTela();
+  const uso=OPS?.uso||{};
+  const cadastrados=setoresDaTela();
+  const jaTem=new Set(cadastrados.map(x=>x.toLowerCase().trim()));
+  const setores=[...cadastrados,...Object.keys(OPS?.porSetor||{}).filter(x=>!jaTem.has(x.toLowerCase().trim()))];
+  return `<div class="card" style="margin:16px 0">
+    ${cardH('crm','Atendentes e setores',OPS?.emTeste?'Liberação de teste do lançamento. Depois, vale o que está no contrato.':'Quantas pessoas podem atender e em que setores. O limite vem do contrato.',1,
+      `<span class="badge ${uso.alerta==='cheio'?'b-err':(uso.alerta?'b-warn':'b-ok')}">${esc(uso.texto||'—')}</span>`)}
+    <div class="form-grid" style="margin-top:12px">
+      <div class="field" style="grid-column:1/-1"><label for="cnSetores">Setores <small>(um por linha, viram as filas do encaminhamento)</small></label>
+        <textarea id="cnSetores" rows="3" placeholder="Suporte&#10;Comercial&#10;Financeiro">${esc(setores.join('\n'))}</textarea></div>
+      ${botao({t:'Salvar setores',ic:'salvar',v:'s',on:'salvarSetores()'})}
+    </div>
+  </div>
+  ${operadoresHtml()}`;
+}
+async function salvarSetores(){
+  try{
+    const setores=(document.getElementById('cnSetores')?.value||'').split('\n').map(x=>x.trim()).filter(Boolean);
+    await api('canais/setores',{setores,modulo:moduloEquipe()});
+    CANAIS=await api('canais').catch(()=>CANAIS); OPERADORES=await api('operadores').catch(()=>OPERADORES); OPERADORES_SALAO=await api('operadores?modulo=salao').catch(()=>OPERADORES_SALAO);
+    render(); flash('Setores salvos.','ok');
+  }catch(e){ avisoErro('Não consegui salvar os setores',esc(e.message)); }
+}
 function telaSalaoEvo(){
-  const tela=telaCanaisEvo('salao');
+  const tela=telaCanaisEvo('salao')+equipeAtendimentoHtml();
   /* Salão já configurado no modelo antigo segue funcionando, recolhido aqui. */
   if(cadevcCarrega()||!cadevc?.config?.completo) return tela;
   return tela+`<details class="pz-avancado" style="margin-top:18px"><summary>Conexão anterior do salão — continua funcionando</summary>${telacadevcConexao()}</details>`;
@@ -9743,7 +9817,7 @@ const TELAS={
   'cadevc-bot':telacadevcBot,
   'cadevc-crm':telaCrm,
   'cadevc-auditor':()=>telaAuditorCanal('cadevc'),
-  canais:()=>telaCanaisEvo()+`<details class="pz-avancado" style="margin-top:18px"><summary>Conexão anterior do WhatsApp (API oficial da Meta / WhatsApp Web) — continua funcionando</summary>${emEmpresa()?telaWaEmpresa():S.canais()}</details>`,
+  canais:()=>telaCanaisEvo()+equipeAtendimentoHtml()+`<details class="pz-avancado" style="margin-top:18px"><summary>Conexão anterior do WhatsApp (API oficial da Meta / WhatsApp Web) — continua funcionando</summary>${emEmpresa()?telaWaEmpresa():S.canais()}</details>`,
   hotel:telaHotel,
 };
 
@@ -9840,6 +9914,7 @@ function ir(id){
   id=rotaHotelDeConfig(id);
   if(rotaCanalDesativado(id)){id=ehVendedor()?'wa-atendimento':'visao';}
   if(id==='clientes'){CLI_SEL=null;CLI_FORM=null;}
+  OP_EDIT=null;
   rota=id;if(PAI[id])abertos.add(PAI[id]);location.hash=id;toggleNav(false);render();if(id==='hotel') carregarHotel();scrollTo(0,0);
 }
 function toggleSub(id){abertos.has(id)?abertos.delete(id):abertos.add(id);renderNav();}
@@ -10178,7 +10253,7 @@ function testarSirene(){
   flash('Tocando a sirene por 3 segundos. Confira o volume do computador.','ok');
 }
 
-async function sairDaConta(){ try{await api('sair',{});}catch{} TOKEN='';sessionStorage.removeItem('crm_token');location.reload(); }
+async function sairDaConta(){ try{await api('sair',{});}catch{} TOKEN='';sessionStorage.removeItem('crm_token');sessionStorage.setItem('veloso_saiu','1');location.reload(); }
 
 function telaEntrar(){
   document.getElementById('side')?.classList.remove('open');
@@ -10540,43 +10615,46 @@ function telaEntrar(){
   emailCampo.focus();
 
   // Pergunta o estado antes de mostrar a tela errada por meio segundo.
+  const caixaEntrar=document.querySelector('.entrar-box');
+  caixaEntrar.style.visibility='hidden';
+  const mostrarEntrar=()=>{caixaEntrar.style.visibility='';};
   fetch('/crm/api/auth').then(r=>r.json()).then(d=>{
-    if(d && d.precisaCriar){ virarCriacao(); return; }
-    if(d && d.velosoId) montarVelosoId(d.senhaCliente!==false);
+    if(d && d.precisaCriar){ virarCriacao(); mostrarEntrar(); return; }
+    if(d && d.velosoId){
+      const q=new URLSearchParams(location.search);
+      /* ?senha=1 é a saída da equipe, e de quem precisar entrar com o Portal fora do ar. */
+      if(q.has('senha')){ history.replaceState(null,'','/crm'); mostrarEntrar(); return; }
+      const erro=q.get('error');
+      if(q.has('erro')||(erro&&erro!=='login_required')){
+        history.replaceState(null,'','/crm');
+        montarFalhaVelosoId(q.get('erro')||'veloso');
+        mostrarEntrar();
+        return;
+      }
+      /* Aparelho confirmado volta logado sem ver tela; os demais caem no CPF/CNPJ do Portal.
+         Quem acabou de sair vai direto ao CPF/CNPJ, para não entrar de novo sozinho. */
+      const silencioso=!erro&&!sessionStorage.getItem('veloso_saiu');
+      location.replace('/crm/veloso-id/iniciar'+(silencioso?'?silencioso=1':''));
+      return;
+    }
+    mostrarEntrar();
   })
-    .catch(()=>{});
+    .catch(mostrarEntrar);
 }
 
-/* Veloso ID: CPF/CNPJ e passkey no Portal. O documento vai no fragmento da URL,
-   que atravessa o redirecionamento sem chegar a servidor nem a log. */
-function montarVelosoId(senhaCliente){
+/* Só aparece quando a volta do Portal falhou. Reenviar sozinho aqui viraria laço. */
+function montarFalhaVelosoId(erro){
   const antes=document.getElementById('lgCampoEmail'), btnSenha=document.getElementById('lgBtn');
   const antigos=['lgCampoEmail','lgCampoSenha','lgEsqueciLinha','lgEsqMsg','lgAjuda'].map(id=>document.getElementById(id)).filter(Boolean).concat(btnSenha?[btnSenha]:[]);
   const exibicao=antigos.map(e=>e.style.display);
   const caixa=document.createElement('div');
-  caixa.innerHTML=`<div class="field"><label for="lgDocumento">CPF ou CNPJ</label><input id="lgDocumento" inputmode="numeric" autocomplete="username" maxlength="18" placeholder="000.000.000-00 ou 00.000.000/0000-00"></div>
-    <p id="lgDocErro" class="hint" role="alert" style="color:var(--err);display:none">Informe um CPF ou CNPJ completo.</p>
-    <button type="button" class="btn btn-p" id="lgVeloso" style="width:100%;margin-top:6px">Continuar com o Veloso ID</button>
-    <p class="hint" style="text-align:center;margin-top:12px"><a href="#" id="lgUsarSenha">${senhaCliente?'Entrar com e-mail e senha':'Acesso da equipe'}</a></p>`;
+  caixa.innerHTML=`<p class="hint" role="alert" style="color:var(--err);margin-top:20px">${erro==='veloso-conta'?'Essa conta não tem acesso ao ZEST. Fale com o suporte da Veloso Solution.':'Não foi possível concluir o acesso. Tente de novo.'}</p>
+    <button type="button" class="btn btn-p" id="lgVeloso" style="width:100%;margin-top:6px">Entrar pelo Portal</button>
+    <p class="hint" style="text-align:center;margin-top:12px"><a href="#" id="lgUsarSenha">Acesso da equipe</a></p>`;
   antes.parentNode.insertBefore(caixa,antes);
   antigos.forEach(e=>{e.style.display='none';});
-  const doc=document.getElementById('lgDocumento');
-  const seguir=()=>{
-    const d=doc.value.replace(/\D/g,'');
-    if(d.length!==11&&d.length!==14){document.getElementById('lgDocErro').style.display='';return doc.focus();}
-    location.assign('/crm/veloso-id/iniciar#d='+d);
-  };
-  document.getElementById('lgVeloso').onclick=seguir;
-  doc.onkeydown=(e)=>{if(e.key==='Enter')seguir();};
+  document.getElementById('lgVeloso').onclick=()=>location.assign('/crm/veloso-id/iniciar');
   document.getElementById('lgUsarSenha').onclick=(e)=>{e.preventDefault();caixa.remove();antigos.forEach((el,i)=>{el.style.display=exibicao[i];});document.getElementById('lgEmail')?.focus();};
-  doc.focus();
-  const erro=new URLSearchParams(location.search).get('erro');
-  if(erro==='veloso'||erro==='veloso-conta'){
-    const a=document.getElementById('lgDocErro');
-    a.textContent=erro==='veloso'?'Não foi possível concluir o acesso. Tente de novo.':'Essa conta não tem acesso ao ZEST. Fale com o suporte da Veloso Solution.';
-    a.style.display='';
-    history.replaceState(null,'','/crm');
-  }
 }
 
 function abrirPortalContrato(){
@@ -10671,6 +10749,7 @@ async function carregar(){
     CANAIS=await api('canais').catch(()=>null);
     TG=await api('canais/telegram').catch(()=>null);
     OPERADORES=await api('operadores').catch(()=>null);
+    OPERADORES_SALAO=await api('operadores?modulo=salao').catch(()=>null);
     ATEND=await api('atendimentos').catch(()=>null);
     PLANOS_CAT=await api('planos').catch(()=>null);
     DOCS=await api('documentos').catch(()=>null);
@@ -12626,8 +12705,8 @@ async function devolverAoBot(tel){
    setor e o que liga a pessoa ao encaminhamento. Espalhar isso por outra tela
    faria alguem cadastrar gente sem ver o limite que esta estourando. */
 function operadoresHtml(){
-  const o=OPERADORES||{operadores:[],uso:{},porSetor:{},setoresSemGente:[]};
-  const setores=[...new Set([...(CANAIS?.config?.setores||[]).map(x=>x.toLowerCase().trim()),
+  const o=equipeDaTela()||{operadores:[],uso:{},porSetor:{},setoresSemGente:[]};
+  const setores=[...new Set([...setoresDaTela().map(x=>x.toLowerCase().trim()),
     ...Object.keys(o.porSetor||{}),...(o.setoresSemGente||[])])].filter(Boolean).sort();
   const cheio=o.uso?.cheio===true;
   const e=OP_EDIT||{};
@@ -12677,14 +12756,14 @@ function operadoresHtml(){
   </div>`;
 }
 
-function editarOperador(id){ OP_EDIT=(OPERADORES?.operadores||[]).find(o=>o.id===id)||null; render(); }
+function editarOperador(id){ OP_EDIT=(equipeDaTela()?.operadores||[]).find(o=>o.id===id)||null; render(); }
 
 async function alternarOperador(id){
-  const op=(OPERADORES?.operadores||[]).find(o=>o.id===id);
+  const op=(equipeDaTela()?.operadores||[]).find(o=>o.id===id);
   if(!op) return;
   const ligando=op.ativo===false;
   try{
-    await api('operadores/salvar',{...op,ativo:ligando});
+    await api('operadores/salvar',{...op,ativo:ligando,modulo:moduloEquipe()});
     REND=null;
     flash(ligando?`${op.nome} voltou a atender.`:`${op.nome} não recebe mais clientes.`,'ok');
     await carregar();
@@ -12708,7 +12787,7 @@ function salvarOperador(){
     ],
     rota:'operadores/salvar',
     corpo:()=>({id:OP_EDIT?.id||undefined,nome:el('opNome'),setor:el('opSetor'),tier:Number(el('opTier'))||null,
-      telefone:el('opTel'),email:el('opMail'),valorContrato:el('opValor'),ativo:OP_EDIT?OP_EDIT.ativo!==false:true}),
+      telefone:el('opTel'),email:el('opMail'),valorContrato:el('opValor'),ativo:OP_EDIT?OP_EDIT.ativo!==false:true,modulo:moduloEquipe()}),
     sucesso:OP_EDIT?.id?'Operador atualizado.':'Operador cadastrado — já pode receber cliente.',
     depois:()=>{ OP_EDIT=null; REND=null; carregar(); },
   });
@@ -12961,7 +13040,7 @@ function rolarAteCard(id){
 
 function sairDoPainel(){
   api('sair',{}).catch(()=>{});
-  TOKEN='';sessionStorage.removeItem('crm_token');telaEntrar();
+  TOKEN='';sessionStorage.removeItem('crm_token');sessionStorage.setItem('veloso_saiu','1');telaEntrar();
 }
 
 /** Decide entre criar acesso, login e dashboard antes de qualquer dado. */

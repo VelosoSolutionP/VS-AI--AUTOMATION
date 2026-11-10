@@ -56,8 +56,8 @@ export function obterNos(agenteId) {
  * Adiciona um nó de conhecimento. Descobertas nascem em estado 'descoberto'
  * e só podem evoluir para homologado com autorização (via regras do 0007).
  */
-export function adicionarNo({ agenteId, categoria, conteudo, estado = 'descoberto', origem, evidencia }) {
-  const r = R.registrarConhecimento({ agenteId, conhecimento: conteudo, estado, autorizado: false });
+export function adicionarNo({ agenteId, categoria, conteudo, estado = 'descoberto', origem, evidencia, autorizado = false, qualidade = null, verificacao = null }) {
+  const r = R.registrarConhecimento({ agenteId, conhecimento: conteudo, estado, autorizado });
   if (r.erro) { return r; }
   const mapa = lerMapa();
   const idBase = `${agenteId}:${categoria}:${Date.now()}`;
@@ -72,6 +72,9 @@ export function adicionarNo({ agenteId, categoria, conteudo, estado = 'descobert
     categoria,
     conteudo,
     estado,
+    ...(autorizado ? { autorizado: true } : {}),
+    ...(qualidade ? { qualidade } : {}),
+    ...(verificacao ? { verificacao } : {}),
     origem: origem || 'sistema',
     evidencia: evidencia || null,
     versao: mapa.versao,
@@ -162,4 +165,19 @@ export function pesquisar({ agenteId = null, termo = null, categoria = null } = 
 export function historico() {
   const mapa = lerMapa();
   return { versao: mapa.versao, itens: [...mapa.historico] };
+}
+
+/**
+ * Remove do mapa todos os nós (e o histórico) de um agente excluído.
+ * Usado pela exclusão de uma IA-ZEST no Hotel: nada do perfil fica órfão.
+ */
+export function removerAgente(agenteId) {
+  const mapa = lerMapa();
+  const alvo = String(agenteId || '');
+  const antes = mapa.nos.length;
+  mapa.nos = mapa.nos.filter((no) => no.agenteId !== alvo);
+  mapa.historico = mapa.historico.filter((item) => !String(item?.noId || '').startsWith(`${alvo}:`));
+  mapa.versao += 1;
+  salvarMapa(mapa);
+  return { ok: true, nosRemovidos: antes - mapa.nos.length };
 }
