@@ -85,6 +85,9 @@ export function classificarRisco({ especialidade = '', profissao = '', finalidad
   return { nivel: motivos.length ? 'alto' : 'baixo', motivos };
 }
 
+/** Prazo máximo do primeiro treino (regra do dono, 11/11/2026). */
+export const PRAZO_PRIMEIRO_TREINO_MS = 12 * 60 * 60 * 1000;
+
 function novoCicloVida(iniciadoEm = HOJE()) {
   const inicio = new Date(iniciadoEm);
   return {
@@ -94,7 +97,8 @@ function novoCicloVida(iniciadoEm = HOJE()) {
       estado: 'pendente',
       iniciadaEm: iniciadoEm,
       prazoIdealEm: new Date(inicio.getTime() + 12 * 60 * 60 * 1000).toISOString(),
-      prazoMaximoEm: new Date(inicio.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+      /* 11/11 (regra do dono): o primeiro treino tem no máximo 12 h. */
+      prazoMaximoEm: new Date(inicio.getTime() + PRAZO_PRIMEIRO_TREINO_MS).toISOString(),
       escopo: 'pesquisa proporcional para conhecimento básico, sem treinamento profundo',
     },
     evolucaoEspecializacao: { estado: 'continua', iniciadaEm: iniciadoEm },
@@ -1918,17 +1922,65 @@ function registrarTentativaPrazo(agenteId, resultado, agora) {
   save(DATASET_BOTS, bots);
 }
 
+/** Não aprendeu (pesquisa não concluída) ou errou nas tentativas? Devolve o motivo; senão null. */
+function dificuldadeNoTreino(bot, prep) {
+  const pesquisa = bot.preparacao?.pesquisaInicial?.estado;
+  if (pesquisa !== 'concluida') return `não aprendeu o básico: a pesquisa inicial ficou "${pesquisa || 'pendente'}"`;
+  const ultimo = String(prep.ultimoResultado || '');
+  if (ultimo && !['pesquisando', 'homologado', 'aguardando-aprovacao-humana'].includes(ultimo)) {
+    return `dificuldade nas tentativas (${prep.tentativas || 0}): ${String(prep.ultimaMensagem || ultimo).slice(0, 200)}`;
+  }
+  return null;
+}
+
+function encerrarPrimeiroTreino(bot, prep, agora, protegido) {
+  const horas = Math.round((agora.getTime() - Date.parse(prep.iniciadaEm || bot.criadoEm)) / 3600000);
+  const dificuldade = dificuldadeNoTreino(bot, prep);
+  let acao = 'nao-homologada';
+  let motivo = dificuldade || `passou de 12 h sem concluir a homologação (situação: ${prep.ultimoResultado || bot.estado})`;
+  if (dificuldade) {
+    const trava = protegido(bot.agenteId);
+    if (trava) {
+      motivo += `. Não apaguei: ${trava}`;
+    } else {
+      const r = excluirBot({ agenteId: bot.agenteId, autorizado: true });
+      if (r.ok) acao = 'apagada';
+      else motivo += `. Não apaguei: ${r.erro}`;
+    }
+  }
+  if (acao !== 'apagada') {
+    const bots = load(DATASET_BOTS, []);
+    const alvo = bots.find((item) => item.agenteId === bot.agenteId);
+    if (alvo) {
+      const ciclo = alvo.cicloVida || alvo.preparacao?.cicloVida || novoCicloVida(alvo.criadoEm || agora.toISOString());
+      ciclo.preparacaoConhecimentoInicial = { ...(ciclo.preparacaoConhecimentoInicial || {}), encerradoPorPrazo: { em: agora.toISOString(), acao, motivo } };
+      alvo.cicloVida = ciclo;
+      if (alvo.preparacao) alvo.preparacao = { ...alvo.preparacao, cicloVida: ciclo };
+      save(DATASET_BOTS, bots);
+    }
+  }
+  return { agenteId: bot.agenteId, nome: bot.nome, acao, motivo, horas };
+}
+
 /**
  * Relógio do Hotel: todo bot ainda em preparação/validação é empurrado pelo
  * 0007 até a homologação dentro do prazo ideal de 12h — sem esperar alguém
  * clicar. Bots antigos sem ciclo de vida ganham um a partir de criadoEm.
  * Risco alto termina validado e aguardando uma pessoa (nunca homologa sozinho).
  */
-export async function processarPrazosHomologacao({ agora = new Date(), fetch: fetchFn, curl: curlFn, forcar = false } = {}) {
-  const resumo = { verificados: 0, homologados: 0, aguardandoAprovacao: 0, pendentes: 0, ignorados: 0, itens: [] };
+export async function processarPrazosHomologacao({ agora = new Date(), fetch: fetchFn, curl: curlFn, forcar = false, protegido = () => null } = {}) {
+  const resumo = { verificados: 0, homologados: 0, aguardandoAprovacao: 0, pendentes: 0, ignorados: 0, itens: [], encerrados: [] };
   for (const bot of load(DATASET_BOTS, [])) {
     if (!ESTADOS_FLUXO_HOMOLOGACAO.includes(bot.estado)) continue;
     const prep = (bot.cicloVida || bot.preparacao?.cicloVida)?.preparacaoConhecimentoInicial || {};
+    /* Regra do dono: primeiro treino passou de 12 h → não homologa; se não aprendeu
+       ou está com dificuldade/erro, apaga. O motivo vai para o e-mail do dono. */
+    if (prep.encerradoPorPrazo) { resumo.ignorados++; continue; }
+    const fim = Date.parse(prep.iniciadaEm || bot.criadoEm || '') + PRAZO_PRIMEIRO_TREINO_MS;
+    if (Number.isFinite(fim) && agora.getTime() > fim) {
+      resumo.encerrados.push(encerrarPrimeiroTreino(bot, prep, agora, protegido));
+      continue;
+    }
     const risco = classificarRisco({
       especialidade: `${bot.especialidade} ${bot.preparacao?.nicho || ''}`,
       profissao: bot.preparacao?.profissao?.nome || bot.profissao || '',

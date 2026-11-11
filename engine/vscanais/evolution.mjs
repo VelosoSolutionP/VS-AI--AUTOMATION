@@ -169,6 +169,11 @@ function publico(n) {
     vinculos: n.vinculos || [], identidade: n.identidade || null, webhook: n.webhook || null,
   };
 }
+/** Algum número (Canais ou Salão) desta empresa usa a IA? Devolve o rótulo do número, ou null. */
+export function numeroLigadoA(agenteId) {
+  const n = lerNumeros().find((x) => x.iaId === agenteId);
+  return n ? n.rotulo : null;
+}
 export function listar(modulo = 'canais') { return lerNumeros().filter((n) => (n.modulo || 'canais') === modulo).map(publico); }
 
 /* A tela de atendimento atualiza sozinha: consulta a Evolution no máximo a cada 20 s por número. */

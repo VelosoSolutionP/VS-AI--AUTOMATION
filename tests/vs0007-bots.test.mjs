@@ -144,7 +144,7 @@ test('criar bot comercial exige autorizacao do criador e nasce em preparacao', a
   assert.ok(cri.bot.perfil.limitesAtuacao);
   assert.equal(cri.bot.cicloVida.preparacaoConhecimentoInicial.estado, 'pendente');
   assert.equal(Date.parse(cri.bot.cicloVida.preparacaoConhecimentoInicial.prazoIdealEm) - Date.parse(cri.bot.criadoEm), 12 * 60 * 60 * 1000);
-  assert.equal(Date.parse(cri.bot.cicloVida.preparacaoConhecimentoInicial.prazoMaximoEm) - Date.parse(cri.bot.criadoEm), 24 * 60 * 60 * 1000);
+  assert.equal(Date.parse(cri.bot.cicloVida.preparacaoConhecimentoInicial.prazoMaximoEm) - Date.parse(cri.bot.criadoEm), 12 * 60 * 60 * 1000); // regra do dono (11/11): primeiro treino tem no máximo 12 h
   const validacaoPendente = bots.validarBot({ agenteId: cri.bot.agenteId, autorizado: true, confirmado: true });
   assert.match(validacaoPendente.erro, /pesquisa externa/i);
   assert.equal(bots.homologarBot({ agenteId: cri.bot.agenteId, autorizado: true, aprovado: true }).homologado, false);

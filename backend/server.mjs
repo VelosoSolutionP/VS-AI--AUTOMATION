@@ -3815,8 +3815,23 @@ server.listen(...(process.env.HOST ? [PORT, process.env.HOST] : [PORT]), () => {
   const prazoHotel = async () => {
     if (emModoConsulta()) { return; }
     const rodar = async () => {
-      const r = await hotel.processarPrazosHomologacao();
+      /* IA em uso não se apaga sozinha, mesmo vencida: só deixa de homologar e avisa. */
+      const protegido = (id) => {
+        const numero = canaisEvo.numeroLigadoA(id);
+        if (numero) { return `está ligada ao número "${numero}" no WhatsApp`; }
+        if (cadevcCfg.config().bot0007Id === id) { return 'está conectada ao Salão'; }
+        return null;
+      };
+      const r = await hotel.processarPrazosHomologacao({ protegido });
       if (r.verificados) { console.log(`[hotel] prazo 12h: ${r.verificados} verificado(s), ${r.homologados} homologado(s), ${r.aguardandoAprovacao} aguardando pessoa, ${r.pendentes} pendente(s)`); }
+      /* Regra do dono: primeiro treino passou de 12 h → e-mail com o motivo. */
+      const onde = empresaAtual() ? (empresas.obter(empresaAtual())?.nome || empresaAtual()) : 'ZEST';
+      for (const e of r.encerrados || []) {
+        const texto = `IA ${e.nome} ${e.acao === 'apagada' ? 'APAGADA' : 'NÃO homologada'} (${onde}): o primeiro treino passou de 12 h (${e.horas} h). Motivo: ${e.motivo}`;
+        console.warn(`[hotel] ${texto}`);
+        seguranca.auditar({ tipo: 'hotel:prazo-treino', detalhe: texto, resultado: e.acao });
+        await avisarDono(texto).catch((err) => console.error(`[hotel] e-mail do prazo de treino falhou: ${err.message}`));
+      }
     };
     await rodar().catch((e) => console.error(`[hotel] prazo 12h falhou: ${e.message}`));
     await empresas.paraCada(rodar).catch((e) => console.error(`[hotel] prazo 12h (empresas) falhou: ${e.message}`));

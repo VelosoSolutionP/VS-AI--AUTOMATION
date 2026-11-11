@@ -393,3 +393,42 @@ test('rodada que não acha nada novo vira impedimento', async () => {
   assert.equal(segunda.pesquisando, false);
   assert.match(segunda.erroPesquisa, /^Impedimento/);
 });
+
+test('regra do dono: primeiro treino passou de 12 h → apaga quem não aprendeu, protege quem está em uso, não homologa o resto', async () => {
+  const criar = (nome) => {
+    const proposta = bots.prepararNicho({ nicho: 'chaveiro 24 horas' });
+    return bots.criarBotComercial({
+      nome, finalidade: proposta.finalidade, especialidade: proposta.especialidade,
+      profissao: proposta.profissao.id, autorizado: true, preparacao: proposta, perfil: proposta.perfil,
+      falhas: proposta.falhas, lacunas: proposta.lacunas, conhecimentos: proposta.conhecimentos, identificadorUnico: true,
+    }).bot.agenteId;
+  };
+  const naoAprendeu = criar('Chaveiro Sem Treino');
+  const emUso = criar('Chaveiro Em Uso');
+  const aprendeu = criar('Chaveiro Aguardando');
+  const lista = load(bots.DATASET_BOTS, []);
+  for (const b of lista) {
+    if ([naoAprendeu, emUso].includes(b.agenteId)) b.preparacao.pesquisaInicial = { ...(b.preparacao.pesquisaInicial || {}), estado: 'pendente' };
+    if (b.agenteId === aprendeu) {
+      b.preparacao.pesquisaInicial = { ...(b.preparacao.pesquisaInicial || {}), estado: 'concluida' };
+      b.cicloVida.preparacaoConhecimentoInicial.ultimoResultado = 'aguardando-aprovacao-humana';
+    }
+  }
+  save(bots.DATASET_BOTS, lista);
+  const depois = new Date(Date.now() + 13 * 3600e3);
+  const r = await bots.processarPrazosHomologacao({ agora: depois, protegido: (id) => (id === emUso ? 'está ligada ao número "Teste" no WhatsApp' : null) });
+  const de = (id) => r.encerrados.find((e) => e.agenteId === id);
+  assert.equal(de(naoAprendeu).acao, 'apagada');
+  assert.match(de(naoAprendeu).motivo, /não aprendeu/);
+  assert.equal(bots.obterBot(naoAprendeu), null, 'a IA que não aprendeu foi apagada');
+  assert.equal(de(emUso).acao, 'nao-homologada');
+  assert.match(de(emUso).motivo, /Não apaguei: está ligada ao número/);
+  assert.ok(bots.obterBot(emUso), 'IA em uso nunca é apagada sozinha');
+  assert.equal(de(aprendeu).acao, 'nao-homologada');
+  assert.match(de(aprendeu).motivo, /passou de 12 h/);
+  assert.notEqual(bots.obterBot(aprendeu).estado, 'homologado');
+  /* Encerrada não volta a ser processada (nem homologa sozinha, nem manda e-mail de novo). */
+  const r2 = await bots.processarPrazosHomologacao({ agora: new Date(depois.getTime() + 3600e3), forcar: true });
+  assert.equal(r2.encerrados.length, 0);
+  assert.equal(r2.itens.some((i) => [emUso, aprendeu].includes(i.agenteId)), false);
+});

@@ -4656,6 +4656,7 @@ function selecionarBotHotel(id){
 function prazoTreinoCard(b){
   const etapa=(b.cicloVida||b.preparacao?.cicloVida||{}).preparacaoConhecimentoInicial||{};
   if(b.estado==='homologado') return `<div class="hotel-prazo ok">✓ Treino concluído</div>`;
+  if(etapa.encerradoPorPrazo) return `<div class="hotel-prazo vencido" title="${esc(etapa.encerradoPorPrazo.motivo||'')}">Não homologada: passou de 12h · ${esc(String(etapa.encerradoPorPrazo.motivo||'').slice(0,60))}</div>`;
   const ini=Date.parse(etapa.iniciadaEm||''), fim=Date.parse(etapa.prazoIdealEm||'');
   if(!ini||!fim||fim<=ini) return '';
   const total=fim-ini, agora=Date.now(), h=(ms)=>{const m=Math.round(ms/60000);return m<60?`${m} min`:`${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`;};
