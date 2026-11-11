@@ -648,7 +648,9 @@ export function conhecimentoRelevante(conhecimento, texto, limite = LIMITE_CONHE
   return escolhidos;
 }
 
-function instrucoes(ia, conhecimento, ultima = '', nomeCliente = '') {
+/** A partir de quantas mensagens do cliente a conversa conta como de cliente assíduo. */
+const CLIENTE_ASSIDUO = 8;
+function instrucoes(ia, conhecimento, ultima = '', nomeCliente = '', jaTrocou = 0) {
   const p = perfilPreenchido(ia);
   return [
     `Você é ${ia.nome}${p.funcao ? `, ${p.funcao}` : ''}, atendendo clientes pelo WhatsApp.`,
@@ -658,6 +660,8 @@ function instrucoes(ia, conhecimento, ultima = '', nomeCliente = '') {
     ...(p.regrasAdicionais || []).map((r) => `Regra: ${r}`),
     roteiro(ia),
     nomeCliente ? `O cliente se chama ${nomeCliente}. Use o nome só de vez em quando.` : '',
+    /* Só o dado: o que fazer com cliente assíduo é regra do agente no 0007. */
+    jaTrocou >= CLIENTE_ASSIDUO ? `Cliente assíduo: já trocou ${jaTrocou} mensagens com você nesta conversa.` : '',
     'IDIOMA OBRIGATÓRIO: Responda SEMPRE e EXCLUSIVAMENTE em português do Brasil (pt-BR). É terminantemente proibido responder em inglês, espanhol, chinês ou qualquer outro idioma, mesmo que o cliente use termos estrangeiros.',
     'Estilo Ollama Messenger humanizado: escreva como uma pessoa real e acolhedora no WhatsApp (português do Brasil natural, 2 a 3 frases curtas, tom de conversa, sem listas numeradas, sem "prezado" e sem repetir o que o cliente disse).',
     'Zero autonomia: você é a peça de apoio que o dono precisava para organizar o atendimento, mas nunca invente preço, prazo, endereço, desconto ou política, e nunca feche exceção sem o dono.',
@@ -731,7 +735,7 @@ async function gerarResposta(ia, conhecimentoTodo, historico, texto, nomeCliente
       body: JSON.stringify({
         model: modelo, stream: false, keep_alive: '24h', options: { temperature: 0.25, num_predict: 160, num_ctx: 2048 },
         messages: [
-          { role: 'system', content: instrucoes(ia, conhecimento, historico.filter((m) => m.de === 'ia').at(-1)?.texto, nomeCliente) },
+          { role: 'system', content: instrucoes(ia, conhecimento, historico.filter((m) => m.de === 'ia').at(-1)?.texto, nomeCliente, historico.filter((m) => m.de === 'cliente').length) },
           ...histRecente.map((m) => ({ role: m.de === 'cliente' ? 'user' : 'assistant', content: String(m.texto).slice(0, 800) })),
           { role: 'user', content: String(texto).slice(0, 800) },
         ],

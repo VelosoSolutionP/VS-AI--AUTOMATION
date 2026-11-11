@@ -6,7 +6,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -713,4 +713,24 @@ test('regra do 0007: cardápio digital por voz, falou de pedido → frase do per
     if (antes.url === undefined) delete process.env.TRANSCRICAO_URL; else process.env.TRANSCRICAO_URL = antes.url;
     if (antes.voz === undefined) delete process.env.VS_FALA_DESLIGADA; else process.env.VS_FALA_DESLIGADA = antes.voz;
   }
+});
+
+test('cliente assíduo: o modelo recebe quantas mensagens a pessoa já trocou (a regra é do 0007)', async () => {
+  await comEmpresa(EMPRESA_B, async () => {
+    const n = canais.cadastrar({ rotulo: 'Assiduo', agenteId: 'ia-b' }).numero;
+    await canais.conectar({ id: n.id }); estados.set(n.instancia, 'open');
+    const sistema = () => chamadas.filter((c) => c.host === '127.0.0.1:11434').at(-1).corpo.messages[0].content;
+    await canais.receberWebhook(evento(n.instancia, '5531999990044', 'e aí mano, beleza?', 'as0'), { segredo: 'segredo-123' });
+    assert.doesNotMatch(sistema(), /Cliente assíduo/);
+    /* Assíduo de verdade conversa ao longo do tempo (rajada cai na trava anti-robô): semeia histórico antigo. */
+    const { dentroDaCasa } = await import('../engine/casa.mjs');
+    const arq = dentroDaCasa('canais', 'evolution-conversas.json');
+    const todas = JSON.parse(readFileSync(arq, 'utf8'));
+    const chave = `${n.id}:5531999990044`;
+    const velho = new Date(Date.now() - 2 * 86400e3).toISOString();
+    todas[chave] = [...Array.from({ length: 8 }, (_, i) => ({ de: 'cliente', texto: `papo ${i} e tal`, iaId: 'ia-b', quando: velho })), ...todas[chave]];
+    writeFileSync(arq, JSON.stringify(todas));
+    await canais.receberWebhook(evento(n.instancia, '5531999990044', 'tamo junto, parceiro', 'as9'), { segredo: 'segredo-123' });
+    assert.match(sistema(), /Cliente assíduo: já trocou \d+ mensagens/);
+  });
 });
