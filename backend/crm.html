@@ -2032,6 +2032,13 @@ body.rota-prosp .btn-p:hover{filter:brightness(1.08)}
 .hotel-card-name b{display:block;font-size:12.5px;line-height:1.25;overflow-wrap:anywhere}
 .hotel-card-name small{display:block;color:var(--muted);font-size:10.5px;margin-top:3px;overflow-wrap:anywhere}
 .hotel-card-status{display:flex;align-items:center;justify-content:space-between;gap:6px}
+/* 11/11: prazo de treino da IA (12 h) direto no cartão. */
+.hotel-prazo{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;color:var(--muted)}
+.hotel-prazo i{flex:1;height:4px;border-radius:4px;background:color-mix(in srgb,var(--muted) 22%,transparent);overflow:hidden}
+.hotel-prazo i b{display:block;height:100%;border-radius:4px;background:var(--ac)}
+.hotel-prazo.vencido{color:var(--err)}
+.hotel-prazo.vencido i b{background:var(--err)}
+.hotel-prazo.ok{color:var(--ok)}
 .hotel-card .badge{margin:0;display:inline-flex}
 .hotel-card-open{color:var(--ac);font-size:10.5px;font-weight:600}
 .hotel-details[hidden]{display:none}
@@ -4645,6 +4652,18 @@ function selecionarBotHotel(id){
   render();
 }
 
+/** Prazo de treino (12 h a partir da criação) no cartão do Hotel. */
+function prazoTreinoCard(b){
+  const etapa=(b.cicloVida||b.preparacao?.cicloVida||{}).preparacaoConhecimentoInicial||{};
+  if(b.estado==='homologado') return `<div class="hotel-prazo ok">✓ Treino concluído</div>`;
+  const ini=Date.parse(etapa.iniciadaEm||''), fim=Date.parse(etapa.prazoIdealEm||'');
+  if(!ini||!fim||fim<=ini) return '';
+  const total=fim-ini, agora=Date.now(), h=(ms)=>{const m=Math.round(ms/60000);return m<60?`${m} min`:`${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`;};
+  const horas=Math.round(total/3600000);
+  if(agora>fim) return `<div class="hotel-prazo vencido" title="Prazo de treino: ${new Date(fim).toLocaleString('pt-BR')}">Treino: ${horas}h vencidas há ${h(agora-fim)}<i><b style="width:100%"></b></i></div>`;
+  const pct=Math.max(2,Math.min(100,Math.round((agora-ini)/total*100)));
+  return `<div class="hotel-prazo" title="Prazo de treino: ${new Date(fim).toLocaleString('pt-BR')}">Treino: faltam ${h(fim-agora)} de ${horas}h<i><b style="width:${pct}%"></b></i></div>`;
+}
 function detalheBotHotel(b){
   if(!b) return `<div class="card">${cardH('bot','Selecione um bot','Escolha um cartão do catálogo para ver detalhes e ações.',2)}</div>`;
   HOTEL_BOT=b;
@@ -4761,6 +4780,7 @@ function telaHotel(){
     <button class="hotel-card${b.agenteId===HOTEL_SELECIONADO?' selected':''}" onclick="selecionarBotHotel('${esc(b.agenteId)}')" aria-pressed="${b.agenteId===HOTEL_SELECIONADO}" aria-expanded="${b.agenteId===HOTEL_SELECIONADO}" aria-controls="hotelBotDetalhes">
       <div class="hotel-card-top"><div class="hotel-avatar">${b.perfil?.foto?`<img src="${esc(b.perfil.foto)}" alt="">`:ico('bot')}</div><div class="hotel-card-name">
         <b>${esc(b.nome)}</b><small>${esc(b.especialidade||'')}</small></div></div>
+      ${prazoTreinoCard(b)}
       <div class="hotel-card-status"><span class="badge ${ESTADO_CLASS[b.estado]||'b-warn'}">${esc(ESTADO_LABEL[b.estado]||'Em preparação')}</span><span class="hotel-card-open">${b.agenteId===HOTEL_SELECIONADO?'Ocultar detalhes':'Abrir detalhes'}</span></div>
     </button>`).join('');
   return head('Hotel dos Bots','O 0007 prepara e acompanha os perfis. Toque em um cartão para abrir o perfil, as regras e o histórico.')+hotelTreinoHtml(h)+
