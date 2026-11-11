@@ -38,6 +38,7 @@ import { SERVICOS_SALAO, avaliarIA, avaliarParaUso, dadosSistema, listarParaSala
 import { criarCadevcClient } from '../vssalao/cadevc.mjs';
 import { criarBotcadevc } from '../vssalao/bot.mjs';
 import * as cfgSalao from '../vssalao/config.mjs';
+import * as empresas from '../empresas.mjs';
 
 const agora = () => new Date().toISOString();
 const soDigitos = (s) => String(s || '').replace(/\D/g, '');
@@ -917,6 +918,25 @@ export function aplicarLiberacoesAuditoria({ decisoes = [], por = 'dono' } = {})
 
 /* O nome vem do perfil do WhatsApp, que o cliente escreve: só letras, e só o primeiro. */
 const primeiroNome = (t) => (String(t || '').match(/\p{L}{2,20}/u) || [''])[0];
+
+/* Fala de pedido: verbo de pedir/comprar ou item de comida/bebida. Larga de propósito:
+   a regra vale "mesmo que seja brincadeira". */
+const PEDIDO_NA_FALA = /\b(quero|queria|vou querer|pedido|pedir|peco|pede|manda|mande|me (ve|da|traz|arruma|separa)|encomend|comprar|compra|separa|reserva|entrega|delivery|acai|lanche|pizza|hamburguer|burger|marmita|marmitex|pastel|salgado|refri|refrigerante|cerveja|bebida|suco|combo|porcao|prato|cardapio)/;
+
+/** Nome da empresa que o número está atendendo: a cliente (Canais dela) ou a do agente. */
+function empresaAtendida(ia) {
+  const cnpj = empresaAtual();
+  return (cnpj && empresas.obter(cnpj)?.nome) || ia.empresaNome || ia.preparacao?.pesquisaInicial?.empresa?.nomeFantasia || 'nossa empresa';
+}
+function fraseDePedidoPorVoz(ia, m) {
+  const nome = primeiroNome(m.nome);
+  return String(ia.perfil.pedidoPorVoz)
+    .replaceAll('{nome}', nome || '')
+    .replaceAll('{empresa}', empresaAtendida(ia))
+    .replace(/^\s*,\s*/, '')
+    .replace(/^\p{Ll}/u, (c) => c.toUpperCase())
+    .trim();
+}
 /** Uma mensagem recebida no número → resposta da IA vinculada. Devolve o que foi enviado. */
 /* Número do módulo salão: quem responde é o bot de agendamento, com a agenda
    (Cadê Você) da IA vinculada a este número. Um bot por número + IA: trocar a
@@ -995,8 +1015,13 @@ async function atenderSequencial(n, m) {
     return { ok: false, motivo: 'conversa pausada: possível robô' };
   }
   const respostas = [];
-  if (!daIA.length && ia.perfil?.mensagemInicial) respostas.push({ texto: preencher(ia, ia.perfil.mensagemInicial), origem: 'mensagem-inicial' });
-  if (daIA.length || !SO_CUMPRIMENTO.test(m.texto)) {
+  /* Regra do 0007 (11/11): agente de cardápio digital, conversa por VOZ, falou de
+     pedido (mesmo de brincadeira) → a frase do perfil, em nome da empresa atendida.
+     Sai do código, não do modelo: o modelo pequeno não segura regra com segurança. */
+  const pedidoPorVoz = m.transcrito && ia.perfil?.pedidoPorVoz && PEDIDO_NA_FALA.test(normalizarTexto(m.texto));
+  if (pedidoPorVoz) respostas.push({ texto: fraseDePedidoPorVoz(ia, m), origem: 'regra-pedido-voz' });
+  if (!pedidoPorVoz && !daIA.length && ia.perfil?.mensagemInicial) respostas.push({ texto: preencher(ia, ia.perfil.mensagemInicial), origem: 'mensagem-inicial' });
+  if (!pedidoPorVoz && (daIA.length || !SO_CUMPRIMENTO.test(m.texto))) {
     const resposta = await gerarResposta(ia, conhecimentoHomologado(n, ia), daIA, m.texto, primeiroNome(m.nome));
     /* Mesma frase de novo não sai: repetir é o que deixa o atendimento chato. */
     const ultimaDela = daIA.filter((x) => x.de === 'ia').at(-1)?.texto;

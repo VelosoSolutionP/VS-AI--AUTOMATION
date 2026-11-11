@@ -678,3 +678,39 @@ test('áudio do cliente é baixado, transcrito e respondido (antes era descartad
     if (antes.voz === undefined) delete process.env.VS_FALA_DESLIGADA; else process.env.VS_FALA_DESLIGADA = antes.voz;
   }
 });
+
+test('regra do 0007: cardápio digital por voz, falou de pedido → frase do perfil em nome da empresa', async () => {
+  const antes = { url: process.env.TRANSCRICAO_URL, voz: process.env.VS_FALA_DESLIGADA };
+  process.env.TRANSCRICAO_URL = 'http://transcricao.teste';
+  process.env.VS_FALA_DESLIGADA = '1';
+  const real = globalThis.fetch;
+  let falou = 'me vê dois açaís de 500 aí, é brincadeira';
+  globalThis.fetch = async (url, opts) => (String(url).startsWith('http://transcricao.teste') ? { ok: true, status: 200, json: async () => ({ text: falou }) } : real(url, opts));
+  try {
+    await comEmpresa(EMPRESA_B, async () => {
+      const bots = load(hotel.DATASET_BOTS, []);
+      bots.find((b) => b.agenteId === 'ia-b').perfil.pedidoPorVoz = '{nome}, infelizmente {empresa} ainda não está trabalhando com esse produto.';
+      save(hotel.DATASET_BOTS, bots);
+      const n = canais.cadastrar({ rotulo: 'Voz pedido', agenteId: 'ia-b' }).numero;
+      await canais.conectar({ id: n.id }); estados.set(n.instancia, 'open');
+      const audio = (id) => ({ event: 'messages.upsert', instance: n.instancia, data: { key: { id, remoteJid: '5531999990055@s.whatsapp.net', fromMe: false }, pushName: 'Marcos Silva', message: { audioMessage: { seconds: 2 } }, messageTimestamp: Math.floor(Date.now() / 1000) } });
+      const r = await canais.receberWebhook(audio('VP1'), { segredo: 'segredo-123' });
+      const envios = r.resultados[0].envios;
+      assert.equal(envios.length, 1, 'só a frase, sem saudação nem modelo');
+      assert.equal(envios[0].origem, 'regra-pedido-voz');
+      assert.match(envios[0].texto, /^Marcos, infelizmente .+ ainda não está trabalhando com esse produto\.$/);
+      assert.doesNotMatch(envios[0].texto, /\{empresa\}|\{nome\}/);
+      /* Por texto, o mesmo pedido segue o atendimento normal: a regra é da conversa por voz. */
+      const t = await canais.receberWebhook(evento(n.instancia, '5531999990055', 'quero dois açaís', 'VP2'), { segredo: 'segredo-123' });
+      assert.ok(t.resultados[0].envios.every((e) => e.origem !== 'regra-pedido-voz'));
+      /* Áudio sem pedido também segue normal. */
+      falou = 'boa noite, tudo bem com você?';
+      const s2 = await canais.receberWebhook(audio('VP3'), { segredo: 'segredo-123' });
+      assert.ok(s2.resultados[0].envios.every((e) => e.origem !== 'regra-pedido-voz'));
+    });
+  } finally {
+    globalThis.fetch = real;
+    if (antes.url === undefined) delete process.env.TRANSCRICAO_URL; else process.env.TRANSCRICAO_URL = antes.url;
+    if (antes.voz === undefined) delete process.env.VS_FALA_DESLIGADA; else process.env.VS_FALA_DESLIGADA = antes.voz;
+  }
+});
