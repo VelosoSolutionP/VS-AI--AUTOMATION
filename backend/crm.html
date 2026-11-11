@@ -470,6 +470,8 @@ tbody tr{transition:background .14s}
 tbody tr:hover{background:var(--raised)}
 tbody tr:first-child td{border-top:0}
 .tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel)}
+/* 11/11: no celular a tabela rola de lado em vez de quebrar etiqueta no meio ("comer cial"). */
+@media (max-width:600px){.tbl-wrap table{min-width:560px}.tbl-wrap .badge,.tbl-wrap code,.tbl-wrap .tag,.tbl-wrap td>span{white-space:nowrap}}
 .linkbox{display:flex;gap:8px;align-items:center;background:var(--raised);border:1px solid var(--line);
   border-radius:var(--r-sm);padding:5px 5px 5px 12px}
 .linkbox span{flex:1;font:12px ui-monospace,Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -9431,6 +9433,7 @@ async function cevoVincular(id){
 async function cevoConectar(id){
   flash('Abrindo a sessão na Evolution… o QR aparece em alguns segundos.','ok');
   try{ const r=await api('canais/evolution/conectar',{id}); CEVO_EST[id]=r; await carregarCanaisEvo(); if(r.qr) CEVO_EST[id]={...CEVO_EST[id],qr:r.qr,estado:CEVO_EST[id].estado==='conectado'?'conectado':'aguardando_qr'}; render(); acompanharCanaisEvo();
+    if(r.aviso) flash(r.aviso,'ok');
     if(r.webhook&&!r.webhook.ok) avisoErro('Conectado, mas as respostas automáticas não foram ligadas',esc(r.webhook.erro||'')); }
   catch(e){ avisoErro('Não consegui conectar',esc(e.message)); }
 }
@@ -9623,7 +9626,7 @@ function telaCanaisEvo(mod='canais'){
       ${idt?`<div class="hotel-profile-block" style="margin-top:10px"><small>Identidade no WhatsApp ${idt.sincronizadaEm?'· sincronizada em '+esc(new Date(idt.sincronizadaEm).toLocaleString('pt-BR')):''}${idt.pendente?' · <b>pendente: a IA mudou</b>':''}</small>
         <ul class="hotel-list">${Object.entries(campos).map(([k,v])=>`<li>${esc({nome:'Nome',recado:'Recado (descrição)',foto:'Foto',descricaoComercial:'Descrição comercial'}[k]||k)}: ${v.ok?'atualizado':'não atualizado — '+esc(v.erro||'')}${v.aviso?' · '+esc(v.aviso):''}</li>`).join('')}</ul></div>`:''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-        ${con?botao({t:'Desconectar',ic:'power',v:'s',sz:'xs',on:`cevoDesconectar('${esc(n.id)}')`}):botao({t:['aguardando_qr','caido','conectando'].includes(est)?'Gerar QR novo':'Conectar pelo QR',ic:'whats',v:'p',sz:'xs',on:`cevoConectar('${esc(n.id)}')`})}
+        ${con?botao({t:'Desconectar',ic:'power',v:'s',sz:'xs',on:`cevoDesconectar('${esc(n.id)}')`}):(est==='conectando'&&!st.qr?botao({t:'Reconectando…',ic:'atualizar',v:'s',sz:'xs',off:true,on:''}):botao({t:['aguardando_qr','caido','conectando'].includes(est)?'Gerar QR novo':'Conectar pelo QR',ic:'whats',v:'p',sz:'xs',on:`cevoConectar('${esc(n.id)}')`}))}
         ${botao({t:'Sincronizar identidade da IA',ic:'atualizar',v:'s',sz:'xs',off:!con||!n.ia||n.ia.ausente,on:`cevoIdentidade('${esc(n.id)}')`})}
         ${botao({t:'Apagar sessão',ic:'excluir',v:'s',sz:'xs',extra:'btn-dan',on:`cevoApagarSessao('${esc(n.id)}','${esc(n.rotulo)}')`})}
         ${botao({t:'Conversas',ic:'ver',v:'g',sz:'xs',on:`cevoConversas('${esc(n.id)}','${esc(n.rotulo)}')`})}

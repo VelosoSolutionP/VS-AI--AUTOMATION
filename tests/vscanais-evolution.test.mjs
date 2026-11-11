@@ -12,6 +12,7 @@ import { join } from 'node:path';
 
 const casaTeste = mkdtempSync(join(tmpdir(), 'canais-evo-'));
 process.env.VS_HOME = casaTeste;
+process.env.CANAIS_ESPERA_APAGAR_MS ||= '1';
 delete process.env.VSCRM_DIR;
 mkdirSync(join(casaTeste, 'console'), { recursive: true });
 writeFileSync(join(casaTeste, 'console', 'canais.json'), JSON.stringify({ evolutionUrl: 'http://evo.teste', evolutionKey: 'chave-canais', webhookSegredo: 'segredo-123' }));
@@ -27,6 +28,7 @@ const salao = await import('../engine/vssalao/ias.mjs');
 /* ── dublês ── */
 const chamadas = [];
 const estados = new Map();   // instancia -> 'open' | 'close'
+const pareadas = new Set();  // instancias que já leram o QR
 function resposta(status, corpo) { return { ok: status < 400, status, json: async () => corpo, text: async () => JSON.stringify(corpo), headers: { get: () => null } }; }
 async function fetchFalso(url, opts = {}) {
   const u = new URL(url);
@@ -51,9 +53,16 @@ async function fetchFalso(url, opts = {}) {
     if (!estados.has(nome)) return resposta(404, { status: 404, error: 'Not Found', response: { message: [`The "${nome}" instance does not exist`] } });
     return resposta(200, { instance: { state: estados.get(nome) } });
   }
-  if (grupo === 'instance' && acao === 'fetchInstances') return resposta(200, [{ ownerJid: '5531911112222@s.whatsapp.net' }]);
+  if (grupo === 'instance' && acao === 'fetchInstances') {
+    /* Dono só existe depois de ler o QR (aberta agora ou pareada antes). */
+    const nome = u.searchParams.get('instanceName');
+    const dono = !nome || estados.get(nome) === 'open' || pareadas.has(nome);
+    if (nome && estados.get(nome) === 'open') pareadas.add(nome);
+    return resposta(200, [{ ownerJid: dono ? '5531911112222@s.whatsapp.net' : null }]);
+  }
   if (grupo === 'instance' && acao === 'logout') { estados.set(decodeURIComponent(inst), 'close'); return resposta(200, {}); }
   if (grupo === 'instance' && acao === 'delete') {
+    pareadas.delete(decodeURIComponent(inst));
     /* Igual à v2.3.7 real: com a sessão aberta o delete responde 400. */
     if (estados.get(decodeURIComponent(inst)) === 'open') return resposta(400, { status: 400, error: 'Bad Request', response: { message: ['[object Object]'] } });
     estados.delete(decodeURIComponent(inst)); return resposta(200, {});
@@ -575,5 +584,22 @@ test('IA de vendas recebe roteiro; conversa de robô é pausada e frase repetida
     for (let i = 2; i < 10; i++) await canais.receberWebhook(evento(n.instancia, '5531999990050', `msg ${i}`, `v${i}`), { segredo: 'segredo-123' });
     const r = await canais.receberWebhook(evento(n.instancia, '5531999990050', 'mais uma', 'v99'), { segredo: 'segredo-123' });
     assert.match(r.resultados[0].motivo, /possível robô/);
+  });
+});
+
+test('sessão pareada reiniciando (troca de IA) não é apagada por "Gerar QR novo"', async () => {
+  await comEmpresa(EMPRESA_B, async () => {
+    const n = canais.cadastrar({ rotulo: 'Reinicia', agenteId: 'ia-b' }).numero;
+    await canais.conectar({ id: n.id });
+    estados.set(n.instancia, 'open');
+    assert.equal((await canais.estado({ id: n.id })).estado, 'conectado');
+    /* nome/foto foram pro WhatsApp e a conexão reinicia */
+    estados.set(n.instancia, 'connecting');
+    const antes = chamadas.length;
+    const r = await canais.conectar({ id: n.id });
+    const depois = chamadas.slice(antes).map((c) => c.caminho);
+    assert.ok(!depois.some((c) => c.startsWith('/instance/delete/') || c.startsWith('/instance/logout/')), 'não apaga nem desloga a sessão pareada');
+    assert.equal(estados.get(n.instancia), 'connecting');
+    assert.match(r.aviso, /reconectando/);
   });
 });

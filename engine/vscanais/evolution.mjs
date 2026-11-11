@@ -278,6 +278,20 @@ export async function conectar({ id } = {}) {
     if (!/already|exists|in use|403|409/i.test(e.message)) return { ok: false, erro: e.message, numero: publico(n) };
     const st = (await evo(`instance/connectionState/${inst}`).catch(() => null))?.instance?.state;
     if (st === 'open') { await prov.sincronizar(); return { ok: true, ...prov.status(), numero: publico(n) }; }
+    /* 11/11: sessão JÁ PAREADA reiniciando (troca de IA → nome/foto no WhatsApp
+       derruba a conexão por alguns segundos, estado 'connecting'). Clicar em
+       "Gerar QR novo" nessa hora apagava a instância e o celular perdia o
+       aparelho — a ÍSIS caiu 8 vezes num dia assim. Pareada não se apaga daqui:
+       espera voltar. Só recria quando NÃO há aparelho pareado. */
+    if (st === 'connecting' && await pareada(inst)) {
+      for (let t = 0; t < 10; t++) {
+        await new Promise((ok) => { setTimeout(ok, ESPERA_APAGAR_MS * 2); });
+        if ((await evo(`instance/connectionState/${inst}`).catch(() => null))?.instance?.state === 'open') break;
+      }
+      await prov.sincronizar();
+      const s = prov.status();
+      return { ok: true, ...s, numero: publico(n), aviso: s.estado === 'conectado' ? null : 'o WhatsApp está reconectando — a sessão foi mantida, aguarde alguns segundos' };
+    }
     /* Sobrou instância fechada ou no meio do caminho: recria do zero em vez de
        chamar connect, que abriria uma segunda conexão. */
     const apagada = await apagarInstancia(n);
@@ -296,6 +310,17 @@ export async function conectar({ id } = {}) {
   if (status.estado === 'conectado') return { ok: true, ...status, webhook: n.webhook, numero: publico(n) };
   if (!qr) return { ok: false, ...status, erro: 'a Evolution não devolveu o QR; tente de novo em alguns segundos', webhook: n.webhook, numero: publico(n) };
   return { ok: true, ...status, estado: 'aguardando_qr', qr, webhook: n.webhook, numero: publico(n) };
+}
+
+/* A instância tem aparelho pareado (dono conhecido)? Na dúvida, diz que sim: errar
+   pra cá só faz esperar; errar pra lá apaga o pareamento do cliente. */
+async function pareada(inst) {
+  try {
+    const arr = await evo(`instance/fetchInstances?instanceName=${inst}`);
+    const i = Array.isArray(arr) ? (arr[0]?.instance || arr[0]) : (arr?.instance || arr);
+    if (!i) return true;
+    return Boolean(i.ownerJid || i.owner || i.wuid);
+  } catch { return true; }
 }
 
 function esquecerNumero(id) {
