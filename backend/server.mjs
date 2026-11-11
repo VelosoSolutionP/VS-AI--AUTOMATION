@@ -2949,7 +2949,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
         case '/crm/api/canais/evolution/vincular': r = canaisEvo.vincularIA({ id: String(d.id || ''), agenteId: String(d.agenteId || ''), nicho: String(d.nicho || '') }); break;
         case '/crm/api/canais/evolution/conectar': r = await canaisEvo.conectar({ id: String(d.id || '') }); break;
         case '/crm/api/canais/evolution/estado': r = await canaisEvo.estado({ id: String(d.id || '') }); break;
-        case '/crm/api/canais/evolution/cardapio': r = canaisEvo.ligarCardapio({ id: String(d.id || ''), slug: String(d.slug || '') }); break;
+        case '/crm/api/canais/evolution/cardapio': r = await canaisEvo.ligarCardapio({ id: String(d.id || ''), slug: String(d.slug || ''), ...(typeof d.chave === 'string' && d.chave.trim() ? { chave: d.chave } : {}), ...(d.desligarVenda ? { chave: '' } : {}) }); break;
         case '/crm/api/canais/evolution/desconectar': r = await canaisEvo.desconectar({ id: String(d.id || '') }); break;
         case '/crm/api/canais/evolution/apagar-sessao': r = await canaisEvo.apagarSessao({ id: String(d.id || '') }); break;
         case '/crm/api/canais/evolution/remover': r = await canaisEvo.remover({ id: String(d.id || '') }); break;

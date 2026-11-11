@@ -9465,8 +9465,9 @@ async function cevoVincular(id){
 }
 async function cevoLigarCardapio(id){
   const slug=(document.getElementById('cevoCard_'+id)?.value||'').trim();
-  try{ const r=await api('canais/evolution/cardapio',{id,slug}); await carregarCanaisEvo();
-    flash(r.cardapio?`Cardápio ligado: o agente agora lê os produtos da loja "${r.cardapio.slug}" no To No Rango.`:'Cardápio desligado deste número.','ok'); }
+  const chave=(document.getElementById('cevoChave_'+id)?.value||'').trim();
+  try{ const r=await api('canais/evolution/cardapio',{id,slug,chave}); await carregarCanaisEvo();
+    flash(!r.cardapio?'Cardápio desligado deste número.':r.cardapio.venda?`Venda ligada: os pedidos deste número entram direto na loja "${r.cardapio.slug}" do To No Rango.`:`Cardápio ligado: o agente lê os produtos da loja "${r.cardapio.slug}". Para o pedido entrar na loja, cole a chave do conector.`,'ok'); }
   catch(e){ avisoErro('Não consegui ligar o cardápio',esc(e.message)); }
 }
 async function cevoConectar(id){
@@ -9655,7 +9656,7 @@ function telaCanaisEvo(mod='canais'){
       ${!n.ia?`<p class="hint" style="color:var(--err)"><b>Sem IA vinculada:</b> este número não responde ninguém. Marque a IA abaixo e clique em Vincular IA.</p>`:''}
       ${n.ia?.ausente?`<p class="hint" style="color:var(--err)">A IA vinculada (${esc(n.ia.agenteId)}) não existe mais no Hotel. Escolha outra.</p>`:''}
       ${n.ia&&!n.ia.ausente&&n.ia.estado!=='homologado'?`<p class="hint" style="color:var(--err)">A IA ${esc(n.ia.nome)} saiu da homologação (${esc(n.ia.estado)}): o número não responde até ela voltar ou você trocar a IA.</p>`:''}
-      ${mod==='canais'?`<div class="form-grid" style="margin-top:10px"><div class="field"><label for="cevoCard_${esc(n.id)}">Cardápio do To No Rango <small>(final do link do cardápio, ex.: acai-do-veloso)</small></label><input id="cevoCard_${esc(n.id)}" maxlength="80" placeholder="sem loja ligada" value="${esc(n.cardapio?.slug||'')}"></div>${botao({t:n.cardapio?.slug?'Atualizar cardápio':'Ligar cardápio',ic:'check',v:'s',on:`cevoLigarCardapio('${esc(n.id)}')`})}</div>`:''}
+      ${mod==='canais'?`<div class="form-grid" style="margin-top:10px"><div class="field"><label for="cevoCard_${esc(n.id)}">Cardápio do To No Rango <small>(final do link do cardápio, ex.: acai-do-veloso)</small></label><input id="cevoCard_${esc(n.id)}" maxlength="80" placeholder="sem loja ligada" value="${esc(n.cardapio?.slug||'')}"></div><div class="field"><label for="cevoChave_${esc(n.id)}">Chave do conector <small>(To No Rango → ZEST IA → Gerar chave; o pedido entra na loja)</small></label><input id="cevoChave_${esc(n.id)}" type="password" autocomplete="off" maxlength="60" placeholder="${n.cardapio?.venda?'ligada · termina em '+esc(n.cardapio.chaveFinal||''):'sem chave: só lê o cardápio'}"></div>${botao({t:n.cardapio?.slug?'Atualizar cardápio':'Ligar cardápio',ic:'check',v:'s',on:`cevoLigarCardapio('${esc(n.id)}')`})}</div>`:''}
       <div class="form-grid" style="margin-top:10px">
         ${cevoSeletor(n.id,n.ia?.agenteId)}
         ${botao({t:n.ia?'Trocar IA':'Vincular IA',ic:'bot',v:'s',on:`cevoVincular('${esc(n.id)}')`})}

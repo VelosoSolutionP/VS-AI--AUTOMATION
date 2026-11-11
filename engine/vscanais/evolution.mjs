@@ -166,21 +166,37 @@ function publico(n) {
   return {
     id: n.id, modulo: n.modulo || 'canais', nicho: n.nicho || null, rotulo: n.rotulo, numeroPrevisto: n.numeroPrevisto, instancia: n.instancia, loja: n.loja,
     criadoEm: n.criadoEm, ia: ia ? { agenteId: ia.agenteId, nome: ia.nome, estado: ia.estado, especialidade: ia.especialidade, elegivel: n.modulo !== 'salao' || comLoja(n.loja, () => avaliarParaUso(ia).ok), servicos: n.modulo === 'salao' ? comLoja(n.loja, () => avaliarParaUso(ia).servicos) : [] } : (n.iaId ? { agenteId: n.iaId, ausente: true } : null),
-    vinculos: n.vinculos || [], identidade: n.identidade || null, webhook: n.webhook || null, cardapio: n.cardapio || null,
+    vinculos: n.vinculos || [], identidade: n.identidade || null, webhook: n.webhook || null,
+    cardapio: n.cardapio ? { slug: n.cardapio.slug, ligadoEm: n.cardapio.ligadoEm, venda: !!n.cardapio.chave, chaveFinal: n.cardapio.chave ? String(n.cardapio.chave).slice(-6) : null } : null,
   };
 }
-/** Liga o número a uma loja do To No Rango (slug do cardápio). Vazio desliga. */
-export function ligarCardapio({ id, slug } = {}) {
+/** Liga o número a uma loja do To No Rango (slug do cardápio). Vazio desliga.
+ *  Com a chave do conector (To No Rango → ZEST IA → Gerar chave), o pedido é
+ *  anotado pelo fluxo de venda da própria loja. Sem chave, só lê o cardápio. */
+export async function ligarCardapio({ id, slug, chave } = {}) {
   const lista = lerNumeros();
   const n = lista.find((x) => x.id === id);
   if (!n) return { erro: 'número não encontrado nesta empresa' };
   const s = String(slug || '').trim().toLowerCase();
   if (s && !/^[a-z0-9-]{2,80}$/.test(s)) return { erro: 'endereço da loja inválido (use o final do link do cardápio, ex.: acai-do-veloso)' };
-  n.cardapio = s ? { slug: s, ligadoEm: agora() } : null;
+  if (!s) { n.cardapio = null; gravarNumeros(lista); return { ok: true, cardapio: null }; }
+  const k = chave === undefined ? (n.cardapio?.slug === s ? n.cardapio?.chave : null) : String(chave || '').trim();
+  if (k && !/^tnr_[a-f0-9]{48}$/.test(k)) return { erro: 'chave do conector inválida (começa com tnr_; gere em To No Rango → ZEST IA)' };
+  let lojaId = null;
+  try {
+    const r = await fetchAtual()(`${urlToNoRango()}/api/public/establishments/${encodeURIComponent(s)}/menu`, { signal: AbortSignal.timeout(8000) });
+    if (r.status === 404) return { erro: 'loja não encontrada no To No Rango' };
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    lojaId = (await r.json())?.establishment?.id || null;
+  } catch (e) {
+    if (k) return { erro: `To No Rango não respondeu (${e.message}); tente de novo` };
+  }
+  n.cardapio = { slug: s, ligadoEm: agora(), ...(k && lojaId ? { lojaId, chave: k } : {}) };
+  cacheCardapio.delete(s);
   gravarNumeros(lista);
-  return { ok: true, cardapio: n.cardapio };
+  return { ok: true, cardapio: publico(n).cardapio };
 }
-export const _ligarCardapio = (id, slug) => ligarCardapio({ id, slug });
+export const _ligarCardapio = (id, slug, chave) => ligarCardapio({ id, slug, chave });
 /** Algum número (Canais ou Salão) desta empresa usa a IA? Devolve o rótulo do número, ou null. */
 export function numeroLigadoA(agenteId) {
   const n = lerNumeros().find((x) => x.iaId === agenteId);
@@ -976,6 +992,33 @@ function itensCitados(itens, textoNormalizado) {
 }
 const linhaCardapio = (i) => `produto: ${i.nome}${i.categoria ? ` (${i.categoria})` : ''} — preço R$ ${(i.preco / 100).toFixed(2).replace('.', ',')}${i.disponivel ? '' : ' — esgotado hoje'}`;
 
+/* ── Venda pela loja (11/11) ─────────────────────────────────────────────────
+   Número com loja e chave: a mensagem vai para o fluxo de venda do To No Rango
+   (o mesmo do WhatsApp da loja: monta o pedido, confirma, Pix, lança na cozinha)
+   e as respostas dele voltam ao cliente. Falhou → o agente atende como antes. */
+async function vendaDaLoja(n, m) {
+  const c = n.cardapio;
+  if (!c?.chave || !c?.lojaId) return null;
+  const fone = String(m.de || '').replace(/\D/g, '');
+  if (fone.length < 10 || !String(m.texto || '').trim()) return null;
+  try {
+    const r = await fetchAtual()(`${urlToNoRango()}/api/zest/${encodeURIComponent(c.lojaId)}/messages`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'X-Zest-Key': c.chave },
+      body: JSON.stringify({ phone: fone, name: primeiroNome(m.nome) || null, text: String(m.texto).slice(0, 4000), messageId: m.id ? `${n.instancia}-${m.id}` : null }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const j = await r.json();
+    if (j.duplicate) return { duplicada: true, respostas: [] };
+    const respostas = (j.replies || []).map((x) => ({ texto: String(x.text || '').trim(), imagem: x.imageBase64 || null, origem: 'tonorango-venda' })).filter((x) => x.texto || x.imagem);
+    return { respostas, pessoa: !!j.handoff };
+  } catch (e) {
+    console.warn(`[canais-evo:${n.instancia}] venda do To No Rango não respondeu (${e.message}); o agente atende`);
+    return null;
+  }
+}
+
 /* Fala de pedido: verbo de pedir/comprar ou item de comida/bebida. Larga de propósito:
    a regra vale "mesmo que seja brincadeira". */
 const PEDIDO_NA_FALA = /\b(quero|queria|vou querer|pedido|pedir|peco|pede|manda|mande|me (ve|da|traz|arruma|separa)|encomend|comprar|compra|separa|reserva|entrega|delivery|acai|lanche|pizza|hamburguer|burger|marmita|marmitex|pastel|salgado|refri|refrigerante|cerveja|bebida|suco|combo|porcao|prato|cardapio)/;
@@ -1082,8 +1125,11 @@ async function atenderSequencial(n, m) {
   const citouDoCardapio = Array.isArray(cardapio) && itensCitados(cardapio.filter((i) => i.disponivel), falaNorm).length > 0;
   const pedidoPorVoz = m.transcrito && ia.perfil?.pedidoPorVoz && PEDIDO_NA_FALA.test(falaNorm) && cardapio !== null && !citouDoCardapio;
   if (pedidoPorVoz) respostas.push({ texto: fraseDePedidoPorVoz(ia, m), origem: 'regra-pedido-voz' });
-  if (!pedidoPorVoz && !daIA.length && ia.perfil?.mensagemInicial) respostas.push({ texto: preencher(ia, ia.perfil.mensagemInicial), origem: 'mensagem-inicial' });
-  if (!pedidoPorVoz && (daIA.length || !SO_CUMPRIMENTO.test(m.texto))) {
+  const venda = pedidoPorVoz ? null : await vendaDaLoja(n, m);
+  if (venda?.duplicada) return { ok: true, ia: ia.agenteId, envios: [], motivo: 'mensagem repetida' };
+  if (venda?.respostas.length) respostas.push(...venda.respostas);
+  if (!venda?.respostas.length && !pedidoPorVoz && !daIA.length && ia.perfil?.mensagemInicial) respostas.push({ texto: preencher(ia, ia.perfil.mensagemInicial), origem: 'mensagem-inicial' });
+  if (!venda?.respostas.length && !pedidoPorVoz && (daIA.length || !SO_CUMPRIMENTO.test(m.texto))) {
     const conhecimento = [...conhecimentoHomologado(n, ia), ...(Array.isArray(cardapio) ? cardapio.map(linhaCardapio) : [])];
     const resposta = await gerarResposta(ia, conhecimento, daIA, m.texto, primeiroNome(m.nome));
     /* Mesma frase de novo não sai: repetir é o que deixa o atendimento chato. */
@@ -1096,7 +1142,9 @@ async function atenderSequencial(n, m) {
   const envios = [];
   for (const r of respostas) {
     /* Cliente falou, ele ouve. Voz falhou? A mesma resposta sai em texto: nunca fica sem. */
-    const env = (m.transcrito && await responderEmAudio(prov, contato, r.texto, quem)) || await prov.enviarTexto({ para: contato, texto: r.texto });
+    const env = r.imagem
+      ? await prov.enviarImagem({ para: contato, dataUri: `data:image/png;base64,${r.imagem}`, nome: 'pix.png', legenda: r.texto || '' })
+      : (m.transcrito && await responderEmAudio(prov, contato, r.texto, quem)) || await prov.enviarTexto({ para: contato, texto: r.texto });
     anotar(n.id, contato, { de: 'ia', texto: r.texto, iaId: ia.agenteId, origem: r.origem, enviado: env.ok !== false, ...(env.ok === false ? { erro: env.erro } : {}) });
     envios.push({ ...r, ok: env.ok !== false, erro: env.erro });
     console.log(`[canais-evo:${quem}] → ••••${String(m.de).slice(-4)} [${ia.nome} · ${r.origem}]${env.ok === false ? ` FALHOU: ${env.erro}` : ''}`);

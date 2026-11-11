@@ -27,6 +27,7 @@ const salao = await import('../engine/vssalao/ias.mjs');
 
 /* ── dublês ── */
 const chamadas = [];
+const CHAVE_TNR = 'tnr_' + 'a1'.repeat(24);
 const estados = new Map();   // instancia -> 'open' | 'close'
 const pareadas = new Set();  // instancias que já leram o QR
 function resposta(status, corpo) { return { ok: status < 400, status, json: async () => corpo, text: async () => JSON.stringify(corpo), headers: { get: () => null } }; }
@@ -40,10 +41,15 @@ async function fetchFalso(url, opts = {}) {
     if (/desconhecida/.test(corpo.messages.at(-1).content)) return resposta(200, { message: { content: 'Vou chamar a equipe.' } });
     return resposta(200, { message: { content: `[${nome}] resposta com base no conhecimento` } });
   }
-  if (u.host === 'tnr.teste' && u.pathname === '/api/public/establishments/loja-teste/menu') return resposta(200, { categories: [{ name: 'Destaques', isActive: true, items: [
+  if (u.host === 'tnr.teste' && u.pathname === '/api/public/establishments/loja-teste/menu') return resposta(200, { establishment: { id: 'loja-uuid-1' }, categories: [{ name: 'Destaques', isActive: true, items: [
     { name: 'Açaí 500ml', priceInCents: 1800, isActive: true, isAvailable: true },
     { name: 'Combo do Veloso', priceInCents: 2900, isActive: true, isAvailable: true },
   ] }] });
+  if (u.host === 'tnr.teste' && u.pathname === '/api/zest/loja-uuid-1/messages') {
+    if (opts.headers?.['X-Zest-Key'] !== CHAVE_TNR) return resposta(401, { title: 'Chave do conector inválida.' });
+    if (/fora do ar/.test(corpo.text)) return resposta(500, {});
+    return resposta(200, { replies: [{ text: `Anotei: ${corpo.text}. Total R$ 65,00. Confirma?` }], handoff: false });
+  }
   if (u.host.startsWith('agenda')) return resposta(200, { cadevc: { nome: 'Studio' }, regras: {}, servicos: [{ id: 's1', nome: 'Manicure', duracao: 30, preco: 50 }], horarios: [], profissionais: [] });
   if (opts.headers?.apikey !== 'chave-canais') return resposta(401, { message: 'apikey errada' });
   const [, grupo, acao, inst] = u.pathname.split('/');
@@ -751,7 +757,7 @@ test('cardápio do To No Rango: produto da loja é atendido, o que não tem é r
       bots.find((b) => b.agenteId === 'ia-b').perfil.pedidoPorVoz = '{nome}, infelizmente {empresa} ainda não está trabalhando com esse produto.';
       save(hotel.DATASET_BOTS, bots);
       const n = canais.cadastrar({ rotulo: 'Loja TNR', agenteId: 'ia-b' }).numero;
-      canais._ligarCardapio(n.id, 'loja-teste');
+      await canais._ligarCardapio(n.id, 'loja-teste');
       await canais.conectar({ id: n.id }); estados.set(n.instancia, 'open');
       let k = 0;
       const audio = () => ({ event: 'messages.upsert', instance: n.instancia, data: { key: { id: `CD${k++}`, remoteJid: '5531999990033@s.whatsapp.net', fromMe: false }, pushName: 'Ana', message: { audioMessage: { seconds: 2 } }, messageTimestamp: Math.floor(Date.now() / 1000) } });
@@ -764,7 +770,7 @@ test('cardápio do To No Rango: produto da loja é atendido, o que não tem é r
       const nao = await canais.receberWebhook(audio(), { segredo: 'segredo-123' });
       assert.equal(nao.resultados[0].envios[0].origem, 'regra-pedido-voz');
       /* Loja fora do ar: não recusa (melhor atender do que negar por engano). */
-      canais._ligarCardapio(n.id, 'loja-fora');
+      await canais._ligarCardapio(n.id, 'loja-fora');
       falou = 'quero uma pizza';
       const fora = await canais.receberWebhook(audio(), { segredo: 'segredo-123' });
       assert.ok(fora.resultados[0].envios.every((e) => e.origem !== 'regra-pedido-voz'));
@@ -772,5 +778,35 @@ test('cardápio do To No Rango: produto da loja é atendido, o que não tem é r
   } finally {
     globalThis.fetch = real;
     for (const [k, v] of Object.entries({ TRANSCRICAO_URL: antes.url, VS_FALA_DESLIGADA: antes.voz, TONORANGO_URL: antes.tnr })) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
+});
+
+test('venda pela loja: com a chave do conector, o pedido vai para o To No Rango e a resposta dele volta ao cliente', async () => {
+  const antes = process.env.TONORANGO_URL;
+  process.env.TONORANGO_URL = 'http://tnr.teste';
+  try {
+    await comEmpresa(EMPRESA_B, async () => {
+      const n = canais.cadastrar({ rotulo: 'Venda TNR', agenteId: 'ia-b' }).numero;
+      assert.match((await canais._ligarCardapio(n.id, 'loja-teste', 'chave-ruim')).erro, /chave do conector inválida/);
+      const lig = await canais._ligarCardapio(n.id, 'loja-teste', CHAVE_TNR);
+      assert.equal(lig.cardapio.venda, true);
+      assert.equal(JSON.stringify(canais.listar()).includes(CHAVE_TNR), false, 'a chave não sai para a tela');
+      await canais.conectar({ id: n.id }); estados.set(n.instancia, 'open');
+      const r = await canais.receberWebhook(evento(n.instancia, '5531999990066', 'quero dois açaí de 500 e um combo do veloso', 'VD1'), { segredo: 'segredo-123' });
+      const envios = r.resultados[0].envios;
+      assert.equal(envios.length, 1, 'só a resposta da loja: sem a saudação do agente nem o modelo');
+      assert.equal(envios[0].origem, 'tonorango-venda');
+      assert.match(envios[0].texto, /^Anotei: quero dois açaí/);
+      const ida = chamadas.filter((c) => c.caminho === '/api/zest/loja-uuid-1/messages').at(-1).corpo;
+      assert.equal(ida.phone, '5531999990066');
+      /* Atualizar só o cardápio não apaga a chave já ligada. */
+      assert.equal((await canais._ligarCardapio(n.id, 'loja-teste')).cardapio.venda, true);
+      /* Loja falhou: o agente atende como antes, o cliente nunca fica sem resposta. */
+      const f = await canais.receberWebhook(evento(n.instancia, '5531999990066', 'to fora do ar?', 'VD2'), { segredo: 'segredo-123' });
+      assert.ok(f.resultados[0].envios.length >= 1);
+      assert.ok(f.resultados[0].envios.every((e) => e.origem !== 'tonorango-venda'));
+    });
+  } finally {
+    if (antes === undefined) delete process.env.TONORANGO_URL; else process.env.TONORANGO_URL = antes;
   }
 });
