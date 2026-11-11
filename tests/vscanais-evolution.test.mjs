@@ -37,7 +37,7 @@ async function fetchFalso(url, opts = {}) {
   if (u.host === '127.0.0.1:11434') {
     const sistema = corpo.messages[0].content;
     const nome = /Você é ([^,\n]+)/.exec(sistema)?.[1];
-    if (/desconhecida/.test(corpo.messages.at(-1).content)) return resposta(200, { message: { content: 'Vou chamar a equipe.' } });
+    if (/desconhecida/.test(corpo.messages.filter((m) => m.role === 'user').at(-1).content)) return resposta(200, { message: { content: 'Vou chamar a equipe.' } });
     return resposta(200, { message: { content: `[${nome}] resposta com base no conhecimento` } });
   }
   if (u.host.startsWith('agenda')) return resposta(200, { cadevc: { nome: 'Studio' }, regras: {}, servicos: [{ id: 's1', nome: 'Manicure', duracao: 30, preco: 50 }], horarios: [], profissionais: [] });
@@ -577,7 +577,7 @@ test('IA de vendas recebe roteiro; conversa de robô é pausada e frase repetida
     await canais.conectar({ id: n.id }); estados.set(n.instancia, 'open');
     await canais.receberWebhook(evento(n.instancia, '5531999990050', 'quero comprar', 'v0'), { segredo: 'segredo-123' });
     const prompt = chamadas.filter((c) => c.caminho === '/api/chat').at(-1).corpo.messages[0].content;
-    assert.match(prompt, /recomende um produto/);
+    assert.match(prompt, /apresenta o produto do conhecimento/);
     const envios = () => chamadas.filter((c) => c.caminho === `/message/sendText/${n.instancia}`).length;
     const antes = envios();
     const r2 = await canais.receberWebhook(evento(n.instancia, '5531999990050', 'de novo', 'v1'), { segredo: 'segredo-123' });
@@ -616,4 +616,32 @@ test('QR novo depois de apagar a sessão manda a foto de novo', async () => {
     const id = canais.listar().find((x) => x.id === n.id).identidade;
     assert.equal(id.pendente, true); assert.equal(id.marcaFoto, null);
   });
+});
+
+test('método de venda do 0007: conversa primeiro, oferta só com interesse, recusa encerra', async () => {
+  assert.equal(canais.etapaVenda([], 'oi, tudo bem?'), 'conversa');
+  assert.equal(canais.etapaVenda([{ de: 'cliente', texto: 'oi' }], 'tô na rua resolvendo o carro'), 'conversa');
+  assert.equal(canais.etapaVenda([], 'quanto custa?'), 'interesse');
+  assert.equal(canais.etapaVenda([], 'quero ver o cardápio'), 'interesse');
+  assert.equal(canais.etapaVenda([], 'não quero, obrigado'), 'recusou');
+  const tres = [{ de: 'cliente', texto: 'oi' }, { de: 'cliente', texto: 'trabalho com marmita' }, { de: 'cliente', texto: 'é corrido' }];
+  assert.equal(canais.etapaVenda(tres, 'pois é'), 'descoberta');
+  await comEmpresa(EMPRESA_B, async () => {
+    const n = canais.cadastrar({ rotulo: 'Etapas', agenteId: 'ia-b' }).numero;
+    await canais.conectar({ id: n.id }); estados.set(n.instancia, 'open');
+    const ultimo = () => chamadas.filter((c) => c.host === '127.0.0.1:11434').at(-1).corpo.messages;
+    const sistema = () => ultimo()[0].content + '\n' + ultimo().at(-1).content;
+    await canais.receberWebhook(evento(n.instancia, '5531999990077', 'tô resolvendo um problema no carro', 'e1'), { segredo: 'segredo-123' });
+    assert.match(sistema(), /ETAPA AGORA: conversa\. NÃO ofereça produto, catálogo, cardápio/);
+    assert.match(sistema(), /ESCUTA PRIMEIRO/);
+    await canais.receberWebhook(evento(n.instancia, '5531999990077', 'como funciona o sistema?', 'e2'), { segredo: 'segredo-123' });
+    assert.match(sistema(), /ETAPA AGORA: a pessoa mostrou interesse/);
+  });
+});
+
+test('trava de oferta: na conversa e depois do não, frase de venda não sai', () => {
+  assert.equal(canais.tirarOferta('Que correria! A Veloso oferece soluções completas de estoque.', 'conversa'), 'Que correria!');
+  assert.equal(canais.tirarOferta('Que bom te ver! Quer ver o cardápio? O porco hoje tá demais.', 'conversa'), 'Que bom te ver!');
+  assert.match(canais.tirarOferta('Temos promoção hoje!', 'recusou'), /é só chamar/);
+  assert.equal(canais.tirarOferta('Nosso catálogo tem 30 itens.', 'interesse'), 'Nosso catálogo tem 30 itens.');
 });
