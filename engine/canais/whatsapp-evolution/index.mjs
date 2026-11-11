@@ -177,6 +177,17 @@ export function criarWhatsAppEvolutionProvider(opcoes = {}) {
   }
   const enviarImagem = (o) => enviarMidia({ ...o, tipo: 'image' });
   const enviarArquivo = (o) => enviarMidia({ ...o, tipo: 'document' });
+  /* Nota de voz: o endpoint próprio manda como PTT (toca sozinha). Se a versão
+     do Evolution não tiver a rota, cai no sendMedia como áudio — ainda toca. */
+  async function enviarAudio({ para, dataUri, nome: nomeArq = 'resposta.ogg' }) {
+    const m = /^data:([^;]+);base64,(.*)$/s.exec(String(dataUri || ''));
+    const base64 = m ? m[2] : String(dataUri || '');
+    if (!base64) { return { ok: false, erro: 'nenhum áudio para enviar' }; }
+    const ptt = await mandar('message/sendWhatsAppAudio', { audio: base64, encoding: true, mimetype: m?.[1] || 'audio/ogg' }, para);
+    if (ptt.ok) { return ptt; }
+    console.warn(`[whatsapp-evolution] sendWhatsAppAudio falhou (${ptt.erro}); tentando sendMedia como áudio`);
+    return enviarMidia({ para, dataUri: `data:${m?.[1] || 'audio/ogg'};base64,${base64}`, nome: nomeArq, tipo: 'audio' });
+  }
   async function atualizarFotoPerfil(dataUri) {
     if (estado !== ESTADOS.CONECTADO) { throw new Error(`WhatsApp do salão está ${estado}; conecte antes de trocar a foto.`); }
     const m = /^data:image\/(?:jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(String(dataUri || ''));
@@ -231,7 +242,7 @@ export function criarWhatsAppEvolutionProvider(opcoes = {}) {
   return {
     nome, oficial: false,
     conectar, desconectar, status, saude, sincronizar,
-    enviarTexto, enviarImagem, enviarArquivo, atualizarFotoPerfil,
+    enviarTexto, enviarImagem, enviarAudio, enviarArquivo, atualizarFotoPerfil,
     receberEvento,
     aoReceber: (fn) => { ouvintesMsg.push(fn); },
     aoMudarStatus: (fn) => { ouvintesStatus.push(fn); },

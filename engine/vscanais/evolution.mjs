@@ -21,6 +21,8 @@ import { dentroDaCasa, comEmpresa, comLoja, empresaAtual, lojaAtual, casa } from
 import { criarWhatsAppEvolutionProvider } from '../canais/whatsapp-evolution/index.mjs';
 import * as hotel from '../vs0007/bots.mjs';
 import * as mapaHotel from '../vs0007/mapa.mjs';
+import * as transcricao from '../vstranscricao/index.mjs';
+import * as fala from '../vsfala/index.mjs';
 import {
   parecerDoPendente,
   faltasDeTreino,
@@ -1005,12 +1007,44 @@ async function atenderSequencial(n, m) {
   if (prov.status().estado !== 'conectado') await prov.sincronizar();
   const envios = [];
   for (const r of respostas) {
-    const env = await prov.enviarTexto({ para: contato, texto: r.texto });
+    /* Cliente falou, ele ouve. Voz falhou? A mesma resposta sai em texto: nunca fica sem. */
+    const env = (m.transcrito && await responderEmAudio(prov, contato, r.texto, quem)) || await prov.enviarTexto({ para: contato, texto: r.texto });
     anotar(n.id, contato, { de: 'ia', texto: r.texto, iaId: ia.agenteId, origem: r.origem, enviado: env.ok !== false, ...(env.ok === false ? { erro: env.erro } : {}) });
     envios.push({ ...r, ok: env.ok !== false, erro: env.erro });
     console.log(`[canais-evo:${quem}] → ••••${String(m.de).slice(-4)} [${ia.nome} · ${r.origem}]${env.ok === false ? ` FALHOU: ${env.erro}` : ''}`);
   }
   return { ok: true, ia: ia.agenteId, envios };
+}
+
+/** Baixa o áudio da Evolution e transcreve (whisper local). Falhou: fica no log, não some calado. */
+async function transcreverAudio(n, m) {
+  const quem = `••••${String(m.de).slice(-4)}`;
+  try {
+    const j = await evo(`chat/getBase64FromMediaMessage/${encodeURIComponent(n.instancia)}`, { method: 'POST', body: { message: { key: { id: m.id } }, convertToMp4: false } });
+    if (!j?.base64) { console.warn(`[canais-evo:${n.instancia}] áudio de ${quem} sem conteúdo na Evolution`); return; }
+    const t = await transcricao.transcrever(Buffer.from(j.base64, 'base64'), { mime: String(j.mimetype || 'audio/ogg').split(';')[0] });
+    if (t.texto) {
+      m.texto = t.texto; m.tipo = 'text'; m.transcrito = true;
+      console.log(`[canais-evo:${n.instancia}] áudio de ${quem} transcrito em ${t.ms} ms`);
+    } else {
+      console.warn(`[canais-evo:${n.instancia}] áudio de ${quem} sem texto: ${t.erro || 'transcrição vazia'}`);
+    }
+  } catch (e) {
+    console.warn(`[canais-evo:${n.instancia}] não consegui transcrever o áudio de ${quem}: ${e.message}`);
+  }
+}
+
+/** Resposta em nota de voz (Piper). Devolve null quando não deu, para quem chamou mandar em texto. */
+async function responderEmAudio(prov, contato, texto, quem) {
+  if (typeof prov.enviarAudio !== 'function') return null;
+  const som = await fala.falar(texto).catch((e) => ({ ok: false, erro: e.message }));
+  if (!som.ok) {
+    if (!/voz desligada|texto longo demais/.test(String(som.erro))) console.warn(`[canais-evo:${quem}] voz indisponível (${som.erro}); respondendo em texto`);
+    return null;
+  }
+  const env = await prov.enviarAudio({ para: contato, dataUri: som.dataUri, nome: 'resposta.ogg' }).catch((e) => ({ ok: false, erro: e.message }));
+  if (env?.ok === false) { console.warn(`[canais-evo:${quem}] nota de voz não saiu (${env.erro}); respondendo em texto`); return null; }
+  return env;
 }
 
 /**
@@ -1040,6 +1074,11 @@ export async function receberWebhook(body, { segredo } = {}) {
     const coletor = coletores.get(prov);
     coletor.fila = recebidas;
     try { prov.receberEvento(body); } finally { coletor.fila = null; }
+    /* 11/11: ÁUDIO → TEXTO, como no canal principal. Antes o áudio não tinha texto
+       e era descartado aqui, calado ("0 mensagem(ns) para a IA"). */
+    for (const m of recebidas) {
+      if (m.tipo === 'audio' && !String(m.texto || '').trim() && m.id) await transcreverAudio(n, m);
+    }
     const filtradas = recebidas.filter((m) => m.de && String(m.texto || '').trim());
     recebidas.length = 0; recebidas.push(...filtradas);
     console.log(`[canais-evo] webhook ${inst} → ${alvo.cnpj || 'raiz'}/${n.rotulo}: ${recebidas.length} mensagem(ns) para a IA`);

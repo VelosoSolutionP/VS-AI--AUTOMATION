@@ -68,6 +68,7 @@ async function fetchFalso(url, opts = {}) {
     estados.delete(decodeURIComponent(inst)); return resposta(200, {});
   }
   if (grupo === 'webhook' && acao === 'set') return resposta(201, {});
+  if (grupo === 'chat' && acao === 'getBase64FromMediaMessage') return resposta(201, { base64: Buffer.from('OggS-audio-falso').toString('base64'), mimetype: 'audio/ogg; codecs=opus' });
   if (grupo === 'message' && acao === 'sendText') return resposta(201, { key: { id: `env-${chamadas.length}` } });
   if (grupo === 'chat' && ['updateProfileName', 'updateProfileStatus', 'updateProfilePicture'].includes(acao)) return resposta(200, { ok: true });
   return resposta(404, { message: `Cannot ${opts.method} ${u.pathname}` });
@@ -645,4 +646,35 @@ test('regra do 0007: número de teste encerra sem rastro; número de cliente gua
     assert.ok(canais.conversas({ id: c.id }).length, 'número de cliente mantém o histórico');
   });
   if (antes === undefined) delete process.env.CANAIS_NUMEROS_TESTE; else process.env.CANAIS_NUMEROS_TESTE = antes;
+});
+
+test('áudio do cliente é baixado, transcrito e respondido (antes era descartado calado)', async () => {
+  const antes = { url: process.env.TRANSCRICAO_URL, voz: process.env.VS_FALA_DESLIGADA };
+  process.env.TRANSCRICAO_URL = 'http://transcricao.teste';
+  process.env.VS_FALA_DESLIGADA = '1';   // sem Piper no teste: a resposta cai no texto
+  const real = globalThis.fetch;
+  let enviado = null;
+  globalThis.fetch = async (url, opts) => {
+    if (String(url).startsWith('http://transcricao.teste/inference')) { enviado = opts.body.get('file'); return { ok: true, status: 200, json: async () => ({ text: 'quanto tempo leva a faxina completa?' }) }; }
+    return real(url, opts);
+  };
+  try {
+    await comEmpresa(EMPRESA_B, async () => {
+      const n = canais.cadastrar({ rotulo: 'Audio', agenteId: 'ia-b' }).numero;
+      await canais.conectar({ id: n.id }); estados.set(n.instancia, 'open');
+      const ev = { event: 'messages.upsert', instance: n.instancia, data: { key: { id: 'AUD1', remoteJid: '5531999990066@s.whatsapp.net', fromMe: false }, message: { audioMessage: { seconds: 3 } }, messageTimestamp: Math.floor(Date.now() / 1000) } };
+      const r = await canais.receberWebhook(ev, { segredo: 'segredo-123' });
+      assert.equal(r.mensagens, 1, 'o áudio entrou para a IA');
+      assert.ok(enviado, 'o áudio baixado da Evolution foi para a transcrição');
+      const pedido = chamadas.find((c) => c.caminho === `/chat/getBase64FromMediaMessage/${n.instancia}`);
+      assert.equal(pedido.corpo.message.key.id, 'AUD1');
+      const modelo = chamadas.filter((c) => c.host === '127.0.0.1:11434').at(-1).corpo.messages;
+      assert.equal(modelo.filter((m) => m.role === 'user').at(-1).content, 'quanto tempo leva a faxina completa?');
+      assert.ok(r.resultados[0].envios.some((e) => e.ok), 'respondeu (em texto, sem voz no teste)');
+    });
+  } finally {
+    globalThis.fetch = real;
+    if (antes.url === undefined) delete process.env.TRANSCRICAO_URL; else process.env.TRANSCRICAO_URL = antes.url;
+    if (antes.voz === undefined) delete process.env.VS_FALA_DESLIGADA; else process.env.VS_FALA_DESLIGADA = antes.voz;
+  }
 });
