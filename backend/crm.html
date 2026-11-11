@@ -9426,7 +9426,7 @@ async function cevoVincular(id){
   const agenteId=document.querySelector(`input[name="cevoIa_${id}"]:checked`)?.value||'';
   if(!agenteId) return avisoErro('Escolha a IA','Selecione uma IA-ZEST homologada para este número.');
   try{ const r=await api('canais/evolution/vincular',{id,agenteId,nicho:CEVO_NICHO[id]||''}); await carregarCanaisEvo();
-    flash(r.alterado===false?'Este número já usa essa IA.':`Agora quem atende é ${r.numero.ia.nome}${CEVO_EST[id]?.estado==='conectado'?'. Nome, foto e recado vão para o WhatsApp em alguns segundos; a conexão reinicia rapidinho':''}.`,'ok');
+    flash(r.alterado===false?'Este número já usa essa IA.':`Agora quem atende é ${r.numero.ia.nome}${CEVO_EST[id]?.estado==='conectado'?'. Nome, foto e recado vão para o WhatsApp em alguns segundos, sem precisar ler o QR de novo':''}.`,'ok');
     if(r.alterado!==false){ setTimeout(carregarCanaisEvo,12000); setTimeout(carregarCanaisEvo,35000); } }
   catch(e){ avisoErro('Não consegui vincular',esc(e.message)); }
 }
