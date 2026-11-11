@@ -617,3 +617,32 @@ test('QR novo depois de apagar a sessão manda a foto de novo', async () => {
     assert.equal(id.pendente, true); assert.equal(id.marcaFoto, null);
   });
 });
+
+test('regra do 0007: número de teste encerra sem rastro; número de cliente guarda tudo', async () => {
+  assert.equal(canais.ehNumeroTeste('553175127978@s.whatsapp.net'), true, 'JID sem o 9 também é o de teste');
+  assert.equal(canais.ehNumeroTeste('5531975127978'), true);
+  assert.equal(canais.ehNumeroTeste('5531911112222'), false);
+  const antes = process.env.CANAIS_NUMEROS_TESTE;
+  await comEmpresa(EMPRESA_B, async () => {
+    const conversar = async (n, id) => {
+      await canais.conectar({ id: n.id }); estados.set(n.instancia, 'open');
+      await canais.estado({ id: n.id });
+      await canais.receberWebhook(evento(n.instancia, '5531999990088', 'pergunta desconhecida de teste', id), { segredo: 'segredo-123' });
+      assert.ok(canais.conversas({ id: n.id }).length);
+    };
+    process.env.CANAIS_NUMEROS_TESTE = '31911112222';
+    const t = canais.cadastrar({ rotulo: 'Teste sem rastro', agenteId: 'ia-b' }).numero;
+    await conversar(t, 'z1');
+    const doTeste = () => mapa.lerMapa().nos.filter((no) => no.estado === 'descoberto' && String(no.evidencia).includes(`"numero":"${t.id}"`)).length;
+    assert.ok(doTeste() > 0, 'a conversa de teste gerou aprendizado pendente');
+    assert.equal((await canais.apagarSessao({ id: t.id })).ok, true);
+    assert.equal(canais.conversas({ id: t.id }).length, 0, 'conversa do teste foi embora');
+    assert.equal(doTeste(), 0, 'aprendizado pendente do teste foi embora');
+    process.env.CANAIS_NUMEROS_TESTE = '31900000000';
+    const c = canais.cadastrar({ rotulo: 'Cliente guarda', agenteId: 'ia-b' }).numero;
+    await conversar(c, 'z2');
+    await canais.desconectar({ id: c.id });
+    assert.ok(canais.conversas({ id: c.id }).length, 'número de cliente mantém o histórico');
+  });
+  if (antes === undefined) delete process.env.CANAIS_NUMEROS_TESTE; else process.env.CANAIS_NUMEROS_TESTE = antes;
+});

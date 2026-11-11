@@ -325,6 +325,35 @@ async function pareada(inst) {
   } catch { return true; }
 }
 
+/* ── Regra do 0007 (11/11): número de TESTE não deixa lixo ──────────────────
+   O dono testa todos os agentes no mesmo celular. Ao encerrar a conexão dele,
+   conversa, aprendizado pendente nascido dela e QR vão embora — senão a próxima
+   conexão herda histórico de outro agente e o 0007 audita lixo. Aprendizado já
+   validado pelo dono fica. Lista: CANAIS_NUMEROS_TESTE (vírgula). */
+const chaveFone = (v) => { let d = soDigitos(v); if (d.startsWith('55') && d.length >= 12) d = d.slice(2); return d.length >= 10 ? d.slice(0, 2) + d.slice(-8) : ''; };
+export const ehNumeroTeste = (v) => { const k = chaveFone(v); return Boolean(k) && String(process.env.CANAIS_NUMEROS_TESTE ?? '31975127978').split(',').some((t) => chaveFone(t) === k); };
+function numeroDaConexao(n) { return providerDe(n.instancia).status?.().numero || n.numeroPrevisto || null; }
+export function limparRastros(n) {
+  const todas = lerConversas();
+  const chaves = Object.keys(todas).filter((k) => k.startsWith(`${n.id}:`));
+  for (const k of chaves) delete todas[k];
+  if (chaves.length) gravarJson(arqConversas(), todas);
+  let aprendizados = 0;
+  comLoja(n.loja, () => {
+    const mapa = mapaHotel.lerMapa();
+    const antes = mapa.nos.length;
+    mapa.nos = mapa.nos.filter((no) => {
+      if (no.categoria !== 'aprendizado' || no.estado !== 'descoberto') return true;
+      try { return JSON.parse(no.evidencia || '{}').numero !== n.id; } catch { return true; }
+    });
+    aprendizados = antes - mapa.nos.length;
+    if (aprendizados) mapaHotel.salvarMapa(mapa);
+  });
+  qrAtual.delete(n.instancia);
+  console.log(`[canais-evo] número de teste: ${n.instancia} encerrado sem rastro (${chaves.length} conversa(s), ${aprendizados} aprendizado(s) pendente(s))`);
+  return { conversas: chaves.length, aprendizados };
+}
+
 function esquecerNumero(id) {
   const lista = lerNumeros();
   const n = lista.find((x) => x.id === id);
@@ -371,9 +400,10 @@ export async function estado({ id } = {}) {
 export async function desconectar({ id } = {}) {
   const { n } = achar(id);
   if (!n) return { erro: 'número não encontrado nesta empresa' };
+  const teste = ehNumeroTeste(numeroDaConexao(n));
   await providerDe(n.instancia).desconectar();
   esquecerNumero(id);
-  return { ok: true };
+  return { ok: true, ...(teste ? { limpo: limparRastros(n) } : {}) };
 }
 
 /**
@@ -384,9 +414,11 @@ export async function desconectar({ id } = {}) {
 export async function apagarSessao({ id } = {}) {
   const { n } = achar(id);
   if (!n) return { erro: 'número não encontrado nesta empresa' };
+  const teste = ehNumeroTeste(numeroDaConexao(n));
   const r = await apagarInstancia(n);
   if (r.erro) return r;
   esquecerNumero(id);
+  if (teste) limparRastros(n);
   const lista = lerNumeros(); const x = lista.find((y) => y.id === id);
   if (x?.identidade) { x.identidade = { ...x.identidade, pendente: true, marcaFoto: null }; gravarNumeros(lista); }
   return { ok: true };
@@ -419,9 +451,11 @@ async function apagarInstancia(n) {
 export async function remover({ id } = {}) {
   const { lista, n } = achar(id);
   if (!n) return { erro: 'número não encontrado nesta empresa' };
+  const teste = ehNumeroTeste(numeroDaConexao(n));
   const apagada = await apagarInstancia(n);
   if (apagada.erro) return apagada;
   gravarNumeros(lista.filter((x) => x.id !== id));
+  if (teste) limparRastros(n);
   return { ok: true };
 }
 
