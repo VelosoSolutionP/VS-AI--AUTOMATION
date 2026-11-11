@@ -643,13 +643,19 @@ export function tirarOferta(texto, etapa) {
   if (!['conversa', 'recusou'].includes(etapa)) return texto;
   const frases = String(texto).match(/[^.!?]+[.!?]*\s*/g) || [String(texto)];
   const ficam = frases.filter((f) => !FRASE_OFERTA.test(f)).join('').trim();
-  return ficam || (etapa === 'recusou' ? 'Tranquilo! Qualquer coisa é só chamar 😊' : 'Entendi! Me conta mais.');
+  return ficam || (etapa === 'recusou' ? 'Tranquilo! Qualquer coisa é só chamar 😊' : 'Entendi! Me conta mais?');
+}
+/* Papagaio ("Então você anota tudo no caderno.") e "como posso ajudar" genérico saem. */
+function semPapagaio(texto) {
+  const frases = String(texto).match(/[^.!?]+[.!?]*\s*/g) || [String(texto)];
+  const ficam = frases.filter((f) => !/^\s*ent(a|ã)o,? voc(e|ê)\b/i.test(f)).join('').trim();
+  return ficam || String(texto);
 }
 function semNomeTrocado(texto, ia) {
   const nome = String(ia.nome || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return nome ? String(texto).replace(new RegExp(`,\\s*${nome}(?=[!.,?\\s])`, 'gi'), '') : texto;
 }
-const ESCUTA = 'ESCUTA PRIMEIRO: leia a última mensagem da pessoa e responda a ELA. Se for assunto pessoal ou nada a ver com a empresa, responda com naturalidade e não puxe venda. Nunca ignore o que ela disse para seguir roteiro, nunca repita oferta já feita, nada de lábia nem pressão.';
+const ESCUTA = 'ESCUTA PRIMEIRO: leia a última mensagem da pessoa e responda a ELA. Se for assunto pessoal ou nada a ver com a empresa, responda com naturalidade e empatia, sem dar conselho técnico fora do ramo da empresa e sem puxar venda. Nunca ignore o que ela disse para seguir roteiro, nunca repita oferta já feita, nada de lábia nem pressão.';
 
 function instrucoes(ia, conhecimento, ultima = '', nomeCliente = '') {
   const p = perfilPreenchido(ia);
@@ -728,28 +734,51 @@ async function gerarResposta(ia, conhecimentoTodo, historico, texto, nomeCliente
   const modelo = modeloMessenger0007(ia);
   const etapa = etapaVenda(historico, texto);
   const histRecente = historicoLimpoMessenger(historico, fallback).slice(-6);
+  /* Uma chamada ao modelo; `refazer` é o puxão de orelha quando a 1ª saiu seca. */
+  const chamar = async (temp, refazer = '') => {
   const ctrl = new AbortController();
   const relogio = setTimeout(() => ctrl.abort(), Number(process.env.CANAIS_TIMEOUT_MS || 45000));
   try {
     const r = await fetchAtual()(`${url}/api/chat`, {
       method: 'POST', signal: ctrl.signal, headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        model: modelo, stream: false, keep_alive: '24h', options: { temperature: temperatura, num_predict: 160, num_ctx: 2048 },
+        model: modelo, stream: false, keep_alive: '24h', options: { temperature: temp, num_predict: 160, num_ctx: 2048 },
         messages: [
           { role: 'system', content: instrucoes(ia, conhecimento, historico.filter((m) => m.de === 'ia').at(-1)?.texto, nomeCliente) },
           ...histRecente.map((m) => ({ role: m.de === 'cliente' ? 'user' : 'assistant', content: String(m.texto).slice(0, 800) })),
           { role: 'user', content: String(texto).slice(0, 800) },
-          { role: 'system', content: lembreteEtapa(ia, etapa, nomeCliente) },
+          { role: 'system', content: lembreteEtapa(ia, etapa, nomeCliente) + (refazer ? ` ${refazer}` : '') },
         ],
       }),
     });
     if (!r.ok) return { texto: fallback, origem: `fallback (ollama ${r.status})` };
     const j = await r.json();
-    const saida = tirarOferta(semNomeTrocado(limparSaidaMessenger(j?.message?.content || ''), ia), etapa);
-    return saida ? { texto: saida.slice(0, 1200), origem: 'ia', modelo } : { texto: fallback, origem: 'fallback (vazio)' };
+    const bruta = semPapagaio(semNomeTrocado(limparSaidaMessenger(j?.message?.content || ''), ia));
+    const saida = tirarOferta(bruta, etapa);
+    return saida ? { texto: saida.slice(0, 1200), origem: 'ia', modelo, cortada: saida !== bruta.trim() } : { texto: fallback, origem: 'fallback (vazio)' };
   } catch (e) {
     return { texto: fallback, origem: `fallback (${e.name === 'AbortError' ? 'tempo esgotado' : e.message})` };
   } finally { clearTimeout(relogio); }
+  };
+  let res = await chamar(temperatura);
+  /* 11/11 ("na segunda resposta ele se perde e mata a conversa"): na conversa,
+     resposta sem pergunta ou que só sobrou depois de cortar a oferta é seca
+     ("Entendido, Marcos!") e o cliente some. Refaz uma vez; se ainda vier seca,
+     devolve a conversa com uma pergunta sobre a pessoa. */
+  /* "Não sei, vou ver com a equipe" não se refaz: é o que alimenta o aprendizado do 0007. */
+  if (res.origem === 'ia' && !naoSoube(ia, res) && matouConversa(res, etapa)) {
+    const nova = await chamar(0.6, `Sua resposta anterior ("${res.texto.slice(0, 120)}") ficou seca. Reescreva: uma frase mostrando que entendeu o que a pessoa contou e termine com UMA pergunta sobre o assunto DELA. Não ofereça nada.`);
+    if (nova.origem === 'ia' && !matouConversa(nova, etapa)) res = nova;
+    else res = { ...res, texto: comPergunta(res.texto, historico) };
+  }
+  const { cortada, ...limpa } = res;
+  return limpa;
+}
+const matouConversa = (r, etapa) => ['conversa', 'descoberta'].includes(etapa) && (!/\?/.test(r.texto) || (r.cortada && r.texto.length < 60));
+function comPergunta(texto, historico = []) {
+  const jaPerguntouRamo = historico.some((m) => m.de === 'ia' && /trabalha com|seu ramo|qual (e|é) (o )?seu (negocio|negócio)/i.test(String(m.texto)));
+  const t = String(texto).trim().replace(/[.!]*$/, '');
+  return `${t}! ${jaPerguntouRamo ? 'Me conta mais, como tá sendo aí?' : 'E você, trabalha com o quê?'}`;
 }
 
 /* ───────── aprendizado com auditoria humana ─────────
@@ -1010,6 +1039,13 @@ async function atenderSequencial(n, m) {
     /* 11/11: barrar a repetição deixava o cliente sem resposta nenhuma. Gera de novo, mais solto. */
     if (resposta.origem === 'ia' && normalizarTexto(resposta.texto) === normalizarTexto(ultimaDela)) {
       resposta = await gerarResposta(ia, conhecimentoHomologado(n, ia), daIA, m.texto, primeiroNome(m.nome), { temperatura: 0.8 });
+    }
+    /* Calado nunca: se ainda repetiu, devolve a conversa com uma pergunta sobre a pessoa. */
+    if (resposta.origem === 'ia' && normalizarTexto(resposta.texto) === normalizarTexto(ultimaDela)) {
+      const etapa = etapaVenda(daIA, m.texto);
+      if (etapa === 'recusou') resposta = { ...resposta, texto: 'Tranquilo! Qualquer coisa é só chamar 😊', origem: 'ia-repetida' };
+      else if (etapa === 'interesse') resposta = { ...resposta, texto: 'Me diz qual parte você quer entender melhor que eu te explico?', origem: 'ia-repetida' };
+      else resposta = { ...resposta, texto: comPergunta('Entendi', daIA), origem: 'ia-repetida' };
     }
     if (normalizarTexto(resposta.texto) !== normalizarTexto(ultimaDela)) respostas.push(resposta);
     if (naoSoube(ia, resposta)) registrarAprendizado(n, ia, m.texto);
