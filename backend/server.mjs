@@ -2952,7 +2952,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
         case '/crm/api/canais/evolution/desconectar': r = await canaisEvo.desconectar({ id: String(d.id || '') }); break;
         case '/crm/api/canais/evolution/apagar-sessao': r = await canaisEvo.apagarSessao({ id: String(d.id || '') }); break;
         case '/crm/api/canais/evolution/remover': r = await canaisEvo.remover({ id: String(d.id || '') }); break;
-        case '/crm/api/canais/evolution/identidade': r = await canaisEvo.sincronizarIdentidade({ id: String(d.id || '') }); break;
+        case '/crm/api/canais/evolution/identidade': r = await canaisEvo.sincronizarIdentidade({ id: String(d.id || ''), forcar: true }); break;
         case '/crm/api/canais/evolution/conversas': r = { ok: true, conversas: canaisEvo.conversas({ id: String(d.id || '') }) }; break;
         case '/crm/api/cadevc/desconectar': { const ps = provcadevc(); if (ps) { await ps.desconectar(); } r = { ok: true }; break; }
         case '/crm/api/provador/config': r = provador.configurar(d, { por: quem.email || null }); break;

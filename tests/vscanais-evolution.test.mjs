@@ -182,6 +182,8 @@ test('identidade do WhatsApp vem do Hotel e informa o que a API não altera', as
     const denovo = await canais.sincronizarIdentidade({ id: pedidos.id });
     assert.equal(denovo.identidade.campos.foto.ok, true);
     assert.equal(fotos(), antes, 'mesma foto não é enviada de novo');
+    await canais.sincronizarIdentidade({ id: pedidos.id, forcar: true });
+    assert.equal(fotos(), antes + 1, 'botão Sincronizar manda a foto mesmo igual');
     assert.equal(c.descricaoComercial.ok, false);
     const nome = chamadas.findLast((x) => x.caminho.startsWith('/chat/updateProfileName/'));
     assert.equal(nome.corpo.name, 'Clara');
@@ -601,5 +603,17 @@ test('sessão pareada reiniciando (troca de IA) não é apagada por "Gerar QR no
     assert.ok(!depois.some((c) => c.startsWith('/instance/delete/') || c.startsWith('/instance/logout/')), 'não apaga nem desloga a sessão pareada');
     assert.equal(estados.get(n.instancia), 'connecting');
     assert.match(r.aviso, /reconectando/);
+  });
+});
+
+test('QR novo depois de apagar a sessão manda a foto de novo', async () => {
+  await comEmpresa(EMPRESA_B, async () => {
+    const n = canais.cadastrar({ rotulo: 'Foto volta', agenteId: 'ia-b' }).numero;
+    await canais.conectar({ id: n.id }); estados.set(n.instancia, 'open');
+    await canais.sincronizarIdentidade({ id: n.id });
+    assert.ok(canais.listar().find((x) => x.id === n.id).identidade.marcaFoto !== undefined);
+    assert.equal((await canais.apagarSessao({ id: n.id })).ok, true);
+    const id = canais.listar().find((x) => x.id === n.id).identidade;
+    assert.equal(id.pendente, true); assert.equal(id.marcaFoto, null);
   });
 });

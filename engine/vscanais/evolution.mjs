@@ -301,7 +301,9 @@ export async function conectar({ id } = {}) {
       try { qr = imagem(await criar()); } catch (e2) { if (!/already|exists|in use|403|409/i.test(e2.message)) return { ok: false, erro: e2.message, numero: publico(n) }; }
     }
   }
-  if (qr) { qrAtual.set(n.instancia, qr); n.numeroPrevisto = null; }
+  /* 11/11: QR novo = aparelho novo, perfil do WhatsApp sem a identidade da IA.
+     A marca da foto antiga dizia "já estava aplicada" e a foto nunca mais ia. */
+  if (qr) { qrAtual.set(n.instancia, qr); n.numeroPrevisto = null; if (n.identidade) n.identidade = { ...n.identidade, pendente: true, marcaFoto: null }; }
   n.webhook = await garantirWebhook(n);
   gravarNumeros(lista);
   const provAtual = providerDe(n.instancia);
@@ -385,6 +387,8 @@ export async function apagarSessao({ id } = {}) {
   const r = await apagarInstancia(n);
   if (r.erro) return r;
   esquecerNumero(id);
+  const lista = lerNumeros(); const x = lista.find((y) => y.id === id);
+  if (x?.identidade) { x.identidade = { ...x.identidade, pendente: true, marcaFoto: null }; gravarNumeros(lista); }
   return { ok: true };
 }
 
@@ -450,7 +454,7 @@ function agendarIdentidade(n, esperaMs) {
 }
 
 const LIMITE_RECADO = 139;   // o "recado" (about) do WhatsApp aceita até 139 caracteres
-export async function sincronizarIdentidade({ id } = {}) {
+export async function sincronizarIdentidade({ id, forcar = false } = {}) {
   const { n } = achar(id);
   if (!n) return { erro: 'número não encontrado nesta empresa' };
   const ia = iaDoNumero(n);
@@ -478,7 +482,8 @@ export async function sincronizarIdentidade({ id } = {}) {
   const m = /^data:image\/(?:jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(foto);
   const marcaFoto = m ? `${ia.agenteId}:${createHash('sha1').update(m[1]).digest('hex')}` : null;
   if (!m) campos.foto = { ok: false, erro: foto ? 'foto da IA em formato não aceito' : 'a IA não tem foto no Hotel; o WhatsApp mantém a foto atual' };
-  else if (n.identidade?.marcaFoto === marcaFoto) campos.foto = { ok: true, aviso: 'já estava aplicada' };
+  /* Botão Sincronizar (forcar) manda a foto sempre: quem clicou quer ver a foto no WhatsApp. */
+  else if (!forcar && n.identidade?.marcaFoto === marcaFoto) campos.foto = { ok: true, aviso: 'já estava aplicada' };
   else {
     await tentar('foto', () => evo(`chat/updateProfilePicture/${inst}`, { method: 'POST', body: { picture: m[1] } }));
   }
