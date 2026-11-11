@@ -166,9 +166,21 @@ function publico(n) {
   return {
     id: n.id, modulo: n.modulo || 'canais', nicho: n.nicho || null, rotulo: n.rotulo, numeroPrevisto: n.numeroPrevisto, instancia: n.instancia, loja: n.loja,
     criadoEm: n.criadoEm, ia: ia ? { agenteId: ia.agenteId, nome: ia.nome, estado: ia.estado, especialidade: ia.especialidade, elegivel: n.modulo !== 'salao' || comLoja(n.loja, () => avaliarParaUso(ia).ok), servicos: n.modulo === 'salao' ? comLoja(n.loja, () => avaliarParaUso(ia).servicos) : [] } : (n.iaId ? { agenteId: n.iaId, ausente: true } : null),
-    vinculos: n.vinculos || [], identidade: n.identidade || null, webhook: n.webhook || null,
+    vinculos: n.vinculos || [], identidade: n.identidade || null, webhook: n.webhook || null, cardapio: n.cardapio || null,
   };
 }
+/** Liga o número a uma loja do To No Rango (slug do cardápio). Vazio desliga. */
+export function ligarCardapio({ id, slug } = {}) {
+  const lista = lerNumeros();
+  const n = lista.find((x) => x.id === id);
+  if (!n) return { erro: 'número não encontrado nesta empresa' };
+  const s = String(slug || '').trim().toLowerCase();
+  if (s && !/^[a-z0-9-]{2,80}$/.test(s)) return { erro: 'endereço da loja inválido (use o final do link do cardápio, ex.: acai-do-veloso)' };
+  n.cardapio = s ? { slug: s, ligadoEm: agora() } : null;
+  gravarNumeros(lista);
+  return { ok: true, cardapio: n.cardapio };
+}
+export const _ligarCardapio = (id, slug) => ligarCardapio({ id, slug });
 /** Algum número (Canais ou Salão) desta empresa usa a IA? Devolve o rótulo do número, ou null. */
 export function numeroLigadoA(agenteId) {
   const n = lerNumeros().find((x) => x.iaId === agenteId);
@@ -928,6 +940,42 @@ export function aplicarLiberacoesAuditoria({ decisoes = [], por = 'dono' } = {})
 /* O nome vem do perfil do WhatsApp, que o cliente escreve: só letras, e só o primeiro. */
 const primeiroNome = (t) => (String(t || '').match(/\p{L}{2,20}/u) || [''])[0];
 
+/* ── Cardápio do To No Rango (11/11) ─────────────────────────────────────────
+   O número atende uma loja do To No Rango (n.cardapio.slug): o agente lê o
+   cardápio público dela (o mesmo do cardápio digital do cliente, sem chave) e
+   só recusa o que a loja não tem. Cache curto: preço e "esgotado" mudam. */
+const CARDAPIO_TTL_MS = 60000;
+const cacheCardapio = new Map();
+const urlToNoRango = () => String(process.env.TONORANGO_URL || lerJson(join(casa(), 'console', 'canais.json'), {}).toNoRangoUrl || 'http://127.0.0.1:8080').replace(/\/$/, '');
+/** Itens à venda da loja; null se a loja não respondeu (aí não se recusa nada); undefined se o número não tem loja. */
+async function lerCardapio(n) {
+  const slug = n.cardapio?.slug;
+  if (!slug) return undefined;
+  const memo = cacheCardapio.get(slug);
+  if (memo && Date.now() - memo.em < CARDAPIO_TTL_MS) return memo.itens;
+  try {
+    const r = await fetchAtual()(`${urlToNoRango()}/api/public/establishments/${encodeURIComponent(slug)}/menu`, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const j = await r.json();
+    const itens = (j.categories || []).filter((c) => c.isActive !== false).flatMap((c) => (c.items || [])
+      .filter((i) => i.isActive !== false)
+      .map((i) => ({ nome: String(i.name || ''), preco: Number(i.priceInCents || 0), disponivel: i.isAvailable !== false, categoria: c.name || '' })));
+    cacheCardapio.set(slug, { em: Date.now(), itens });
+    return itens;
+  } catch (e) {
+    console.warn(`[canais-evo] cardápio da loja ${slug} não respondeu (${e.message}); sem recusa de pedido nesta mensagem`);
+    return null;
+  }
+}
+const GENERICAS = new Set(['de', 'do', 'da', 'dos', 'das', 'com', 'sem', 'ml', 'kg', 'combo', 'porcao', 'tradicional', 'especial', 'grande', 'medio', 'media', 'pequeno', 'pequena']);
+/** Itens do cardápio citados na fala: basta uma palavra própria do nome aparecer. */
+function itensCitados(itens, textoNormalizado) {
+  const falou = new Set(textoNormalizado.split(/[^a-z0-9]+/).filter(Boolean));
+  return itens.filter((i) => normalizarTexto(i.nome).split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !GENERICAS.has(w) && !/^\d/.test(w))
+    .some((w) => falou.has(w) || falou.has(w.replace(/s$/, '')) || falou.has(`${w}s`)));
+}
+const linhaCardapio = (i) => `produto: ${i.nome}${i.categoria ? ` (${i.categoria})` : ''} — preço R$ ${(i.preco / 100).toFixed(2).replace('.', ',')}${i.disponivel ? '' : ' — esgotado hoje'}`;
+
 /* Fala de pedido: verbo de pedir/comprar ou item de comida/bebida. Larga de propósito:
    a regra vale "mesmo que seja brincadeira". */
 const PEDIDO_NA_FALA = /\b(quero|queria|vou querer|pedido|pedir|peco|pede|manda|mande|me (ve|da|traz|arruma|separa)|encomend|comprar|compra|separa|reserva|entrega|delivery|acai|lanche|pizza|hamburguer|burger|marmita|marmitex|pastel|salgado|refri|refrigerante|cerveja|bebida|suco|combo|porcao|prato|cardapio)/;
@@ -1027,11 +1075,17 @@ async function atenderSequencial(n, m) {
   /* Regra do 0007 (11/11): agente de cardápio digital, conversa por VOZ, falou de
      pedido (mesmo de brincadeira) → a frase do perfil, em nome da empresa atendida.
      Sai do código, não do modelo: o modelo pequeno não segura regra com segurança. */
-  const pedidoPorVoz = m.transcrito && ia.perfil?.pedidoPorVoz && PEDIDO_NA_FALA.test(normalizarTexto(m.texto));
+  /* Recusa só o que a loja NÃO tem. Citou item do cardápio → segue o atendimento.
+     Cardápio fora do ar (null) → não recusa nada. Número sem loja ligada (undefined) → regra original. */
+  const cardapio = await lerCardapio(n);
+  const falaNorm = normalizarTexto(m.texto);
+  const citouDoCardapio = Array.isArray(cardapio) && itensCitados(cardapio.filter((i) => i.disponivel), falaNorm).length > 0;
+  const pedidoPorVoz = m.transcrito && ia.perfil?.pedidoPorVoz && PEDIDO_NA_FALA.test(falaNorm) && cardapio !== null && !citouDoCardapio;
   if (pedidoPorVoz) respostas.push({ texto: fraseDePedidoPorVoz(ia, m), origem: 'regra-pedido-voz' });
   if (!pedidoPorVoz && !daIA.length && ia.perfil?.mensagemInicial) respostas.push({ texto: preencher(ia, ia.perfil.mensagemInicial), origem: 'mensagem-inicial' });
   if (!pedidoPorVoz && (daIA.length || !SO_CUMPRIMENTO.test(m.texto))) {
-    const resposta = await gerarResposta(ia, conhecimentoHomologado(n, ia), daIA, m.texto, primeiroNome(m.nome));
+    const conhecimento = [...conhecimentoHomologado(n, ia), ...(Array.isArray(cardapio) ? cardapio.map(linhaCardapio) : [])];
+    const resposta = await gerarResposta(ia, conhecimento, daIA, m.texto, primeiroNome(m.nome));
     /* Mesma frase de novo não sai: repetir é o que deixa o atendimento chato. */
     const ultimaDela = daIA.filter((x) => x.de === 'ia').at(-1)?.texto;
     if (normalizarTexto(resposta.texto) !== normalizarTexto(ultimaDela)) respostas.push(resposta);

@@ -40,6 +40,10 @@ async function fetchFalso(url, opts = {}) {
     if (/desconhecida/.test(corpo.messages.at(-1).content)) return resposta(200, { message: { content: 'Vou chamar a equipe.' } });
     return resposta(200, { message: { content: `[${nome}] resposta com base no conhecimento` } });
   }
+  if (u.host === 'tnr.teste' && u.pathname === '/api/public/establishments/loja-teste/menu') return resposta(200, { categories: [{ name: 'Destaques', isActive: true, items: [
+    { name: 'Açaí 500ml', priceInCents: 1800, isActive: true, isAvailable: true },
+    { name: 'Combo do Veloso', priceInCents: 2900, isActive: true, isAvailable: true },
+  ] }] });
   if (u.host.startsWith('agenda')) return resposta(200, { cadevc: { nome: 'Studio' }, regras: {}, servicos: [{ id: 's1', nome: 'Manicure', duracao: 30, preco: 50 }], horarios: [], profissionais: [] });
   if (opts.headers?.apikey !== 'chave-canais') return resposta(401, { message: 'apikey errada' });
   const [, grupo, acao, inst] = u.pathname.split('/');
@@ -733,4 +737,40 @@ test('cliente assíduo: o modelo recebe quantas mensagens a pessoa já trocou (a
     await canais.receberWebhook(evento(n.instancia, '5531999990044', 'tamo junto, parceiro', 'as9'), { segredo: 'segredo-123' });
     assert.match(sistema(), /Cliente assíduo: já trocou \d+ mensagens/);
   });
+});
+
+test('cardápio do To No Rango: produto da loja é atendido, o que não tem é recusado, loja fora do ar não recusa', async () => {
+  const antes = { url: process.env.TRANSCRICAO_URL, voz: process.env.VS_FALA_DESLIGADA, tnr: process.env.TONORANGO_URL };
+  process.env.TRANSCRICAO_URL = 'http://transcricao.teste'; process.env.VS_FALA_DESLIGADA = '1'; process.env.TONORANGO_URL = 'http://tnr.teste';
+  const real = globalThis.fetch;
+  let falou = '';
+  globalThis.fetch = async (url, opts) => (String(url).startsWith('http://transcricao.teste') ? { ok: true, status: 200, json: async () => ({ text: falou }) } : real(url, opts));
+  try {
+    await comEmpresa(EMPRESA_B, async () => {
+      const bots = load(hotel.DATASET_BOTS, []);
+      bots.find((b) => b.agenteId === 'ia-b').perfil.pedidoPorVoz = '{nome}, infelizmente {empresa} ainda não está trabalhando com esse produto.';
+      save(hotel.DATASET_BOTS, bots);
+      const n = canais.cadastrar({ rotulo: 'Loja TNR', agenteId: 'ia-b' }).numero;
+      canais._ligarCardapio(n.id, 'loja-teste');
+      await canais.conectar({ id: n.id }); estados.set(n.instancia, 'open');
+      let k = 0;
+      const audio = () => ({ event: 'messages.upsert', instance: n.instancia, data: { key: { id: `CD${k++}`, remoteJid: '5531999990033@s.whatsapp.net', fromMe: false }, pushName: 'Ana', message: { audioMessage: { seconds: 2 } }, messageTimestamp: Math.floor(Date.now() / 1000) } });
+      falou = 'quero dois açaí e um combo do veloso';
+      const ok = await canais.receberWebhook(audio(), { segredo: 'segredo-123' });
+      assert.ok(ok.resultados[0].envios.every((e) => e.origem !== 'regra-pedido-voz'), 'produto do cardápio não é recusado');
+      const base = chamadas.filter((c) => c.host === '127.0.0.1:11434').at(-1).corpo.messages[0].content;
+      assert.match(base, /produto: Açaí 500ml \(Destaques\) — preço R\$ 18,00/);
+      falou = 'me vê uma pizza calabresa';
+      const nao = await canais.receberWebhook(audio(), { segredo: 'segredo-123' });
+      assert.equal(nao.resultados[0].envios[0].origem, 'regra-pedido-voz');
+      /* Loja fora do ar: não recusa (melhor atender do que negar por engano). */
+      canais._ligarCardapio(n.id, 'loja-fora');
+      falou = 'quero uma pizza';
+      const fora = await canais.receberWebhook(audio(), { segredo: 'segredo-123' });
+      assert.ok(fora.resultados[0].envios.every((e) => e.origem !== 'regra-pedido-voz'));
+    });
+  } finally {
+    globalThis.fetch = real;
+    for (const [k, v] of Object.entries({ TRANSCRICAO_URL: antes.url, VS_FALA_DESLIGADA: antes.voz, TONORANGO_URL: antes.tnr })) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
 });

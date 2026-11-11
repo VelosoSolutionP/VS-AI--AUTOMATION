@@ -9463,6 +9463,12 @@ async function cevoVincular(id){
     if(r.alterado!==false){ setTimeout(carregarCanaisEvo,12000); setTimeout(carregarCanaisEvo,35000); } }
   catch(e){ avisoErro('Não consegui vincular',esc(e.message)); }
 }
+async function cevoLigarCardapio(id){
+  const slug=(document.getElementById('cevoCard_'+id)?.value||'').trim();
+  try{ const r=await api('canais/evolution/cardapio',{id,slug}); await carregarCanaisEvo();
+    flash(r.cardapio?`Cardápio ligado: o agente agora lê os produtos da loja "${r.cardapio.slug}" no To No Rango.`:'Cardápio desligado deste número.','ok'); }
+  catch(e){ avisoErro('Não consegui ligar o cardápio',esc(e.message)); }
+}
 async function cevoConectar(id){
   flash('Abrindo a sessão na Evolution… o QR aparece em alguns segundos.','ok');
   try{ const r=await api('canais/evolution/conectar',{id}); CEVO_EST[id]=r; await carregarCanaisEvo(); if(r.qr) CEVO_EST[id]={...CEVO_EST[id],qr:r.qr,estado:CEVO_EST[id].estado==='conectado'?'conectado':'aguardando_qr'}; render(); acompanharCanaisEvo();
@@ -9649,6 +9655,7 @@ function telaCanaisEvo(mod='canais'){
       ${!n.ia?`<p class="hint" style="color:var(--err)"><b>Sem IA vinculada:</b> este número não responde ninguém. Marque a IA abaixo e clique em Vincular IA.</p>`:''}
       ${n.ia?.ausente?`<p class="hint" style="color:var(--err)">A IA vinculada (${esc(n.ia.agenteId)}) não existe mais no Hotel. Escolha outra.</p>`:''}
       ${n.ia&&!n.ia.ausente&&n.ia.estado!=='homologado'?`<p class="hint" style="color:var(--err)">A IA ${esc(n.ia.nome)} saiu da homologação (${esc(n.ia.estado)}): o número não responde até ela voltar ou você trocar a IA.</p>`:''}
+      ${mod==='canais'?`<div class="form-grid" style="margin-top:10px"><div class="field"><label for="cevoCard_${esc(n.id)}">Cardápio do To No Rango <small>(final do link do cardápio, ex.: acai-do-veloso)</small></label><input id="cevoCard_${esc(n.id)}" maxlength="80" placeholder="sem loja ligada" value="${esc(n.cardapio?.slug||'')}"></div>${botao({t:n.cardapio?.slug?'Atualizar cardápio':'Ligar cardápio',ic:'check',v:'s',on:`cevoLigarCardapio('${esc(n.id)}')`})}</div>`:''}
       <div class="form-grid" style="margin-top:10px">
         ${cevoSeletor(n.id,n.ia?.agenteId)}
         ${botao({t:n.ia?'Trocar IA':'Vincular IA',ic:'bot',v:'s',on:`cevoVincular('${esc(n.id)}')`})}
