@@ -1248,6 +1248,11 @@ body.sem-nav main,body.sem-nav .main{margin-left:0!important}
   --ac:#9fb0ff; --ac-2:#b9a0f5; --ac-3:#d6dcff; --ac-fg:#0d0f1f; --ac-borda:#fb923c;
   --ac-line:color-mix(in srgb,#fb923c 42%,transparent);
   --neon:linear-gradient(120deg,#b9a0f5 0%,#5b9dff 50%,#9cc46a 100%)}
+:root[data-theme="dark"][data-cor="carvao"]{
+  /* 11/11: identidade do site velososolution.com.br — preto carvão e laranja. */
+  --bg:#0d0d0f; --panel:#141416; --panel-2:#111113; --raised:#1b1b1e; --fundo-2:#0f0f11; --tinta:#f2f0ec;
+  --ac:#ff782f; --ac-2:#ff9a57; --ac-3:#ffad7e; --ac-fg:#16110e; --ac-borda:#ff782f;
+  --ac-line:color-mix(in srgb,#ff782f 42%,transparent)}
 /* a borda de destaque (laranja no lilás, âmbar no azul) marca o que está ativo */
 [data-theme="dark"] .nav-item.active{box-shadow:inset 0 0 0 1.5px var(--ac-borda)}
 [data-theme="dark"] .btn-p{box-shadow:var(--sh-ac),inset 0 0 0 1.5px var(--ac-borda)}
@@ -2118,6 +2123,7 @@ body.rota-prosp .btn-p:hover{filter:brightness(1.08)}
         <button style="--c:#a1a1aa" data-c="grafite" onclick="setCor('grafite')" title="Grafite" aria-label="Cor grafite"></button>
         <button style="--c:linear-gradient(135deg,#5b9dff 60%,#fbbf24 60%)" data-c="azul" onclick="setCor('azul')" title="Azul com âmbar" aria-label="Cor azul com âmbar"></button>
         <button style="--c:conic-gradient(#b9a0f5,#5b9dff,#9cc46a,#fb923c,#b9a0f5)" data-c="fusao" onclick="setCor('fusao')" title="Fusão" aria-label="Cor fusão"></button>
+        <button style="--c:linear-gradient(135deg,#1b1b1e 55%,#ff782f 55%)" data-c="carvao" onclick="setCor('carvao')" title="Carvão com laranja (cores do site)" aria-label="Cor carvão com laranja"></button>
       </div>
       <div class="env"><span class="dot" id="envDot"></span><small><b id="envName">verificando…</b><span id="envSub">backend</span></small></div>
       <!-- SAIR. A funcao `sairDoPainel` existia desde sempre e nunca esteve
@@ -2154,7 +2160,13 @@ function setCor(c){
   document.documentElement.setAttribute('data-cor',c); marcarCor(c);
 }
 function marcarCor(c){ document.querySelectorAll('#cores button').forEach(b=>b.classList.toggle('on',b.dataset.c===c)); }
-addEventListener('DOMContentLoaded',()=>{ let c=null; try{c=localStorage.getItem('vs-cor');}catch{} marcarCor(c||'verde'); });
+addEventListener('DOMContentLoaded',()=>{ let c=null; try{c=localStorage.getItem('vs-cor');}catch{} marcarCor(c||'verde');
+  /* Como no site: passar o mouse na bolinha já mostra a cor; sair volta à escolhida. Clique salva. */
+  const g=document.getElementById('cores'); if(!g) return;
+  const salva=()=>{ try{return localStorage.getItem('vs-cor')||'verde';}catch{return 'verde';} };
+  g.addEventListener('mouseover',(e)=>{ const b=e.target.closest('button[data-c]'); if(b) document.documentElement.setAttribute('data-cor',b.dataset.c); });
+  g.addEventListener('mouseleave',()=>{ document.documentElement.setAttribute('data-cor',salva()); });
+});
 function marcarTema(t){
   document.getElementById('thLight')?.classList.toggle('on',t==='light');
   document.getElementById('thDark')?.classList.toggle('on',t==='dark');
