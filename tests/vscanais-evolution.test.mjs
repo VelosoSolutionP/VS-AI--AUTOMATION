@@ -581,11 +581,8 @@ test('IA de vendas recebe roteiro; conversa de robô é pausada e frase repetida
     const envios = () => chamadas.filter((c) => c.caminho === `/message/sendText/${n.instancia}`).length;
     const antes = envios();
     const r2 = await canais.receberWebhook(evento(n.instancia, '5531999990050', 'de novo', 'v1'), { segredo: 'segredo-123' });
-    /* Repetiu: a mesma frase não sai, mas o cliente também não fica sem resposta. */
-    assert.equal(r2.resultados[0].envios.length, 1, 'cliente não fica sem resposta');
-    assert.notEqual(r2.resultados[0].envios[0].texto, chamadas.filter((c) => c.caminho === `/message/sendText/${n.instancia}`).at(-2).corpo.text);
-    assert.match(r2.resultados[0].envios[0].texto, /\?$/);
-    assert.equal(envios(), antes + 1);
+    assert.equal(r2.resultados[0].envios.length, 0, 'mesma resposta não é enviada de novo');
+    assert.equal(envios(), antes);
     for (let i = 2; i < 10; i++) await canais.receberWebhook(evento(n.instancia, '5531999990050', `msg ${i}`, `v${i}`), { segredo: 'segredo-123' });
     const r = await canais.receberWebhook(evento(n.instancia, '5531999990050', 'mais uma', 'v99'), { segredo: 'segredo-123' });
     assert.match(r.resultados[0].motivo, /possível robô/);
