@@ -409,7 +409,7 @@ function assumirNumeroPareado(id, numero) {
   /* Outro celular assumiu o cartão: nada da pessoa anterior fica. */
   if (chaveFone(n.ultimoPareado) !== chaveFone(pareado)) {
     if (n.ultimoPareado) limparRastros(n);
-    n.ultimoPareado = pareado; mudou = true;
+    n.ultimoPareado = pareado; n.pareadoEm = agora(); mudou = true;
   }
   if (n.numeroPrevisto !== pareado && !lista.some((x) => x.id !== id && x.numeroPrevisto === pareado)) { n.numeroPrevisto = pareado; mudou = true; }
   if (mudou) gravarNumeros(lista);
@@ -1057,19 +1057,36 @@ function marcarEnviado(inst, id) {
   s.add(id); if (s.size > 5000) s.delete(s.values().next().value);
   enviadosPeloAgente.set(inst, s);
 }
+/** Quando o celular atual leu o QR. Sem registro, conta de agora: tudo o que já existia é da pessoa. */
+function pareadoDesde(n) {
+  if (n.pareadoEm) return Date.parse(n.pareadoEm);
+  const lista = lerNumeros(); const x = lista.find((y) => y.id === n.id);
+  const em = agora();
+  if (x) { x.pareadoEm = em; gravarNumeros(lista); }
+  n.pareadoEm = em;
+  return Date.parse(em);
+}
+const textoDoRegistro = (r) => r?.message?.conversation || r?.message?.extendedTextMessage?.text || '';
 async function conversaDaPessoa(n, m, anterior) {
   const contato = m.endereco || m.de;
   const chave = `${n.instancia}:${contato}`;
   if (conversaDaPessoaCache.has(chave)) return true;
   const nossos = new Set([...(enviadosPeloAgente.get(n.instancia) || []), ...anterior.filter((x) => x.de === 'ia' && x.idEnvio).map((x) => x.idEnvio)]);
   const textosNossos = new Set(anterior.filter((x) => x.de === 'ia').map((x) => normalizarTexto(x.texto)));
+  const desde = pareadoDesde(n) - 60000;
+  /* A mesma pessoa tem dois endereços (telefone e LID) e o WhatsApp grava cada
+     conversa num deles: procura pelos dois e pelo telefone como endereço alternativo. */
   const jids = [...new Set([...(m.jids || []), ...(m.de ? [`${m.de}@s.whatsapp.net`] : []), ...(/@lid$/.test(String(m.endereco || '')) ? [m.endereco] : [])])];
+  const consultas = [...jids.map((jid) => ({ remoteJid: jid })), ...jids.filter((j) => /@s\.whatsapp\.net$/.test(j)).map((jid) => ({ remoteJidAlt: jid }))];
+  const pessoal = (motivo) => { conversaDaPessoaCache.set(chave, true); console.log(`[canais-evo:${n.instancia}] ••••${String(m.de).slice(-4)}: ${motivo}`); return true; };
   try {
-    for (const jid of jids) {
-      const j = await evo(`chat/findMessages/${encodeURIComponent(n.instancia)}`, { method: 'POST', body: { where: { key: { remoteJid: jid, fromMe: true } }, offset: 50, page: 1 } });
+    for (const key of consultas) {
+      const j = await evo(`chat/findMessages/${encodeURIComponent(n.instancia)}`, { method: 'POST', body: { where: { key }, offset: 100, page: 1 } });
       const recs = j?.messages?.records || j?.records || (Array.isArray(j) ? j : []);
-      const daPessoa = recs.some((r) => r?.key?.fromMe && !nossos.has(r.key.id) && !textosNossos.has(normalizarTexto(r?.message?.conversation || r?.message?.extendedTextMessage?.text || '')) );
-      if (daPessoa) { conversaDaPessoaCache.set(chave, true); return true; }
+      const total = Number(j?.messages?.total ?? recs.length);
+      if (recs.some((r) => r?.key?.fromMe && !nossos.has(r.key.id) && !textosNossos.has(normalizarTexto(textoDoRegistro(r))))) return pessoal('a pessoa conectada já escreveu nesta conversa');
+      if (recs.some((r) => r?.key?.id !== m.id && Number(r?.messageTimestamp || 0) * 1000 < desde)) return pessoal('contato de antes desta conexão');
+      if (total > recs.length) return pessoal('conversa longa, de antes desta conexão');
     }
     return false;
   } catch (e) {
@@ -1282,3 +1299,6 @@ export async function receberWebhook(body, { segredo } = {}) {
     return { ok: true, empresa: alvo.cnpj, numero: n.id, mensagens: recebidas.length, resultados };
   });
 }
+
+/* Só leitura: usado para conferir a trava contra o histórico real. */
+export const _conversaDaPessoa = (n, m) => conversaDaPessoa(n, m, []);

@@ -32,7 +32,9 @@ const estados = new Map();   // instancia -> 'open' | 'close'
 const pareadas = new Set();
 let donoFone = '5531911112222'; // celular que leu o QR
 const escritasDaPessoa = new Map(); // jid -> textos que a pessoa conectada escreveu
-let historicoQuebrado = false;  // instancias que já leram o QR
+let historicoQuebrado = false;
+const lidDoFone = new Map(); // telefone@s.whatsapp.net -> LID onde a conversa está gravada
+const contatosAntigos = new Set(); // jids com conversa de antes da conexão  // instancias que já leram o QR
 function resposta(status, corpo) { return { ok: status < 400, status, json: async () => corpo, text: async () => JSON.stringify(corpo), headers: { get: () => null } }; }
 async function fetchFalso(url, opts = {}) {
   const u = new URL(url);
@@ -84,8 +86,15 @@ async function fetchFalso(url, opts = {}) {
   if (grupo === 'chat' && acao === 'findMessages') {
     /* Histórico do WhatsApp: o que a pessoa conectada escreveu em cada conversa. */
     if (historicoQuebrado) return resposta(500, { message: 'fora' });
-    const jid = corpo?.where?.key?.remoteJid;
-    return resposta(200, { messages: { total: 0, records: (escritasDaPessoa.get(jid) || []).map((t, i) => ({ key: { id: `PESSOA${i}`, fromMe: true, remoteJid: jid }, message: { conversation: t } })) } });
+    const k = corpo?.where?.key || {};
+    const agoraS = Math.floor(Date.now() / 1000);
+    /* Pelo endereço alternativo (telefone), devolve a conversa gravada no LID. */
+    const jid = k.remoteJidAlt ? lidDoFone.get(k.remoteJidAlt) : k.remoteJid;
+    const recs = [
+      ...(escritasDaPessoa.get(jid) || []).map((t, i) => ({ key: { id: `PESSOA${i}`, fromMe: true, remoteJid: jid }, message: { conversation: t }, messageTimestamp: agoraS })),
+      ...(contatosAntigos.has(jid) ? [{ key: { id: 'ANTIGA', fromMe: false, remoteJid: jid }, message: { conversation: 'oi, sumido' }, messageTimestamp: agoraS - 30 * 86400 }] : []),
+    ];
+    return resposta(200, { messages: { total: recs.length, records: recs } });
   }
   if (grupo === 'chat' && acao === 'getBase64FromMediaMessage') return resposta(201, { base64: Buffer.from('OggS-audio-falso').toString('base64'), mimetype: 'audio/ogg; codecs=opus' });
   if (grupo === 'message' && acao === 'sendText') return resposta(201, { key: { id: `env-${chamadas.length}` } });
@@ -847,6 +856,15 @@ test('conversa da pessoa conectada: família, suporte, quem ela já respondeu �
     escritasDaPessoa.set('5531988880002@s.whatsapp.net', [...doAgente, 'deixa que eu te atendo, Carlos']);
     const assumiu = await canais.receberWebhook(evento(n.instancia, '5531988880002', 'beleza', 'PP4'), { segredo: 'segredo-123' });
     assert.equal(assumiu.resultados[0].motivo, 'conversa da pessoa conectada');
+    /* Blink: o robô do suporte escreve pelo telefone; a Ísis escreveu pelo LID. Mesma pessoa. */
+    lidDoFone.set('5531988880004@s.whatsapp.net', '99887766554433@lid');
+    escritasDaPessoa.set('99887766554433@lid', ['minha internet caiu de novo']);
+    const blink = await canais.receberWebhook(evento(n.instancia, '5531988880004', 'Olá! Sou a assistente virtual do provedor.', 'PP6'), { segredo: 'segredo-123' });
+    assert.equal(blink.resultados[0].motivo, 'conversa da pessoa conectada', 'telefone e LID são a mesma conversa');
+    /* Contato de antes da conexão (escreveu há um mês, ninguém respondeu): pessoal, fora. */
+    contatosAntigos.add('5531988880005@s.whatsapp.net');
+    const antigo = await canais.receberWebhook(evento(n.instancia, '5531988880005', 'e aí, tudo bem?', 'PP7'), { segredo: 'segredo-123' });
+    assert.equal(antigo.resultados[0].motivo, 'conversa da pessoa conectada');
     /* Sem histórico (Evolution falhou): na dúvida, cala. */
     historicoQuebrado = true;
     const duvida = await canais.receberWebhook(evento(n.instancia, '5531988880003', 'oi', 'PP5'), { segredo: 'segredo-123' });
