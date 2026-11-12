@@ -1962,6 +1962,19 @@ function encerrarPrimeiroTreino(bot, prep, agora, protegido) {
   return { agenteId: bot.agenteId, nome: bot.nome, acao, motivo, horas };
 }
 
+/** Tira a marca de "encerrado por prazo" posta por engano (bot já homologado antes ou esperando pessoa). */
+function liberarEncerramentoIndevido(agenteId) {
+  const bots = load(DATASET_BOTS, []);
+  const alvo = bots.find((item) => item.agenteId === agenteId);
+  const ciclo = alvo && (alvo.cicloVida || alvo.preparacao?.cicloVida);
+  if (!ciclo?.preparacaoConhecimentoInicial?.encerradoPorPrazo) return;
+  const { encerradoPorPrazo, ...resto } = ciclo.preparacaoConhecimentoInicial;
+  ciclo.preparacaoConhecimentoInicial = { ...resto, encerramentoDesfeito: { em: new Date().toISOString(), antes: encerradoPorPrazo } };
+  alvo.cicloVida = ciclo;
+  if (alvo.preparacao) alvo.preparacao = { ...alvo.preparacao, cicloVida: ciclo };
+  save(DATASET_BOTS, bots);
+}
+
 /**
  * Relógio do Hotel: todo bot ainda em preparação/validação é empurrado pelo
  * 0007 até a homologação dentro do prazo ideal de 12h — sem esperar alguém
@@ -1975,9 +1988,15 @@ export async function processarPrazosHomologacao({ agora = new Date(), fetch: fe
     const prep = (bot.cicloVida || bot.preparacao?.cicloVida)?.preparacaoConhecimentoInicial || {};
     /* Regra do dono: primeiro treino passou de 12 h → não homologa; se não aprendeu
        ou está com dificuldade/erro, apaga. O motivo vai para o e-mail do dono. */
-    if (prep.encerradoPorPrazo) { resumo.ignorados++; continue; }
+    /* O prazo é só do PRIMEIRO treino: bot que já foi homologado e voltou para validação
+       (retreino, cardápio novo) segue o fluxo normal e nunca é encerrado por prazo. */
+    const jaHomologou = prep.ultimoResultado === 'homologado' || Boolean(bot.homologadoEm)
+      || /situação: homologado/.test(prep.encerradoPorPrazo?.motivo || '');
+    if (prep.encerradoPorPrazo && jaHomologou) {
+      liberarEncerramentoIndevido(bot.agenteId);
+    } else if (prep.encerradoPorPrazo) { resumo.ignorados++; continue; }
     const fim = Date.parse(prep.iniciadaEm || bot.criadoEm || '') + PRAZO_PRIMEIRO_TREINO_MS;
-    if (Number.isFinite(fim) && agora.getTime() > fim) {
+    if (!jaHomologou && Number.isFinite(fim) && agora.getTime() > fim) {
       resumo.encerrados.push(encerrarPrimeiroTreino(bot, prep, agora, protegido));
       continue;
     }

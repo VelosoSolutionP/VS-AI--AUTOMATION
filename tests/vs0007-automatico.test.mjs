@@ -432,3 +432,25 @@ test('regra do dono: primeiro treino passou de 12 h → apaga quem não aprendeu
   assert.equal(r2.encerrados.length, 0);
   assert.equal(r2.itens.some((i) => [emUso, aprendeu].includes(i.agenteId)), false);
 });
+
+test('prazo de 12 h é só do primeiro treino: bot que já foi homologado e voltou para validação não é encerrado', async () => {
+  const proposta = bots.prepararNicho({ nicho: 'chaveiro 24 horas' });
+  const id = bots.criarBotComercial({
+    nome: 'Chaveiro Retreino', finalidade: proposta.finalidade, especialidade: proposta.especialidade,
+    profissao: proposta.profissao.id, autorizado: true, preparacao: proposta, perfil: proposta.perfil,
+    falhas: proposta.falhas, lacunas: proposta.lacunas, conhecimentos: proposta.conhecimentos, identificadorUnico: true,
+  }).bot.agenteId;
+  const lista = load(bots.DATASET_BOTS, []);
+  const alvo = lista.find((b) => b.agenteId === id);
+  alvo.preparacao.pesquisaInicial = { ...(alvo.preparacao.pesquisaInicial || {}), estado: 'concluida' };
+  alvo.cicloVida.preparacaoConhecimentoInicial.ultimoResultado = 'homologado';
+  /* Encerramento indevido gravado pela versão anterior da regra: precisa ser desfeito. */
+  alvo.cicloVida.preparacaoConhecimentoInicial.encerradoPorPrazo = { em: new Date().toISOString(), acao: 'nao-homologada', motivo: 'passou de 12 h sem concluir a homologação (situação: homologado)' };
+  save(bots.DATASET_BOTS, lista);
+  const r = await bots.processarPrazosHomologacao({ agora: new Date(Date.now() + 90 * 3600e3), forcar: true });
+  assert.equal(r.encerrados.some((e) => e.agenteId === id), false, 'não é encerrado de novo');
+  assert.ok(r.itens.some((i) => i.agenteId === id), 'volta para o fluxo normal de homologação');
+  const etapa = (bots.obterBot(id).cicloVida || {}).preparacaoConhecimentoInicial || {};
+  assert.equal(etapa.encerradoPorPrazo, undefined);
+  assert.ok(etapa.encerramentoDesfeito, 'guarda o registro do encerramento desfeito');
+});
