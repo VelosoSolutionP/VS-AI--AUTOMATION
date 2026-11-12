@@ -29,7 +29,8 @@ const salao = await import('../engine/vssalao/ias.mjs');
 const chamadas = [];
 const CHAVE_TNR = 'tnr_' + 'a1'.repeat(24);
 const estados = new Map();   // instancia -> 'open' | 'close'
-const pareadas = new Set();  // instancias que já leram o QR
+const pareadas = new Set();
+let donoFone = '5531911112222'; // celular que leu o QR  // instancias que já leram o QR
 function resposta(status, corpo) { return { ok: status < 400, status, json: async () => corpo, text: async () => JSON.stringify(corpo), headers: { get: () => null } }; }
 async function fetchFalso(url, opts = {}) {
   const u = new URL(url);
@@ -68,7 +69,7 @@ async function fetchFalso(url, opts = {}) {
     const nome = u.searchParams.get('instanceName');
     const dono = !nome || estados.get(nome) === 'open' || pareadas.has(nome);
     if (nome && estados.get(nome) === 'open') pareadas.add(nome);
-    return resposta(200, [{ ownerJid: dono ? '5531911112222@s.whatsapp.net' : null }]);
+    return resposta(200, [{ ownerJid: dono ? `${donoFone}@s.whatsapp.net` : null }]);
   }
   if (grupo === 'instance' && acao === 'logout') { estados.set(decodeURIComponent(inst), 'close'); return resposta(200, {}); }
   if (grupo === 'instance' && acao === 'delete') {
@@ -205,14 +206,14 @@ test('identidade do WhatsApp vem do Hotel e informa o que a API não altera', as
   });
 });
 
-test('remover número apaga a instância na Evolution e guarda as conversas', async () => {
+test('remover número apaga a instância na Evolution e as conversas daquela conexão', async () => {
   await comEmpresa(EMPRESA_A, async () => {
     const vendas = canais.listar()[0];
     const r = await canais.remover({ id: vendas.id });
     assert.equal(r.ok, true);
     assert.ok(chamadas.some((c) => c.metodo === 'DELETE' && c.caminho === `/instance/delete/${vendas.instancia}`));
     assert.equal(canais.listar().length, 1);
-    assert.equal(canais.conversas({ id: vendas.id }).length, 1);
+    assert.equal(canais.conversas({ id: vendas.id }).length, 0, 'vínculo só enquanto conectado');
   });
 });
 
@@ -629,11 +630,10 @@ test('QR novo depois de apagar a sessão manda a foto de novo', async () => {
   });
 });
 
-test('regra do 0007: número de teste encerra sem rastro; número de cliente guarda tudo', async () => {
+test('vínculo só enquanto conectado: qualquer número encerra sem rastro, e outro celular no QR não herda nada', async () => {
   assert.equal(canais.ehNumeroTeste('553175127978@s.whatsapp.net'), true, 'JID sem o 9 também é o de teste');
   assert.equal(canais.ehNumeroTeste('5531975127978'), true);
   assert.equal(canais.ehNumeroTeste('5531911112222'), false);
-  const antes = process.env.CANAIS_NUMEROS_TESTE;
   await comEmpresa(EMPRESA_B, async () => {
     const conversar = async (n, id) => {
       await canais.conectar({ id: n.id }); estados.set(n.instancia, 'open');
@@ -641,21 +641,27 @@ test('regra do 0007: número de teste encerra sem rastro; número de cliente gua
       await canais.receberWebhook(evento(n.instancia, '5531999990088', 'pergunta desconhecida de teste', id), { segredo: 'segredo-123' });
       assert.ok(canais.conversas({ id: n.id }).length);
     };
-    process.env.CANAIS_NUMEROS_TESTE = '31911112222';
-    const t = canais.cadastrar({ rotulo: 'Teste sem rastro', agenteId: 'ia-b' }).numero;
+    const t = canais.cadastrar({ rotulo: 'Funcionária', agenteId: 'ia-b' }).numero;
     await conversar(t, 'z1');
-    const doTeste = () => mapa.lerMapa().nos.filter((no) => no.estado === 'descoberto' && String(no.evidencia).includes(`"numero":"${t.id}"`)).length;
-    assert.ok(doTeste() > 0, 'a conversa de teste gerou aprendizado pendente');
+    const pendentes = () => mapa.lerMapa().nos.filter((no) => no.estado === 'descoberto' && String(no.evidencia).includes(`"numero":"${t.id}"`)).length;
+    assert.ok(pendentes() > 0, 'a conversa gerou aprendizado pendente');
     assert.equal((await canais.apagarSessao({ id: t.id })).ok, true);
-    assert.equal(canais.conversas({ id: t.id }).length, 0, 'conversa do teste foi embora');
-    assert.equal(doTeste(), 0, 'aprendizado pendente do teste foi embora');
-    process.env.CANAIS_NUMEROS_TESTE = '31900000000';
-    const c = canais.cadastrar({ rotulo: 'Cliente guarda', agenteId: 'ia-b' }).numero;
+    assert.equal(canais.conversas({ id: t.id }).length, 0, 'apagar a sessão leva a conversa');
+    assert.equal(pendentes(), 0, 'e o aprendizado pendente');
+    const c = canais.cadastrar({ rotulo: 'Desconecta', agenteId: 'ia-b' }).numero;
     await conversar(c, 'z2');
     await canais.desconectar({ id: c.id });
-    assert.ok(canais.conversas({ id: c.id }).length, 'número de cliente mantém o histórico');
+    assert.equal(canais.conversas({ id: c.id }).length, 0, 'desconectar também não deixa rastro');
+    await canais.remover({ id: t.id }); await canais.remover({ id: c.id });
+    /* A Ísis estava no cartão; o João lê o QR (a sessão dela caiu sozinha): ele começa do zero. */
+    const cad = canais.cadastrar({ rotulo: 'Ísis vira João', agenteId: 'ia-b' }); assert.ok(cad.numero, cad.erro); const s = cad.numero;
+    await conversar(s, 'z3');
+    estados.set(s.instancia, 'close'); await canais.estado({ id: s.id });
+    donoFone = '5531922223333';
+    estados.set(s.instancia, 'open'); await canais.estado({ id: s.id });
+    assert.equal(canais.conversas({ id: s.id }).length, 0, 'o celular novo não herda a conversa do anterior');
+    donoFone = '5531911112222';
   });
-  if (antes === undefined) delete process.env.CANAIS_NUMEROS_TESTE; else process.env.CANAIS_NUMEROS_TESTE = antes;
 });
 
 test('áudio do cliente é baixado, transcrito e respondido (antes era descartado calado)', async () => {

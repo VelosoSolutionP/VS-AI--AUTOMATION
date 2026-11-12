@@ -361,11 +361,12 @@ async function pareada(inst) {
   } catch { return true; }
 }
 
-/* ── Regra do 0007 (11/11): número de TESTE não deixa lixo ──────────────────
-   O dono testa todos os agentes no mesmo celular. Ao encerrar a conexão dele,
-   conversa, aprendizado pendente nascido dela e QR vão embora — senão a próxima
-   conexão herda histórico de outro agente e o 0007 audita lixo. Aprendizado já
-   validado pelo dono fica. Lista: CANAIS_NUMEROS_TESTE (vírgula). */
+/* ── Vínculo só enquanto conectado (11/11) ──────────────────────────────────
+   O agente é da empresa; o número é de quem se conecta (hoje a Ísis, amanhã o
+   João). Ao encerrar a conexão — ou quando outro celular lê o QR — conversa,
+   aprendizado pendente nascido dela e QR vão embora: a próxima pessoa não herda
+   nada da anterior. Aprendizado já validado pelo dono fica. Começou como regra
+   do número de teste (CANAIS_NUMEROS_TESTE) e passou a valer para todos. */
 const chaveFone = (v) => { let d = soDigitos(v); if (d.startsWith('55') && d.length >= 12) d = d.slice(2); return d.length >= 10 ? d.slice(0, 2) + d.slice(-8) : ''; };
 export const ehNumeroTeste = (v) => { const k = chaveFone(v); return Boolean(k) && String(process.env.CANAIS_NUMEROS_TESTE ?? '31975127978').split(',').some((t) => chaveFone(t) === k); };
 function numeroDaConexao(n) { return providerDe(n.instancia).status?.().numero || n.numeroPrevisto || null; }
@@ -386,7 +387,7 @@ export function limparRastros(n) {
     if (aprendizados) mapaHotel.salvarMapa(mapa);
   });
   qrAtual.delete(n.instancia);
-  console.log(`[canais-evo] número de teste: ${n.instancia} encerrado sem rastro (${chaves.length} conversa(s), ${aprendizados} aprendizado(s) pendente(s))`);
+  console.log(`[canais-evo] ${n.instancia}: conexão encerrada sem rastro (${chaves.length} conversa(s), ${aprendizados} aprendizado(s) pendente(s))`);
   return { conversas: chaves.length, aprendizados };
 }
 
@@ -401,9 +402,15 @@ function assumirNumeroPareado(id, numero) {
   const pareado = soDigitos(numero);
   const lista = lerNumeros();
   const n = lista.find((x) => x.id === id);
-  if (!pareado || !n || n.numeroPrevisto === pareado || lista.some((x) => x.id !== id && x.numeroPrevisto === pareado)) return;
-  n.numeroPrevisto = pareado;
-  gravarNumeros(lista);
+  if (!pareado || !n) return;
+  let mudou = false;
+  /* Outro celular assumiu o cartão: nada da pessoa anterior fica. */
+  if (chaveFone(n.ultimoPareado) !== chaveFone(pareado)) {
+    if (n.ultimoPareado) limparRastros(n);
+    n.ultimoPareado = pareado; mudou = true;
+  }
+  if (n.numeroPrevisto !== pareado && !lista.some((x) => x.id !== id && x.numeroPrevisto === pareado)) { n.numeroPrevisto = pareado; mudou = true; }
+  if (mudou) gravarNumeros(lista);
 }
 
 export async function estado({ id } = {}) {
@@ -436,25 +443,23 @@ export async function estado({ id } = {}) {
 export async function desconectar({ id } = {}) {
   const { n } = achar(id);
   if (!n) return { erro: 'número não encontrado nesta empresa' };
-  const teste = ehNumeroTeste(numeroDaConexao(n));
   await providerDe(n.instancia).desconectar();
   esquecerNumero(id);
-  return { ok: true, ...(teste ? { limpo: limparRastros(n) } : {}) };
+  return { ok: true, limpo: limparRastros(n) };
 }
 
 /**
- * Apaga só a SESSÃO: a instância sai da Evolution (o aparelho some de
- * "Aparelhos conectados" no celular), mas o cadastro, a IA e as conversas
- * ficam. O próximo Conectar cria a instância do zero, com QR novo.
+ * Apaga a SESSÃO: a instância sai da Evolution (o aparelho some de
+ * "Aparelhos conectados" no celular) e as conversas daquela conexão vão junto;
+ * o cadastro e a IA ficam. O próximo Conectar cria a instância do zero, com QR novo.
  */
 export async function apagarSessao({ id } = {}) {
   const { n } = achar(id);
   if (!n) return { erro: 'número não encontrado nesta empresa' };
-  const teste = ehNumeroTeste(numeroDaConexao(n));
   const r = await apagarInstancia(n);
   if (r.erro) return r;
   esquecerNumero(id);
-  if (teste) limparRastros(n);
+  limparRastros(n);
   const lista = lerNumeros(); const x = lista.find((y) => y.id === id);
   if (x?.identidade) { x.identidade = { ...x.identidade, pendente: true, marcaFoto: null }; gravarNumeros(lista); }
   return { ok: true };
@@ -483,15 +488,14 @@ async function apagarInstancia(n) {
   return { erro: 'a sessão travou na Evolution (aparece aberta, mas a conexão já caiu) e não pôde ser apagada; é preciso reiniciar o serviço da Evolution dos Canais e tentar de novo' };
 }
 
-/** Remove o número: desliga a sessão e apaga a instância na Evolution. As conversas ficam guardadas. */
+/** Remove o número: desliga a sessão, apaga a instância na Evolution e as conversas daquela conexão. */
 export async function remover({ id } = {}) {
   const { lista, n } = achar(id);
   if (!n) return { erro: 'número não encontrado nesta empresa' };
-  const teste = ehNumeroTeste(numeroDaConexao(n));
   const apagada = await apagarInstancia(n);
   if (apagada.erro) return apagada;
   gravarNumeros(lista.filter((x) => x.id !== id));
-  if (teste) limparRastros(n);
+  limparRastros(n);
   return { ok: true };
 }
 
