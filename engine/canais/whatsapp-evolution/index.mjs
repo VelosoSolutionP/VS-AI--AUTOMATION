@@ -232,6 +232,8 @@ export function criarWhatsAppEvolutionProvider(opcoes = {}) {
         const endereco = jidTelefone || !/@lid$/.test(String(key.remoteJid || '')) ? de : `${soDigitos(String(key.remoteJid).split('@')[0])}@lid`;
         const c = mensagem({ id, de, endereco, nome: d.pushName || null, tipo: tipoDe(d.message || {}),
           texto: textoDe(d.message || {}), quando: new Date(quando || agoraMs).toISOString(), canal: nome });
+        /* Todos os endereços da conversa (telefone e LID): quem atende consulta o histórico por eles. */
+        c.jids = [...new Set([key.remoteJid, key.remoteJidAlt, key.senderPn].filter((j) => /@(s\.whatsapp\.net|lid)$/.test(String(j || ''))))];
         ultimaAtividade = agora(); n++;
         for (const fn of ouvintesMsg) { try { fn(c); } catch (e) { console.error('[whatsapp-evolution] ouvinte de mensagem quebrou:', e.message); } }
       }

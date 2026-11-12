@@ -30,7 +30,9 @@ const chamadas = [];
 const CHAVE_TNR = 'tnr_' + 'a1'.repeat(24);
 const estados = new Map();   // instancia -> 'open' | 'close'
 const pareadas = new Set();
-let donoFone = '5531911112222'; // celular que leu o QR  // instancias que já leram o QR
+let donoFone = '5531911112222'; // celular que leu o QR
+const escritasDaPessoa = new Map(); // jid -> textos que a pessoa conectada escreveu
+let historicoQuebrado = false;  // instancias que já leram o QR
 function resposta(status, corpo) { return { ok: status < 400, status, json: async () => corpo, text: async () => JSON.stringify(corpo), headers: { get: () => null } }; }
 async function fetchFalso(url, opts = {}) {
   const u = new URL(url);
@@ -79,6 +81,12 @@ async function fetchFalso(url, opts = {}) {
     estados.delete(decodeURIComponent(inst)); return resposta(200, {});
   }
   if (grupo === 'webhook' && acao === 'set') return resposta(201, {});
+  if (grupo === 'chat' && acao === 'findMessages') {
+    /* Histórico do WhatsApp: o que a pessoa conectada escreveu em cada conversa. */
+    if (historicoQuebrado) return resposta(500, { message: 'fora' });
+    const jid = corpo?.where?.key?.remoteJid;
+    return resposta(200, { messages: { total: 0, records: (escritasDaPessoa.get(jid) || []).map((t, i) => ({ key: { id: `PESSOA${i}`, fromMe: true, remoteJid: jid }, message: { conversation: t } })) } });
+  }
   if (grupo === 'chat' && acao === 'getBase64FromMediaMessage') return resposta(201, { base64: Buffer.from('OggS-audio-falso').toString('base64'), mimetype: 'audio/ogg; codecs=opus' });
   if (grupo === 'message' && acao === 'sendText') return resposta(201, { key: { id: `env-${chamadas.length}` } });
   if (grupo === 'chat' && ['updateProfileName', 'updateProfileStatus', 'updateProfilePicture'].includes(acao)) return resposta(200, { ok: true });
@@ -815,4 +823,35 @@ test('venda pela loja: com a chave do conector, o pedido vai para o To No Rango 
   } finally {
     if (antes === undefined) delete process.env.TONORANGO_URL; else process.env.TONORANGO_URL = antes;
   }
+});
+
+test('conversa da pessoa conectada: família, suporte, quem ela já respondeu — o agente não entra', async () => {
+  await comEmpresa(EMPRESA_B, async () => {
+    const cad = canais.cadastrar({ rotulo: 'Celular da Ísis', agenteId: 'ia-b' }); assert.ok(cad.numero, cad.erro); const n = cad.numero;
+    await canais.conectar({ id: n.id }); estados.set(n.instancia, 'open');
+    /* Família: a Ísis já conversa com a mãe. A mãe escreve → silêncio, e nada fica guardado. */
+    escritasDaPessoa.set('5531988880001@s.whatsapp.net', ['oi mãe, chego às 7']);
+    const mae = await canais.receberWebhook(evento(n.instancia, '5531988880001', 'filha, compra pão na volta', 'PP1'), { segredo: 'segredo-123' });
+    assert.equal(mae.resultados[0].motivo, 'conversa da pessoa conectada');
+    assert.equal(canais.conversas({ id: n.id }).length, 0, 'conversa pessoal não é guardada');
+    /* Cliente novo: o agente atende. */
+    const novo = await canais.receberWebhook(evento(n.instancia, '5531988880002', 'quanto custa?', 'PP2'), { segredo: 'segredo-123' });
+    assert.ok(novo.resultados[0].envios.length >= 1);
+    /* As respostas do próprio agente não contam como "a pessoa escreveu". */
+    const doAgente = canais.conversas({ id: n.id })[0].mensagens.filter((x) => x.de === 'ia').map((x) => x.texto);
+    escritasDaPessoa.set('5531988880002@s.whatsapp.net', doAgente);
+    const segue = await canais.receberWebhook(evento(n.instancia, '5531988880002', 'e a entrega, como funciona?', 'PP3'), { segredo: 'segredo-123' });
+    assert.notEqual(segue.resultados[0].motivo, 'conversa da pessoa conectada', 'o agente continua a própria conversa');
+    assert.equal(segue.resultados[0].ok, true);
+    /* A Ísis entra na conversa pelo celular → dali em diante o agente sai. */
+    escritasDaPessoa.set('5531988880002@s.whatsapp.net', [...doAgente, 'deixa que eu te atendo, Carlos']);
+    const assumiu = await canais.receberWebhook(evento(n.instancia, '5531988880002', 'beleza', 'PP4'), { segredo: 'segredo-123' });
+    assert.equal(assumiu.resultados[0].motivo, 'conversa da pessoa conectada');
+    /* Sem histórico (Evolution falhou): na dúvida, cala. */
+    historicoQuebrado = true;
+    const duvida = await canais.receberWebhook(evento(n.instancia, '5531988880003', 'oi', 'PP5'), { segredo: 'segredo-123' });
+    assert.equal(duvida.resultados[0].motivo, 'conversa da pessoa conectada');
+    historicoQuebrado = false;
+    await canais.remover({ id: n.id });
+  });
 });

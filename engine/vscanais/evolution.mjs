@@ -387,6 +387,8 @@ export function limparRastros(n) {
     if (aprendizados) mapaHotel.salvarMapa(mapa);
   });
   qrAtual.delete(n.instancia);
+  enviadosPeloAgente.delete(n.instancia);
+  for (const k of conversaDaPessoaCache.keys()) if (k.startsWith(`${n.instancia}:`)) conversaDaPessoaCache.delete(k);
   console.log(`[canais-evo] ${n.instancia}: conexão encerrada sem rastro (${chaves.length} conversa(s), ${aprendizados} aprendizado(s) pendente(s))`);
   return { conversas: chaves.length, aprendizados };
 }
@@ -1041,6 +1043,47 @@ function fraseDePedidoPorVoz(ia, m) {
     .replace(/^\p{Ll}/u, (c) => c.toUpperCase())
     .trim();
 }
+/* ── Conversa da pessoa conectada (11/11) ───────────────────────────────────
+   O WhatsApp é de quem se conectou (funcionário). Família, amigos, suporte da
+   internet: se a PESSOA já escreveu naquela conversa — antes ou durante o
+   atendimento, pelo celular ou pelo WhatsApp Web — o agente não entra nela.
+   Só fala com quem chegou e ainda não foi atendido por ela. Em dúvida (não deu
+   para consultar o histórico), cala: responder no lugar da pessoa é pior. */
+const enviadosPeloAgente = new Map();   // instancia -> Set(id da mensagem)
+const conversaDaPessoaCache = new Map(); // `${instancia}:${contato}` -> true
+function marcarEnviado(inst, id) {
+  if (!id) return;
+  const s = enviadosPeloAgente.get(inst) || new Set();
+  s.add(id); if (s.size > 5000) s.delete(s.values().next().value);
+  enviadosPeloAgente.set(inst, s);
+}
+async function conversaDaPessoa(n, m, anterior) {
+  const contato = m.endereco || m.de;
+  const chave = `${n.instancia}:${contato}`;
+  if (conversaDaPessoaCache.has(chave)) return true;
+  const nossos = new Set([...(enviadosPeloAgente.get(n.instancia) || []), ...anterior.filter((x) => x.de === 'ia' && x.idEnvio).map((x) => x.idEnvio)]);
+  const textosNossos = new Set(anterior.filter((x) => x.de === 'ia').map((x) => normalizarTexto(x.texto)));
+  const jids = [...new Set([...(m.jids || []), ...(m.de ? [`${m.de}@s.whatsapp.net`] : []), ...(/@lid$/.test(String(m.endereco || '')) ? [m.endereco] : [])])];
+  try {
+    for (const jid of jids) {
+      const j = await evo(`chat/findMessages/${encodeURIComponent(n.instancia)}`, { method: 'POST', body: { where: { key: { remoteJid: jid, fromMe: true } }, offset: 50, page: 1 } });
+      const recs = j?.messages?.records || j?.records || (Array.isArray(j) ? j : []);
+      const daPessoa = recs.some((r) => r?.key?.fromMe && !nossos.has(r.key.id) && !textosNossos.has(normalizarTexto(r?.message?.conversation || r?.message?.extendedTextMessage?.text || '')) );
+      if (daPessoa) { conversaDaPessoaCache.set(chave, true); return true; }
+    }
+    return false;
+  } catch (e) {
+    console.warn(`[canais-evo:${n.instancia}] não consegui ler o histórico de ••••${String(m.de).slice(-4)} (${e.message}); agente calado nesta mensagem`);
+    return true;
+  }
+}
+/* O modelo pequeno às vezes devolve a fala do outro lado como se fosse dele
+   (repetiu o texto do suporte da internet). Isso não sai. */
+function ecoDoCliente(resposta, fala) {
+  const a = normalizarTexto(resposta); const b = normalizarTexto(fala);
+  return b.length >= 25 && a.includes(b.slice(0, Math.min(60, b.length)));
+}
+
 /** Uma mensagem recebida no número → resposta da IA vinculada. Devolve o que foi enviado. */
 /* Número do módulo salão: quem responde é o bot de agendamento, com a agenda
    (Cadê Você) da IA vinculada a este número. Um bot por número + IA: trocar a
@@ -1065,6 +1108,11 @@ async function atenderSalao(n, m) {
     botsSalao.set(chave, { bot: criarBotcadevc({ cadevc, cerebro: { ligado: process.env.CANAIS_SALAO_CEREBRO !== '0' } }), estados: new Map() });
   }
   const { bot, estados } = botsSalao.get(chave);
+  const anterior = conversas({ id: n.id }).find((c) => c.telefone === contato)?.mensagens || [];
+  if (await conversaDaPessoa(n, m, anterior)) {
+    console.log(`[canais-evo:${quem}] ••••${String(m.de).slice(-4)} é conversa da pessoa conectada; agente fora`);
+    return { ok: false, motivo: 'conversa da pessoa conectada' };
+  }
   anotar(n.id, contato, { de: 'cliente', texto: m.texto, iaId: ia.agenteId });
   const r = await bot.responder(estados.get(contato) || null, m.texto, {
     telefone: m.de, nomeBot: ia.nome, personalidade: cfg.personalidade, perfilBot: perfilPreenchido(ia), contextoMapa: conhecimentoHomologado(n, ia).join('\n'),
@@ -1073,7 +1121,8 @@ async function atenderSalao(n, m) {
   const prov = providerDe(n.instancia);
   if (prov.status().estado !== 'conectado') await prov.sincronizar();
   const env = await prov.enviarTexto({ para: contato, texto: r.resposta });
-  anotar(n.id, contato, { de: 'ia', texto: r.resposta, iaId: ia.agenteId, origem: 'bot-agendamento', enviado: env.ok !== false, ...(env.ok === false ? { erro: env.erro } : {}) });
+  marcarEnviado(n.instancia, env.id);
+  anotar(n.id, contato, { de: 'ia', texto: r.resposta, iaId: ia.agenteId, origem: 'bot-agendamento', enviado: env.ok !== false, ...(env.id ? { idEnvio: env.id } : {}), ...(env.ok === false ? { erro: env.erro } : {}) });
   console.log(`[canais-evo:${quem}] → ••••${String(m.de).slice(-4)} [${ia.nome} · agendamento · passo=${r.estado?.passo || 'fim'}]${env.ok === false ? ` FALHOU: ${env.erro}` : ''}`);
   return { ok: true, ia: ia.agenteId, envios: [{ texto: r.resposta, origem: 'bot-agendamento', ok: env.ok !== false, erro: env.erro }] };
 }
@@ -1104,6 +1153,11 @@ async function atenderSequencial(n, m) {
   }
   const contato = m.endereco || m.de;
   const anterior = conversas({ id: n.id }).find((c) => c.telefone === contato)?.mensagens || [];
+  /* Conversa da pessoa conectada: nem responde nem guarda — não é do agente. */
+  if (await conversaDaPessoa(n, m, anterior)) {
+    console.log(`[canais-evo:${quem}] ••••${String(m.de).slice(-4)} é conversa da pessoa conectada; agente fora`);
+    return { ok: false, motivo: 'conversa da pessoa conectada' };
+  }
   anotar(n.id, contato, { de: 'cliente', texto: m.texto, iaId: ia.agenteId });
   /* Trocou de IA, trocou tudo: a nova se apresenta e não herda a conversa da
      anterior (médica não continua papo de faxineira). O histórico fica guardado. */
@@ -1138,7 +1192,7 @@ async function atenderSequencial(n, m) {
     const resposta = await gerarResposta(ia, conhecimento, daIA, m.texto, primeiroNome(m.nome));
     /* Mesma frase de novo não sai: repetir é o que deixa o atendimento chato. */
     const ultimaDela = daIA.filter((x) => x.de === 'ia').at(-1)?.texto;
-    if (normalizarTexto(resposta.texto) !== normalizarTexto(ultimaDela)) respostas.push(resposta);
+    if (normalizarTexto(resposta.texto) !== normalizarTexto(ultimaDela) && !ecoDoCliente(resposta.texto, m.texto)) respostas.push(resposta);
     if (naoSoube(ia, resposta)) registrarAprendizado(n, ia, m.texto);
   }
   const prov = providerDe(n.instancia);
@@ -1149,7 +1203,8 @@ async function atenderSequencial(n, m) {
     const env = r.imagem
       ? await prov.enviarImagem({ para: contato, dataUri: `data:image/png;base64,${r.imagem}`, nome: 'pix.png', legenda: r.texto || '' })
       : (m.transcrito && await responderEmAudio(prov, contato, r.texto, quem)) || await prov.enviarTexto({ para: contato, texto: r.texto });
-    anotar(n.id, contato, { de: 'ia', texto: r.texto, iaId: ia.agenteId, origem: r.origem, enviado: env.ok !== false, ...(env.ok === false ? { erro: env.erro } : {}) });
+    marcarEnviado(n.instancia, env.id);
+    anotar(n.id, contato, { de: 'ia', texto: r.texto, iaId: ia.agenteId, origem: r.origem, enviado: env.ok !== false, ...(env.id ? { idEnvio: env.id } : {}), ...(env.ok === false ? { erro: env.erro } : {}) });
     envios.push({ ...r, ok: env.ok !== false, erro: env.erro });
     console.log(`[canais-evo:${quem}] → ••••${String(m.de).slice(-4)} [${ia.nome} · ${r.origem}]${env.ok === false ? ` FALHOU: ${env.erro}` : ''}`);
   }
