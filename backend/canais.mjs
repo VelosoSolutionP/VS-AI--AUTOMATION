@@ -1,0 +1,1130 @@
+/**
+ * Onde o canal encontra o domínio.
+ *
+ * Este é o único arquivo que conhece os dois lados: de cima ele monta o
+ * provider e o gateway (infraestrutura), de baixo ele chama `atendimento`
+ * (domínio). O provider continua sem saber o que é lead, e o atendimento
+ * continua sem saber o que é WhatsApp Web.
+ *
+ * Trocar o canal pelo oficial da Meta, quando a conta destravar, é trocar a
+ * linha que cria o provider — nada abaixo daqui muda.
+ */
+import { criarGateway } from '../engine/canais/gateway.mjs';
+import { ESTADOS } from '../engine/canais/provider.mjs';
+import * as empresas from '../engine/empresas.mjs';
+import { criarWhatsAppWebProvider } from '../engine/canais/whatsapp-web/index.mjs';
+import { criarWhatsAppCloudProvider } from '../engine/canais/whatsapp-cloud/index.mjs';
+import * as consumoMeta from '../engine/canais/whatsapp-cloud/consumo.mjs';
+import * as consumo from '../engine/vsconsumo/index.mjs';
+import { criarTelegramProvider, ehTelegram } from '../engine/canais/telegram/index.mjs';
+import { criarInstagramProvider } from '../engine/canais/instagram/index.mjs';
+/* MODO AGENDA no número da Micaela (22/10, dono "muda a Micaela pra agenda que
+   o Juarez manda pra ela"): com a flag salão.metaAgenda ligada, mensagem no
+   WhatsApp cai no BOT DO SALÃO (Cadê Você) em vez da vendedora — pra testar o
+   salão do próprio celular, com os 2 números que ele tem. Reversível pela flag. */
+import { criarBotcadevc } from '../engine/vssalao/bot.mjs';
+import { criarCadevcClient } from '../engine/vssalao/cadevc.mjs';
+import * as cadevcCfg from '../engine/vssalao/config.mjs';
+let _cadevcBot = null; const _cadevcEstados = new Map();
+function cadevcModoWhats() { try { return !!cadevcCfg.config().metaAgenda; } catch { return false; } }
+function botDocadevcWhats() {
+  if (_cadevcBot) { return _cadevcBot; }
+  const cfg = cadevcCfg.config();
+  const cadevc = criarCadevcClient({ baseUrl: cfg.cadevcUrl, token: cfg.cadevcToken });
+  _cadevcBot = criarBotcadevc({ cadevc, cerebro: { ligado: true } });
+  return _cadevcBot;
+}
+/* ANTI-LOOP (dono 22/10: "se o ignorar não rolar, ferrou") — duas camadas que
+   NÃO dependem de saber o número do outro:
+   1) Eco: se a mensagem recebida É a cara de uma resposta do nosso próprio bot
+      (outro bot respondendo), não responde. Pega o loop no 1º eco.
+   2) Disjuntor por ritmo: mais de N respostas pro mesmo número numa janela =
+      cala aquela conversa por um tempo. Último recurso, corta qualquer loop. */
+const _cadevcRitmo = new Map();     // de -> [timestamps das respostas]
+const _cadevcPausado = new Map();   // de -> até quando ficar calado
+const BREAKER_N = 12, BREAKER_MS = 180000, BREAKER_PAUSA_MS = 300000;
+const ECO_BOT = /Escolha o (profissional|servi[çc]o|dia|hor[áa]rio) pelo n[úu]mero|N[ãa]o entendi\.|Sou o atendimento do sal[ãa]o|Vagas em \d{4}-\d{2}-\d{2}|Com qual profissional voc[êe] quer/i;
+async function respondercadevcWhats(de, texto) {
+  const agora = Date.now();
+  if ((_cadevcPausado.get(de) || 0) > agora) { return null; }                 // em pausa por loop
+  if (ECO_BOT.test(String(texto))) { console.warn(`[cadevc-whats] ignorado — a mensagem parece resposta de outro bot (anti-loop): ${de}`); return null; }
+  const ts = (_cadevcRitmo.get(de) || []).filter((t) => agora - t < BREAKER_MS);
+  if (ts.length >= BREAKER_N) {
+    _cadevcPausado.set(de, agora + BREAKER_PAUSA_MS); _cadevcRitmo.set(de, []);
+    console.warn(`[cadevc-whats] LOOP CORTADO — ${ts.length} respostas em ${BREAKER_MS / 1000}s pra ${de}; calado por ${BREAKER_PAUSA_MS / 1000}s`);
+    return null;
+  }
+  ts.push(agora); _cadevcRitmo.set(de, ts);
+  const bot = botDocadevcWhats();
+  const r = await bot.responder(_cadevcEstados.get(de) || null, texto, { telefone: de });
+  _cadevcEstados.set(de, r.estado);
+  return r.resposta;
+}
+import { canalDe } from '../engine/canais/identidade.mjs';
+import * as midia from './midia.mjs';
+import { reservarEvento } from './idempotencia.mjs';
+import * as atendimento from './atendimento.mjs';
+import * as proto from '../engine/vsprotocolo/index.mjs';
+import * as bot from '../engine/vsbot/index.mjs';
+import * as vigiaPix from './vigia-pix.mjs';
+import * as transcricao from '../engine/vstranscricao/index.mjs';
+import * as fala from '../engine/vsfala/index.mjs';
+import * as seguranca from '../engine/vsseguranca/index.mjs';
+import * as pagamentos from '../engine/vspagamentos/index.mjs';
+import * as fin from '../engine/vsfinanceiro/index.mjs';
+import * as crm from '../engine/vscrm/index.mjs';
+import { emReais } from '../engine/vsbot/fluxo.mjs';
+import * as campanhasTg from '../engine/vscampanhas/index.mjs';
+
+/** Pedaco curto da mensagem: o log serve pra diagnosticar, nao pra guardar
+    conversa de cliente. */
+const trecho = (t) => {
+  const x = String(t || '').replace(/\s+/g, ' ').trim();
+  if (!x) { return '(sem texto)'; }
+  return x.length > 48 ? `${x.slice(0, 48)}…` : x;
+};
+
+/** Por que ninguem foi respondido. Cada caso tem conserto diferente. */
+function motivoDoSilencio(r) {
+  if (!r) { return 'o atendimento nao devolveu resultado'; }
+  if (r.botDesligado) { return 'o bot esta DESLIGADO na configuracao'; }
+  /* O motor devolve `calado`/`tipo: silencio` quando a conversa esta com uma
+     pessoa. Sem conferir esses dois, o log dizia "o fluxo decidiu nao
+     responder" — tecnicamente verdade e praticamente inutil: quem le precisa
+     saber que ha um ATENDENTE ali, nao que o fluxo se calou por conta propria.
+     Foi o que apareceu no teste em campo, e um log que descreve errado atrasa
+     o diagnostico seguinte. */
+  if (r.calado || r.tipo === 'silencio' || r.emSilencio || r.silenciado) {
+    return 'conversa esta com uma pessoa (silencio pos-handoff)';
+  }
+  if (r.respondeu === false) { return 'o fluxo decidiu nao responder esta mensagem'; }
+  return 'o fluxo nao produziu resposta';
+}
+
+/**
+ * Ultima fala enviada a cada pessoa, pra nao repetir a mesma coisa em seguida.
+ *
+ * Em campo: o cliente mandou varios audios seguidos e recebeu a MESMA frase
+ * ("ainda nao consigo ouvir audio") uma vez por audio, e o mesmo menu cinco
+ * vezes. Cada resposta estava individualmente certa; o conjunto parecia defeito.
+ * Repetir nao informa nada novo — so faz parecer que o outro lado travou.
+ */
+const ultimaFala = new Map();
+const MIN_SEM_REPETIR = 5;
+
+function jaDisseAgora(para, texto) {
+  const t = String(texto || '').trim();
+  if (!t) { return false; }
+  const antes = ultimaFala.get(para);
+  const agora = Date.now();
+  if (antes && antes.texto === t && (agora - antes.em) / 60000 < MIN_SEM_REPETIR) { return true; }
+  ultimaFala.set(para, { texto: t, em: agora });
+  /* Teto: uma sessao fica meses no ar e isto nao pode virar vazamento. */
+  if (ultimaFala.size > 500) { ultimaFala.delete(ultimaFala.keys().next().value); }
+  return false;
+}
+
+/* Aviso de voz indisponível não pode sair a cada mensagem: a conversa fica
+   meses no ar e um Piper quebrado encheria o log. Uma vez a cada 10 min. */
+let avisoVozEm = 0;
+function avisarVozIndisponivel(msg) {
+  const agora = Date.now();
+  if (agora - avisoVozEm < 600000) { return; }
+  avisoVozEm = agora;
+  console.warn(msg);
+}
+
+let gateway = null;
+/* MODO CONSULTA (banda do mês esgotada): nada sai pelos canais — nem o bot,
+   nem a equipe, nem campanha. O que chega continua sendo recebido e gravado,
+   para o cliente ver. A regra de quando trava mora no servidor (definirTrava). */
+let travado = () => false;
+export function definirTrava(fn) { travado = typeof fn === 'function' ? fn : () => false; }
+export const MSG_TRAVA = 'modo consulta: a banda do mês acabou — nada é enviado até renovar ou entrar banda adicional';
+function comTrava(p) {
+  return new Proxy(p, {
+    get(alvo, k) {
+      const v = alvo[k];
+      if (typeof v !== 'function') { return v; }
+      if (/^(enviar|publicar)/.test(String(k))) {
+        return (...a) => (travado() ? Promise.resolve({ ok: false, erro: MSG_TRAVA, modoConsulta: true }) : v.apply(alvo, a));
+      }
+      return v.bind(alvo);
+    },
+  });
+}
+let whatsappWeb = null;
+let telegram = null;
+let instagram = null;
+/* Provider de cada canal pelo nome do canal da identidade (telegram/instagram/whatsapp). */
+const NOME_PROVIDER = { telegram: 'telegram', instagram: 'instagram', whatsapp: 'whatsapp-web' };
+
+/**
+ * Por onde falar com ESTA pessoa. Quem chegou pelo Telegram tem identidade na
+ * faixa 999… (ver engine/canais/telegram): o aviso de Pix pago, o encerramento
+ * por silencio e o resgate da fila tem de voltar pelo Telegram — mandar pro
+ * WhatsApp seria mandar pra um numero que nao existe.
+ */
+function canalDoCliente(para) {
+  const c = canalDe(para);
+  return c === 'telegram' ? telegram : c === 'instagram' ? instagram : whatsappWeb;
+}
+async function enviarParaCliente({ para, texto }) {
+  const p = canalDoCliente(para);
+  if (!p) { return { ok: false, erro: 'canal do cliente nao esta montado' }; }
+  return p.enviarTexto({ para, texto });
+}
+
+/**
+ * De onde sai o catálogo que a Micaela usa.
+ *
+ * Vive FORA do `montar` de propósito. Antes, a lista era capturada no primeiro
+ * `montar()` e as chamadas seguintes eram ignoradas (a função devolve cedo se o
+ * gateway já existe) — então quem montasse o canal antes do catálogo estar
+ * pronto ficava com ele vazio para sempre, e todo produto aparecia como
+ * "indisponível" até alguém desconectar e conectar de novo. Reconectar não devia
+ * ser o jeito de atualizar preço.
+ */
+let obterProdutos = () => [];
+
+/** Monta na primeira chamada. Sessão só abre quando alguém pedir "Conectar". */
+/**
+ * Pix do bot pago: some o QR, sai o "pagamento recebido", o pedido vai pra
+ * equipe e entra no caixa. Chamado pela vigia (conferência) ou pelo webhook.
+ */
+async function avisarPixPago(reg, pagamento) {
+  for (const id of reg.mensagens || []) {
+    const a = await canalDoCliente(reg.para)?.apagarMensagem?.({ para: reg.para, id });
+    if (!a?.ok) { console.warn(`[pix] ${reg.referencia}: nao apaguei a mensagem ${id} — ${a?.erro || 'canal fora'}`); }
+  }
+  // O Pix pago fala com a voz do bot do canal do cliente.
+  const cfg = bot.comCanal(ehTelegram(reg.para) ? 'telegram' : 'whatsapp', () => bot.getConfig());
+  const texto = [
+    `${cfg.nome ? `*${cfg.nome}:* ` : ''}✅ *Pagamento recebido!*`,
+    '',
+    `Pedido *${reg.referencia}* — ${emReais(reg.totalCentavos || 0)}`,
+    bot.resumoDoPedido(reg.itens),
+    '',
+    cfg.mensagemPixPago || 'Seu pedido já foi pra cozinha. Obrigado! 🍔',
+  ].join('\n');
+  const env = await enviarParaCliente({ para: reg.para, texto });
+  console.log(`[pix] ${reg.referencia}: PAGO — ${env?.ok ? 'avisei o cliente' : 'NAO consegui avisar o cliente: ' + (env?.erro || 'canal fora')}`);
+  bot.entregarParaEquipe(reg.de, { departamento: 'comercial', contexto: { itens: reg.itens, totalCentavos: reg.totalCentavos, pago: true, pagamentoId: reg.pagamentoId } });
+  proto.anotar(reg.referencia, { estado: proto.ESTADOS.NA_FILA, departamento: 'comercial' });
+  const l = fin.lancarPagamento(pagamento);
+  if (l?.ok && !l.repetido) { console.log(`[caixa] entrada de ${pagamento.id} lancada`); }
+  /* Pago → o lead vira Ganho no funil, com o valor do pedido. */
+  try { crm.eventoDeVenda(reg.de, 'pago', { referencia: reg.referencia, valorCentavos: reg.totalCentavos }); }
+  catch (e) { console.error(`[crm] ${reg.referencia}: pago, mas o funil nao andou — ${e.message}`); }
+}
+
+/**
+ * Alerta de segurança pros responsáveis, pelo WhatsApp conectado. Usado pelo
+ * bot (socorro, URGENTE) e pelo painel (SOS, teste). Canal fora = falha
+ * registrada, nunca "avisei" de mentira.
+ */
+export function alertarResponsaveis(evento) {
+  return seguranca.alertar(evento, {
+    enviar: whatsappWeb ? ({ para, texto }) => whatsappWeb.enviarTexto({ para, texto }) : null,
+  }).then((r) => {
+    console.log(`[seguranca] alerta ${evento.tipo}: ${r.avisados.length ? 'avisei ' + r.avisados.join(', ') : 'NINGUEM avisado'}${r.falhas?.length ? ' | falhou: ' + r.falhas.map((f) => f.nome + ' (' + f.erro + ')').join(', ') : ''}${r.motivo ? ' — ' + r.motivo : ''}`);
+    return r;
+  });
+}
+
+/** O webhook confirmou um pagamento: se for Pix do bot, o desfecho sai agora. */
+export function pixConfirmado(pagamento) {
+  return vigiaPix.confirmado(pagamento, { aoConfirmar: avisarPixPago });
+}
+
+function montar({ produtos } = {}) {
+  // Sempre a mais recente, mesmo com o gateway já montado.
+  if (typeof produtos === 'function') { obterProdutos = produtos; }
+  if (gateway) { return gateway; }
+
+  gateway = criarGateway({
+    reservar: reservarEvento,
+    /**
+     * A ponte. Recebe mensagem canônica, entrega pro atendimento e devolve a
+     * resposta PELO MESMO canal de onde ela veio — por isso o `enviar` é o
+     * `responder` do contexto, e não um envio global.
+     */
+    entregar: async (msg, ctx) => {
+      const quem = msg.nome ? `${msg.de} (${msg.nome})` : msg.de;
+      /* ÁUDIO → TEXTO. Quem está no campo, na oficina ou dirigindo manda áudio;
+         antes chegava "(sem texto)" e ninguém respondia. Transcreve na máquina
+         (whisper local, sem custo) e segue como se tivesse digitado. Falhou? A
+         mensagem segue como áudio, do jeito de sempre. */
+      if (msg.tipo === 'audio' && typeof msg.baixarAudio === 'function' && !msg.texto) {
+        try {
+          const a = await msg.baixarAudio();
+          const t = await transcricao.transcrever(a.buffer, { mime: a.mime });
+          if (t.texto) {
+            console.log(`[transcricao] áudio de ${quem} em ${t.ms} ms: "${trecho(t.texto)}"`);
+            msg.texto = t.texto; msg.tipo = 'text'; msg.transcrito = true;
+          } else { console.warn(`[transcricao] áudio de ${quem} sem texto: ${t.erro}`); }
+        } catch (e) { console.warn(`[transcricao] não baixei o áudio de ${quem}: ${e.message}`); }
+      }
+      console.log(`[canais] chegou de ${quem} — ${msg.tipo || 'texto'}: ${trecho(msg.texto)}`);
+      /* Quem chegou por áudio recebe a resposta também em áudio. O texto é o
+         MESMO que o fluxo decidiu — a voz não decide nada, só fala. */
+      const veioDeAudio = msg.transcrito === true;
+
+      /* MODO AGENDA no WhatsApp (flag salão.metaAgenda): desvia pro bot do salão
+         e responde pelo mesmo canal. Só WhatsApp (não Telegram/Instagram). Qualquer
+         erro cai pro atendimento normal — nunca deixa o canal mudo. */
+      if (cadevcModoWhats() && ctx.canal !== 'telegram' && ctx.canal !== 'instagram' && msg.texto) {
+        try {
+          const resp = await respondercadevcWhats(msg.de, msg.texto);
+          if (resp) { await ctx.responder(resp); console.log(`[cadevc-whats] → ${quem}: ${trecho(resp)}`); }
+          return null;   // o salão é dono desta mensagem (mesmo quando calou por anti-loop)
+        } catch (e) { console.error(`[cadevc-whats] erro, caindo pro atendimento normal: ${e.message}`); }
+      }
+
+      let respondidas = 0;
+      let falha = null;
+      const r = await atendimento.receberMensagem(
+        /* `endereco` TEM de atravessar. Sem ele o protocolo nasce sem saber por
+           onde falar com a pessoa, e o encerramento por silencio tenta avisar
+           usando o LID como se fosse telefone — recusado, e o cliente fica sem
+           o numero do protocolo. Visto em producao:
+             "179340671226006" nao e um telefone valido (15 digitos)
+           A montagem manual deste objeto foi o que engoliu o campo. */
+        { id: msg.id, de: msg.de, endereco: msg.endereco, nome: msg.nome, texto: msg.texto, tipo: msg.tipo, canal: ctx.canal, ref: msg.ref },
+        {
+          /* O ENVIO e o unico passo que some quando falha: a mensagem entrou, a
+             trilha registrou, e o cliente nunca viu nada. Do lado de ca o log
+             ficava mudo e a conclusao virava "o bot nao funciona". Cada tentativa
+             passa a deixar rastro — a que deu certo e, principalmente, a que nao. */
+          enviar: async ({ texto }) => {
+            /* Dizer a mesma coisa de novo, em seguida, nao acrescenta nada — e
+               empilhado na tela do cliente parece robo quebrado. */
+            if (jaDisseAgora(msg.endereco || msg.de, texto)) {
+              console.log(`[canais] nao repeti a mesma frase pra ${quem}: ${trecho(texto)}`);
+              respondidas += 1;
+              return { ok: true, repetida: true };
+            }
+            /* Áudio de volta: o cliente falou, ele ouve. Se o Piper não estiver
+               instalado, demorar ou o texto for longo demais para uma nota de
+               voz, cai no texto abaixo — a resposta nunca deixa de sair. */
+            if (veioDeAudio) {
+              const prov = gateway.obter(ctx.canal) || whatsappWeb;
+              if (typeof prov?.enviarAudio === 'function') {
+                const som = await fala.falar(texto).catch((e) => ({ ok: false, ms: 0, erro: e.message }));
+                if (som.ok) {
+                  const env = await prov.enviarAudio({ para: msg.endereco || msg.de, dataUri: som.dataUri, nome: 'resposta.ogg' });
+                  if (env?.ok) {
+                    respondidas += 1;
+                    console.log(`[canais] respondi ${quem} em AUDIO (${som.ms} ms): ${trecho(texto)}`);
+                    return env;
+                  }
+                  console.warn(`[canais] nota de voz para ${quem} NAO saiu (${env?.erro || 'motivo nao informado'}); mandando em texto`);
+                } else if (som.erro && !/voz desligada|texto longo demais/.test(som.erro)) {
+                  avisarVozIndisponivel(`[canais] voz para ${quem} indisponivel (${som.erro}); respondendo em texto`);
+                }
+              }
+            }
+            const env = await ctx.responder(texto);
+            if (env && env.ok === false) {
+              falha = env.erro || env.motivo || 'motivo nao informado';
+              console.error(`[canais] NAO consegui responder ${quem}: ${falha}`);
+            } else {
+              respondidas += 1;
+              console.log(`[canais] respondi ${quem}: ${trecho(texto)}`);
+            }
+            return env;
+          },
+          /* O canal e quem sabe mandar imagem; o atendimento so pede. E por
+             aqui que o QR do Pix chega na tela de quem vai pagar. */
+          enviarImagem: async ({ dataUri, legenda, nome }) => {
+            const para = msg.endereco || msg.de;
+            /* Pelo canal de onde a mensagem veio: cardapio e QR do Pix de quem
+               escreveu no Telegram saem no Telegram. */
+            const prov = gateway.obter(ctx.canal) || whatsappWeb;
+            if (typeof prov?.enviarImagem !== 'function') { return { ok: false, erro: `o canal ${ctx.canal} nao envia imagem` }; }
+            const env = await prov.enviarImagem({ para, dataUri, legenda, nome });
+            /* Foto com legenda E a resposta: conta como respondida, senão o log
+               diria "nada respondido" pra quem recebeu a mensagem. */
+            if (env?.ok) { if (legenda) { respondidas += 1; } console.log(`[canais] mandei imagem${legenda ? ' com legenda' : ''} pra ${quem}: ${trecho(legenda || nome)}`); }
+            else { console.error(`[canais] NAO consegui mandar a imagem pra ${quem}: ${env?.erro || 'motivo nao informado'}`); }
+            return env;
+          },
+          alertar: (evento) => alertarResponsaveis(evento),
+          /* Bot Drive (29/09): a sirene vai pro WhatsApp do dono, não pra conversa do motorista. */
+          avisarDono: ({ para, texto }) => enviar({ para: /^\d{10,11}$/.test(para) ? `55${para}` : para, texto }),
+          vigiarPix: (reg) => { vigiaPix.registrar(reg); console.log(`[pix] ${reg.referencia}: conferindo o pagamento de ${emReais(reg.totalCentavos)} a cada 10s`); },
+          /* Lê pelo ponteiro, não pela cópia: preço mudado no catálogo vale na
+             próxima mensagem, sem reconectar nada. */
+          produtos: async () => {
+            const lista = await obterProdutos();
+            /* QUANTOS produtos a Micaela enxergou nesta mensagem. Sem este
+               numero, "item indisponivel" nao diz se o catalogo esta vazio, se
+               o SKU esta errado ou se o item acabou — tres consertos
+               diferentes. Custou tempo demais adivinhar isso. */
+            console.log(`[canais] catalogo visto nesta mensagem: ${lista.length} produto(s)${lista.length ? ' — ' + lista.slice(0, 6).map((p) => p.sku).join(', ') : ''}`);
+            return lista;
+          },
+        },
+      );
+      // O atendimento já respondeu por dentro (ele decide se responde e o quê).
+      // Não devolvo `responder` aqui pra não mandar duas vezes.
+      if (r?.handoff) { console.log(`[canais] ${msg.de} precisa de gente`); }
+      /* Silencio tambem e resultado, e precisa de nome. Sem esta linha, "o bot
+         decidiu nao responder" e "o bot quebrou" saem iguais no log: nada. */
+      if (!respondidas && !falha) {
+        console.log(`[canais] nada respondido a ${quem} — ${motivoDoSilencio(r)}`);
+      }
+      return null;
+    },
+  });
+
+  /* 03/10: WHATSAPP_CANAL=cloud — o número foi pra API oficial da Meta e saiu do
+     WhatsApp comum. Mesmo lugar no gateway, mesma Micaela; entrada pelo webhook. */
+  /* API oficial é o PADRÃO (09/10, dono: "deixa padrão API oficial da Meta"): com token e número da
+     Meta configurados, é ela; o WhatsApp Web só com WHATSAPP_CANAL=web. */
+  const usarCloud = process.env.WHATSAPP_CANAL === 'cloud' || (process.env.WHATSAPP_CANAL !== 'web' && !!process.env.WA_TOKEN && !!process.env.WA_PHONE_ID);
+  whatsappWeb = comTrava(usarCloud
+    ? criarWhatsAppCloudProvider({ credenciais: empresas.credenciais })
+    : criarWhatsAppWebProvider({ aoNavegador: (page) => consumo.medirNavegador(page, 'whatsapp') }));
+  vigiaPix.iniciar({ consultar: (id) => pagamentos.atualizarEstado(id), aoConfirmar: avisarPixPago });
+
+  /* TODA mudanca de estado no log. Antes so a queda e a retomada no boot
+     apareciam: quando a sessao se reerguia sozinha no meio do caminho, o log
+     parava na "tentativa 3/5" e ficava por isso mesmo. Quem lia nao sabia se
+     tinha voltado ou se tinha morrido calada — e as duas coisas exigem reacao
+     diferente. */
+  /* O dono entrou na conversa: a Micaela sai de cena ali.
+     Nao existe jeito mais rapido de queimar a confianca do cliente do que ver
+     duas pessoas respondendo a mesma pergunta — e uma delas e um robo cortando
+     o assunto com um menu. Reusa o MESMO silencio pos-handoff: a regra ja
+     existia, so nunca tinha sido ligada neste gatilho. */
+  /**
+   * TOMADA DE CONTA: registra e avisa.
+   *
+   * Quando a sessao cai como UNPAIRED ou CONFLICT, alguem entrou na conta e
+   * derrubou quem estava. O evento vira REGISTRO em disco, com hora, tipo e
+   * qual numero estava pareado — e o registro sobrevive ao reinicio, porque e
+   * isto que se leva pro WhatsApp, pra delegacia ou pro advogado.
+   *
+   * O que NAO da pra saber daqui, e nao vou fingir que da: QUEM entrou. O
+   * WhatsApp nao entrega o aparelho invasor pra sessao que acabou de ser
+   * derrubada. Esse dado esta em "Aparelhos conectados", no celular do dono —
+   * e e a primeira coisa que ele tem de abrir.
+   */
+  whatsappWeb.aoSuspeitarInvasao((ev) => {
+    const registro = {
+      em: ev.em,
+      tipo: ev.estadoLib,
+      motivo: ev.motivo,
+      numeroPareado: whatsappWeb.status?.().numero || null,
+      /* Quanto tempo a sessao durou antes de cair ajuda a separar "derrubaram
+         agora" de "estava fora do ar ha dias". */
+      sessaoDesde: whatsappWeb.status?.().desde || null,
+      ultimaAtividade: whatsappWeb.status?.().ultimaAtividade || null,
+    };
+    const cfg = lerConfig();
+    const lista = [...(cfg.invasoes || []), registro].slice(-50);
+    gravarConfig({ ...cfg, invasoes: lista });
+    console.error('[canais] ⚠ POSSIVEL TOMADA DE CONTA — registrado:', JSON.stringify(registro));
+    console.error('[canais]   abra o WhatsApp do numero -> Aparelhos conectados -> desconecte o que nao for seu,');
+    console.error('[canais]   e ligue a verificacao em duas etapas. Registro em ' + arqConfig());
+  });
+
+  whatsappWeb.aoDonoEscrever(({ de, endereco }) => {
+    const chave = de || endereco;
+    if (!chave) { return; }
+    const r = bot.assumirConversa(chave, { endereco });
+    /* Nome vem da configuracao tambem no LOG: numa instalacao de cliente, ler
+       "a Micaela fica quieta" sobre um bot chamado Paulao e confuso pra quem
+       esta lendo o log pra entender um atendimento. */
+    if (r?.novo) {
+      const quem = bot.painel?.().config?.nome || 'o atendimento';
+      console.log(`[canais] voce assumiu a conversa com ${chave} — ${quem} fica quieto ate devolver`);
+    }
+  });
+
+  whatsappWeb.aoMudarStatus((st) => {
+    const e = st?.estado || '?';
+    if (e === 'conectado') { console.log(`[canais] whatsapp CONECTADO${st.numero ? ' — ' + st.numero : ''}`); }
+    else if (e === 'aguardando_qr') { console.warn('[canais] whatsapp esperando QR — o canal esta mudo ate alguem ler no painel'); }
+    else if (e === 'caido') { console.error(`[canais] whatsapp CAIU${st.ultimoErro ? ' — ' + st.ultimoErro : ''}`); }
+    else { console.log(`[canais] whatsapp ${e}`); }
+  });
+
+  gateway.registrar(whatsappWeb);
+
+  /* Telegram: mesmo gateway, mesmo bot, mesma fila. Nasce desligado — so liga
+     quando alguem colar o token do @BotFather na tela do canal. */
+  /* TELEGRAM_API_URL existe SO pro teste de volume (scripts/teste-volume-telegram.mjs),
+     que aponta uma instancia isolada pra um Telegram falso local. Sem a
+     variavel, e a API oficial — em producao ela nunca e definida. */
+  telegram = comTrava(criarTelegramProvider(process.env.TELEGRAM_API_URL ? { api: process.env.TELEGRAM_API_URL } : {}));
+  telegram.aoMudarStatus((st) => {
+    const e = st?.estado || '?';
+    if (e === 'conectado') { console.log(`[canais] telegram CONECTADO${st.numero ? ' — ' + st.numero : ''}`); }
+    else if (e === 'caido') { console.error(`[canais] telegram CAIU${st.ultimoErro ? ' — ' + st.ultimoErro : ''}`); }
+    else { console.log(`[canais] telegram ${e}${st.ultimoErro ? ' — ' + st.ultimoErro : ''}`); }
+  });
+  /* O bot entrou/saiu de canal ou grupo: vira (ou deixa de ser) DESTINO de
+     publicacao das campanhas — pendente ate o dono confirmar no painel. */
+  telegram.aoMembro((ev) => {
+    const r = campanhasTg.registrarEventoMembro(ev);
+    if (r.destino) { console.log(`[campanhas] destino ${r.destino.estado}: ${r.destino.titulo || r.destino.id} (${ev.status}${ev.podePublicar ? ', pode publicar' : ''})`); }
+  });
+  gateway.registrar(telegram);
+
+  /* 18/10 — INSTAGRAM DIRECT: mesmo gateway, mesmo bot do WhatsApp, mesma fila.
+     Liga quando alguém cola o token da conta do Instagram na tela do canal;
+     numa empresa cliente, a conta é a DELA (credenciais da casa da empresa). */
+  instagram = comTrava(criarInstagramProvider({
+    credenciais: lerInstagram,
+    publicarMidia: async ({ dataUri, nome }) => `${(process.env.PAINEL_URL || 'https://bolsocheio.velososolution.com.br').replace(/\/$/, '')}/midia/${midia.gravarDataUri(dataUri, nome)}`,
+  }));
+  instagram.aoMudarStatus((st) => {
+    const e = st?.estado || '?';
+    if (e === 'conectado') { console.log(`[canais] instagram CONECTADO${st.numero ? ' — ' + st.numero : ''}`); }
+    else if (e === 'caido') { console.error(`[canais] instagram CAIU${st.ultimoErro ? ' — ' + st.ultimoErro : ''}`); }
+    else { console.log(`[canais] instagram ${e}${st.ultimoErro ? ' — ' + st.ultimoErro : ''}`); }
+  });
+  gateway.registrar(instagram);
+  return gateway;
+}
+
+/* ── Instagram: token guardado (como o do Telegram: arquivo próprio, 600, nunca volta pra tela) ── */
+const arqInstagram = () => dentroDaCasa('canais', 'instagram.json');
+function lerInstagram() { try { const c = JSON.parse(readFileSync(arqInstagram(), 'utf8')); return c.ligado && c.token ? c : null; } catch { return null; } }
+function gravarInstagram(d) {
+  mkdirSync(dirname(arqInstagram()), { recursive: true, mode: 0o700 });
+  writeFileSync(arqInstagram(), JSON.stringify(d, null, 2), { mode: 0o600 });
+  try { chmodSync(arqInstagram(), 0o600); } catch { /* sem chmod */ }
+}
+/** O que a tela do Instagram mostra — nunca o token. */
+export function instagramInfo() {
+  let c = {}; try { c = JSON.parse(readFileSync(arqInstagram(), 'utf8')); } catch { /* nunca ligou */ }
+  const st = instagram?.status?.() || {};
+  return { ligado: !!(c.ligado && c.token), temToken: !!c.token, conta: c.username ? '@' + c.username : null, igId: c.igId || null, ligadoEm: c.ligadoEm || null,
+    /* O estado do provider é o da conta da plataforma; numa empresa cliente vale ter a conta ligada. */
+    estado: !(c.ligado && c.token) ? 'desconectado' : empresaAtual() ? 'conectado' : (st.estado || 'desconectado'), webhook: c.webhook ?? null, ultimoErro: empresaAtual() ? null : (st.ultimoErro || null) };
+}
+/**
+ * Conecta a conta: confere o token na Meta, inscreve as mensagens no webhook do
+ * app e só então grava. Devolve a conta (@) e o id — o id é o que roteia o
+ * webhook pra empresa certa.
+ */
+export async function conectarInstagram({ token, produtos } = {}) {
+  const tk = String(token || '').trim();
+  if (!tk) { return { ok: false, erro: 'cole o token da conta do Instagram' }; }
+  montar({ produtos });
+  let conta;
+  try { conta = await instagram.conferir(tk); } catch (e) { return { ok: false, erro: `o Instagram não aceitou esse token: ${e.message}` }; }
+  if (!conta.igId) { return { ok: false, erro: 'o Instagram não devolveu o id da conta' }; }
+  let webhook = true;
+  try { await instagram.inscrever(tk); } catch (e) { webhook = false; console.warn(`[instagram] conta conferida, mas não inscrevi as mensagens no webhook: ${e.message}`); }
+  gravarInstagram({ token: tk, igId: conta.igId, username: conta.username, ligado: true, ligadoEm: new Date().toISOString(), webhook });
+  const st = await instagram.conectar();
+  return { ok: true, conta: conta.username ? '@' + conta.username : null, igId: conta.igId, webhook, estado: st.estado };
+}
+export async function desconectarInstagram() {
+  let c = {}; try { c = JSON.parse(readFileSync(arqInstagram(), 'utf8')); } catch { /* nada */ }
+  gravarInstagram({ ...c, ligado: false, desligadoEm: new Date().toISOString() });
+  if (instagram) { await instagram.desconectar(); }
+  return { ok: true };
+}
+/** Webhook do Instagram (já dentro da empresa certa, se for de cliente). null = canal não montado. */
+export async function receberInstagram(evento) {
+  if (typeof instagram?.receberEvento !== 'function') { return null; }
+  return instagram.receberEvento(evento);
+}
+
+/* Config do canal: numero previsto, apelido e setores. Fica em disco junto do
+   resto — e o que o contrato promete, nao o que a sessao descobriu. */
+import { readFileSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+
+import { dentroDaCasa, casaPadrao, empresaAtual } from '../engine/casa.mjs';
+const arqConfig = () => dentroDaCasa('canais', 'config.json');
+const lerConfig = () => { try { return JSON.parse(readFileSync(arqConfig(), 'utf8')); } catch { return {}; } };
+/* Grava a config do canal. Existe separado porque o registro de invasao precisa
+   escrever SEM passar pela validacao de numero do formulario. */
+const gravarConfig = (cfg) => {
+  try { mkdirSync(dirname(arqConfig()), { recursive: true }); } catch { /* ja existe */ }
+  writeFileSync(arqConfig(), JSON.stringify(cfg, null, 2));
+};
+
+/** O que foi registrado de tomada de conta, do mais recente pro mais antigo. */
+export const invasoes = () => [...(lerConfig().invasoes || [])].reverse();
+
+export function salvarConfigCanal(d = {}) {
+  const numero = String(d.numero || '').replace(/\D/g, '');
+  if (numero && numero.length < 10) { return { ok: false, motivo: 'número curto demais — informe com DDD' }; }
+  const cfg = {
+    ...lerConfig(),
+    numero: numero || null,
+    apelido: String(d.apelido || '').trim() || null,
+    setores: (d.setores || []).map((x) => String(x).trim()).filter(Boolean),
+    atualizadoEm: new Date().toISOString(),
+  };
+  mkdirSync(dirname(arqConfig()), { recursive: true, mode: 0o700 });
+  writeFileSync(arqConfig(), JSON.stringify(cfg, null, 2));
+  return { ok: true, config: cfg };
+}
+
+/** Só os setores: o cadastro da equipe não pode apagar o número e o apelido do canal. */
+export function salvarSetores(setores = [], modulo) {
+  const cfg = { ...lerConfig(), [modulo === 'salao' ? 'setoresSalao' : 'setores']: [...new Set((Array.isArray(setores) ? setores : []).map((x) => String(x).trim()).filter(Boolean))], atualizadoEm: new Date().toISOString() };
+  mkdirSync(dirname(arqConfig()), { recursive: true, mode: 0o700 });
+  writeFileSync(arqConfig(), JSON.stringify(cfg, null, 2));
+  return { ok: true, config: cfg };
+}
+
+/**
+ * Guarda a INTENCAO: o canal deve estar no ar? E diferente de estar no ar.
+ * Sem isso, todo reinicio do painel — um deploy, uma queda, um kill — deixava
+ * o WhatsApp do cliente mudo ate alguem abrir a tela e clicar em Conectar.
+ * Ninguem clica no que nao sabe que caiu: quem descobria era o cliente dele,
+ * mandando mensagem e nao sendo atendido.
+ */
+function marcarLigado(ligado) {
+  const cfg = { ...lerConfig(), ligado, [ligado ? 'ligadoEm' : 'desligadoEm']: new Date().toISOString() };
+  mkdirSync(dirname(arqConfig()), { recursive: true, mode: 0o700 });
+  writeFileSync(arqConfig(), JSON.stringify(cfg, null, 2));
+}
+
+/**
+ * Chamado no boot do painel. Se o canal estava ligado, reabre a sessao sozinho.
+ *
+ * O login fica salvo no perfil do navegador, entao na maioria das vezes ela
+ * volta SEM QR nenhum. Quando o WhatsApp tiver expirado o pareamento, volta
+ * pedindo QR — e isso precisa aparecer GRITANDO no log, porque e o unico caso
+ * em que so um humano com o celular na mao resolve.
+ */
+export async function retomar({ produtos } = {}) {
+  /* Telegram volta sozinho se estava ligado: o token esta guardado e nao existe
+     QR pra ler. Independe do WhatsApp — um canal fora nao segura o outro. */
+  const tg = lerTelegram();
+  const bloqueioTg = tg.ligado && tg.token ? bloqueioDemo('telegram', tg.token) : null;
+  if (bloqueioTg) { console.warn(`[canais] DEMO: Telegram NAO religado — ${bloqueioTg}`); }
+  if (tg.ligado && tg.token && !bloqueioTg) {
+    const p = montar({ produtos }).obter('telegram');
+    p.conectar({ token: tg.token }).then((st) => {
+      if (st.ok) { console.log(`[canais] Telegram de volta no ar — ${st.numero}`); }
+      else { console.warn(`[canais] ATENCAO: o Telegram estava ligado e nao voltou — ${st.erro}`); }
+    });
+  }
+  /* Instagram volta sozinho se estava ligado (token guardado, sem QR). */
+  if (lerInstagram()) {
+    montar({ produtos }).obter('instagram').conectar().then((st) => {
+      if (st.ok) { console.log(`[canais] Instagram de volta no ar — ${st.numero || ''}`); } else { console.warn(`[canais] ATENCAO: o Instagram estava ligado e nao voltou — ${st.erro}`); }
+    });
+  }
+  const cfg = lerConfig();
+  if (!cfg.ligado) {
+    return { ok: true, retomado: false, motivo: 'o canal estava desligado quando o painel parou' };
+  }
+  const bloqueioWpp = bloqueioDemo('whatsapp-web', null);
+  if (bloqueioWpp) {
+    console.warn(`[canais] DEMO: WhatsApp NAO reaberto — ${bloqueioWpp}`);
+    return { ok: false, retomado: false, erro: bloqueioWpp };
+  }
+  console.log('[canais] o canal estava ligado — reabrindo a sessao do WhatsApp');
+  const g = montar({ produtos });
+  const p = g.obter('whatsapp-web');
+  if (!p) { return { ok: false, erro: 'canal whatsapp-web nao existe' }; }
+
+  p.conectar().catch((e) => console.error(`[canais] nao consegui reabrir a sessao: ${e.message}`));
+  const st = await esperarQr(p);
+  if (st.estado === 'conectado') {
+    console.log('[canais] WhatsApp de volta no ar — o login estava salvo, nao precisou de QR');
+  } else if (st.estado === 'aguardando_qr') {
+    console.warn('[canais] ATENCAO: o pareamento expirou — PRECISA ler o QR de novo no painel, o canal esta mudo ate la');
+  } else {
+    console.warn(`[canais] sessao em "${st.estado}" depois de retomar — acompanhar`);
+  }
+  return { ok: true, retomado: true, ...st };
+}
+
+/* ── Vigia dos canais (16/10) ──────────────────────────────────────────────
+   A máquina ligou sem internet: o retomar do boot tentou uma vez, deu "fetch
+   failed", e o WhatsApp e o Telegram ficaram "caido" por dias — a Micaela não
+   respondeu ninguém. Agora, a cada batida, canal oficial (API da Meta,
+   Telegram) que estava ligado e está caído tenta de novo sozinho. O WhatsApp
+   Web fica de fora: ele tem as próprias tentativas e reabrir navegador a cada
+   minuto pesa. Fora por mais de 10 min: log e auditoria, uma vez por queda. */
+export const ALERTA_FORA_MS = 10 * 60000;
+const foraDesde = {};
+const alertado = {};
+
+async function vigiarUm(nome, p, religar, agora, feitos, avisar) {
+  const st = p.status();
+  if (!st.oficial) { return; }
+  if (st.estado === ESTADOS.CONECTADO) {
+    if (foraDesde[nome]) {
+      const min = Math.round((agora - foraDesde[nome]) / 60000);
+      console.log(`[canais] ${nome} voltou sozinho depois de ~${min} min fora`);
+      if (alertado[nome]) { seguranca.auditar({ tipo: 'canal:voltou', detalhe: `${nome} de volta depois de ~${min} min fora`, resultado: 'ok' }); avisar?.(`${nome} voltou ao ar depois de ~${min} min fora.`)?.catch?.(() => {}); }
+      delete foraDesde[nome]; delete alertado[nome];
+    }
+    return;
+  }
+  if (st.estado !== ESTADOS.CAIDO) { return; }
+  foraDesde[nome] ||= agora;
+  const r = await religar().catch((e) => ({ ok: false, erro: e.message }));
+  feitos.push({ canal: nome, ok: !!r?.ok, erro: r?.ok ? null : (r?.erro || null) });
+  /* Religar "ok" só conta se o canal ficou CONECTADO de fato. O Telegram responde
+     ok enquanto o próprio laço dele ainda tenta (sem internet): voltar a chamar
+     aqui virava recursão sem fim e estourava a memória do painel (11/11, 76 quedas). */
+  if (r?.ok && p.status().estado === ESTADOS.CONECTADO) { return vigiarUm(nome, p, religar, agora, feitos, avisar); }
+  if (agora - foraDesde[nome] >= ALERTA_FORA_MS && !alertado[nome]) {
+    alertado[nome] = true;
+    const txt = `${nome} fora do ar há mais de ${ALERTA_FORA_MS / 60000} min — ninguém está sendo respondido por ele (${r?.erro || 'sem motivo'})`;
+    console.error(`[canais] ATENCAO: ${txt}`);
+    seguranca.auditar({ tipo: 'canal:fora', detalhe: txt, resultado: 'falhou' });
+    avisar?.(txt)?.catch?.(() => {});
+  }
+}
+
+/** Uma batida da vigia. O painel chama a cada minuto; `agora` é pro teste. */
+export async function vigiarCanais({ agora = Date.now(), avisar = null } = {}) {
+  const feitos = [];
+  if (!gateway) { return feitos; }
+  if (whatsappWeb && lerConfig().ligado && !bloqueioDemo('whatsapp-web', null)) {
+    await vigiarUm('whatsapp', whatsappWeb, () => whatsappWeb.conectar(), agora, feitos, avisar);
+  }
+  if (instagram && lerInstagram()) {
+    await vigiarUm('instagram', instagram, () => instagram.conectar(), agora, feitos, avisar);
+  }
+  const tg = lerTelegram();
+  if (telegram && tg.ligado && tg.token && !bloqueioDemo('telegram', tg.token)) {
+    await vigiarUm('telegram', telegram, () => telegram.conectar({ token: tg.token }), agora, feitos, avisar);
+  }
+  return feitos;
+}
+
+/**
+ * Varre os atendimentos parados e encerra, avisando o cliente com o protocolo.
+ *
+ * Chamada de tempos em tempos pelo painel. O aviso e a metade que importa: um
+ * atendimento que fecha em silencio deixa a pessoa achando que foi ignorada —
+ * e sem o numero ela nao tem como voltar pro mesmo lugar.
+ *
+ * Quem nao tem por onde ser avisado (protocolo antigo, sem endereco guardado)
+ * e encerrado do mesmo jeito: melhor fechar calado do que deixar atendimento
+ * fantasma ocupando a fila pra sempre.
+ */
+export async function encerrarParados({ agora } = {}) {
+  const encerrados = proto.varrerInativos(agora ? { quando: agora } : {});
+  if (!encerrados.length) { return { encerrados: 0 }; }
+
+  let avisados = 0;
+  for (const p of encerrados) {
+    /* A conversa do bot tambem se fecha: sem isso a pessoa voltaria e cairia no
+       meio da arvore antiga, com o protocolo dizendo outra coisa. */
+    bot.devolverAoBot(p.de);
+    const para = p.endereco || p.de;
+    if (!para || !canalDoCliente(para)) { continue; }
+    try {
+      const r = await enviarParaCliente({ para, texto: proto.textoDeEncerramento(p) });
+      if (r?.ok) { avisados += 1; } else {
+        console.warn(`[protocolo] ${p.numero} encerrado, mas nao avisei: ${r?.erro || 'sem motivo'}`);
+      }
+    } catch (e) {
+      console.warn(`[protocolo] ${p.numero} encerrado, mas nao avisei: ${e.message}`);
+    }
+  }
+  console.log(`[protocolo] ${encerrados.length} atendimento(s) encerrado(s) por silencio, ${avisados} avisado(s)`);
+  return { encerrados: encerrados.length, avisados };
+}
+
+/** Minutos de espera até a Micaela voltar para dizer que ainda está esperando. */
+const MIN_ATE_RESGATE = Number(process.env.MINUTOS_RESGATE_FILA || 10);
+
+/**
+ * Resgata quem ficou esperando gente e não foi atendido.
+ *
+ * O silêncio pós-handoff existe para o bot não falar por cima do atendente. Só
+ * que, sem atendente, ele virava abandono: a pessoa escrevia, era encaminhada,
+ * e sumia todo mundo por quatro horas. Do lado dela, o atendimento morreu.
+ *
+ * A mensagem é honesta de propósito: não promete prazo, não inventa que "já
+ * estão te atendendo". Diz que ainda não conseguiu alguém, entrega o número do
+ * protocolo e deixa claro que a conversa continua de onde parou.
+ */
+export async function resgatarFila({ agora, minutos } = {}) {
+  const espera = minutos ?? MIN_ATE_RESGATE;
+  const parados = bot.aguardandoHaMais(espera, agora ? new Date(agora).getTime() : Date.now());
+  if (!parados.length) { return { resgatados: 0 }; }
+
+  let avisados = 0;
+  for (const p of parados) {
+    const proto_ = proto.aberto(p.de) || proto.ultimoEncerrado(p.de);
+    const numero = proto_?.numero;
+    const texto = `Ainda não consegui falar com alguém do time — peço desculpa pela espera.\n\n`
+      + (numero ? `*Protocolo ${numero}*\n\n` : '')
+      + `Não se preocupe: guardei tudo o que você me contou. Assim que alguém assumir, a conversa continua `
+      + `daqui, sem você precisar repetir nada. Se preferir, pode escrever mais detalhes agora que eu registro.`;
+
+    /* Marca ANTES de enviar. Se o envio falhar, a pessoa nao e avisada duas
+       vezes na proxima varredura — e aviso repetido de espera vira alarme, nao
+       tranquilidade. */
+    bot.marcarResgatada(p.de);
+
+    const para = proto_?.endereco || p.de;
+    if (!canalDoCliente(para)) { continue; }
+    try {
+      const r = await enviarParaCliente({ para, texto });
+      if (r?.ok) { avisados += 1; } else {
+        console.warn(`[fila] ${p.de} espera ha ${p.minutos} min e nao consegui avisar: ${r?.erro || 'sem motivo'}`);
+      }
+    } catch (e) {
+      console.warn(`[fila] ${p.de} espera ha ${p.minutos} min e nao consegui avisar: ${e.message}`);
+    }
+  }
+
+  /* Este aviso e para o DONO, e por isso e barulhento: alguem esta esperando
+     atendimento humano e ninguem assumiu. */
+  console.warn(`[fila] ATENCAO: ${parados.length} pessoa(s) esperando atendimento ha mais de ${espera} min `
+    + `(${parados.map((x) => `${x.de} ha ${x.minutos}min`).join(', ')}) — ${avisados} avisada(s) da espera`);
+  return { resgatados: parados.length, avisados };
+}
+
+export function estado() {
+  const config = lerConfig();
+  /* O limite de atendentes vem do PLANO, nao daqui: ampliar e adendo de
+     contrato. Enquanto o modulo de plano nao informa, some. */
+  const plano = { atendentes: config.atendentesContratados ?? null };
+  if (!gateway) { return { canais: [], montado: false, config, plano }; }
+  return { canais: gateway.listar(), montado: true, config, plano };
+}
+
+/**
+ * Espera o QR aparecer — ou desistir de esperar. NAO espera a sessao ficar
+ * pronta: `create()` do WPPConnect so resolve DEPOIS que alguem le o QR, e
+ * segurar a resposta HTTP ate la e o que fazia o proxy derrubar a requisicao
+ * com 524 e matar o QR junto. Quem termina o trabalho e o polling da tela.
+ */
+function esperarQr(p, limiteMs = 20000) {
+  const t0 = Date.now();
+  return new Promise((res) => {
+    const olhar = () => {
+      const s = p.status();
+      if (s.estado !== 'conectando' || Date.now() - t0 > limiteMs) { return res(s); }
+      setTimeout(olhar, 250);
+    };
+    olhar();
+  });
+}
+
+/* ── Demo nunca encosta no canal da producao ───────────────────────────────
+   A casa separa os dados, mas duas coisas escapavam dela: a sessao do WhatsApp
+   mora em <cwd>/tokens/<WPP_SESSAO> e a demo roda da mesma pasta, e o token do
+   Telegram podia ser colado na demo. Em 28/09 a demo abriu o WhatsApp do numero
+   da producao e disputou o mesmo bot do Telegram, derrubando o canal de verdade
+   ("outro programa esta lendo este mesmo bot"). Com a sessao compartilhada, um
+   "Trocar numero" clicado na demo despareava a producao. */
+const emDemo = () => process.env.DEMO === '1';
+function tokenTelegramDaProducao() {
+  const casaProducao = process.env.VS_HOME_PRODUCAO || casaPadrao();
+  try { return JSON.parse(readFileSync(join(casaProducao, 'canais', 'telegram.json'), 'utf8')).token || ''; } catch { return ''; }
+}
+function bloqueioDemo(canal, token) {
+  if (!emDemo()) { return null; }
+  if (canal === 'telegram') {
+    const daProducao = tokenTelegramDaProducao();
+    if (token && daProducao && String(token).trim() === daProducao) {
+      return 'a demonstração não pode usar o bot do Telegram da produção — crie outro bot no @BotFather para a demo';
+    }
+    return null;
+  }
+  if ((process.env.WPP_SESSAO || 'veloso') === 'veloso') {
+    return 'a demonstração não pode abrir a sessão do WhatsApp da produção — suba a demo pelo backend/subir-demo.sh (WPP_SESSAO=demo)';
+  }
+  return null;
+}
+
+export async function conectar({ canal = 'whatsapp-web', produtos, token } = {}) {
+  const g = montar({ produtos });
+  const p = g.obter(canal);
+  if (!p) { return { ok: false, erro: `canal "${canal}" não existe` }; }
+  const bloqueio = bloqueioDemo(canal, canal === 'telegram' ? (String(token || '').trim() || lerTelegram().token) : null);
+  if (bloqueio) { console.warn(`[canais] DEMO: ${bloqueio}`); return { ok: false, erro: bloqueio }; }
+  if (canal === 'telegram') { return conectarTelegram(p, token); }
+  marcarLigado(true);
+
+  // Dispara e NAO aguarda: a promessa so termina quando a sessao estiver pareada.
+  p.conectar().catch((e) => console.error('[canais] sessao falhou:', e.message));
+
+  const s = await esperarQr(p);
+  return { ok: true, ...s };
+}
+
+/**
+ * Trocar o número que atende.
+ *
+ * Esquece o aparelho pareado e sobe a sessão de novo, que aí nasce pedindo QR.
+ * Sem isto, "desconectar e conectar" voltava sempre para o MESMO número —
+ * silenciosamente, porque o login mora no perfil do navegador. Quem queria ligar
+ * outro chip não tinha caminho nenhum na tela.
+ */
+export async function trocarNumero({ canal = 'whatsapp-web', produtos } = {}) {
+  const g = montar({ produtos });
+  const p = g.obter(canal);
+  if (!p) { return { ok: false, erro: `canal "${canal}" não existe` }; }
+  if (typeof p.esquecerAparelho !== 'function') {
+    return { ok: false, erro: `o canal "${canal}" não permite trocar de número` };
+  }
+  const bloqueio = bloqueioDemo(canal, null);
+  if (bloqueio) { console.warn(`[canais] DEMO: ${bloqueio}`); return { ok: false, erro: bloqueio }; }
+
+  console.log('[canais] TROCANDO o numero que atende — o pareamento atual sera esquecido');
+  const r = await p.esquecerAparelho();
+  if (!r.ok) { return r; }
+
+  /* Marca ligado ANTES de conectar: quem pediu para trocar de número quer o
+     canal no ar, e sem isto um reinício no meio do pareamento deixaria tudo
+     desligado sem ninguém entender por quê. */
+  marcarLigado(true);
+  p.conectar().catch((e) => console.error(`[canais] falhei ao subir a sessao nova: ${e.message}`));
+  const st = await esperarQr(p);
+  console.log(`[canais] sessao nova em "${st.estado}"${st.qr ? ' — QR pronto para leitura' : ''}`);
+  return { ok: true, ...st, anterior: r.guardadoEm || null, tinhaSessao: r.tinhaSessao };
+}
+
+export async function desconectar({ canal = 'whatsapp-web' } = {}) {
+  if (canal === 'telegram') {
+    gravarTelegram({ ...lerTelegram(), ligado: false, desligadoEm: new Date().toISOString() });
+    if (!telegram) { return { ok: true, estado: 'desconectado' }; }
+    await telegram.desconectar();
+    return { ok: true, ...telegram.status() };
+  }
+  marcarLigado(false);
+  if (!gateway) { return { ok: true, estado: 'desconectado' }; }
+  const p = gateway.obter(canal);
+  if (!p) { return { ok: false, erro: `canal "${canal}" não existe` }; }
+  await p.desconectar();
+  return { ok: true, ...p.status() };
+}
+
+/** Sai da conta do telefone (o aparelho deixa de listar a sessão). Religar pede QR. */
+export async function desparear({ canal = 'whatsapp-web' } = {}) {
+  marcarLigado(false);
+  if (!gateway) { return { ok: true, estado: 'desconectado' }; }
+  const p = gateway.obter(canal);
+  if (!p) { return { ok: false, erro: `canal "${canal}" não existe` }; }
+  if (typeof p.desparear !== 'function') { await p.desconectar(); return { ok: true, saiu: false, ...p.status() }; }
+  console.log('[canais] DESPAREANDO o telefone — religar vai pedir QR');
+  const r = await p.desparear();
+  return { ok: true, saiu: r.saiu, ...p.status() };
+}
+
+export async function saude() {
+  if (!gateway) { return []; }
+  return gateway.saudeGeral();
+}
+
+/**
+ * Foto, nome e recado do numero — a cara que o cliente ve no topo da conversa.
+ * So o canal por WhatsApp Web faz isso; provider que nao souber devolve o motivo
+ * em vez de estourar.
+ */
+/* PIN de 6 dígitos do número (verificação em duas etapas da Meta): pedido UMA vez na tela, guardado
+   aqui (600, como o token) pra o nome novo entrar no ar sem segundo passo (09/10). Nunca volta pra tela. */
+const arqPin = () => dentroDaCasa('canais', 'whatsapp-pin');
+const lerPin = () => { try { return readFileSync(arqPin(), 'utf8').trim() || null; } catch { return null; } };
+function guardarPin(pin) {
+  const p = String(pin || '').replace(/\D/g, '');
+  if (p.length !== 6) { return false; }
+  mkdirSync(dirname(arqPin()), { recursive: true, mode: 0o700 }); writeFileSync(arqPin(), p, { mode: 0o600 });
+  try { chmodSync(arqPin(), 0o600); } catch { /* sem chmod */ }
+  return true;
+}
+export const temPinDoNumero = () => !!lerPin();
+
+/** Nome aprovado pela Meta e ainda fora do ar → põe no ar com o PIN guardado. Chamado pelo relógio do servidor. */
+export async function conferirNomeAprovado() {
+  if (typeof whatsappWeb?.aplicarNome !== 'function' || !lerPin()) { return { ok: false, motivo: 'sem canal oficial ou sem PIN' }; }
+  const p = await whatsappWeb.perfilAtual?.().catch(() => null);
+  if (!p?.nomeNovo || p.nomeNovo === p.nome || !/APPROVED|AVAILABLE/.test(p.nomeNovoStatus || '')) { return { ok: false, motivo: 'nada aprovado esperando' }; }
+  const r = await whatsappWeb.aplicarNome(lerPin());
+  console.log(`[canais] nome aprovado "${p.nomeNovo}": ${r.ok ? 'colocado no ar' : 'NÃO entrou — ' + r.erro}`);
+  return r;
+}
+
+export async function personalizar({ canal = 'whatsapp-web', foto, nome, recado, descricao, categoria, email, site, pin } = {}) {
+  if (!gateway) { return { ok: false, erro: 'nenhum canal conectado' }; }
+  const p = gateway.obter(canal);
+  if (!p) { return { ok: false, erro: `canal "${canal}" não existe` }; }
+  if (typeof p.personalizar !== 'function') { return { ok: false, erro: `o canal "${canal}" não permite mudar foto e nome` }; }
+
+  /* Isto muda a CARA PUBLICA do numero, pra todos os contatos da pessoa — e nao
+     deixava rastro nenhum. Quando o dono perguntou "essa foto vai pro meu
+     perfil ou e so preview?", o log nao soube responder, e essa e justamente a
+     pergunta que um registro existe pra responder. */
+  const oQue = [foto ? 'foto' : null, nome ? 'nome' : null, recado ? 'recado' : null, descricao ? 'descrição' : null, categoria ? 'categoria' : null, email ? 'e-mail' : null, site ? 'site' : null].filter(Boolean);
+  console.log(`[canais] TROCANDO o perfil do numero (${oQue.join(', ') || 'nada'}) — isto aparece para todos os contatos`);
+
+  if (pin) { guardarPin(pin); }
+  const r = await p.personalizar({ foto, nome, recado, descricao, categoria, email, site, pin: lerPin() });
+  const feito = (r?.feito || []).join(', ') || 'nada';
+  const falhas = (r?.falhas || []).join('; ');
+  console.log(`[canais] perfil: aplicado ${feito}${falhas ? ` | recusado pelo WhatsApp: ${falhas}` : ''}`);
+
+  /* Guarda a cara ANTERIOR — e so a primeira vez. Salvar a cada aplicacao
+     faria o backup virar a Micaela depois da segunda troca, e aí nao haveria
+     mais pra onde voltar. O que se quer guardar e o perfil de ANTES do produto
+     entrar no numero. */
+  if ((r?.feito || []).length && r.anterior && !lerConfig().perfilAnterior) {
+    const cfg = { ...lerConfig(), perfilAnterior: r.anterior };
+    mkdirSync(dirname(arqConfig()), { recursive: true, mode: 0o700 });
+    writeFileSync(arqConfig(), JSON.stringify(cfg, null, 2));
+    console.log('[canais] perfil anterior guardado — da pra voltar pelo painel');
+  }
+  return r;
+}
+
+/** Existe um perfil guardado pra onde voltar? A tela pergunta isto. */
+/**
+ * O perfil que esta NO NUMERO agora.
+ *
+ * A tela de perfil nascia vazia: so placeholder, e o preview caia num "Micaela"
+ * fixo. Quem abria nao sabia o que estava valendo, e ao sair do campo sem
+ * digitar nada o preview voltava pro texto inventado — parecia que os dados
+ * tinham sumido. Nao tinham: nunca chegaram.
+ */
+export async function perfilAtual() {
+  if (!whatsappWeb || typeof whatsappWeb.perfilAtual !== 'function') { return null; }
+  try { return await whatsappWeb.perfilAtual(); } catch { return null; }
+}
+
+export function perfilAnterior() {
+  const a = lerConfig().perfilAnterior || null;
+  return a ? { em: a.em, temFoto: Boolean(a.foto), nome: a.nome || null, recado: a.recado || null } : null;
+}
+
+/**
+ * Devolve o numero a cara que ele tinha antes.
+ *
+ * Aplicar era automatico e voltar era tarefa manual no celular — meio caminho,
+ * e meio caminho deixa a pessoa com medo de clicar. Agora as duas pontas vivem
+ * no mesmo lugar.
+ */
+export async function restaurarPerfil({ canal = 'whatsapp-web' } = {}) {
+  const a = lerConfig().perfilAnterior;
+  if (!a) { return { ok: false, erro: 'não tenho a cara anterior guardada — ela só é salva na primeira vez que o painel troca o perfil' }; }
+  if (!a.foto && !a.nome && !a.recado) {
+    return { ok: false, erro: 'a cara anterior foi guardada vazia — não tenho o que devolver. Troque a foto pelo celular.' };
+  }
+  if (!gateway) { return { ok: false, erro: 'nenhum canal conectado' }; }
+  const p = gateway.obter(canal);
+  if (!p) { return { ok: false, erro: `canal "${canal}" não existe` }; }
+
+  console.log('[canais] RESTAURANDO o perfil anterior do numero');
+  const r = await p.personalizar({ foto: a.foto || null, nome: a.nome || null, recado: a.recado || null });
+  console.log(`[canais] perfil restaurado: ${(r?.feito || []).join(', ') || 'nada'}${(r?.falhas || []).length ? ` | recusado: ${r.falhas.join('; ')}` : ''}`);
+  return r;
+}
+
+/** Usado quando o atendente responde pelo painel, fora do fluxo do bot. */
+export async function enviar({ canal, para, texto }) {
+  if (!gateway) { return { ok: false, erro: 'nenhum canal conectado' }; }
+  // Sem canal dito, vai pelo canal de onde a pessoa veio.
+  return gateway.enviarPor(canal || NOME_PROVIDER[canalDe(para)], { para, texto });
+}
+
+/** Documento (contrato em PDF) pelo canal conectado. `tipo: 'video'` manda como vídeo (toca na conversa). */
+export async function enviarArquivo({ canal, para, dataUri, nome, legenda, tipo, mimetype }) {
+  if (!gateway) { return { ok: false, erro: 'nenhum canal conectado' }; }
+  return gateway.enviarArquivoPor(canal || NOME_PROVIDER[canalDe(para)], { para, dataUri, nome, legenda, ...(tipo ? { tipo } : {}), ...(mimetype ? { mimetype } : {}) });
+}
+
+/** Põe no ar o nome já aprovado pela Meta (registra o número de novo com o PIN). */
+export async function aplicarNomeAprovado({ pin } = {}) {
+  if (typeof whatsappWeb?.aplicarNome !== 'function') { return { ok: false, erro: 'só no canal da API oficial' }; }
+  console.log('[canais] REGISTRANDO o número de novo pra o nome aprovado entrar no ar');
+  const r = await whatsappWeb.aplicarNome(pin || lerPin());
+  if (r.ok && pin) { guardarPin(pin); }
+  console.log(`[canais] nome aprovado: ${r.ok ? 'no ar' : 'NÃO entrou — ' + r.erro}`);
+  return r;
+}
+
+/** Tem WhatsApp? É Business? Só pergunta — nada é enviado. */
+export async function consultarWhatsApp(numero) {
+  if (!whatsappWeb || typeof whatsappWeb.consultarNumero !== 'function') { return { ok: false, erro: 'WhatsApp não conectado' }; }
+  return whatsappWeb.consultarNumero(numero);
+}
+
+/** Evento do webhook da Meta, quando o canal é a API oficial. null = canal não é a Cloud API (cai no caminho antigo). */
+export function receberWhatsAppCloud(evento) {
+  if (typeof whatsappWeb?.receberEvento !== 'function') { return null; }
+  return whatsappWeb.receberEvento(evento);
+}
+
+/* ── Consumo da Meta (09/10) ───────────────────────────────────────────────
+   Os avisos de entrega do webhook contam as mensagens de cada número no mês:
+   1.000 de atendimento grátis, acima disso a Meta cobra (ou, sem cartão,
+   recusa e o bot fica mudo). Vale pra qualquer número que cair no webhook. */
+const arqConsumoMeta = () => dentroDaCasa('canais', 'consumo-meta.json');
+const lerConsumoMeta = () => { try { return JSON.parse(readFileSync(arqConsumoMeta(), 'utf8')); } catch { return {}; } };
+export function registrarConsumoMeta(evento) {
+  if (!(evento?.entry || []).some((e) => (e?.changes || []).some((c) => c?.value?.statuses?.length))) { return []; }
+  const dados = lerConsumoMeta();
+  const mudancas = consumoMeta.registrarEvento(dados, evento);
+  if (!mudancas.length) { return mudancas; }
+  try {
+    mkdirSync(dirname(arqConsumoMeta()), { recursive: true });
+    writeFileSync(arqConsumoMeta(), JSON.stringify(dados), { mode: 0o600 });
+  } catch (e) { console.error(`[meta] não gravei o consumo do mês: ${e.message}`); }
+  for (const x of mudancas) {
+    if (x.aviso) {
+      const txt = x.aviso >= 100
+        ? `acabaram as ${consumoMeta.FRANQUIA_ATENDIMENTO} mensagens grátis de ${x.mes} — daqui pra frente a Meta cobra cada mensagem (sem cartão, recusa)`
+        : `${x.aviso}% das ${consumoMeta.FRANQUIA_ATENDIMENTO} mensagens grátis de ${x.mes} já usadas`;
+      console.warn(`[meta] número ${x.phoneId}: ${txt}`);
+      seguranca.auditar({ tipo: 'meta:franquia', detalhe: `número ${x.phoneId}: ${txt}`, resultado: 'aviso' });
+    }
+    if (x.bloqueada && x.primeira) {
+      console.error(`[meta] número ${x.phoneId}: a Meta RECUSOU envio por pagamento (${x.codigo}) — o bot não está conseguindo responder`);
+      seguranca.auditar({ tipo: 'meta:bloqueio', detalhe: `número ${x.phoneId}: envio recusado pela Meta por pagamento (${x.codigo}) em ${x.mes}`, resultado: 'falhou' });
+    }
+  }
+  return mudancas;
+}
+export const consumoMetaDoMes = (mes) => ({ ...consumoMeta.resumo(lerConsumoMeta(), mes), phoneIdAtual: process.env.WA_PHONE_ID || null });
+
+/** O WhatsApp da loja está conectado agora? */
+export const whatsappConectado = () => whatsappWeb?.status?.().estado === 'conectado';
+
+/* ── Telegram: token guardado ─────────────────────────────────────────────
+   Arquivo PROPRIO e com permissao 600: o token da acesso total ao bot, e o
+   config.json do canal e lido e mostrado na tela. O token nunca volta pro
+   painel — a tela so recebe se ele existe. */
+const arqTelegram = () => dentroDaCasa('canais', 'telegram.json');
+function lerTelegram() { try { return JSON.parse(readFileSync(arqTelegram(), 'utf8')); } catch { return {}; } }
+function gravarTelegram(d) {
+  mkdirSync(dirname(arqTelegram()), { recursive: true, mode: 0o700 });
+  writeFileSync(arqTelegram(), JSON.stringify(d, null, 2), { mode: 0o600 });
+  try { chmodSync(arqTelegram(), 0o600); } catch { /* sistema sem chmod */ }
+}
+
+async function conectarTelegram(p, token) {
+  const guardado = lerTelegram();
+  const usar = String(token || '').trim() || guardado.token;
+  if (!usar) { return { ok: false, erro: 'cole o token do bot (o @BotFather entrega quando você cria o bot)' }; }
+  if (p.status().estado === 'conectado') { await p.desconectar(); }
+  const st = await p.conectar({ token: usar });
+  if (!st.ok) { return { ok: false, erro: st.erro, ...semSegredo(st) }; }
+  // So grava depois que o Telegram aceitou: token errado nao fica guardado.
+  gravarTelegram({ token: usar, ligado: true, ligadoEm: new Date().toISOString(), bot: st.numero });
+  return { ok: true, ...semSegredo(st) };
+}
+const semSegredo = (st) => { const { token: _t, ...resto } = st || {}; return resto; };
+
+/** O que a tela do Telegram precisa: estado e se ha token — nunca o token. */
+/** Consulta canal/grupo no Telegram (cadastro manual de destino). */
+export const telegramConsultarChat = (ref) => (telegram ? telegram.consultarChat(ref) : Promise.resolve({ ok: false, erro: 'o Telegram não está conectado' }));
+/** Publica num canal/grupo (campanhas). */
+export const telegramPublicar = (args) => (telegram ? telegram.publicar(args) : Promise.resolve({ ok: false, erro: 'o Telegram não está conectado' }));
+
+export function telegramInfo() {
+  const g = lerTelegram();
+  return { temToken: Boolean(g.token), ligado: Boolean(g.ligado), bot: g.bot || null, ...(telegram ? telegram.status() : { estado: 'desconectado' }) };
+}
