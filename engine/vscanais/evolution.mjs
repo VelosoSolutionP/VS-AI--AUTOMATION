@@ -145,6 +145,16 @@ export function iasDisponiveis(modulo = 'canais') {
   return hotel.listarBots().filter((b) => b.estado === 'homologado' && !avaliarIA(b).servicos.length)
     .map((b) => ({ agenteId: b.agenteId, nome: b.nome, especialidade: b.especialidade, funcao: b.perfil?.funcao || '', foto: b.perfil?.foto || '' }));
 }
+/** Bots do Hotel que existem mas não podem atender agora, com o motivo: a tela mostra apagados em vez de sumir. */
+export function iasForaDoAr(modulo = 'canais') {
+  const estados = { em_validacao: 'em validação no Hotel', rascunho: 'rascunho no Hotel', treinando: 'em treino no Hotel', reprovado: 'reprovado na homologação' };
+  if (modulo === 'salao') {
+    return listarParaSalao().filter((b) => !b.elegivel && b.servicos?.length)
+      .map((b) => ({ agenteId: b.agenteId, nome: b.nome, especialidade: b.especialidade, foto: b.foto, nichos: b.servicos, motivo: b.motivo || estados[b.estado] || b.estado }));
+  }
+  return hotel.listarBots().filter((b) => b.estado !== 'homologado' && !avaliarIA(b).servicos.length)
+    .map((b) => ({ agenteId: b.agenteId, nome: b.nome, especialidade: b.especialidade, foto: b.perfil?.foto || '', motivo: estados[b.estado] || String(b.estado || 'não homologado') }));
+}
 export const NICHOS_SALAO = SERVICOS_SALAO.map((x) => ({ id: x.id, nome: x.nome }));
 function validarIA(ia, modulo = 'canais', nicho = '') {
   if (modulo === 'salao') {
@@ -167,6 +177,7 @@ function publico(n) {
     id: n.id, modulo: n.modulo || 'canais', nicho: n.nicho || null, rotulo: n.rotulo, numeroPrevisto: n.numeroPrevisto, instancia: n.instancia, loja: n.loja,
     criadoEm: n.criadoEm, ia: ia ? { agenteId: ia.agenteId, nome: ia.nome, estado: ia.estado, especialidade: ia.especialidade, elegivel: n.modulo !== 'salao' || comLoja(n.loja, () => avaliarParaUso(ia).ok), servicos: n.modulo === 'salao' ? comLoja(n.loja, () => avaliarParaUso(ia).servicos) : [] } : (n.iaId ? { agenteId: n.iaId, ausente: true } : null),
     vinculos: n.vinculos || [], identidade: n.identidade || null, webhook: n.webhook || null,
+    iaDesligada: !n.iaId && n.iaDesligada ? { agenteId: n.iaDesligada.iaId, em: n.iaDesligada.em, motivo: n.iaDesligada.motivo, nome: hotel.listarBots().find((b) => b.agenteId === n.iaDesligada.iaId)?.nome || null } : null,
     cardapio: n.cardapio ? { slug: n.cardapio.slug, ligadoEm: n.cardapio.ligadoEm, venda: !!n.cardapio.chave, chaveFinal: n.cardapio.chave ? String(n.cardapio.chave).slice(-6) : null } : null,
   };
 }
@@ -268,7 +279,7 @@ export function vincularIA({ id, agenteId, nicho = '' } = {}) {
   if (n.iaId === ia.agenteId) { if (nicho) gravarNumeros(lista); return { ok: true, alterado: false, numero: publico(n) }; }
   const quando = agora();
   n.vinculos = [...(n.vinculos || []).map((v) => (v.ate ? v : { ...v, ate: quando })), { iaId: ia.agenteId, nome: ia.nome, de: quando, ate: null }].slice(-50);
-  n.iaId = ia.agenteId;
+  n.iaId = ia.agenteId; delete n.iaDesligada;
   n.identidade = { ...(n.identidade || {}), pendente: true };
   gravarNumeros(lista);
   /* A troca vai para o WhatsApp na hora (nome, recado e foto), sem esperar a tela consultar o estado. */

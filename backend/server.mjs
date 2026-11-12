@@ -2190,7 +2190,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
     if (req.method === 'GET' && rota === '/crm/api/canais/evolution') {
       const moduloCanais = new URL(req.url, 'http://x').searchParams.get('modulo') === 'salao' ? 'salao' : 'canais';
       const empresaCanais = empresaAtual() ? empresas.obter(empresaAtual()) : null;
-      return json(res, 200, { ok: true, configurado: canaisEvo.configurado(), numeros: canaisEvo.listar(moduloCanais), ias: canaisEvo.iasDisponiveis(moduloCanais), nichos: moduloCanais === 'salao' ? canaisEvo.NICHOS_SALAO : [], modulo: moduloCanais, empresa: empresaCanais?.nome || null, ...(moduloCanais === 'canais' ? { auditoria: canaisEvo.estadoAuditoria() } : {}) });
+      return json(res, 200, { ok: true, configurado: canaisEvo.configurado(), numeros: canaisEvo.listar(moduloCanais), ias: canaisEvo.iasDisponiveis(moduloCanais), iasForaDoAr: canaisEvo.iasForaDoAr(moduloCanais), nichos: moduloCanais === 'salao' ? canaisEvo.NICHOS_SALAO : [], modulo: moduloCanais, empresa: empresaCanais?.nome || null, ...(moduloCanais === 'canais' ? { auditoria: canaisEvo.estadoAuditoria() } : {}) });
     }
     if (req.method === 'GET' && rota === '/crm/api/cadevc') {
       const cfgcadevc = cadevcCfg.config();

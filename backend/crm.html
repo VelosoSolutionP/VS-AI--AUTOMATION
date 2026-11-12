@@ -2082,6 +2082,99 @@ body.rota-prosp .btn-p:hover{filter:brightness(1.08)}
 @media(max-width:760px){.hotel-workspace{grid-template-columns:1fr}.hotel-details{position:static}.hotel-kpis{grid-template-columns:1fr;gap:8px}.hotel-kpis::before{top:26px;bottom:26px;left:29px;right:auto;width:2px;height:auto}.hotel-kpi{min-height:66px;flex-direction:row;justify-content:flex-start;gap:12px;padding:9px 12px;text-align:left}.hotel-kpi .chip{width:38px;height:38px;flex-basis:38px}.hotel-kpi-copy{display:flex;align-items:baseline;justify-items:start;gap:9px}.hotel-kpi b{font-size:19px}}
 @media(max-width:420px){.hotel-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.hotel-toolbar>*{flex:1 1 100%;width:100%}}
 @media(prefers-reduced-motion:reduce){.hotel-card{transition:none}}
+/* ───────── Canais e Salão: conexão dos bots (visual premium 3D/neon) ───────── */
+.zc{--zn:var(--ac);--zn-2:var(--ac-3);--zn-glow:var(--ac-glow);position:relative}
+.zc.zc-salao{--zn:#e046c8;--zn-2:#ff8fe9;--zn-glow:rgba(224,70,200,.38)}
+.zc-hero{position:relative;overflow:hidden;border-radius:22px;padding:26px 26px 22px;margin-bottom:18px;isolation:isolate;
+  background:radial-gradient(120% 140% at 100% 0%,color-mix(in srgb,var(--zn) 26%,transparent),transparent 55%),linear-gradient(160deg,var(--panel),var(--panel-2));
+  border:1px solid color-mix(in srgb,var(--zn) 34%,var(--line));box-shadow:0 30px 60px -38px var(--zn-glow),inset 0 1px 0 rgba(255,255,255,.06)}
+.zc-hero::before{content:"";position:absolute;inset:auto -10% -55% -10%;height:120%;z-index:-1;opacity:.55;
+  background-image:linear-gradient(color-mix(in srgb,var(--zn) 40%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--zn) 40%,transparent) 1px,transparent 1px);
+  background-size:42px 42px;transform:perspective(520px) rotateX(64deg);transform-origin:50% 0;mask-image:linear-gradient(to top,transparent,#000 75%)}
+.zc-hero::after{content:"";position:absolute;width:260px;height:260px;right:-60px;top:-90px;border-radius:50%;z-index:-1;filter:blur(40px);background:var(--zn);opacity:.28;animation:zcOrb 9s ease-in-out infinite alternate}
+@keyframes zcOrb{to{transform:translate(-40px,30px) scale(1.15)}}
+.zc-tag{display:inline-flex;gap:8px;align-items:center;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--zn)}
+.zc-tag i{width:8px;height:8px;border-radius:50%;background:var(--zn);box-shadow:0 0 0 4px color-mix(in srgb,var(--zn) 22%,transparent),0 0 14px var(--zn)}
+.zc-hero h2{margin:8px 0 6px;font-size:clamp(24px,3.2vw,34px);line-height:1.05;letter-spacing:-.02em;
+  background:linear-gradient(92deg,var(--fg) 30%,var(--zn-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.zc-hero p{margin:0;color:var(--muted);max-width:70ch}
+.zc-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:18px}
+.zc-stat{padding:12px 14px;border-radius:14px;background:color-mix(in srgb,var(--panel) 70%,transparent);backdrop-filter:blur(8px);border:1px solid var(--line);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 10px 22px -18px rgba(0,0,0,.6)}
+.zc-stat b{display:block;font-size:24px;line-height:1.1;font-variant-numeric:tabular-nums}
+.zc-stat small{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+.zc-stat.on b{color:var(--zn);text-shadow:0 0 18px var(--zn-glow)}
+.zc-grid{display:grid;gap:18px}
+.zc-num{--rail:var(--dim);position:relative;border-radius:20px;padding:20px 20px 16px 24px;transform-style:preserve-3d;
+  background:linear-gradient(165deg,color-mix(in srgb,var(--panel) 92%,var(--rail) 8%),var(--panel-2));border:1px solid var(--line);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset,0 2px 4px -2px rgba(0,0,0,.25),0 28px 50px -34px rgba(0,0,0,.7);
+  transform:perspective(1100px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));transition:transform .25s ease,box-shadow .25s ease,border-color .25s}
+.zc-num:hover{border-color:color-mix(in srgb,var(--rail) 45%,var(--line));box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 36px 60px -34px color-mix(in srgb,var(--rail) 55%,transparent)}
+.zc-num::before{content:"";position:absolute;left:0;top:18px;bottom:18px;width:4px;border-radius:0 4px 4px 0;background:var(--rail);box-shadow:0 0 16px var(--rail),0 0 2px var(--rail)}
+.zc-num.st-ok{--rail:var(--ok)} .zc-num.st-warn{--rail:var(--warn)} .zc-num.st-err{--rail:var(--err)}
+.zc-top{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.zc-ava{position:relative;width:68px;height:68px;flex:0 0 68px;border-radius:50%;padding:3px;background:conic-gradient(from 0deg,var(--zn),transparent 40%,var(--zn-2) 60%,transparent 85%,var(--zn));transform:translateZ(30px)}
+.zc-ava.vivo{animation:zcSpin 6s linear infinite}
+.zc-ava.vivo>*{animation:zcSpin 6s linear infinite reverse}
+@keyframes zcSpin{to{transform:rotate(360deg)}}
+.zc-ava img,.zc-ava span{width:100%;height:100%;border-radius:50%;object-fit:cover;display:grid;place-items:center;background:var(--raised);border:2px solid var(--panel);font-weight:800;font-size:22px;color:var(--zn)}
+.zc-ava.vazio{background:repeating-conic-gradient(var(--line-2) 0 10deg,transparent 10deg 20deg)}
+.zc-ava.vazio span{color:var(--dim)}
+.zc-id{flex:1;min-width:180px}
+.zc-id h3{margin:0;font-size:20px;letter-spacing:-.01em}
+.zc-id p{margin:3px 0 0;color:var(--muted);font-size:13px}
+.zc-pill{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid color-mix(in srgb,var(--rail) 40%,transparent);
+  background:color-mix(in srgb,var(--rail) 12%,transparent);color:var(--rail)}
+.zc-pill i{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 10px currentColor}
+.zc-num.st-ok .zc-pill i,.zc-num.st-warn .zc-pill i{animation:zcPulse 1.6s ease-in-out infinite}
+@keyframes zcPulse{50%{opacity:.35;transform:scale(.7)}}
+.zc-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.zc-chip{font-size:11.5px;padding:4px 10px;border-radius:999px;background:var(--raised);border:1px solid var(--line);color:var(--muted)}
+.zc-chip b{color:var(--fg)}
+.zc-chip.ok{color:var(--ok);border-color:var(--ok-line);background:var(--ok-bg)} .zc-chip.warn{color:var(--warn);border-color:var(--warn-line);background:var(--warn-bg)}
+.zc-alert{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:14px;padding:12px 14px;border-radius:14px;border:1px solid var(--err-line);background:var(--err-bg);color:var(--fg);font-size:13px}
+.zc-alert.warn{border-color:var(--warn-line);background:var(--warn-bg)}
+.zc-alert>div{flex:1;min-width:200px}
+.zc-sec{margin-top:18px}
+.zc-sec>h4{margin:0 0 10px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:10px}
+.zc-sec>h4::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+.zc-nichos{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.zc-nicho{appearance:none;cursor:pointer;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--raised);color:var(--muted);font:inherit;font-size:12.5px;font-weight:600;transition:all .2s}
+.zc-nicho:hover{color:var(--fg);border-color:color-mix(in srgb,var(--zn) 40%,var(--line))}
+.zc-nicho.on{color:var(--fg);border-color:var(--zn);background:color-mix(in srgb,var(--zn) 16%,transparent);box-shadow:0 0 0 3px color-mix(in srgb,var(--zn) 14%,transparent),0 0 18px -4px var(--zn)}
+.zc-bots{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:12px;perspective:900px}
+.zc-bot{position:relative;cursor:pointer;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:16px 12px 14px;border-radius:16px;
+  background:linear-gradient(170deg,var(--raised),var(--panel));border:1px solid var(--line);box-shadow:0 14px 26px -20px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.05);
+  transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease}
+.zc-bot:hover{transform:translateY(-4px) rotateX(6deg);box-shadow:0 24px 34px -22px var(--zn-glow),inset 0 1px 0 rgba(255,255,255,.07);border-color:color-mix(in srgb,var(--zn) 40%,var(--line))}
+.zc-bot input{position:absolute;opacity:0;pointer-events:none}
+.zc-bot .zc-ava{width:56px;height:56px;flex-basis:56px;transform:none}
+.zc-bot b{font-size:14px}
+.zc-bot small{color:var(--dim);font-size:11.5px;line-height:1.35}
+.zc-bot:has(input:checked){border-color:var(--zn);background:linear-gradient(170deg,color-mix(in srgb,var(--zn) 14%,var(--raised)),var(--panel));
+  box-shadow:0 0 0 1px var(--zn),0 0 26px -6px var(--zn),0 22px 36px -24px var(--zn-glow)}
+.zc-bot:has(input:checked)::after{content:"✓";position:absolute;top:8px;right:9px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:900;background:var(--zn);color:#fff;box-shadow:0 0 12px var(--zn)}
+.zc-bot:has(input:focus-visible){outline:2px solid var(--zn);outline-offset:3px}
+.zc-bot .zc-agora{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ok)}
+.zc-bot.fora{cursor:not-allowed;opacity:.55;filter:grayscale(.9);border-style:dashed}
+.zc-bot.fora:hover{transform:none;box-shadow:none;border-color:var(--line)}
+.zc-bot.fora .zc-motivo{color:var(--warn);font-size:11px;font-weight:600}
+.zc-loja{margin-top:16px;border:1px solid var(--line);border-radius:14px;background:var(--panel-2)}
+.zc-loja>summary{cursor:pointer;padding:12px 14px;font-weight:700;font-size:13px;list-style:none;display:flex;gap:8px;align-items:center}
+.zc-loja>summary::-webkit-details-marker{display:none}
+.zc-loja>summary::before{content:"▸";color:var(--zn);transition:transform .2s}
+.zc-loja[open]>summary::before{transform:rotate(90deg)}
+.zc-loja>div{padding:0 14px 14px}
+.zc-qr{position:relative;width:max-content;margin:16px auto 6px;padding:12px;border-radius:20px;background:#fff;box-shadow:0 0 0 2px var(--zn),0 0 40px -6px var(--zn),0 30px 50px -30px rgba(0,0,0,.8);overflow:hidden}
+.zc-qr img{display:block;width:240px;height:240px}
+.zc-qr::after{content:"";position:absolute;left:0;right:0;height:3px;top:0;background:linear-gradient(90deg,transparent,var(--zn),transparent);box-shadow:0 0 14px var(--zn);animation:zcScan 2.4s ease-in-out infinite}
+@keyframes zcScan{50%{top:calc(100% - 3px)}}
+.zc-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px dashed var(--line)}
+.zc-novo{border-radius:20px;padding:20px;border:1.5px dashed color-mix(in srgb,var(--zn) 45%,var(--line));background:radial-gradient(80% 120% at 0% 0%,color-mix(in srgb,var(--zn) 10%,transparent),transparent 60%),var(--panel)}
+.zc-novo h3{margin:0 0 4px;display:flex;align-items:center;gap:10px}
+.zc-novo h3 i{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;font-style:normal;font-size:20px;background:var(--zn);color:#fff;box-shadow:0 0 18px var(--zn-glow)}
+@media (prefers-reduced-motion:reduce){.zc *,.zc *::before,.zc *::after,.zc-hero::after{animation:none!important;transition:none!important}.zc-num{transform:none!important}}
+@media (max-width:640px){.zc-hero{padding:20px 16px}.zc-num{padding:16px 14px 14px 18px}.zc-bots{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}}
 </style>
 
 <div class="overlay" id="ov" onclick="toggleNav(false)"></div>
@@ -9421,10 +9514,25 @@ function telaIgCanal(){
 let CEVO=null, CEVO_EST={}, CEVO_TIMER=null, CEVO_IDENT={}, CEVO_SEL={}, CEVO_ROTULO='', CEVO_MOD='canais', CEVO_NICHO={};
 const cevoNaTela=()=>['canais','cadevc','cadevc-conexao'].includes(rota);
 const cevoEscolhida=(k)=>CEVO_SEL[k]||'';
+const zcIniciais=(nome)=>esc(String(nome||'?').trim().split(/\s+/).slice(0,2).map((x)=>x[0]||'').join('').toUpperCase()||'?');
+const zcAva=(foto,nome,{vivo=false,vazio=false}={})=>`<div class="zc-ava${vivo?' vivo':''}${vazio?' vazio':''}">${foto?`<img src="${esc(foto)}" alt="">`:`<span>${vazio?'—':zcIniciais(nome)}</span>`}</div>`;
 function cevoSeletor(k,atual){
-  const todas=CEVO?.ias||[], nichos=CEVO?.nichos||[], nicho=nichos.length?(CEVO_NICHO[k]??''):'', lista=nicho?todas.filter((x)=>(x.nichos||[]).includes(nicho)):todas, marcada=CEVO_SEL[k]||atual||'', nomeN=(id)=>nichos.find((x)=>x.id===id)?.nome||id;
-  return `${nichos.length?`<div class="field"><label for="cevoNicho_${esc(k)}">Nicho</label><select id="cevoNicho_${esc(k)}" onchange="CEVO_NICHO['${esc(k)}']=this.value;CEVO_SEL['${esc(k)}']='';render()"><option value="">Todos os 7 nichos</option>${nichos.map((x)=>`<option value="${esc(x.id)}"${x.id===nicho?' selected':''}>${esc(x.nome)}</option>`).join('')}</select></div>`:''}
-    <div class="field" style="grid-column:1/-1"><label>IA-ZEST homologada <small>(${lista.length}${nichos.length?' neste filtro':' no Hotel'})</small></label>${lista.map((ia)=>`<label style="display:flex;gap:10px;align-items:center;margin:8px 0;cursor:pointer"><input type="radio" style="width:18px;height:18px;flex:0 0 18px;margin:0;padding:0" name="cevoIa_${esc(k)}" value="${esc(ia.agenteId)}"${ia.agenteId===marcada?' checked':''} onchange="CEVO_SEL['${esc(k)}']=this.value${k==='novo'?'':`;cevoVincular('${esc(k)}')`}"><span><b>${esc(ia.nome)}</b> · ${esc(nichos.length?(ia.nichos||[]).map(nomeN).join(', '):ia.especialidade||'')}${ia.agenteId===atual?' <span class="badge b-ok">atende agora</span>':''}</span></label>`).join('')||`<p class="hint">Nenhuma IA homologada${nichos.length?' nos nichos do salão com os dados do Cadê Você':''}. Crie e homologue no Hotel dos Bots.</p>`}</div>`;
+  const todas=CEVO?.ias||[], fora=CEVO?.iasForaDoAr||[], nichos=CEVO?.nichos||[], nicho=nichos.length?(CEVO_NICHO[k]??''):'';
+  const doNicho=(x)=>!nicho||(x.nichos||[]).includes(nicho);
+  const lista=todas.filter(doNicho), apagadas=fora.filter(doNicho), marcada=CEVO_SEL[k]||atual||'', nomeN=(id)=>nichos.find((x)=>x.id===id)?.nome||id;
+  const sub=(ia)=>esc(nichos.length?(ia.nichos||[]).map(nomeN).join(' · '):(ia.funcao||ia.especialidade||''));
+  const filtro=nichos.length?`<div class="zc-nichos" role="group" aria-label="Nicho">${[{id:'',nome:`Todos os ${nichos.length} nichos`},...nichos].map((x)=>`<button type="button" class="zc-nicho${x.id===nicho?' on':''}" aria-pressed="${x.id===nicho}" onclick="CEVO_NICHO['${esc(k)}']='${esc(x.id)}';CEVO_SEL['${esc(k)}']='';render()">${esc(x.nome)}</button>`).join('')}</div>`:'';
+  const cartoes=lista.map((ia)=>`<label class="zc-bot"><input type="radio" name="cevoIa_${esc(k)}" value="${esc(ia.agenteId)}"${ia.agenteId===marcada?' checked':''} onchange="CEVO_SEL['${esc(k)}']=this.value${k==='novo'?'':`;cevoVincular('${esc(k)}')`}">${zcAva(ia.foto,ia.nome,{vivo:ia.agenteId===atual})}<b>${esc(ia.nome)}</b><small>${sub(ia)}</small>${ia.agenteId===atual?'<span class="zc-agora">● atende agora</span>':''}</label>`).join('')
+    +apagadas.map((ia)=>`<div class="zc-bot fora" title="Não pode atender: ${esc(ia.motivo)}">${zcAva(ia.foto,ia.nome)}<b>${esc(ia.nome)}</b><small>${sub(ia)}</small><span class="zc-motivo">${esc(ia.motivo)}</span></div>`).join('');
+  return `<div class="zc-sec" style="grid-column:1/-1"><h4>IA-ZEST homologada · ${lista.length}${nichos.length?' neste nicho':' no Hotel'}${apagadas.length?` · ${apagadas.length} fora do ar`:''}</h4>${filtro}
+    ${cartoes?`<div class="zc-bots">${cartoes}</div>`:`<p class="hint">Nenhuma IA${nichos.length?' deste nicho':''} no Hotel. Crie e homologue no Hotel dos Bots.</p>`}</div>`;
+}
+/* Inclinação 3D dos cartões de número, seguindo o mouse (desligada com movimento reduzido). */
+if(!window.__zcTilt){ window.__zcTilt=true;
+  const calmo=matchMedia('(prefers-reduced-motion: reduce)');
+  document.addEventListener('pointermove',(e)=>{ if(calmo.matches||e.pointerType!=='mouse') return; const c=e.target.closest?.('[data-zc-tilt]'); document.querySelectorAll('[data-zc-tilt][style]').forEach((x)=>{ if(x!==c) x.removeAttribute('style'); }); if(!c) return;
+    const r=c.getBoundingClientRect(), x=(e.clientX-r.left)/r.width-.5, y=(e.clientY-r.top)/r.height-.5;
+    c.style.setProperty('--ry',(x*3.2).toFixed(2)+'deg'); c.style.setProperty('--rx',(-y*2.4).toFixed(2)+'deg'); },{passive:true});
 }
 async function carregarCanaisEvo(){
   try{
@@ -9456,7 +9564,7 @@ async function cevoCadastrar(){
   catch(e){ avisoErro('Não consegui cadastrar',esc(e.message)); }
 }
 async function cevoVincular(id){
-  const agenteId=document.querySelector(`input[name="cevoIa_${id}"]:checked`)?.value||'';
+  const agenteId=document.querySelector(`input[name="cevoIa_${id}"]:checked`)?.value||CEVO_SEL[id]||'';
   if(!agenteId) return avisoErro('Escolha a IA','Selecione uma IA-ZEST homologada para este número.');
   try{ const r=await api('canais/evolution/vincular',{id,agenteId,nicho:CEVO_NICHO[id]||''}); await carregarCanaisEvo();
     flash(r.alterado===false?'Este número já usa essa IA.':`Agora quem atende é ${r.numero.ia.nome}${CEVO_EST[id]?.estado==='conectado'?'. Nome, foto e recado vão para o WhatsApp em alguns segundos, sem precisar ler o QR de novo':''}.`,'ok');
@@ -9648,41 +9756,55 @@ function telaCanaisEvo(mod='canais'){
     const atendendo=con&&n.ia&&!n.ia.ausente&&n.ia.estado==='homologado'&&n.ia.elegivel!==false;
     const nomeNicho=(CEVO.nichos||[]).find((x)=>x.id===(n.nicho||n.ia?.servicos?.[0]))?.nome;
     const idt=n.identidade, campos=idt?.campos||{};
-    return `<div class="card" style="margin-bottom:14px">
-      ${cardH('whats',n.ia&&!n.ia.ausente?n.ia.nome:'Sem IA vinculada',`Cadastro: ${esc(n.rotulo)} · ${st.numero?'Número: +'+esc(st.numero):'nenhum celular conectado — o número vem do QR'}`,2,`<span class="badge ${cor[est]||''}">${esc(rot[est]||est)}</span>`)}
-      <p class="hint" style="margin-top:6px">Empresa: <b>${esc(CEVO.empresa||'Empresa principal')}</b>${nomeNicho?` · Nicho: <b>${esc(nomeNicho)}</b>`:''} · Atendimento automático: <span class="badge ${atendendo?'b-ok':'b-warn'}">${atendendo?'ativo':'parado'}</span></p>
-      ${perfilIa?`<div class="hotel-profile-block" style="display:flex;gap:12px;align-items:center;margin-top:10px">${perfilIa.foto?`<img src="${esc(perfilIa.foto)}" alt="" style="width:52px;height:52px;border-radius:50%;object-fit:cover">`:''}<div><b>${esc(perfilIa.nome)}</b><br><small class="hint">${esc(perfilIa.funcao||perfilIa.especialidade||'')}</small></div></div>`:''}
-      ${n.ia&&n.ia.elegivel===false?`<p class="hint" style="color:var(--err)"><b>A IA ${esc(n.ia.nome)} não pode atender o salão:</b> este número não responde até você escolher outra.</p>`:''}
-      ${!n.ia?`<p class="hint" style="color:var(--err)"><b>Sem IA vinculada:</b> este número não responde ninguém. Marque a IA abaixo e clique em Vincular IA.</p>`:''}
-      ${n.ia?.ausente?`<p class="hint" style="color:var(--err)">A IA vinculada (${esc(n.ia.agenteId)}) não existe mais no Hotel. Escolha outra.</p>`:''}
-      ${n.ia&&!n.ia.ausente&&n.ia.estado!=='homologado'?`<p class="hint" style="color:var(--err)">A IA ${esc(n.ia.nome)} saiu da homologação (${esc(n.ia.estado)}): o número não responde até ela voltar ou você trocar a IA.</p>`:''}
-      ${mod==='canais'?`<div class="form-grid" style="margin-top:10px"><div class="field"><label for="cevoCard_${esc(n.id)}">Cardápio do To No Rango <small>(final do link do cardápio, ex.: acai-do-veloso)</small></label><input id="cevoCard_${esc(n.id)}" maxlength="80" placeholder="sem loja ligada" value="${esc(n.cardapio?.slug||'')}"></div><div class="field"><label for="cevoChave_${esc(n.id)}">Chave do conector <small>(To No Rango → ZEST IA → Gerar chave; o pedido entra na loja)</small></label><input id="cevoChave_${esc(n.id)}" type="password" autocomplete="off" maxlength="60" placeholder="${n.cardapio?.venda?'ligada · termina em '+esc(n.cardapio.chaveFinal||''):'sem chave: só lê o cardápio'}"></div>${botao({t:n.cardapio?.slug?'Atualizar cardápio':'Ligar cardápio',ic:'check',v:'s',on:`cevoLigarCardapio('${esc(n.id)}')`})}</div>`:''}
-      <div class="form-grid" style="margin-top:10px">
-        ${cevoSeletor(n.id,n.ia?.agenteId)}
-        ${botao({t:n.ia?'Trocar IA':'Vincular IA',ic:'bot',v:'s',on:`cevoVincular('${esc(n.id)}')`})}
+    const classe=con?(atendendo?'st-ok':'st-warn'):(['aguardando_qr','conectando'].includes(est)?'st-warn':(['caido','erro'].includes(est)?'st-err':''));
+    const temIa=n.ia&&!n.ia.ausente, des=n.iaDesligada, religavel=des&&ias.some((x)=>x.agenteId===des.agenteId);
+    const foraDes=des&&(CEVO.iasForaDoAr||[]).find((x)=>x.agenteId===des.agenteId);
+    return `<article class="zc-num ${classe}" data-zc-tilt>
+      <div class="zc-top">
+        ${zcAva(perfilIa?.foto,temIa?n.ia.nome:'',{vivo:atendendo,vazio:!temIa})}
+        <div class="zc-id"><h3>${esc(temIa?n.ia.nome:'Sem IA vinculada')}</h3><p>${esc(n.rotulo)} · ${st.numero?'+'+esc(st.numero):'o número vem do celular que ler o QR'}</p></div>
+        <span class="zc-pill"><i></i>${esc(rot[est]||est)}</span>
       </div>
-      ${est==='aguardando_qr'&&st.qr?`<div style="text-align:center;margin:12px 0"><img src="${esc(st.qr)}" alt="QR Code do número ${esc(n.rotulo)}" style="width:260px;height:260px;border-radius:12px;border:1px solid var(--line);background:#fff;padding:8px"><p class="hint">WhatsApp → Aparelhos conectados → Conectar um aparelho. A tela se atualiza sozinha.</p></div>`:''}
-      ${st.ultimoErro&&!con?`<p class="hint" style="color:var(--err)">${esc(st.ultimoErro)}</p>`:''}
+      <div class="zc-chips">
+        <span class="zc-chip">Empresa <b>${esc(CEVO.empresa||'Empresa principal')}</b></span>
+        ${nomeNicho?`<span class="zc-chip">Nicho <b>${esc(nomeNicho)}</b></span>`:''}
+        ${perfilIa?.funcao||perfilIa?.especialidade?`<span class="zc-chip">${esc(perfilIa.funcao||perfilIa.especialidade)}</span>`:''}
+        <span class="zc-chip ${atendendo?'ok':'warn'}">Atendimento automático ${atendendo?'ativo':'parado'}</span>
+        ${n.cardapio?.slug?`<span class="zc-chip ${n.cardapio.venda?'ok':''}">Loja <b>${esc(n.cardapio.slug)}</b>${n.cardapio.venda?' · venda ligada':''}</span>`:''}
+      </div>
+      ${des?`<div class="zc-alert warn"><div><b>IA desligada${des.nome?': '+esc(des.nome):''}</b> em ${esc(new Date(des.em).toLocaleString('pt-BR'))} — ${esc(des.motivo||'')}.<br>${religavel?'Ela continua homologada: pode religar com um clique. A trava da conversa pessoal já está ativa.':foraDes?`Não dá para religar agora: ${esc(foraDes.motivo)}. Escolha outra abaixo.`:'Ela não existe mais no Hotel. Escolha outra abaixo.'}</div>${religavel?botao({t:'Religar '+(des.nome||'IA'),ic:'bot',v:'p',sz:'xs',on:`CEVO_SEL['${esc(n.id)}']='${esc(des.agenteId)}';cevoVincular('${esc(n.id)}')`}):''}</div>`:''}
+      ${n.ia&&n.ia.elegivel===false?`<div class="zc-alert"><div><b>A IA ${esc(n.ia.nome)} não pode atender o salão:</b> este número não responde até você escolher outra.</div></div>`:''}
+      ${!n.ia&&!des?`<div class="zc-alert"><div><b>Sem IA vinculada:</b> este número não responde ninguém. Escolha a IA abaixo.</div></div>`:''}
+      ${n.ia?.ausente?`<div class="zc-alert"><div>A IA vinculada (${esc(n.ia.agenteId)}) não existe mais no Hotel. Escolha outra.</div></div>`:''}
+      ${temIa&&n.ia.estado!=='homologado'?`<div class="zc-alert"><div>A IA ${esc(n.ia.nome)} saiu da homologação (${esc(n.ia.estado)}): o número não responde até ela voltar ou você trocar a IA.</div></div>`:''}
+      ${est==='aguardando_qr'&&st.qr?`<div class="zc-qr"><img src="${esc(st.qr)}" alt="QR Code do número ${esc(n.rotulo)}"></div><p class="hint" style="text-align:center">WhatsApp → Aparelhos conectados → Conectar um aparelho. A tela se atualiza sozinha.</p>`:''}
+      ${st.ultimoErro&&!con?`<p class="hint" style="color:var(--err);margin-top:10px">${esc(st.ultimoErro)}</p>`:''}
       ${n.webhook&&!n.webhook.ok?`<p class="hint" style="color:var(--err)">Respostas automáticas não ligadas: ${esc(n.webhook.erro||'')}</p>`:''}
-      ${idt?`<div class="hotel-profile-block" style="margin-top:10px"><small>Identidade no WhatsApp ${idt.sincronizadaEm?'· sincronizada em '+esc(new Date(idt.sincronizadaEm).toLocaleString('pt-BR')):''}${idt.pendente?' · <b>pendente: a IA mudou</b>':''}</small>
-        <ul class="hotel-list">${Object.entries(campos).map(([k,v])=>`<li>${esc({nome:'Nome',recado:'Recado (descrição)',foto:'Foto',descricaoComercial:'Descrição comercial'}[k]||k)}: ${v.ok?'atualizado':'não atualizado — '+esc(v.erro||'')}${v.aviso?' · '+esc(v.aviso):''}</li>`).join('')}</ul></div>`:''}
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+      <div class="form-grid">${cevoSeletor(n.id,n.ia?.agenteId)}</div>
+      ${mod==='canais'?`<details class="zc-loja"${n.cardapio?.slug?'':' open'}><summary>Loja do To No Rango ${n.cardapio?.slug?'· '+esc(n.cardapio.slug):'· nenhuma ligada'}</summary><div class="form-grid"><div class="field"><label for="cevoCard_${esc(n.id)}">Cardápio <small>(final do link, ex.: acai-do-veloso)</small></label><input id="cevoCard_${esc(n.id)}" maxlength="80" placeholder="sem loja ligada" value="${esc(n.cardapio?.slug||'')}"></div><div class="field"><label for="cevoChave_${esc(n.id)}">Chave do conector <small>(To No Rango → ZEST IA → Gerar chave)</small></label><input id="cevoChave_${esc(n.id)}" type="password" autocomplete="off" maxlength="60" placeholder="${n.cardapio?.venda?'ligada · termina em '+esc(n.cardapio.chaveFinal||''):'sem chave: só lê o cardápio'}"></div>${botao({t:n.cardapio?.slug?'Atualizar cardápio':'Ligar cardápio',ic:'check',v:'s',on:`cevoLigarCardapio('${esc(n.id)}')`})}</div></details>`:''}
+      ${idt?`<details class="zc-loja"><summary>Identidade no WhatsApp ${idt.sincronizadaEm?'· sincronizada em '+esc(new Date(idt.sincronizadaEm).toLocaleString('pt-BR')):''}${idt.pendente?' · pendente: a IA mudou':''}</summary><div><ul class="hotel-list">${Object.entries(campos).map(([k,v])=>`<li>${esc({nome:'Nome',recado:'Recado (descrição)',foto:'Foto',descricaoComercial:'Descrição comercial'}[k]||k)}: ${v.ok?'atualizado':'não atualizado — '+esc(v.erro||'')}${v.aviso?' · '+esc(v.aviso):''}</li>`).join('')}</ul></div></details>`:''}
+      <div class="zc-acts">
         ${con?botao({t:'Desconectar',ic:'power',v:'s',sz:'xs',on:`cevoDesconectar('${esc(n.id)}')`}):(est==='conectando'&&!st.qr?botao({t:'Reconectando…',ic:'atualizar',v:'s',sz:'xs',off:true,on:''}):botao({t:['aguardando_qr','caido','conectando'].includes(est)?'Gerar QR novo':'Conectar pelo QR',ic:'whats',v:'p',sz:'xs',on:`cevoConectar('${esc(n.id)}')`}))}
+        ${botao({t:n.ia?'Trocar IA':'Vincular IA',ic:'bot',v:'s',sz:'xs',on:`cevoVincular('${esc(n.id)}')`})}
         ${botao({t:'Sincronizar identidade da IA',ic:'atualizar',v:'s',sz:'xs',off:!con||!n.ia||n.ia.ausente,on:`cevoIdentidade('${esc(n.id)}')`})}
-        ${botao({t:'Apagar sessão',ic:'excluir',v:'s',sz:'xs',extra:'btn-dan',on:`cevoApagarSessao('${esc(n.id)}','${esc(n.rotulo)}')`})}
         ${botao({t:'Conversas',ic:'ver',v:'g',sz:'xs',on:`cevoConversas('${esc(n.id)}','${esc(n.rotulo)}')`})}
+        ${botao({t:'Apagar sessão',ic:'excluir',v:'s',sz:'xs',extra:'btn-dan',on:`cevoApagarSessao('${esc(n.id)}','${esc(n.rotulo)}')`})}
         ${botao({t:'Remover número',ic:'excluir',v:'s',sz:'xs',extra:'btn-dan',on:`cevoRemover('${esc(n.id)}','${esc(n.rotulo)}')`})}
-      </div></div>`;
+      </div></article>`;
   };
-  return head(t,sub)+cevoAuditoriaHtml(CEVO.auditoria)+
-    (ias.length?'':`<div class="card" style="margin-bottom:14px;border-style:dashed">${cardH('alerta','Nenhuma IA-ZEST homologada',mod==='salao'?'Crie no Hotel dos Bots uma IA de cabelo, barbearia, bronzeamento, manicure, pedicure, sobrancelhas ou unhas de gel, informando os dados do Cadê Você.':'Homologue uma IA no Hotel dos Bots para poder vinculá-la a um número.',5,botao({t:'Abrir Hotel dos Bots',ic:'bot',v:'s',on:"ir('hotel')"}))}</div>`)+
-    (CEVO.numeros||[]).map(cartao).join('')+
-    `<div class="card">${cardH('mais','Cadastrar número','Um nome para reconhecer (ex.: Vendas, Suporte). O número é o do celular que ler o QR.',2)}
+  const nums=CEVO.numeros||[], conectados=nums.filter((n)=>CEVO_EST[n.id]?.estado==='conectado').length;
+  const ativos=nums.filter((n)=>CEVO_EST[n.id]?.estado==='conectado'&&n.ia&&!n.ia.ausente&&n.ia.estado==='homologado'&&n.ia.elegivel!==false).length;
+  const hero=`<section class="zc-hero"><span class="zc-tag"><i></i>${mod==='salao'?'Salão · nichos da beleza':'Canais · todos os nichos'}</span><h2>${esc(t)}</h2><p>${esc(sub)}</p>
+    <div class="zc-stats"><div class="zc-stat"><b>${nums.length}</b><small>Números</small></div><div class="zc-stat${conectados?' on':''}"><b>${conectados}</b><small>Conectados</small></div><div class="zc-stat${ativos?' on':''}"><b>${ativos}</b><small>Atendendo</small></div><div class="zc-stat"><b>${ias.length}</b><small>IAs homologadas</small></div>${(CEVO.iasForaDoAr||[]).length?`<div class="zc-stat"><b>${CEVO.iasForaDoAr.length}</b><small>Fora do ar</small></div>`:''}</div></section>`;
+  return `<div class="zc zc-${mod}">`+hero+cevoAuditoriaHtml(CEVO.auditoria)+
+    (ias.length?'':`<div class="zc-alert warn" style="margin-bottom:14px"><div><b>Nenhuma IA-ZEST homologada.</b> ${mod==='salao'?'Crie no Hotel dos Bots uma IA de cabelo, barbearia, bronzeamento, manicure, pedicure, sobrancelhas ou unhas de gel, informando os dados do Cadê Você.':'Homologue uma IA no Hotel dos Bots para poder vinculá-la a um número.'}</div>${botao({t:'Abrir Hotel dos Bots',ic:'bot',v:'s',sz:'xs',on:"ir('hotel')"})}</div>`)+
+    `<div class="zc-grid">${nums.map(cartao).join('')}
+    <section class="zc-novo"><h3><i>+</i>Cadastrar número</h3><p class="hint">Um nome para reconhecer (ex.: Vendas, Suporte). O número é o do celular que ler o QR.</p>
       <div class="form-grid" style="margin-top:10px">
         <div class="field"><label for="cevoRotulo">Nome do número</label><input id="cevoRotulo" maxlength="60" placeholder="Vendas" value="${esc(CEVO_ROTULO)}" oninput="CEVO_ROTULO=this.value"></div>
         ${cevoSeletor('novo','')}
         ${botao({t:'Cadastrar número com a IA',ic:'mais',v:'p',on:'cevoCadastrar()'})}
-      </div></div>`;
+      </div></section></div></div>`;
 }
 
 let cadevc=null, cadevc_TIMER=null, SA_NICHO='', SA_SEL='';
