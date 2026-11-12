@@ -3,7 +3,7 @@
  * Monta um banco SQLite de demonstração com produtos consultados na API GTIN da RSC Sistemas (V3).
  *
  * Uso:
- *   export GTIN_TOKEN="seu token"            # o Bearer que você já tem
+ *   echo SEU_TOKEN > ~/.gtin-token           # uma vez só (ou export GTIN_TOKEN=...)
  *   node scripts/gtin-banco-demo.mjs codigos.txt [--imagens] [--banco demo-produtos.db]
  *   node scripts/gtin-banco-demo.mjs 7891000100103 7896116900029
  *
@@ -14,6 +14,8 @@
  * uma consulta por vez com pausa, e para tudo no primeiro 403/429 (limite do plano ou suspensão).
  */
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 const API = 'https://gtin.rscsistemas.com.br';
@@ -33,6 +35,7 @@ const valor = (nome, padrao) => { const i = args.indexOf(nome); return i >= 0 &&
 const arquivoBanco = valor('--banco', 'demo-produtos.db');
 const comImagens = flag('--imagens');
 const entradas = args.filter((a, i) => !a.startsWith('--') && args[i - 1] !== '--banco');
+if (!entradas.length && existsSync('codigos.txt')) entradas.push('codigos.txt');
 
 /** Dígito verificador GS1 (GTIN-8, 12, 13 e 14). */
 export function gtinValido(codigo) {
@@ -52,7 +55,9 @@ function lerCodigos() {
   return [...new Set(lista.map((x) => x.replace(/\D/g, '')).filter(Boolean))];
 }
 
-let token = process.env.GTIN_TOKEN || '';
+// Token: variável GTIN_TOKEN ou o arquivo ~/.gtin-token (salvo uma vez, fora do repositório).
+const arquivoToken = join(homedir(), '.gtin-token');
+let token = process.env.GTIN_TOKEN || (existsSync(arquivoToken) ? readFileSync(arquivoToken, 'utf8').trim() : '');
 
 async function novoToken() {
   const { GTIN_USUARIO: u, GTIN_SENHA: s } = process.env;
@@ -96,7 +101,7 @@ const faltou = db.prepare(`INSERT OR REPLACE INTO nao_encontrados (gtin, motivo,
 
 const codigos = lerCodigos();
 if (!codigos.length) { console.error('Informe códigos ou um arquivo com um código por linha.'); process.exit(1); }
-if (!token && !process.env.GTIN_USUARIO) { console.error('Defina GTIN_TOKEN (ou GTIN_USUARIO e GTIN_SENHA).'); process.exit(1); }
+if (!token && !process.env.GTIN_USUARIO) { console.error('Sem token. Salve uma vez:  echo SEU_TOKEN > ~/.gtin-token'); process.exit(1); }
 
 const validos = codigos.filter(gtinValido);
 const invalidos = codigos.filter((c) => !gtinValido(c));
