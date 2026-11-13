@@ -2173,7 +2173,7 @@ body.rota-prosp .btn-p:hover{filter:brightness(1.08)}
 .zc-novo{border-radius:20px;padding:20px;border:1.5px dashed color-mix(in srgb,var(--zn) 45%,var(--line));background:radial-gradient(80% 120% at 0% 0%,color-mix(in srgb,var(--zn) 10%,transparent),transparent 60%),var(--panel)}
 .zc-novo h3{margin:0 0 4px;display:flex;align-items:center;gap:10px}
 .zc-novo h3 i{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;font-style:normal;font-size:20px;background:var(--zn);color:#fff;box-shadow:0 0 18px var(--zn-glow)}
-.zc.z7{--zn:#9b6bff;--zn-2:#ff9a1f;--zn-glow:rgba(155,107,255,.38)}
+.zc.z7{--zn:#9b6bff;--zn-2:#c9b0ff;--zn-glow:rgba(155,107,255,.42)}
 .zc.z7.off{--zn:#ff4d6d;--zn-2:#ffb3c1;--zn-glow:rgba(255,77,109,.4)}
 .z7-cols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;margin-bottom:16px}
 @media (max-width:900px){.z7-cols{grid-template-columns:1fr}}
@@ -2197,22 +2197,66 @@ body.rota-prosp .btn-p:hover{filter:brightness(1.08)}
 .z7-mod.on{border-color:color-mix(in srgb,var(--zn) 45%,var(--line));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--zn) 20%,transparent)}
 .z7-mod b{display:block;font-size:13.5px}.z7-mod small{display:block;color:var(--dim);font-size:11.5px;margin:4px 0 10px}
 .z7-mod .zc-pill{--rail:var(--warn)}.z7-mod.on .zc-pill{--rail:var(--zn)}
-.zc.z7 .btn{position:relative;overflow:hidden;isolation:isolate;border-radius:999px;color:#fff;border:1px solid rgba(155,107,255,.42);
-  background:linear-gradient(160deg,#211e27,#16151a);box-shadow:0 8px 22px -14px rgba(155,107,255,.8),inset 0 1px 0 rgba(255,255,255,.08);transition:transform .2s,box-shadow .3s,border-color .3s}
-.zc.z7 .btn::before{content:"";position:absolute;left:-20%;right:-20%;top:0;height:220%;z-index:-1;border-radius:42%;
-  background:radial-gradient(45% 40% at 30% 35%,rgba(155,107,255,.95),transparent 70%),radial-gradient(40% 40% at 72% 30%,rgba(255,154,31,.85),transparent 70%),linear-gradient(180deg,rgba(155,107,255,.55),rgba(255,154,31,.35));
-  transform:translateY(78%) rotate(0deg);transition:transform .7s cubic-bezier(.2,.8,.2,1);animation:z7liq 7s linear infinite}
-.zc.z7 .btn::after{content:"";position:absolute;inset:0;border-radius:inherit;z-index:-1;background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,0) 55%);pointer-events:none}
-.zc.z7 .btn:hover{transform:translateY(-2px);border-color:rgba(255,154,31,.6);box-shadow:0 16px 30px -14px rgba(255,154,31,.65),0 0 0 1px rgba(155,107,255,.25)}
-.zc.z7 .btn:hover::before{transform:translateY(8%) rotate(0deg)}
-.zc.z7 .btn.btn-p::before{transform:translateY(14%)}
-.zc.z7 .btn.btn-p{border-color:rgba(255,154,31,.55);box-shadow:0 14px 30px -14px rgba(155,107,255,.9),inset 0 1px 0 rgba(255,255,255,.18)}
-.zc.z7 .btn:active{transform:translateY(0) scale(.98)}
-@keyframes z7liq{0%{border-radius:42% 48% 44% 46%;filter:hue-rotate(0deg)}50%{border-radius:48% 40% 50% 42%;filter:hue-rotate(-12deg)}100%{border-radius:42% 48% 44% 46%;filter:hue-rotate(0deg)}}
-.z7-bar{position:relative;height:14px;border-radius:999px;background:#16151a;border:1px solid rgba(155,107,255,.35);overflow:hidden;margin:8px 0 4px}
-.z7-bar i{position:absolute;inset:0 auto 0 0;border-radius:inherit;background:linear-gradient(90deg,#9b6bff,#ff9a1f);box-shadow:0 0 18px rgba(255,154,31,.6);transition:width .6s}
-.z7-bar i::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(115deg,rgba(255,255,255,.18) 0 10px,transparent 10px 22px);animation:z7mov 1s linear infinite}
-@keyframes z7mov{to{background-position:44px 0}}
+.zc.z7 .zc-hero,.z7-box,.z7-mod,.zc.z7 .zc-stat{border-radius:4px;clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)}
+.zc.z7 .zc-stat{clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.z7-box,.z7-mod{border-color:rgba(155,107,255,.28)}
+.zc.z7 .zc-pill{border-radius:3px}
+.z7-in input{border-radius:3px!important;clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
+.z7-in input:focus{border-color:#9b6bff!important;box-shadow:inset 0 0 0 1px #9b6bff,0 0 18px rgba(155,107,255,.35)!important}
+/* botões HUD: chanfrados, só roxo, acendem */
+.zc.z7 .btn,.modal.z7-modal .btn{border-radius:0;color:#d9ccff;border:0;
+  box-shadow:inset 0 0 0 1px rgba(155,107,255,.55);clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);
+  text-transform:uppercase;letter-spacing:.08em;font-size:11px;transition:background .25s,box-shadow .25s,color .25s,text-shadow .25s}
+.zc.z7 .btn svg,.modal.z7-modal .btn svg{color:#9b6bff;transition:filter .25s}
+.zc.z7 .btn:hover,.modal.z7-modal .btn:hover{color:#fff;text-shadow:0 0 10px #b48cff;
+  box-shadow:inset 0 0 0 1px #b48cff,inset 0 0 22px rgba(155,107,255,.55)}
+.zc.z7 .btn:hover svg,.modal.z7-modal .btn:hover svg{color:#fff;filter:drop-shadow(0 0 6px #b48cff)}
+.zc.z7 .btn.btn-p,.modal.z7-modal .btn.btn-p{color:#fff;box-shadow:inset 0 0 0 1px #b48cff,inset 0 0 18px rgba(155,107,255,.45)}
+.zc.z7 .btn[disabled],.modal.z7-modal .btn[disabled]{opacity:.4;filter:grayscale(.6)}
+.zc.z7 .btn,.modal.z7-modal .btn{--cc:rgba(155,107,255,.55)}
+.zc.z7 .btn:hover,.modal.z7-modal .btn:hover,.zc.z7 .btn.btn-p,.modal.z7-modal .btn.btn-p{--cc:#b48cff}
+.zc.z7 .btn,.modal.z7-modal .btn{background-image:linear-gradient(135deg,transparent 6.4px,var(--cc) 6.4px 7.6px,transparent 7.6px),linear-gradient(315deg,transparent 6.4px,var(--cc) 6.4px 7.6px,transparent 7.6px),var(--bgz,linear-gradient(180deg,#1a1524,#110e18));
+  background-size:11px 11px,11px 11px,100% 100%;background-position:0 0,100% 100%,0 0;background-repeat:no-repeat}
+.zc.z7 .btn:hover,.modal.z7-modal .btn:hover{--bgz:linear-gradient(180deg,#3a2470,#24164a)}
+.zc.z7 .btn.btn-p,.modal.z7-modal .btn.btn-p{--bgz:linear-gradient(180deg,#4b2c94,#2a1858)}
+.z7-box,.z7-mod{background-image:linear-gradient(135deg,transparent 9.4px,rgba(155,107,255,.45) 9.4px 10.6px,transparent 10.6px),linear-gradient(315deg,transparent 9.4px,rgba(155,107,255,.45) 9.4px 10.6px,transparent 10.6px),linear-gradient(160deg,#16131f,#0f0d15);
+  background-size:15px 15px,15px 15px,100% 100%;background-position:0 0,100% 100%,0 0;background-repeat:no-repeat}
+.z7-ln{border-radius:3px}
+/* orbes holográficos: ações soltas na tela, fora de card */
+.z7-orbs{display:flex;flex-wrap:wrap;justify-content:center;gap:26px 40px;margin:6px 0 26px}
+.z7-orb{appearance:none;border:0;background:none;color:#d9ccff;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:10px;font:inherit;font-size:11px;letter-spacing:.14em;text-transform:uppercase;width:130px}
+.z7-orb .o{position:relative;width:108px;height:108px;border-radius:50%;display:grid;place-items:center;
+  background:radial-gradient(circle,rgba(155,107,255,.30) 0 28%,transparent 29%),radial-gradient(circle,transparent 0 36%,rgba(155,107,255,.18) 37% 39%,transparent 40% 52%,rgba(155,107,255,.35) 53% 54%,transparent 55%),
+  radial-gradient(circle at center,rgba(155,107,255,.28) 1px,transparent 1.6px) 0 0/7px 7px,radial-gradient(circle,#140f22 0 70%,#0a0810 71%);
+  box-shadow:0 0 0 1px rgba(155,107,255,.35),0 0 24px -6px rgba(155,107,255,.6);transition:box-shadow .35s,filter .35s}
+.z7-orb .o::before{content:"";position:absolute;inset:-9px;border-radius:50%;background:conic-gradient(from 20deg,transparent 0 12%,#9b6bff 12% 30%,transparent 30% 55%,#9b6bff 55% 62%,transparent 62% 80%,rgba(155,107,255,.6) 80% 92%,transparent 92%);
+  -webkit-mask:radial-gradient(circle,transparent 0 63%,#000 64% 67%,transparent 68%);mask:radial-gradient(circle,transparent 0 63%,#000 64% 67%,transparent 68%);opacity:.55;animation:z7gira 14s linear infinite}
+.z7-orb .o::after{content:"";position:absolute;inset:-18px;border-radius:50%;border:1px dashed rgba(155,107,255,.3);animation:z7gira 30s linear infinite reverse}
+.z7-orb .o svg{width:34px;height:34px;color:#cdb6ff;filter:drop-shadow(0 0 6px rgba(155,107,255,.8));transition:transform .35s,filter .35s}
+.z7-orb:hover .o,.z7-orb:focus-visible .o{filter:brightness(1.55) saturate(1.3);box-shadow:0 0 0 1px #b48cff,0 0 40px 2px rgba(155,107,255,.75),inset 0 0 30px rgba(155,107,255,.5)}
+.z7-orb:hover .o::before{opacity:1;animation-duration:3.5s}
+.z7-orb:hover .o svg{transform:scale(1.12);filter:drop-shadow(0 0 12px #c9b0ff)}
+.z7-orb:hover span{color:#fff;text-shadow:0 0 10px #b48cff}
+.z7-orb:focus-visible{outline:none}
+@keyframes z7gira{to{transform:rotate(360deg)}}
+/* progresso HUD */
+.z7-hud{display:flex;align-items:center;gap:14px;margin:12px 0}
+.z7-gauge{--p:0;position:relative;flex:0 0 74px;height:74px;border-radius:50%;display:grid;place-items:center;
+  background:radial-gradient(circle,#0f0c16 0 56%,transparent 57%),repeating-conic-gradient(from 0deg,rgba(155,107,255,.9) 0 3deg,transparent 3deg 6deg) ,#0f0c16;
+  -webkit-mask:radial-gradient(circle,#000 0 100%);box-shadow:0 0 0 1px rgba(155,107,255,.4),0 0 18px -4px rgba(155,107,255,.7)}
+.z7-gauge::before{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(transparent calc(var(--p)*1%),rgba(10,8,16,.86) 0)}
+.z7-gauge::after{content:"";position:absolute;inset:6px;border-radius:50%;border:1px solid rgba(155,107,255,.35)}
+.z7-gauge b{position:relative;z-index:1;font-size:15px;color:#e6dcff;text-shadow:0 0 8px #9b6bff;font-variant-numeric:tabular-nums}
+.z7-trk{flex:1;min-width:0}
+.z7-trk .rot{display:flex;justify-content:space-between;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:#b9a3ff;margin-bottom:6px}
+.z7-seg{position:relative;height:16px;padding:3px;background:#0d0b13;box-shadow:inset 0 0 0 1px rgba(155,107,255,.5);clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.z7-seg i{display:block;height:100%;background:repeating-linear-gradient(90deg,#9b6bff 0 10px,transparent 10px 13px);box-shadow:0 0 12px rgba(155,107,255,.8);transition:width .6s}
+.z7-seg.err i{background:repeating-linear-gradient(90deg,#ff4d6d 0 10px,transparent 10px 13px)}
+.z7-trk small{display:block;margin-top:5px;color:var(--dim);font-size:11px}
+/* modal HUD */
+.modal.z7-modal{border-radius:0;background:linear-gradient(170deg,#15111e,#0b0910);border:0;box-shadow:inset 0 0 0 1px rgba(155,107,255,.45),0 40px 90px -30px rgba(155,107,255,.55);
+  clip-path:polygon(22px 0,100% 0,100% calc(100% - 22px),calc(100% - 22px) 100%,0 100%,0 22px)}
+.modal.z7-modal #modalT{letter-spacing:.12em;text-transform:uppercase;font-size:14px;color:#e6dcff;text-shadow:0 0 12px rgba(155,107,255,.7)}
 .z7-sug{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin:10px 0 14px}
 .z7-in{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .z7-in input{flex:1;min-width:200px;padding:10px 14px;border-radius:999px;border:1px solid rgba(155,107,255,.45);background:#16151a;color:#fff;font:inherit}
@@ -9689,6 +9733,12 @@ function central0007Html(h){
       <div class="zc-stat"><b>${c['mudou-ia']||0}</b><small>IAs mudadas</small></div>
       <div class="zc-stat on"><b>${c.homologou||0}</b><small>homologadas</small></div>
     </div></div>
+  <div class="z7-orbs">
+    <button class="z7-orb" onclick="z7AbrirModelos()"><span class="o">${ico('baixar')}</span><span>Adicionar modelo</span></button>
+    <button class="z7-orb" onclick="cevoSincronizarModelos0007()"><span class="o">${ico('atualizar')}</span><span>Sincronizar mapa</span></button>
+    <button class="z7-orb" onclick="cevoRevisarTodosBots0007()"><span class="o">${ico('config')}</span><span>Rever todos os bots</span></button>
+    <button class="z7-orb" onclick="carregarDiario0007()"><span class="o">${ico('auditor')}</span><span>Atualizar diário</span></button>
+  </div>
   <div class="z7-cols">
     <div class="z7-box"><h3><span class="z7-live"></span>Ao vivo</h3><p>Atualiza sozinho a cada 15 segundos.</p>
       <div class="z7-feed">${d.erro?`<div class="z7-vazio">Não consegui ler o diário: ${esc(d.erro)}</div>`:feed.length?feed.map(l=>z7Linha(l,d.tipos)).join(''):'<div class="z7-vazio">Nada registrado ainda. A próxima rodada do 0007 (a cada 30 min) já aparece aqui.</div>'}</div></div>
@@ -9698,20 +9748,20 @@ function central0007Html(h){
   <div class="z7-box" style="margin-bottom:16px"><h3>${ico('gerar')} Modelos de IA free do 0007 <span class="zc-pill" style="--rail:var(--zn);margin-left:auto">${ativos}/${modelos.length} ativos</span></h3>
     <p>Os modelos que o 0007 usa para pensar. Esta máquina aguenta até o de 3B; maior que isso trava a produção até chegar a RAM nova.</p>
     <div class="z7-mods">${mods}</div>
-    <div class="zc-acts">${botao({t:'Adicionar modelo ao 0007',ic:'baixar',v:'p',sz:'xs',on:'z7AbrirModelos()'})}${botao({t:'Sincronizar modelos no Mapa 0007',ic:'atualizar',v:'s',sz:'xs',on:'cevoSincronizarModelos0007()'})}${botao({t:'0007: Rever e refazer todos os bots',ic:'check',v:'s',sz:'xs',on:'cevoRevisarTodosBots0007()'})}</div>
   </div></section>`;
 }
 let Z7_MODS=null, Z7_TM=null;
 async function z7AbrirModelos(){
   try{ Z7_MODS=await api('hotel/modelos'); }catch(e){ return avisoErro('Não consegui abrir os modelos',esc(e.message)); }
-  abrirModal('Adicionar modelo de IA ao 0007',`<div class="zc z7" id="z7Modal">${z7ModalHtml()}</div>`,BT.cancelar());
+  abrirModal('Adicionar modelo de IA ao 0007',`<div class="zc z7" id="z7Modal">${z7ModalHtml()}</div>`,BT.cancelar(),{classe:'z7-modal'});
   z7Acompanhar();
 }
 function z7ModalHtml(){
   const m=Z7_MODS||{}, dls=(m.downloads||[]);
   const ativos=dls.filter(d=>d.estado==='baixando');
-  const prog=dls.map(d=>{ const pct=d.total?Math.round(d.feito/d.total*100):(d.estado==='pronto'?100:3);
-    return `<div style="margin:10px 0"><b>${esc(d.id)}</b> <small class="hint">${d.estado==='pronto'?'pronto e adicionado ao 0007':d.estado==='erro'?'falhou: '+esc(d.erro||''):esc(d.status||'baixando')+(d.total?` · ${(d.feito/1e9).toFixed(2)} de ${(d.total/1e9).toFixed(2)} GB`:'')}</small><div class="z7-bar"><i style="width:${pct}%;${d.estado==='erro'?'background:#ff4d6d':''}"></i></div></div>`; }).join('');
+  const prog=dls.map(d=>{ const pct=d.total?Math.round(d.feito/d.total*100):(d.estado==='pronto'?100:0);
+    const info=d.estado==='pronto'?'pronto e adicionado ao 0007':d.estado==='erro'?'falhou: '+esc(d.erro||''):(d.total?`${(d.feito/1e9).toFixed(2)} de ${(d.total/1e9).toFixed(2)} GB`:esc(d.status||'conectando'));
+    return `<div class="z7-hud"><div class="z7-gauge" style="--p:${pct}"><b>${pct}%</b></div><div class="z7-trk"><div class="rot"><span>${esc(d.id)}</span><span>${d.estado==='baixando'?'baixando…':d.estado==='pronto'?'concluído':'erro'}</span></div><div class="z7-seg${d.estado==='erro'?' err':''}"><i style="width:${pct}%"></i></div><small>${info}</small></div></div>`; }).join('');
   return `<p class="hint">1. Abra o catálogo free, escolha um modelo e copie o nome (ex.: <b>gemma3:1b</b>). 2. Cole aqui e clique em Baixar e adicionar. Quando terminar, ele entra sozinho no mapa do 0007. Esta máquina aguenta até <b>${m.teto||3}B</b>.</p>
   <div class="zc-acts" style="border:0;padding-top:0">${botao({t:'Abrir catálogo free do Ollama',ic:'ver',v:'p',sz:'xs',on:`window.open('${esc(m.catalogoUrl||'https://ollama.com/library')}','_blank','noopener')`})}</div>
   <div class="z7-in" style="margin-top:12px"><input id="z7Nome" placeholder="Cole o nome do modelo, ex.: gemma3:1b" autocomplete="off">${botao({t:'Baixar e adicionar',ic:'baixar',v:'p',sz:'xs',on:`z7Adicionar(document.getElementById('z7Nome').value)`})}</div>
