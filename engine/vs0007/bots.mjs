@@ -29,6 +29,7 @@ import { segmentoDoNicho, temasCobertos } from './segmentos.mjs';
 import { documento as validarDocumento } from '../vsclientes/ofertas.mjs';
 import * as R from './regras.mjs';
 import * as MAPA from './mapa.mjs';
+import * as DIARIO from './diario.mjs';
 import {
   MODELOS_FREE_0007,
   PARAMETROS_TREINO,
@@ -1959,6 +1960,7 @@ function encerrarPrimeiroTreino(bot, prep, agora, protegido) {
       save(DATASET_BOTS, bots);
     }
   }
+  DIARIO.registrar({ tipo: 'prazo', titulo: `${acao === 'apagada' ? 'Apagou' : 'Não homologou'} ${bot.nome}: primeiro treino passou de 12 h (${horas} h)`, motivo, agenteId: bot.agenteId, nome: bot.nome, em: agora });
   return { agenteId: bot.agenteId, nome: bot.nome, acao, motivo, horas };
 }
 
@@ -1970,6 +1972,7 @@ function liberarEncerramentoIndevido(agenteId) {
   if (!ciclo?.preparacaoConhecimentoInicial?.encerradoPorPrazo) return;
   const { encerradoPorPrazo, ...resto } = ciclo.preparacaoConhecimentoInicial;
   ciclo.preparacaoConhecimentoInicial = { ...resto, encerramentoDesfeito: { em: new Date().toISOString(), antes: encerradoPorPrazo } };
+  DIARIO.registrar({ tipo: 'correcao', titulo: `Desfez o encerramento por prazo de ${alvo.nome}: ela já tinha homologado`, agenteId, nome: alvo.nome });
   alvo.cicloVida = ciclo;
   if (alvo.preparacao) alvo.preparacao = { ...alvo.preparacao, cicloVida: ciclo };
   save(DATASET_BOTS, bots);
@@ -2017,6 +2020,10 @@ export async function processarPrazosHomologacao({ agora = new Date(), fetch: fe
       r = { erro: e.message };
     }
     registrarTentativaPrazo(bot.agenteId, r, agora);
+    if (r.homologado) DIARIO.registrar({ tipo: 'homologou', titulo: `Homologou ${bot.nome}`, agenteId: bot.agenteId, nome: bot.nome, em: agora });
+    else if (r.erro) DIARIO.registrar({ tipo: 'falha', titulo: `Tentativa de homologar ${bot.nome} falhou`, motivo: r.erro, agenteId: bot.agenteId, nome: bot.nome, em: agora });
+    else if (r.aguardandoAprovacao) DIARIO.registrar({ tipo: 'info', titulo: `${bot.nome} pronta, aguardando aprovação de uma pessoa`, agenteId: bot.agenteId, nome: bot.nome, em: agora });
+    else DIARIO.registrar({ tipo: 'info', titulo: `Trabalhando em ${bot.nome}: ${String(r.pendencia || 'em preparação')}`, detalhe: r.erroPesquisa || r.mensagem || null, agenteId: bot.agenteId, nome: bot.nome, em: agora });
     if (r.homologado) resumo.homologados++;
     else if (r.aguardandoAprovacao) resumo.aguardandoAprovacao++;
     else resumo.pendentes++;
@@ -2181,6 +2188,7 @@ export async function sincronizarModelosFree({ url = urlOllamaPadrao(), fetch: f
     });
     if (criado.no) registrados.push({ id: m.id, noId: criado.no.id, instalado: true, novo: true });
   }
+  DIARIO.registrar({ tipo: 'modelos', titulo: ollamaOnline ? `Sincronizou modelos free: ${tagsInstaladas.size} instalado(s) no Ollama` : 'Sincronizou modelos free sem o Ollama (fora do ar)' });
   return {
     ok: true,
     ollamaOnline,
@@ -2317,6 +2325,15 @@ export function treinarIAPorParametros({ agenteId, parametros = {}, usarSugestao
     if (rLim.no) gravados.push({ parametro: 'limites', categoria: 'limites', noId: rLim.no.id, atualizado: true });
   }
 
+  if (gravados.length) {
+    DIARIO.registrar({
+      tipo: 'mudou-ia',
+      titulo: `Treinou ${bot.nome} por parâmetro`,
+      detalhe: `Parâmetros: ${[...new Set(gravados.map((g) => g.parametro))].join(', ')}`,
+      motivo: usarSugestao0007 ? 'Faltavam parâmetros no treino; o 0007 completou com a sugestão dele' : `Ensinado por ${por}`,
+      agenteId: bot.agenteId, nome: bot.nome,
+    });
+  }
   return {
     ok: true,
     agenteId: bot.agenteId,
@@ -2992,6 +3009,13 @@ export function revisarERefazerBot({ agenteId, autorizado = false, por = '0007' 
 
   const testes = avaliarTestesAutomaticos(botRevisado);
   const diagnostico = diagnosticoTreinoBot(agenteId);
+  DIARIO.registrar({
+    tipo: 'mudou-ia',
+    titulo: `Revisou e refez ${botRevisado.nome}`,
+    detalhe: `Mapa mental, pesquisa básica, frases e forma de agir (${novosNos.length} itens novos, ${antigosDoAgente.length} antigos tirados, aprendizados do dono mantidos).`,
+    motivo: por === '0007' ? 'Revisão geral do 0007' : `Pedido de ${por}`,
+    agenteId, nome: botRevisado.nome,
+  });
 
   return {
     ok: true,

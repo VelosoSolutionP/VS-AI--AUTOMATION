@@ -2173,6 +2173,30 @@ body.rota-prosp .btn-p:hover{filter:brightness(1.08)}
 .zc-novo{border-radius:20px;padding:20px;border:1.5px dashed color-mix(in srgb,var(--zn) 45%,var(--line));background:radial-gradient(80% 120% at 0% 0%,color-mix(in srgb,var(--zn) 10%,transparent),transparent 60%),var(--panel)}
 .zc-novo h3{margin:0 0 4px;display:flex;align-items:center;gap:10px}
 .zc-novo h3 i{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;font-style:normal;font-size:20px;background:var(--zn);color:#fff;box-shadow:0 0 18px var(--zn-glow)}
+.zc.z7{--zn:#22d3a6;--zn-2:#8bffdf;--zn-glow:rgba(34,211,166,.36)}
+.zc.z7.off{--zn:#ff4d6d;--zn-2:#ffb3c1;--zn-glow:rgba(255,77,109,.4)}
+.z7-cols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;margin-bottom:16px}
+@media (max-width:900px){.z7-cols{grid-template-columns:1fr}}
+.z7-box{border-radius:18px;padding:16px 16px 10px;background:linear-gradient(160deg,var(--panel),var(--panel-2));border:1px solid color-mix(in srgb,var(--zn) 22%,var(--line));box-shadow:0 24px 50px -36px var(--zn-glow),inset 0 1px 0 rgba(255,255,255,.05)}
+.z7-box h3{margin:0 0 4px;font-size:15px;display:flex;align-items:center;gap:10px}
+.z7-box h3 svg{width:18px;height:18px;flex:0 0 18px;color:var(--zn)}
+.z7-box>p{margin:0 0 10px;color:var(--dim);font-size:12.5px}
+.z7-live{width:9px;height:9px;border-radius:50%;background:var(--zn);box-shadow:0 0 0 0 var(--zn);animation:z7pulse 1.8s infinite}
+@keyframes z7pulse{70%{box-shadow:0 0 0 10px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.z7-feed{max-height:420px;overflow:auto;padding-right:4px;display:flex;flex-direction:column;gap:8px}
+.z7-ln{--c:var(--dim);display:grid;grid-template-columns:auto 1fr;gap:10px;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--panel) 80%,transparent);border:1px solid var(--line);border-left:3px solid var(--c);animation:z7in .35s ease}
+@keyframes z7in{from{opacity:0;transform:translateY(-6px)}}
+.z7-ln.critico{--c:#ff4d6d;background:color-mix(in srgb,#ff4d6d 7%,var(--panel))}.z7-ln.alerta{--c:#ffb020}.z7-ln.ok{--c:#22d3a6}.z7-ln.info{--c:#5b8cff}
+.z7-ln time{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums;white-space:nowrap;padding-top:2px}
+.z7-ln b{font-size:13px}.z7-ln small{display:block;color:var(--muted);font-size:12px;margin-top:3px}
+.z7-ln em{font-style:normal;color:var(--c);font-weight:600}
+.z7-vazio{color:var(--dim);font-size:13px;padding:14px 4px}
+.z7-mods{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;perspective:900px}
+.z7-mod{position:relative;padding:14px;border-radius:16px;background:linear-gradient(160deg,var(--panel),var(--panel-2));border:1px solid var(--line);transition:transform .25s,box-shadow .25s}
+.z7-mod:hover{transform:translateY(-3px) rotateX(4deg);box-shadow:0 18px 34px -20px var(--zn-glow)}
+.z7-mod.on{border-color:color-mix(in srgb,var(--zn) 45%,var(--line));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--zn) 20%,transparent)}
+.z7-mod b{display:block;font-size:13.5px}.z7-mod small{display:block;color:var(--dim);font-size:11.5px;margin:4px 0 10px}
+.z7-mod .zc-pill{--rail:var(--warn)}.z7-mod.on .zc-pill{--rail:var(--zn)}
 @media (prefers-reduced-motion:reduce){.zc *,.zc *::before,.zc *::after,.zc-hero::after{animation:none!important;transition:none!important}.zc-num{transform:none!important}}
 @media (max-width:640px){.zc-hero{padding:20px 16px}.zc-num{padding:16px 14px 14px 18px}.zc-bots{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}}
 </style>
@@ -9611,13 +9635,60 @@ async function cevoConversas(id,rotulo){
     abrirModal('Conversas — '+rotulo,corpo,BT.cancelar()); }
   catch(e){ avisoErro('Não consegui abrir as conversas',esc(e.message)); }
 }
-function hotelTreinoHtml(h){
-  const l=(h?.treino||[]);
+let DIARIO0007=null, DIARIO0007_TM=null;
+const Z7_URL_MODELOS='https://ollama.com/library';
+async function carregarDiario0007(){
+  try{ DIARIO0007=await api('hotel/diario'); }catch(e){ DIARIO0007={erro:e.message}; }
+  if(rota==='hotel'&&!HOTEL_CONFIG){ const el=document.getElementById('z7Central'); if(el){ el.outerHTML=central0007Html(HOTEL); } else render(); }
+}
+function acompanharDiario0007(){
+  clearInterval(DIARIO0007_TM);
+  DIARIO0007_TM=setInterval(()=>{ if(rota!=='hotel'||document.hidden){ if(rota!=='hotel') clearInterval(DIARIO0007_TM); return; } carregarDiario0007(); },15000);
+}
+function z7Hora(iso){ const d=new Date(iso); const hoje=new Date().toDateString()===d.toDateString(); return hoje?d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
+function z7Linha(l,tipos){
+  const rot=tipos?.[l.tipo]?.rotulo||'';
+  return `<div class="z7-ln ${esc(l.nivel||'info')}"><time>${esc(z7Hora(l.em))}</time><div><b>${esc(l.titulo||rot)}</b>${l.motivo?`<small><em>Por quê:</em> ${esc(l.motivo)}</small>`:''}${l.detalhe?`<small>${esc(l.detalhe)}</small>`:''}</div></div>`;
+}
+function central0007Html(h){
+  if(!DIARIO0007){ setTimeout(carregarDiario0007,0); acompanharDiario0007(); }
+  const d=DIARIO0007||{}, a=d.auditoria||{}, c=a.contagem||{}, est=d.estado||{noAr:true};
   const modelos=(h?.modelosFree0007||[]);
   const ativos=modelos.filter(m=>m.instalado||m.registradoNoMapa).length;
-  const cardModelos=modelos.length?`<div class="card" style="margin-bottom:14px">${cardH('cerebro','Mapa Mental 0007 — Modelos Free & Revisão Geral','Modelos gratuitos homologados no mapa mental do 0007 e revisão completa dos bots (pesquisa básica, nicho, produtos, o que soma, frases e forma de agir).',2,`<span class="badge b-ok">${ativos}/${modelos.length} ativos</span>`)}
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">${modelos.map(m=>{const ok=m.instalado||m.registradoNoMapa; return `<span class="badge ${ok?'b-ok':'b-warn'}" title="${esc(m.papel||'')}">${esc(m.nome)} · ${esc(m.tamanho||'')} (${ok?'no mapa':'baixar'})</span>`;}).join('')}</div>
-    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">${botao({t:'Sincronizar modelos no Mapa 0007',ic:'atualizar',v:'s',sz:'xs',on:'cevoSincronizarModelos0007()'})}${botao({t:'0007: Rever e refazer todos os bots',ic:'check',v:'p',sz:'xs',on:'cevoRevisarTodosBots0007()'})}</div></div>`:'';
+  const feed=(d.linhas||[]).slice(0,40);
+  const rel=(a.relevantes||[]);
+  const mods=modelos.map(m=>{const ok=m.instalado||m.registradoNoMapa; return `<div class="z7-mod${ok?' on':''}"><b>${esc(m.nome)}</b><small>${esc(m.tamanho||'')} · ${esc(m.indicacao||m.papel||'')}</small><span class="zc-pill">${ok?'No mapa do 0007':'Não baixado'}</span>${ok?'':`<div style="margin-top:10px">${botao({t:'Baixar este',ic:'baixar',v:'s',sz:'xs',on:`z7Baixar('${esc(m.id)}')`})}</div>`}</div>`;}).join('');
+  return `<section class="zc z7${est.noAr?'':' off'}" id="z7Central">
+  <div class="zc-hero"><span class="zc-tag"><i></i>Central do 0007 · ao vivo</span>
+    <h2>${est.noAr?'O 0007 está trabalhando':'O 0007 está inoperante'}</h2>
+    <p>${est.noAr?'Tudo o que ele faz aparece aqui na hora: o que homologou, o que mudou nas IAs e por quê, e o que travou.':`Desde ${esc(z7Hora(est.desde))}. Motivo: ${esc(est.motivo||'não informado')}.`}</p>
+    <div class="zc-stats">
+      <div class="zc-stat${est.noAr?' on':''}"><b>${est.noAr?'No ar':'Fora'}</b><small>situação</small></div>
+      <div class="zc-stat${c.prazo?' on':''}"><b>${c.prazo||0}</b><small>fora do prazo (15 dias)</small></div>
+      <div class="zc-stat"><b>${c.inoperante||0}</b><small>vezes inoperante</small></div>
+      <div class="zc-stat"><b>${c['mudou-ia']||0}</b><small>IAs mudadas</small></div>
+      <div class="zc-stat on"><b>${c.homologou||0}</b><small>homologadas</small></div>
+    </div></div>
+  <div class="z7-cols">
+    <div class="z7-box"><h3><span class="z7-live"></span>Ao vivo</h3><p>Atualiza sozinho a cada 15 segundos.</p>
+      <div class="z7-feed">${d.erro?`<div class="z7-vazio">Não consegui ler o diário: ${esc(d.erro)}</div>`:feed.length?feed.map(l=>z7Linha(l,d.tipos)).join(''):'<div class="z7-vazio">Nada registrado ainda. A próxima rodada do 0007 (a cada 30 min) já aparece aqui.</div>'}</div></div>
+    <div class="z7-box"><h3>${ico('auditor')} Auditor de 15 dias</h3><p>Só o que importa, nesta ordem: IA que não homologou no prazo, 0007 inoperante e IA que ele mudou (com a falha que viu).</p>
+      <div class="z7-feed">${rel.length?rel.map(l=>z7Linha(l,d.tipos)).join(''):'<div class="z7-vazio">Nada relevante nos últimos 15 dias.</div>'}</div></div>
+  </div>
+  <div class="z7-box" style="margin-bottom:16px"><h3>${ico('gerar')} Modelos de IA free do 0007 <span class="zc-pill" style="--rail:var(--zn);margin-left:auto">${ativos}/${modelos.length} ativos</span></h3>
+    <p>Os modelos que o 0007 usa para pensar. Esta máquina aguenta até o de 3B; maior que isso trava a produção até chegar a RAM nova.</p>
+    <div class="z7-mods">${mods}</div>
+    <div class="zc-acts">${botao({t:'Baixar mais modelos free',ic:'baixar',v:'p',sz:'xs',on:`window.open('${Z7_URL_MODELOS}','_blank','noopener')`})}${botao({t:'Sincronizar modelos no Mapa 0007',ic:'atualizar',v:'s',sz:'xs',on:'cevoSincronizarModelos0007()'})}${botao({t:'0007: Rever e refazer todos os bots',ic:'check',v:'s',sz:'xs',on:'cevoRevisarTodosBots0007()'})}</div>
+  </div></section>`;
+}
+async function z7Baixar(modelo){
+  flash(`Baixando ${modelo} no Ollama… pode levar alguns minutos.`,'ok');
+  try{ const r=await api('hotel/modelos-free/baixar',{modelo}); await carregarHotel(); carregarDiario0007(); flash(r.baixou?`${modelo} baixado e registrado no mapa do 0007.`:`${modelo} registrado no mapa, mas o download não terminou: confira o Ollama.`,r.baixou?'ok':'err'); }
+  catch(e){ avisoErro('Não consegui baixar o modelo',esc(e.message)); }
+}
+function hotelTreinoHtml(h){
+  const l=(h?.treino||[]);
+  const cardModelos=central0007Html(h);
   const comFalta=l.filter(x=>{
     const ps=(x.parametros||[]);
     if(ps.length) return ps.some(p=>p.ok===false);

@@ -99,6 +99,7 @@ import * as bot from '../engine/vsbot/index.mjs';
 import * as botModelos from '../engine/vsbot/modelos.mjs';
 import * as profissoes from '../engine/vsbot/profissoes.mjs';
 import * as hotel from '../engine/vs0007/bots.mjs';
+import * as diario0007 from '../engine/vs0007/diario.mjs';
 import * as docs from '../engine/vsdocumentos/index.mjs';
 import { documento as validarDocumento } from '../engine/vsclientes/ofertas.mjs';
 import * as clientes from '../engine/vsclientes/index.mjs';
@@ -2463,6 +2464,16 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
       });
     }
     /* Hotel dos Bots (missão 0007): catálogo dos bots comerciais, totais e instâncias. */
+    /* Diário do 0007 ao vivo + auditor de 15 dias (só o relevante). ?depois=ISO traz só o novo. */
+    if (req.method === 'GET' && rota === '/crm/api/hotel/diario') {
+      const q = new URL(req.url, 'http://x').searchParams;
+      return json(res, 200, {
+        linhas: diario0007.listar({ limite: Number(q.get('limite')) || 80, depois: q.get('depois') }),
+        estado: diario0007.estado(),
+        auditoria: q.get('depois') ? null : diario0007.auditoria(),
+        tipos: diario0007.TIPOS,
+      });
+    }
     if (req.method === 'GET' && rota === '/crm/api/hotel') {
       return json(res, 200, {
         ...hotel.painel(),
@@ -3834,7 +3845,12 @@ server.listen(...(process.env.HOST ? [PORT, process.env.HOST] : [PORT]), () => {
         await avisarDono(texto).catch((err) => console.error(`[hotel] e-mail do prazo de treino falhou: ${err.message}`));
       }
     };
-    await rodar().catch((e) => console.error(`[hotel] prazo 12h falhou: ${e.message}`));
+    /* Saúde do 0007 no diário: o relógio dele falhou ou o Ollama (cérebro local) não responde = inoperante. */
+    let falhaRelogio = null;
+    await rodar().catch((e) => { falhaRelogio = e.message; console.error(`[hotel] prazo 12h falhou: ${e.message}`); });
+    const ollama = (process.env.OLLAMA_URL || process.env.VS_OLLAMA_URL || 'http://127.0.0.1:11434').replace(/\/+$/, '');
+    const ollamaOk = await fetch(`${ollama}/api/tags`, { signal: AbortSignal.timeout(5000) }).then((r) => r.ok).catch(() => false);
+    diario0007.marcarSaude(!falhaRelogio && ollamaOk, falhaRelogio ? `O relógio do Hotel falhou: ${falhaRelogio}` : `O Ollama (modelos de IA locais) não respondeu em ${ollama}`);
     await empresas.paraCada(rodar).catch((e) => console.error(`[hotel] prazo 12h (empresas) falhou: ${e.message}`));
     /* Só o que é do dono vai para o e-mail dele; empresa cliente vê a auditoria na própria tela. */
     const aviso = canaisEvo.avisoDeAuditoria();
