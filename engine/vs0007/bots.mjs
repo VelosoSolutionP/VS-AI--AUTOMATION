@@ -30,6 +30,7 @@ import { documento as validarDocumento } from '../vsclientes/ofertas.mjs';
 import * as R from './regras.mjs';
 import * as MAPA from './mapa.mjs';
 import * as DIARIO from './diario.mjs';
+import * as MODELOS from './modelos.mjs';
 import {
   MODELOS_FREE_0007,
   PARAMETROS_TREINO,
@@ -2136,7 +2137,7 @@ const urlOllamaPadrao = () => (process.env.OLLAMA_URL || process.env.VS_OLLAMA_U
 
 export function listarModelosFree0007() {
   const nos0007 = MAPA.obterNos('0007').nos.filter((n) => n.categoria === 'modelo-free' && n.estado === 'homologado');
-  return MODELOS_FREE_0007.map((m) => {
+  return MODELOS.catalogo().map((m) => {
     const no = nos0007.find((n) => String(n.conteudo || '').toLowerCase().includes(m.id.toLowerCase()));
     return {
       ...m,
@@ -2164,7 +2165,7 @@ export async function sincronizarModelosFree({ url = urlOllamaPadrao(), fetch: f
   }
   const existentes = MAPA.obterNos('0007').nos.filter((n) => n.categoria === 'modelo-free');
   const registrados = [];
-  for (const m of MODELOS_FREE_0007) {
+  for (const m of MODELOS.catalogo()) {
     const instalado = tagsInstaladas.has(m.id.toLowerCase());
     if (ollamaOnline && !instalado) continue;
     const conteudo = `${m.id} — ${m.nome} (${m.tamanho}): ${m.indicacao}`;
@@ -2201,9 +2202,9 @@ export async function sincronizarModelosFree({ url = urlOllamaPadrao(), fetch: f
 export async function baixarModeloFree({ modelo = 'qwen2.5:1.5b', url = urlOllamaPadrao(), fetch: fetchFn = globalThis.fetch, autorizado = false } = {}) {
   if (!autorizado) return { erro: 'baixar modelo no Ollama e registrar no mapa do 0007 exige autorização' };
   const id = String(modelo || '').trim();
-  const catalogo = MODELOS_FREE_0007.find((m) => m.id.toLowerCase() === id.toLowerCase());
+  const catalogo = MODELOS.catalogo().find((m) => m.id.toLowerCase() === id.toLowerCase());
   if (!catalogo) {
-    return { erro: `modelo "${id}" não está no catálogo de modelos free homologados pelo 0007 (${MODELOS_FREE_0007.map((m) => m.id).join(', ')})` };
+    return { erro: `modelo "${id}" não está no catálogo de modelos free homologados pelo 0007 (${MODELOS.catalogo().map((m) => m.id).join(', ')})` };
   }
   let baixou = false;
   if (typeof fetchFn === 'function') {
@@ -2232,6 +2233,21 @@ export async function baixarModeloFree({ modelo = 'qwen2.5:1.5b', url = urlOllam
     });
   }
   return { ok: true, modelo: catalogo.id, baixou, modelos: listarModelosFree0007(), sincronizacao: sync };
+}
+
+/** Dono escolheu um modelo no catálogo free: baixa com progresso e, pronto, entra no mapa do 0007. */
+export function adicionarModeloFree({ modelo, autorizado = false, fetch: fetchFn = globalThis.fetch } = {}) {
+  if (!autorizado) return { erro: 'adicionar modelo ao 0007 exige autorização do dono' };
+  const r = MODELOS.baixar({
+    modelo,
+    fetch: fetchFn,
+    aoTerminar: async (id) => {
+      await sincronizarModelosFree({ fetch: fetchFn, autorizado: true });
+      DIARIO.registrar({ tipo: 'modelos', titulo: `Modelo ${id} baixado e adicionado ao 0007` });
+    },
+  });
+  if (r.ok && !r.jaEstava) DIARIO.registrar({ tipo: 'modelos', titulo: `Começou a baixar ${r.download.id} para o 0007` });
+  return r;
 }
 
 export function diagnosticoTreinoBot(agenteId) {

@@ -100,6 +100,7 @@ import * as botModelos from '../engine/vsbot/modelos.mjs';
 import * as profissoes from '../engine/vsbot/profissoes.mjs';
 import * as hotel from '../engine/vs0007/bots.mjs';
 import * as diario0007 from '../engine/vs0007/diario.mjs';
+import * as modelos0007 from '../engine/vs0007/modelos.mjs';
 import * as docs from '../engine/vsdocumentos/index.mjs';
 import { documento as validarDocumento } from '../engine/vsclientes/ofertas.mjs';
 import * as clientes from '../engine/vsclientes/index.mjs';
@@ -2465,6 +2466,9 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
     }
     /* Hotel dos Bots (missão 0007): catálogo dos bots comerciais, totais e instâncias. */
     /* Diário do 0007 ao vivo + auditor de 15 dias (só o relevante). ?depois=ISO traz só o novo. */
+    if (req.method === 'GET' && rota === '/crm/api/hotel/modelos') {
+      return json(res, 200, { catalogoUrl: modelos0007.URL_CATALOGO, sugestoes: modelos0007.SUGESTOES, downloads: modelos0007.statusDownloads(), teto: Number(process.env.VS_OLLAMA_MAX_B) || 3 });
+    }
     if (req.method === 'GET' && rota === '/crm/api/hotel/diario') {
       const q = new URL(req.url, 'http://x').searchParams;
       return json(res, 200, {
@@ -3294,6 +3298,7 @@ self.addEventListener('notificationclick',(e)=>{ e.notification.close(); const a
           break;
         case '/crm/api/hotel/preparar-nicho': r = hotel.prepararNicho({ nicho: d.nicho }); break;
         case '/crm/api/hotel/modelos-free/sincronizar': r = await hotel.sincronizarModelosFree({ autorizado: true }); break;
+        case '/crm/api/hotel/modelos/adicionar': r = hotel.adicionarModeloFree({ modelo: d.modelo, autorizado: true }); break;
         case '/crm/api/hotel/modelos-free/baixar': r = await hotel.baixarModeloFree({ modelo: d.modelo, autorizado: d.autorizado !== false }); break;
         case '/crm/api/hotel/treinar-parametros': {
           const params = d.parametros && typeof d.parametros === 'object' ? d.parametros : {};

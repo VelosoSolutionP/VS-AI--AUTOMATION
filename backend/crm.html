@@ -2197,8 +2197,26 @@ body.rota-prosp .btn-p:hover{filter:brightness(1.08)}
 .z7-mod.on{border-color:color-mix(in srgb,var(--zn) 45%,var(--line));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--zn) 20%,transparent)}
 .z7-mod b{display:block;font-size:13.5px}.z7-mod small{display:block;color:var(--dim);font-size:11.5px;margin:4px 0 10px}
 .z7-mod .zc-pill{--rail:var(--warn)}.z7-mod.on .zc-pill{--rail:var(--zn)}
-.zc.z7 .btn.btn-p{background:linear-gradient(135deg,#ff9a1f,#9b6bff);border-color:transparent;color:#fff;box-shadow:0 10px 26px -12px rgba(155,107,255,.7)}
-.zc.z7 .btn.btn-p:hover{filter:brightness(1.08)}
+.zc.z7 .btn{position:relative;overflow:hidden;isolation:isolate;border-radius:999px;color:#fff;border:1px solid rgba(155,107,255,.42);
+  background:linear-gradient(160deg,#211e27,#16151a);box-shadow:0 8px 22px -14px rgba(155,107,255,.8),inset 0 1px 0 rgba(255,255,255,.08);transition:transform .2s,box-shadow .3s,border-color .3s}
+.zc.z7 .btn::before{content:"";position:absolute;left:-20%;right:-20%;top:0;height:220%;z-index:-1;border-radius:42%;
+  background:radial-gradient(45% 40% at 30% 35%,rgba(155,107,255,.95),transparent 70%),radial-gradient(40% 40% at 72% 30%,rgba(255,154,31,.85),transparent 70%),linear-gradient(180deg,rgba(155,107,255,.55),rgba(255,154,31,.35));
+  transform:translateY(78%) rotate(0deg);transition:transform .7s cubic-bezier(.2,.8,.2,1);animation:z7liq 7s linear infinite}
+.zc.z7 .btn::after{content:"";position:absolute;inset:0;border-radius:inherit;z-index:-1;background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,0) 55%);pointer-events:none}
+.zc.z7 .btn:hover{transform:translateY(-2px);border-color:rgba(255,154,31,.6);box-shadow:0 16px 30px -14px rgba(255,154,31,.65),0 0 0 1px rgba(155,107,255,.25)}
+.zc.z7 .btn:hover::before{transform:translateY(8%) rotate(0deg)}
+.zc.z7 .btn.btn-p::before{transform:translateY(14%)}
+.zc.z7 .btn.btn-p{border-color:rgba(255,154,31,.55);box-shadow:0 14px 30px -14px rgba(155,107,255,.9),inset 0 1px 0 rgba(255,255,255,.18)}
+.zc.z7 .btn:active{transform:translateY(0) scale(.98)}
+@keyframes z7liq{0%{border-radius:42% 48% 44% 46%;filter:hue-rotate(0deg)}50%{border-radius:48% 40% 50% 42%;filter:hue-rotate(-12deg)}100%{border-radius:42% 48% 44% 46%;filter:hue-rotate(0deg)}}
+.z7-bar{position:relative;height:14px;border-radius:999px;background:#16151a;border:1px solid rgba(155,107,255,.35);overflow:hidden;margin:8px 0 4px}
+.z7-bar i{position:absolute;inset:0 auto 0 0;border-radius:inherit;background:linear-gradient(90deg,#9b6bff,#ff9a1f);box-shadow:0 0 18px rgba(255,154,31,.6);transition:width .6s}
+.z7-bar i::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(115deg,rgba(255,255,255,.18) 0 10px,transparent 10px 22px);animation:z7mov 1s linear infinite}
+@keyframes z7mov{to{background-position:44px 0}}
+.z7-sug{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin:10px 0 14px}
+.z7-in{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.z7-in input{flex:1;min-width:200px;padding:10px 14px;border-radius:999px;border:1px solid rgba(155,107,255,.45);background:#16151a;color:#fff;font:inherit}
+.z7-in input:focus{outline:none;border-color:#ff9a1f;box-shadow:0 0 0 3px rgba(255,154,31,.2)}
 @media (prefers-reduced-motion:reduce){.zc *,.zc *::before,.zc *::after,.zc-hero::after{animation:none!important;transition:none!important}.zc-num{transform:none!important}}
 @media (max-width:640px){.zc-hero{padding:20px 16px}.zc-num{padding:16px 14px 14px 18px}.zc-bots{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}}
 </style>
@@ -9680,8 +9698,44 @@ function central0007Html(h){
   <div class="z7-box" style="margin-bottom:16px"><h3>${ico('gerar')} Modelos de IA free do 0007 <span class="zc-pill" style="--rail:var(--zn);margin-left:auto">${ativos}/${modelos.length} ativos</span></h3>
     <p>Os modelos que o 0007 usa para pensar. Esta máquina aguenta até o de 3B; maior que isso trava a produção até chegar a RAM nova.</p>
     <div class="z7-mods">${mods}</div>
-    <div class="zc-acts">${botao({t:'Baixar mais modelos free',ic:'baixar',v:'p',sz:'xs',on:`window.open('${Z7_URL_MODELOS}','_blank','noopener')`})}${botao({t:'Sincronizar modelos no Mapa 0007',ic:'atualizar',v:'s',sz:'xs',on:'cevoSincronizarModelos0007()'})}${botao({t:'0007: Rever e refazer todos os bots',ic:'check',v:'s',sz:'xs',on:'cevoRevisarTodosBots0007()'})}</div>
+    <div class="zc-acts">${botao({t:'Adicionar modelo ao 0007',ic:'baixar',v:'p',sz:'xs',on:'z7AbrirModelos()'})}${botao({t:'Sincronizar modelos no Mapa 0007',ic:'atualizar',v:'s',sz:'xs',on:'cevoSincronizarModelos0007()'})}${botao({t:'0007: Rever e refazer todos os bots',ic:'check',v:'s',sz:'xs',on:'cevoRevisarTodosBots0007()'})}</div>
   </div></section>`;
+}
+let Z7_MODS=null, Z7_TM=null;
+async function z7AbrirModelos(){
+  try{ Z7_MODS=await api('hotel/modelos'); }catch(e){ return avisoErro('Não consegui abrir os modelos',esc(e.message)); }
+  abrirModal('Adicionar modelo de IA ao 0007',`<div class="zc z7" id="z7Modal">${z7ModalHtml()}</div>`,BT.cancelar());
+  z7Acompanhar();
+}
+function z7ModalHtml(){
+  const m=Z7_MODS||{}, dls=(m.downloads||[]);
+  const ativos=dls.filter(d=>d.estado==='baixando');
+  const prog=dls.map(d=>{ const pct=d.total?Math.round(d.feito/d.total*100):(d.estado==='pronto'?100:3);
+    return `<div style="margin:10px 0"><b>${esc(d.id)}</b> <small class="hint">${d.estado==='pronto'?'pronto e adicionado ao 0007':d.estado==='erro'?'falhou: '+esc(d.erro||''):esc(d.status||'baixando')+(d.total?` · ${(d.feito/1e9).toFixed(2)} de ${(d.total/1e9).toFixed(2)} GB`:'')}</small><div class="z7-bar"><i style="width:${pct}%;${d.estado==='erro'?'background:#ff4d6d':''}"></i></div></div>`; }).join('');
+  return `<p class="hint">1. Abra o catálogo free, escolha um modelo e copie o nome (ex.: <b>gemma3:1b</b>). 2. Cole aqui e clique em Baixar e adicionar. Quando terminar, ele entra sozinho no mapa do 0007. Esta máquina aguenta até <b>${m.teto||3}B</b>.</p>
+  <div class="zc-acts" style="border:0;padding-top:0">${botao({t:'Abrir catálogo free do Ollama',ic:'ver',v:'p',sz:'xs',on:`window.open('${esc(m.catalogoUrl||'https://ollama.com/library')}','_blank','noopener')`})}</div>
+  <div class="z7-in" style="margin-top:12px"><input id="z7Nome" placeholder="Cole o nome do modelo, ex.: gemma3:1b" autocomplete="off">${botao({t:'Baixar e adicionar',ic:'baixar',v:'p',sz:'xs',on:`z7Adicionar(document.getElementById('z7Nome').value)`})}</div>
+  ${prog?`<div style="margin-top:14px">${prog}</div>`:''}
+  <h4 style="margin:18px 0 0">Sugestões leves e gratuitas</h4>
+  <div class="z7-sug">${(m.sugestoes||[]).map(x=>`<div class="z7-mod"><b>${esc(x.nome)}</b><small>${esc(x.tamanho)} · ${esc(x.indicacao)}</small>${botao({t:'Baixar e adicionar',ic:'baixar',v:'s',sz:'xs',off:ativos.some(d=>d.id===x.id),on:`z7Adicionar('${esc(x.id)}')`})}</div>`).join('')}</div>`;
+}
+async function z7Adicionar(nome){
+  nome=String(nome||'').trim();
+  if(!nome) return avisoErro('Falta o nome','Cole o nome do modelo copiado do catálogo, ex.: gemma3:1b');
+  try{ const r=await api('hotel/modelos/adicionar',{modelo:nome}); flash(r.jaEstava?`${r.download.id} já está baixando.`:`Baixando ${r.download.id}… acompanhe a barra.`,'ok'); z7Acompanhar(); }
+  catch(e){ avisoErro('Não consegui baixar',esc(e.message)); }
+}
+function z7Acompanhar(){
+  clearInterval(Z7_TM);
+  const passo=async()=>{
+    const el=document.getElementById('z7Modal'); if(!el){ clearInterval(Z7_TM); return; }
+    const antes=(Z7_MODS?.downloads||[]).filter(d=>d.estado==='baixando').length;
+    try{ Z7_MODS=await api('hotel/modelos'); }catch{ return; }
+    const nome=document.getElementById('z7Nome')?.value||''; el.innerHTML=z7ModalHtml(); const inp=document.getElementById('z7Nome'); if(inp) inp.value=nome;
+    const agora=(Z7_MODS.downloads||[]).filter(d=>d.estado==='baixando').length;
+    if(antes&&!agora){ await carregarHotel(); carregarDiario0007(); }
+  };
+  passo(); Z7_TM=setInterval(passo,1500);
 }
 async function z7Baixar(modelo){
   flash(`Baixando ${modelo} no Ollama… pode levar alguns minutos.`,'ok');
