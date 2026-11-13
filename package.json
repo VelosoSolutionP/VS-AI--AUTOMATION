@@ -45,14 +45,19 @@
     "README.md"
   ],
   "scripts": {
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "db:migrate": "prisma migrate deploy"
   },
   "publishConfig": {
     "access": "public"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@prisma/client": "^6.19.3",
+    "@wppconnect-team/wppconnect": "^2.3.6",
+    "pg": "^8.23.1",
     "playwright": "^1.61.1",
+    "prisma": "^6.19.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {

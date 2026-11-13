@@ -1,0 +1,211 @@
+// Banco do ZEST + Site. Uma única instância Postgres, dois bancos:
+//   zest        -> produção (8787) e Site
+//   zest_local  -> instância local (8788)
+// O estado JSON dos módulos entra em `bolso_dados` (documento JSONB) e vai
+// sendo normalizado em tabelas próprias módulo a módulo.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Empresa {
+  cnpj         String   @id
+  nome         String?
+  criadoEm     DateTime @map("criado_em")
+  atualizadoEm DateTime @map("atualizado_em")
+
+  documentos BolsoDado[]
+  produtos   CatalogoProduto[]
+
+  @@map("empresas")
+}
+
+model BolsoDado {
+  cnpj         String
+  loja         String   @default("principal")
+  modulo       String
+  nome         String
+  dados        Json
+  atualizadoEm DateTime @map("atualizado_em")
+
+  empresa Empresa @relation(fields: [cnpj], references: [cnpj], onDelete: Cascade)
+
+  @@id([cnpj, loja, modulo, nome])
+  @@map("bolso_dados")
+}
+
+model CatalogoProduto {
+  cnpj               String
+  loja               String  @default("principal")
+  sku                String
+  nome               String
+  descricao          String?
+  categoria          String?
+  marca              String?
+  precoCentavos      Int?    @map("preco_centavos")
+  precoPromoCentavos Int?    @map("preco_promo_centavos")
+  quantidade         Int?
+  reservado          Int?
+  ativo              Boolean @default(true)
+  naVitrine          Boolean @default(false) @map("na_vitrine")
+  imagem             String?
+  link               String?
+  atualizadoEm       DateTime @map("atualizado_em")
+
+  empresa Empresa @relation(fields: [cnpj], references: [cnpj], onDelete: Cascade)
+
+  @@id([cnpj, loja, sku])
+  @@index([cnpj, ativo, naVitrine])
+  @@map("catalogo_produtos")
+}
+
+model BolsoMigracao {
+  arquivo String   @id
+  cnpj    String
+  loja    String
+  em      DateTime
+
+  @@map("bolso_migracoes")
+}
+
+// ─── Site ────────────────────────────────────────────────────────────────────
+
+enum TipoSolicitacao {
+  parceria
+  orcamento
+  quebragalho
+}
+
+enum StatusSolicitacao {
+  pendente
+  aprovado
+  recusado
+}
+
+enum StatusIndicacao {
+  inscrito
+  analise
+  aprovado
+  recusado
+}
+
+model Solicitacao {
+  id          Int               @id @default(autoincrement())
+  tipo        TipoSolicitacao
+  status      StatusSolicitacao @default(pendente)
+  cnpj        String?
+  empresa     String
+  responsavel String
+  email       String
+  telefone    String
+  assunto     String?
+  site        String?
+  mensagem    String?
+  indicadoPor String?           @map("indicado_por")
+  origemIp    String?           @map("origem_ip")
+  criadoEm    DateTime          @map("criado_em")
+  decididoEm  DateTime?         @map("decidido_em")
+  decididoPor String?           @map("decidido_por")
+  observacao  String?
+
+  pagamentos Pagamento[]
+
+  @@index([status, criadoEm])
+  @@index([tipo, status])
+  @@map("solicitacoes")
+}
+
+model Admin {
+  id        Int      @id @default(autoincrement())
+  usuario   String   @unique
+  senhaHash String   @map("senha_hash")
+  nome      String?
+  ativo     Boolean  @default(true)
+  criadoEm  DateTime @map("criado_em")
+
+  sessoes Sessao[]
+
+  @@map("admins")
+}
+
+model Sessao {
+  token    String   @id
+  adminId  Int      @map("admin_id")
+  expiraEm DateTime @map("expira_em")
+
+  admin Admin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([expiraEm])
+  @@map("sessoes")
+}
+
+model Indicacao {
+  id          Int            @id @default(autoincrement())
+  codigo      String         @unique
+  nome        String
+  email       String
+  telefone    String
+  empresa     String?
+  social      String?
+  status      StatusIndicacao @default(inscrito)
+  postUrl     String?        @map("post_url")
+  zaps        Int            @default(0)
+  curtiu      Int            @default(0)
+  provasEm    DateTime?      @map("provas_em")
+  premioAte   DateTime?      @map("premio_ate")
+  indicadoPor String?        @map("indicado_por")
+  origemIp    String?        @map("origem_ip")
+  criadoEm    DateTime       @map("criado_em")
+  decididoEm  DateTime?      @map("decidido_em")
+  decididoPor String?        @map("decidido_por")
+  observacao  String?
+
+  @@index([status, criadoEm])
+  @@index([email])
+  @@map("indicacoes")
+}
+
+model Pagamento {
+  id             Int      @id @default(autoincrement())
+  asaasId        String   @unique @map("asaas_id")
+  solicitacaoId  Int?     @map("solicitacao_id")
+  clienteAsaas   String?  @map("cliente_asaas")
+  descricao      String?
+  forma          String
+  valor          Float
+  liquido        Float?
+  taxaPlataforma Float?   @map("taxa_plataforma")
+  status         String
+  venceEm        DateTime? @map("vence_em")
+  pagoEm         DateTime? @map("pago_em")
+  creditoEm      DateTime? @map("credito_em")
+  link           String?
+  pixPayload     String?  @map("pix_payload")
+  ambiente       String
+  criadoEm       DateTime @map("criado_em")
+  atualizadoEm   DateTime @map("atualizado_em")
+
+  solicitacao Solicitacao? @relation(fields: [solicitacaoId], references: [id], onDelete: SetNull)
+
+  @@index([status, criadoEm])
+  @@index([solicitacaoId])
+  @@map("pagamentos")
+}
+
+model AsaasEvento {
+  id         Int      @id @default(autoincrement())
+  eventoId   String?  @unique @map("evento_id")
+  tipo       String
+  asaasId    String?  @map("asaas_id")
+  corpo      String
+  recebidoEm DateTime @map("recebido_em")
+
+  @@index([asaasId, recebidoEm])
+  @@map("asaas_eventos")
+}
