@@ -44,7 +44,7 @@ export function montar(f = {}) {
 
   // WhatsApp Web
   const w = f.whatsapp || null;
-  if (!w) { lista.push(item('whatsapp', 'canais', 'WhatsApp Web', OFF, 'canal não montado', { tela: 'canais' })); }
+  if (!w) { lista.push(item('whatsapp', 'canais', 'WhatsApp Web', OFF, 'não usado nesta instalação (o WhatsApp vai pela Evolution, em Canais)', { tela: 'canais', naoMontado: true })); }
   else {
     const e = w.estado || 'desconectado';
     lista.push(item('whatsapp', 'canais', 'WhatsApp Web',
@@ -148,7 +148,9 @@ export function comHistorico(lista, { agora = new Date().toISOString() } = {}) {
       i.estado !== OK &&
       h.jaFuncionou[i.id] &&
       !h.dispensadas[i.id] &&
-      !NAO_E_QUEDA.has(i.id)
+      !NAO_E_QUEDA.has(i.id) &&
+      /* Canal que nem está montado nesta instalação não "caiu": não é usado (12/11, dono). */
+      !i.naoMontado
     )
     .map((i) => ({
       id: i.id,

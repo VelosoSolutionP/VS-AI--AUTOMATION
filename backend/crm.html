@@ -2257,6 +2257,37 @@ body.rota-prosp .btn-p:hover{filter:brightness(1.08)}
 .modal.z7-modal{border-radius:0;background:linear-gradient(170deg,#15111e,#0b0910);border:0;box-shadow:inset 0 0 0 1px rgba(155,107,255,.45),0 40px 90px -30px rgba(155,107,255,.55);
   clip-path:polygon(22px 0,100% 0,100% calc(100% - 22px),calc(100% - 22px) 100%,0 100%,0 22px)}
 .modal.z7-modal #modalT{letter-spacing:.12em;text-transform:uppercase;font-size:14px;color:#e6dcff;text-shadow:0 0 12px rgba(155,107,255,.7)}
+/* Hotel inteiro no padrão HUD roxo da Central do 0007 (12/11, dono) */
+.hz{--ac:#9b6bff;--ac-2:#b48cff;--ac-3:#c9b0ff;--ac-fg:#fff;--ac-soft:rgba(155,107,255,.14);--ac-line:rgba(155,107,255,.38);--ac-glow:rgba(155,107,255,.42);
+  --neon:#9b6bff;--ok:#c9b0ff;--ok-bg:rgba(155,107,255,.14);--ok-line:rgba(155,107,255,.45);--sh-ac:0 8px 18px -10px rgba(155,107,255,.5)}
+.hz .hotel-kpi,.hz .hotel-card,.hz .hotel-details>.card,.hz .hotel-details .card,.hz .hotel-fact,.hz .hotel-profile-block,.hz .hotel-empty{
+  border-radius:3px;border:0;box-shadow:inset 0 0 0 1px rgba(155,107,255,.28);
+  background:linear-gradient(135deg,transparent 9.4px,rgba(155,107,255,.5) 9.4px 10.6px,transparent 10.6px) 0 0/15px 15px no-repeat,
+    linear-gradient(315deg,transparent 9.4px,rgba(155,107,255,.5) 9.4px 10.6px,transparent 10.6px) 100% 100%/15px 15px no-repeat,linear-gradient(160deg,#16131f,#0f0d15);
+  clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)}
+.hz .hotel-fact,.hz .hotel-profile-block{clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);
+  background:linear-gradient(135deg,transparent 5.2px,rgba(155,107,255,.45) 5.2px 6.4px,transparent 6.4px) 0 0/9px 9px no-repeat,linear-gradient(315deg,transparent 5.2px,rgba(155,107,255,.45) 5.2px 6.4px,transparent 6.4px) 100% 100%/9px 9px no-repeat,#120f19}
+.hz .hotel-kpi{transition:box-shadow .3s}
+.hz .hotel-kpi:hover{box-shadow:inset 0 0 0 1px #b48cff,inset 0 0 26px rgba(155,107,255,.25)}
+.hz .hotel-kpi svg{color:#b48cff;filter:drop-shadow(0 0 6px rgba(155,107,255,.8))}
+.hz .hotel-kpi b,.hz .hotel-kpi strong{color:#e6dcff;text-shadow:0 0 14px rgba(155,107,255,.6)}
+.hz .hotel-card{transition:box-shadow .3s,transform .3s}
+.hz .hotel-card:hover{transform:translateY(-2px);box-shadow:inset 0 0 0 1px #b48cff,inset 0 0 28px rgba(155,107,255,.22)}
+.hz .hotel-card.selected{box-shadow:inset 0 0 0 1px #c9b0ff,inset 0 0 34px rgba(155,107,255,.35);outline:0}
+.hz .hotel-avatar{border-radius:50%;box-shadow:0 0 0 1px #9b6bff,0 0 14px -2px rgba(155,107,255,.8)}
+.hz .hotel-card-open{color:#b48cff;letter-spacing:.06em;text-transform:uppercase;font-size:10px}
+.hz .badge{border-radius:2px;letter-spacing:.06em;text-transform:uppercase;font-size:10px;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
+.hz .badge.b-ok{box-shadow:inset 0 0 0 1px rgba(155,107,255,.55),0 0 0 transparent;color:#d9ccff;background:rgba(155,107,255,.16)}
+.hz .hotel-prazo{color:#b48cff}
+.hz .hotel-toolbar input,.hz .hotel-toolbar select{border-radius:0;border:0;background-color:#120f19;color:#e6dcff;box-shadow:inset 0 0 0 1px rgba(155,107,255,.45);
+  clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
+.hz .hotel-toolbar input:focus,.hz .hotel-toolbar select:focus{outline:none;box-shadow:inset 0 0 0 1px #b48cff,inset 0 0 16px rgba(155,107,255,.3)}
+.hz .hotel-detail-tabs{border-bottom-color:rgba(155,107,255,.3)}
+.hz .hotel-detail-tabs button{text-transform:uppercase;letter-spacing:.1em;font-size:10.5px}
+.hz .hotel-detail-tabs button.active{color:#e6dcff;border-color:#9b6bff;text-shadow:0 0 10px rgba(155,107,255,.8)}
+.hz .hotel-profile-block small,.hz .hotel-profile-block>b:first-child{color:#b48cff}
+.hz .tbl-wrap{border-radius:3px;box-shadow:inset 0 0 0 1px rgba(155,107,255,.28)}
+.hz .hotel-ai-note{border-left-color:#9b6bff;background:rgba(155,107,255,.08)}
 .z7-sug{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin:10px 0 14px}
 .z7-in{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .z7-in input{flex:1;min-width:200px;padding:10px 14px;border-radius:999px;border:1px solid rgba(155,107,255,.45);background:#16151a;color:#fff;font:inherit}
@@ -4965,12 +4996,8 @@ function telaHotel(){
       ${prazoTreinoCard(b)}
       <div class="hotel-card-status"><span class="badge ${ESTADO_CLASS[b.estado]||'b-warn'}">${esc(ESTADO_LABEL[b.estado]||'Em preparação')}</span><span class="hotel-card-open">${b.agenteId===HOTEL_SELECIONADO?'Ocultar detalhes':'Abrir detalhes'}</span></div>
     </button>`).join('');
-  return head('Hotel dos Bots','O 0007 prepara e acompanha os perfis. Toque em um cartão para abrir o perfil, as regras e o histórico.')+hotelTreinoHtml(h)+
-    `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-      ${botao({t:'Novo Bot',ic:'mais',v:'p',on:'abrirWizardBot()'})}
-      ${botao({t:'0007: Rever e refazer todos os bots',ic:'check',v:'s',on:'cevoRevisarTodosBots0007()'})}
-      ${botao({t:'Atualizar',ic:'atualizar',v:'s',on:'carregarHotel()'})}
-    </div>
+  return `<div class="zc z7 hz">`+head('Hotel dos Bots','O 0007 prepara e acompanha os perfis. Toque em um cartão para abrir o perfil, as regras e o histórico.')+hotelTreinoHtml(h)+
+    `
     ${h?`<div class="hotel-kpis">
       ${[['bot','Total de bots',t?.total],['relogio','Em preparação',t?.emPreparacao],['check','Homologados',t?.homologados],['caixa','Disponíveis',t?.disponiveis],['person','Contratados',t?.contratados]].map(([ic,n,v])=>`<div class="hotel-kpi"><span class="chip">${ico(ic)}</span><div class="hotel-kpi-copy"><b>${Number(v||0)}</b><span>${n}</span></div></div>`).join('')}
     </div>`:''}
@@ -4986,7 +5013,7 @@ function telaHotel(){
       ${lista.length?`<section><div class="hotel-grid">${cards||`<div class="card">${cardH('bot','Nenhum bot encontrado','Ajuste os filtros ou crie um bot no Hotel.',2)}</div>`}</div></section>
         <div class="hotel-details" id="hotelBotDetalhes"${selecionado?'':' hidden'}>${detalheBotHotel(selecionado)}</div>`
         :`<div class="card hotel-empty">${cardH(h?'bot':'alerta',h?'Nenhum bot cadastrado':'Catálogo indisponível',h?'Crie o primeiro bot para começar a organizar seus atendentes.':`Não consegui carregar os bots comerciais: ${esc(HOTEL_ERRO||'erro não informado')}. Atualize o Hotel e tente novamente.`,h?2:5,botao({t:h?'Criar primeiro bot':'Tentar de novo',ic:h?'mais':'atualizar',v:'p',sz:'xs',on:h?'abrirWizardBot()':'carregarHotel()'}))}</div>`}
-    </div>`;
+    </div></div>`;
 }
 
 function filtrarHotel(){
@@ -9734,10 +9761,11 @@ function central0007Html(h){
       <div class="zc-stat on"><b>${c.homologou||0}</b><small>homologadas</small></div>
     </div></div>
   <div class="z7-orbs">
+    <button class="z7-orb" onclick="abrirWizardBot()"><span class="o">${ico('mais')}</span><span>Novo bot</span></button>
     <button class="z7-orb" onclick="z7AbrirModelos()"><span class="o">${ico('baixar')}</span><span>Adicionar modelo</span></button>
     <button class="z7-orb" onclick="cevoSincronizarModelos0007()"><span class="o">${ico('atualizar')}</span><span>Sincronizar mapa</span></button>
     <button class="z7-orb" onclick="cevoRevisarTodosBots0007()"><span class="o">${ico('config')}</span><span>Rever todos os bots</span></button>
-    <button class="z7-orb" onclick="carregarDiario0007()"><span class="o">${ico('auditor')}</span><span>Atualizar diário</span></button>
+    <button class="z7-orb" onclick="carregarHotel();carregarDiario0007()"><span class="o">${ico('auditor')}</span><span>Atualizar tudo</span></button>
   </div>
   <div class="z7-cols">
     <div class="z7-box"><h3><span class="z7-live"></span>Ao vivo</h3><p>Atualiza sozinho a cada 15 segundos.</p>
